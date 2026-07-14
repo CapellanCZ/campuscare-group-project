@@ -1,9 +1,5 @@
 "use client";
 
-import { AppleIcon } from "@/components/apple-icon";
-import { GithubIcon } from "@/components/github-icon";
-import { GoogleIcon } from "@/components/google-icon";
-import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import {
 	InputGroup,
@@ -12,14 +8,8 @@ import {
 } from "@/components/ui/input-group";
 import {
   Field,
-  FieldDescription,
-  FieldGroup,
   FieldLabel,
-  FieldLegend,
-  FieldSeparator,
-  FieldSet,
 } from "@/components/ui/field";
-import { AuthDivider } from "@/components/auth-divider";
 import { FloatingPaths } from "@/components/floating-paths";
 import { IconChevronLeft, IconAt, IconEyeClosed } from "@tabler/icons-react";
 import Link from "next/link";
@@ -28,18 +18,35 @@ import Link from "next/link";
 export function AuthPage() {
 	return (
 		<main className="relative md:h-screen md:overflow-hidden lg:grid lg:grid-cols-2">
+			{/* <div className="relative hidden h-full flex-col border-r bg-secondary p-10 lg:flex dark:bg-secondary/20">
+				<div 
+					className="absolute inset-0 bg-center"
+					style={{ backgroundImage: 'url(https://onlineapp.nu-dasma.edu.ph/portal/facade/dasma.webp)', backgroundSize: '200%' }}
+				/>
+				<div className="absolute inset-0 bg-linear-to-b from-transparent via-transparent to-background" />
+				<img src="/Frame 8.svg" alt="Logo" className="relative z-10 mr-auto h-10" />
+				<div className="relative z-10 mt-auto">
+					<blockquote className="space-y-2">
+						<p className="text-xl text-black/40">
+							"I'm a bulldog. I refuse to lose, and I'm always going to compete. I guarantee I'm going to give everything I can."
+						</p>
+						<footer className="font-mono font-semibold text-sm text-black/40">
+							- Jason Place
+						</footer>
+					</blockquote>
+				</div>
+			</div> */}
 			<div className="relative hidden h-full flex-col border-r bg-secondary p-10 lg:flex dark:bg-secondary/20">
 				<div className="absolute inset-0 bg-linear-to-b from-transparent via-transparent to-background" />
-				<Logo className="mr-auto h-4.5" />
+				<img src="/images/logo.png" alt="Logo" className="relative z-10 mr-auto h-10" />
 
 				<div className="z-10 mt-auto">
 					<blockquote className="space-y-2">
 						<p className="text-xl">
-							&ldquo;This Platform has helped me to save time and serve my
-							clients faster than ever before.&rdquo;
+							"I'm a bulldog. I refuse to lose, and I'm always going to compete. I guarantee I'm going to give everything I can."
 						</p>
 						<footer className="font-mono font-semibold text-sm">
-							~ Ali Hassan
+							~ Jason Place
 						</footer>
 					</blockquote>
 				</div>
@@ -61,7 +68,6 @@ export function AuthPage() {
 				<Button className="absolute top-7 left-5" variant="ghost" render={<a href="#" />} nativeButton={false}><IconChevronLeft data-icon="inline-start" />Home</Button>
 
 				<div className="mx-auto space-y-4 sm:w-sm">
-					<Logo className="h-4.5 lg:hidden" />
 					<div className="flex flex-col space-y-1">
 						<h1 className="font-bold text-2xl tracking-wide">
 							Sign in
@@ -70,26 +76,10 @@ export function AuthPage() {
 							Enter your work email to get a secure magic link.
 						</p>
 					</div>
-					{/* <div className="space-y-2">
-						<Button className="w-full" variant="outline">
-							<GoogleIcon data-icon="inline-start" />
-							Continue with Google
-						</Button>
-						<Button className="w-full" variant="outline">
-							<AppleIcon data-icon="inline-start" />
-							Continue with Apple
-						</Button>
-						<Button className="w-full" variant="outline">
-							<GithubIcon data-icon="inline-start" />
-							Continue with GitHub
-						</Button>
-					</div>
-
-					<AuthDivider>OR</AuthDivider> */}
-
+					
 					<form className="space-y-4">
 						<Field className="max-w-sm">
-							<FieldLabel htmlFor="inline-end-input">Work Email</FieldLabel>
+							{/* <FieldLabel htmlFor="inline-end-input">Work Email</FieldLabel> */}
 							<InputGroup>
 								<InputGroupInput
 								placeholder="your.email@example.com"
@@ -102,7 +92,7 @@ export function AuthPage() {
 							</InputGroup>
 						</Field>
 
-						<Field className="max-w-sm">
+						{/* <Field className="max-w-sm">
 							<FieldLabel htmlFor="inline-end-input">Password</FieldLabel>
 							<InputGroup>
 								<InputGroupInput
@@ -114,13 +104,13 @@ export function AuthPage() {
 									<IconEyeClosed/>
 								</InputGroupAddon>
 							</InputGroup>
-						</Field>
+						</Field> */}
 						<p className="text-start text-muted-foreground text-xs">
 							Your sign-in link stays active for 15 minutes.
 						</p>
 
 						<Button className="w-full" type="button">
-							Sign In
+							<Link href="/dashboard">Sign In</Link>
 						</Button>
 					</form>
 					<p className="mt-8 text-muted-foreground text-sm">
