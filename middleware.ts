@@ -1,5 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server"
 
+import {
+  dashboardPathForRole,
+  isProtectedRolePath,
+  isRolePathAllowed,
+  roleRequiresClinicMembership,
+} from "@/lib/auth/redirects"
+import { normalizeWebRole } from "@/lib/auth/types"
 import { updateSession } from "@/lib/supabase/middleware"
 
 export async function middleware(request: NextRequest) {
@@ -7,18 +14,20 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   const isDashboard = pathname.startsWith("/dashboard")
+  const isRoleDashboard = isProtectedRolePath(pathname)
   const isPending = pathname.startsWith("/auth/pending")
+  const requiresAuth = isDashboard || isRoleDashboard || isPending
 
-  if (!user && (isDashboard || isPending)) {
+  if (!user && requiresAuth) {
     const url = request.nextUrl.clone()
-    url.pathname = "/"
+    url.pathname = "/login"
     return NextResponse.redirect(url)
   }
 
-  if (user && (isDashboard || isPending)) {
+  if (user && requiresAuth) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("is_active")
+      .select("is_active, primary_role")
       .eq("id", user.id)
       .maybeSingle()
 
@@ -28,6 +37,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
+    const role = normalizeWebRole(profile.primary_role)
     const { data: membership } = await supabase
       .from("clinic_members")
       .select("clinic_id")
@@ -37,16 +47,24 @@ export async function middleware(request: NextRequest) {
       .maybeSingle()
 
     const hasMembership = Boolean(membership)
+    const requiresMembership = roleRequiresClinicMembership(role)
+    const hasRouteAccess = !requiresMembership || hasMembership
 
-    if (isDashboard && !hasMembership) {
+    if ((isDashboard || isRoleDashboard) && !hasRouteAccess) {
       const url = request.nextUrl.clone()
       url.pathname = "/auth/pending"
       return NextResponse.redirect(url)
     }
 
-    if (isPending && hasMembership) {
+    if (hasRouteAccess && (isPending || isDashboard)) {
       const url = request.nextUrl.clone()
-      url.pathname = "/dashboard"
+      url.pathname = dashboardPathForRole(role)
+      return NextResponse.redirect(url)
+    }
+
+    if (hasRouteAccess && isRoleDashboard && !isRolePathAllowed(pathname, role)) {
+      const url = request.nextUrl.clone()
+      url.pathname = dashboardPathForRole(role)
       return NextResponse.redirect(url)
     }
   }

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import type { StaffAccess, WebRole } from "@/lib/auth/types"
+import { normalizeWebRole, type StaffAccess } from "@/lib/auth/types"
 
 export async function getStaffAccess(): Promise<StaffAccess | null> {
   const supabase = await createClient()
@@ -29,7 +29,7 @@ export async function getStaffAccess(): Promise<StaffAccess | null> {
     userId: profile.id,
     email: profile.email,
     fullName: profile.full_name,
-    primaryRole: profile.primary_role as WebRole,
+    primaryRole: normalizeWebRole(profile.primary_role),
     hasClinicMembership: Boolean(membership),
   }
 }

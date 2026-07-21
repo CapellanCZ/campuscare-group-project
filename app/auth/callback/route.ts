@@ -1,16 +1,15 @@
 import { NextResponse } from "next/server"
 
+import {
+  dashboardPathForRole,
+  roleRequiresClinicMembership,
+} from "@/lib/auth/redirects"
+import { normalizeWebRole } from "@/lib/auth/types"
 import { createClient } from "@/lib/supabase/server"
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get("code")
-  const nextParam = searchParams.get("next")
-  const next =
-    nextParam?.startsWith("/") && !nextParam.startsWith("//")
-      ? nextParam
-      : "/dashboard"
-
   if (!code) {
     return NextResponse.redirect(`${origin}/auth/error`)
   }
@@ -30,6 +29,12 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/auth/error`)
   }
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("primary_role")
+    .eq("id", user.id)
+    .maybeSingle()
+
   const { data: membership } = await supabase
     .from("clinic_members")
     .select("clinic_id")
@@ -38,9 +43,11 @@ export async function GET(request: Request) {
     .limit(1)
     .maybeSingle()
 
-  if (!membership) {
+  const role = normalizeWebRole(profile?.primary_role)
+  if (roleRequiresClinicMembership(role) && !membership) {
     return NextResponse.redirect(`${origin}/auth/pending`)
   }
 
-  return NextResponse.redirect(`${origin}${next}`)
+  const rolePath = dashboardPathForRole(role)
+  return NextResponse.redirect(`${origin}${rolePath}`)
 }

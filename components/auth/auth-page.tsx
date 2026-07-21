@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { FloatingPaths } from "@/components/floating-paths"
 import {
   RESEND_COOLDOWN_SECONDS,
+  resolvePostLoginPath,
   sendMagicLink,
   sendOtp,
   verifyOtp,
@@ -130,8 +131,15 @@ export function AuthPage() {
       return
     }
 
+    const postLogin = await resolvePostLoginPath()
+    if (!postLogin.ok) {
+      setIsVerifying(false)
+      setOtpError(postLogin.error)
+      return
+    }
+
     router.refresh()
-    router.push("/dashboard")
+    router.push(postLogin.path)
   }
 
   const handleBackToEmail = () => {

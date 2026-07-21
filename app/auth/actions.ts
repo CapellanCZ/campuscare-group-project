@@ -1,7 +1,12 @@
 "use server"
 
 import { mapAuthError } from "@/lib/auth/errors"
-import type { AuthResult } from "@/lib/auth/types"
+import { getStaffAccess } from "@/lib/auth/access"
+import {
+  dashboardPathForRole,
+  roleRequiresClinicMembership,
+} from "@/lib/auth/redirects"
+import type { AuthResult, PostLoginPathResult } from "@/lib/auth/types"
 import { createClient } from "@/lib/supabase/server"
 
 function siteUrl() {
@@ -74,4 +79,21 @@ export async function signOut(): Promise<AuthResult> {
   }
 
   return { ok: true }
+}
+
+export async function getPostLoginPath(): Promise<PostLoginPathResult> {
+  const access = await getStaffAccess()
+
+  if (!access) {
+    return { ok: false, error: "Could not resolve your staff access." }
+  }
+
+  if (
+    roleRequiresClinicMembership(access.primaryRole) &&
+    !access.hasClinicMembership
+  ) {
+    return { ok: true, path: "/auth/pending" }
+  }
+
+  return { ok: true, path: dashboardPathForRole(access.primaryRole) }
 }

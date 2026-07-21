@@ -1,23 +1,24 @@
 import { redirect } from "next/navigation"
 
-import { AppShell } from "@/components/app-shell"
-import { Dashboard } from "@/components/dashboard"
 import { getStaffAccess } from "@/lib/auth/access"
+import {
+  dashboardPathForRole,
+  roleRequiresClinicMembership,
+} from "@/lib/auth/redirects"
 
 export default async function DashboardPage() {
   const access = await getStaffAccess()
 
   if (!access) {
-    redirect("/")
+    redirect("/login")
   }
 
-  if (!access.hasClinicMembership) {
+  if (
+    roleRequiresClinicMembership(access.primaryRole) &&
+    !access.hasClinicMembership
+  ) {
     redirect("/auth/pending")
   }
 
-  return (
-    <AppShell>
-      <Dashboard />
-    </AppShell>
-  )
+  redirect(dashboardPathForRole(access.primaryRole))
 }

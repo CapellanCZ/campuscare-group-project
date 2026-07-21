@@ -25,7 +25,12 @@ const user = {
 export function NavUser() {
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger render={<Avatar className="size-8" />}><AvatarImage src={user.avatar} /><AvatarFallback>{user.name.charAt(0)}</AvatarFallback></DropdownMenuTrigger>
+			<DropdownMenuTrigger aria-label="Open user menu">
+				<Avatar className="size-8">
+					<AvatarImage src={user.avatar} />
+					<AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+				</Avatar>
+			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="w-60">
 				<DropdownMenuItem className="flex items-center justify-start gap-2">
 					<DropdownMenuLabel className="flex items-center gap-3">

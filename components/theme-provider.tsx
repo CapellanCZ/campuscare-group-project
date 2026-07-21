@@ -1,23 +1,94 @@
 "use client"
 
 import * as React from "react"
-import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 
-function ThemeProvider({
-  children,
-  ...props
-}: React.ComponentProps<typeof NextThemesProvider>) {
+type ThemeName = "light" | "dark" | "system"
+type ResolvedTheme = "light" | "dark"
+
+type ThemeContextValue = {
+  theme: ThemeName
+  resolvedTheme: ResolvedTheme
+  setTheme: (theme: ThemeName) => void
+}
+
+const STORAGE_KEY = "theme"
+const ThemeContext = React.createContext<ThemeContextValue | null>(null)
+
+function resolveSystemTheme(): ResolvedTheme {
+  if (typeof window === "undefined") return "light"
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light"
+}
+
+function readStoredTheme(): ThemeName {
+  if (typeof window === "undefined") return "system"
+  const stored = window.localStorage.getItem(STORAGE_KEY)
+  if (stored === "light" || stored === "dark" || stored === "system") {
+    return stored
+  }
+  return "system"
+}
+
+function applyThemeClass(resolvedTheme: ResolvedTheme) {
+  const root = document.documentElement
+  root.classList.remove("light", "dark")
+  root.classList.add(resolvedTheme)
+  root.style.colorScheme = resolvedTheme
+}
+
+function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [theme, setThemeState] = React.useState<ThemeName>(() => readStoredTheme())
+  const [systemTheme, setSystemTheme] = React.useState<ResolvedTheme>(() =>
+    resolveSystemTheme()
+  )
+  const resolvedTheme: ResolvedTheme =
+    theme === "system" ? systemTheme : (theme as ResolvedTheme)
+
+  React.useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)")
+    const onChange = () => {
+      if (theme !== "system") return
+      const next = resolveSystemTheme()
+      setSystemTheme(next)
+    }
+
+    media.addEventListener("change", onChange)
+    return () => media.removeEventListener("change", onChange)
+  }, [theme])
+
+  React.useEffect(() => {
+    applyThemeClass(resolvedTheme)
+  }, [theme, resolvedTheme])
+
+  const setTheme = React.useCallback((nextTheme: ThemeName) => {
+    const safeTheme: ThemeName =
+      nextTheme === "light" || nextTheme === "dark" || nextTheme === "system"
+        ? nextTheme
+        : "system"
+
+    setThemeState(safeTheme)
+    window.localStorage.setItem(STORAGE_KEY, safeTheme)
+
+    const nextResolved =
+      safeTheme === "system" ? resolveSystemTheme() : (safeTheme as ResolvedTheme)
+    applyThemeClass(nextResolved)
+  }, [])
+
+  const contextValue = React.useMemo<ThemeContextValue>(
+    () => ({
+      theme,
+      resolvedTheme,
+      setTheme,
+    }),
+    [theme, resolvedTheme, setTheme]
+  )
+
   return (
-    <NextThemesProvider
-      attribute="class"
-      defaultTheme="system"
-      enableSystem
-      disableTransitionOnChange
-      {...props}
-    >
+    <ThemeContext.Provider value={contextValue}>
       <ThemeHotkey />
       {children}
-    </NextThemesProvider>
+    </ThemeContext.Provider>
   )
 }
 
@@ -47,7 +118,9 @@ function ThemeHotkey() {
         return
       }
 
-      if (event.key.toLowerCase() !== "d") {
+      const pressedKey =
+        typeof event.key === "string" ? event.key.toLowerCase() : ""
+      if (pressedKey !== "d") {
         return
       }
 
@@ -69,3 +142,14 @@ function ThemeHotkey() {
 }
 
 export { ThemeProvider }
+export function useTheme() {
+  const context = React.useContext(ThemeContext)
+  if (!context) {
+    return {
+      theme: "system" as ThemeName,
+      resolvedTheme: "light" as ResolvedTheme,
+      setTheme: () => {},
+    }
+  }
+  return context
+}
