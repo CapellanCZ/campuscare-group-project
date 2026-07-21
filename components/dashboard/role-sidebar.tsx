@@ -54,7 +54,7 @@ export function RoleSidebar({ role }: RoleSidebarProps) {
         <SidebarGroup className="px-2">
           <SidebarMenuItem className="w-full">
             <Button
-              className="w-full justify-center bg-primary text-primary-foreground hover:bg-primary/90"
+              className="w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90"
               render={<Link href={nav.quickActionHref ?? "#"} />}
               nativeButton={false}
             >

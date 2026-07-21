@@ -52,9 +52,6 @@ export function RoleHeader({
       </Breadcrumb>
 
       <div className="flex items-center gap-3">
-        <Button variant="outline" size="icon-sm" aria-label="Notifications">
-          <IconBell />
-        </Button>
         <Button
           variant="outline"
           size="icon-sm"
@@ -62,6 +59,9 @@ export function RoleHeader({
           onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
         >
           {resolvedTheme === "dark" ? <IconSun /> : <IconMoon />}
+        </Button>
+        <Button variant="outline" size="icon-sm" aria-label="Notifications">
+          <IconBell />
         </Button>
         <Separator
           orientation="vertical"

@@ -68,7 +68,11 @@ const roleMetaMap: Record<WebRole, RoleMeta> = {
 const roleGroupsByRole: Record<WebRole, RoleNavGroup[]> = {
   admin: [
     {
-      items: [{ title: "Dashboard", href: "/admin/dashboard", icon: IconLayoutGrid }],
+      label: "Overview",
+      items: [
+        { title: "Dashboard", href: "/admin/dashboard", icon: IconLayoutGrid },
+        { title: "Analytics", href: "/admin/analytics", icon: IconChartBar },
+      ],
     },
     {
       label: "Management",
@@ -82,7 +86,11 @@ const roleGroupsByRole: Record<WebRole, RoleNavGroup[]> = {
   ],
   nurse: [
     {
-      items: [{ title: "Dashboard", href: "/nurse/dashboard", icon: IconLayoutGrid }],
+      label: "Overview",
+      items: [
+        { title: "Dashboard", href: "/nurse/dashboard", icon: IconLayoutGrid },
+        { title: "Analytics", href: "/nurse/analytics", icon: IconChartBar },
+      ],
     },
     {
       label: "Operations",
@@ -112,8 +120,10 @@ const roleGroupsByRole: Record<WebRole, RoleNavGroup[]> = {
   ],
   physician: [
     {
+      label: "Overview",
       items: [
         { title: "Dashboard", href: "/physician/dashboard", icon: IconLayoutGrid },
+        { title: "Analytics", href: "/physician/analytics", icon: IconChartBar },
       ],
     },
     {
@@ -139,7 +149,11 @@ const roleGroupsByRole: Record<WebRole, RoleNavGroup[]> = {
   ],
   dentist: [
     {
-      items: [{ title: "Dashboard", href: "/dentist/dashboard", icon: IconLayoutGrid }],
+      label: "Overview",
+      items: [
+        { title: "Dashboard", href: "/dentist/dashboard", icon: IconLayoutGrid },
+        { title: "Analytics", href: "/dentist/analytics", icon: IconChartBar },
+      ],
     },
     {
       label: "Operations",
