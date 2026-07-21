@@ -217,7 +217,6 @@ export async function UserManagementPage({
         title="User Management"
         subtitle="Provision and maintain staff access"
         description="Create nurse, physician, and dentist accounts using magic-link login and manage active or inactive access."
-        breadcrumbs={["Admin", "User Management"]}
       />
 
       {error ? (

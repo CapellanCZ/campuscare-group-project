@@ -23,7 +23,6 @@ export function AdminModulePage({ module }: AdminModulePageProps) {
         title={seed.title}
         subtitle={seed.subtitle}
         description={seed.description}
-        breadcrumbs={["Admin", seed.title]}
       />
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

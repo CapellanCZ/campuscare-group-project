@@ -23,7 +23,6 @@ export function NurseModulePage({ module }: NurseModulePageProps) {
         title={seed.title}
         subtitle={seed.subtitle}
         description={seed.description}
-        breadcrumbs={["Nurse", seed.title]}
       />
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

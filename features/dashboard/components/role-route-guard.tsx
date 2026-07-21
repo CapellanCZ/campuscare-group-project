@@ -1,12 +1,14 @@
 import { redirect } from "next/navigation"
 
 import { getStaffAccess } from "@/lib/auth/access"
+import { isDevAuthBypassEnabled } from "@/lib/auth/dev-bypass"
 import {
   dashboardPathForRole,
   roleRequiresClinicMembership,
 } from "@/lib/auth/redirects"
 import type { WebRole } from "@/lib/auth/types"
 import { RoleShell } from "@/components/dashboard/role-shell"
+import { DEMO_DOCTOR } from "@/features/physician/data/demo-data"
 
 type RoleRouteGuardProps = {
   expectedRole: WebRole
@@ -20,6 +22,23 @@ export async function RoleRouteGuard({
   const access = await getStaffAccess()
 
   if (!access) {
+    if (isDevAuthBypassEnabled()) {
+      return (
+        <RoleShell
+          role={expectedRole}
+          staffName={
+            expectedRole === "physician" ? DEMO_DOCTOR.fullName : "Dev Staff"
+          }
+          staffEmail={
+            expectedRole === "physician"
+              ? DEMO_DOCTOR.email
+              : "dev@campuscare.local"
+          }
+        >
+          {children}
+        </RoleShell>
+      )
+    }
     redirect("/login")
   }
 
@@ -34,5 +53,13 @@ export async function RoleRouteGuard({
     redirect(dashboardPathForRole(access.primaryRole))
   }
 
-  return <RoleShell role={expectedRole}>{children}</RoleShell>
+  return (
+    <RoleShell
+      role={expectedRole}
+      staffName={access.fullName}
+      staffEmail={access.email}
+    >
+      {children}
+    </RoleShell>
+  )
 }

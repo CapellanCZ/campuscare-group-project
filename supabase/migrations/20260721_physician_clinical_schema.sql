@@ -1,0 +1,8 @@
+-- Applied remotely via Supabase MCP to project CampusCare (zrteblltvshgcienhytm).
+-- Physician clinical domain: patients, appointments, consultations, doctor_availability.
+-- Migration name: physician_clinical_schema
+--
+-- Features:
+--   - RLS scoped to clinic membership helpers
+--   - Exclusion constraint prevents doctor double-booking
+--   - Realtime publication on appointments for multi-tab sync

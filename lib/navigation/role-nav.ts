@@ -2,7 +2,8 @@ import type { ComponentType } from "react"
 import type { WebRole } from "@/lib/auth/types"
 import {
   IconBellRinging,
-  IconCertificate,
+  IconCalendarEvent,
+  IconCalendarTime,
   IconChartBar,
   IconClipboardList,
   IconLayoutGrid,
@@ -28,6 +29,7 @@ export type RoleNavConfig = {
   groups: RoleNavGroup[]
   footerItems: RoleNavItem[]
   quickActionLabel: string
+  quickActionHref?: string
 }
 
 export type RoleMeta = {
@@ -35,21 +37,6 @@ export type RoleMeta = {
   subtitle: string
   description: string
 }
-
-const sharedGroups: RoleNavGroup[] = [
-  {
-    items: [{ title: "Dashboard", href: "", icon: IconLayoutGrid }],
-  },
-  {
-    label: "Operations",
-    items: [
-      { title: "Consultation Requests", href: "", icon: IconClipboardList },
-      { title: "Queue Management", href: "", icon: IconListCheck },
-      { title: "Patient Records", href: "", icon: IconUsers },
-      { title: "Consultations", href: "", icon: IconStethoscope },
-    ],
-  },
-]
 
 const roleMetaMap: Record<WebRole, RoleMeta> = {
   admin: {
@@ -68,7 +55,7 @@ const roleMetaMap: Record<WebRole, RoleMeta> = {
     title: "Physician Dashboard",
     subtitle: "Consultation and treatment workspace",
     description:
-      "Manage consultations, diagnosis notes, treatment plans, and medical certificate generation.",
+      "Manage appointments, consultations, diagnosis notes, prescriptions, and availability.",
   },
   dentist: {
     title: "Dentist Dashboard",
@@ -76,27 +63,6 @@ const roleMetaMap: Record<WebRole, RoleMeta> = {
     description:
       "Handle dental consultations, findings, procedures, and dental medical certificates.",
   },
-}
-
-const dashboardBasePath: Record<WebRole, string> = {
-  admin: "/admin/dashboard",
-  nurse: "/nurse/dashboard",
-  physician: "/physician/dashboard",
-  dentist: "/dentist/dashboard",
-}
-
-function mapGroupHrefs(role: WebRole, groups: RoleNavGroup[]): RoleNavGroup[] {
-  const base = dashboardBasePath[role]
-  return groups.map((group) => ({
-    ...group,
-    items: group.items.map((item) => ({
-      ...item,
-      href:
-        item.title === "Dashboard"
-          ? base
-          : `${base}?module=${encodeURIComponent(item.title.toLowerCase())}`,
-    })),
-  }))
 }
 
 const roleGroupsByRole: Record<WebRole, RoleNavGroup[]> = {
@@ -144,8 +110,58 @@ const roleGroupsByRole: Record<WebRole, RoleNavGroup[]> = {
       ],
     },
   ],
-  physician: sharedGroups,
-  dentist: sharedGroups,
+  physician: [
+    {
+      items: [
+        { title: "Dashboard", href: "/physician/dashboard", icon: IconLayoutGrid },
+      ],
+    },
+    {
+      label: "Clinical",
+      items: [
+        {
+          title: "Appointments",
+          href: "/physician/appointments",
+          icon: IconCalendarEvent,
+        },
+        {
+          title: "My Patients",
+          href: "/physician/patients",
+          icon: IconUsers,
+        },
+        {
+          title: "Schedule",
+          href: "/physician/schedule",
+          icon: IconCalendarTime,
+        },
+      ],
+    },
+  ],
+  dentist: [
+    {
+      items: [{ title: "Dashboard", href: "/dentist/dashboard", icon: IconLayoutGrid }],
+    },
+    {
+      label: "Operations",
+      items: [
+        {
+          title: "Consultation Requests",
+          href: "/dentist/dashboard?module=consultation-requests",
+          icon: IconClipboardList,
+        },
+        {
+          title: "Patient Records",
+          href: "/dentist/dashboard?module=patient-records",
+          icon: IconUsers,
+        },
+        {
+          title: "Consultations",
+          href: "/dentist/dashboard?module=consultations",
+          icon: IconStethoscope,
+        },
+      ],
+    },
+  ],
 }
 
 const footerByRole: Record<WebRole, RoleNavItem[]> = {
@@ -160,22 +176,20 @@ const footerByRole: Record<WebRole, RoleNavItem[]> = {
     { title: "Profile", href: "/nurse/profile", icon: IconSettings },
   ],
   physician: [
-    { title: "Medical Certificates", href: "/physician/dashboard?module=medical-certificates", icon: IconCertificate },
-    { title: "Reports", href: "/physician/dashboard?module=reports", icon: IconChartBar },
-    { title: "Profile", href: "/physician/dashboard?module=profile", icon: IconSettings },
+    { title: "Reports", href: "/physician/reports", icon: IconChartBar },
+    { title: "Profile", href: "/physician/profile", icon: IconSettings },
   ],
   dentist: [
-    { title: "Dental Certificates", href: "/dentist/dashboard?module=medical-certificates", icon: IconCertificate },
     { title: "Reports", href: "/dentist/dashboard?module=reports", icon: IconChartBar },
     { title: "Profile", href: "/dentist/dashboard?module=profile", icon: IconSettings },
   ],
 }
 
-const quickActionByRole: Record<WebRole, string> = {
-  admin: "Create Announcement",
-  nurse: "Register Walk-In",
-  physician: "Start Consultation",
-  dentist: "Start Dental Consultation",
+const quickActionByRole: Record<WebRole, { label: string; href: string }> = {
+  admin: { label: "Create Announcement", href: "/admin/announcements" },
+  nurse: { label: "Register Walk-In", href: "/nurse/consultation-requests" },
+  physician: { label: "Start Consultation", href: "/physician/appointments" },
+  dentist: { label: "Start Dental Consultation", href: "/dentist/dashboard" },
 }
 
 export function getRoleMeta(role: WebRole): RoleMeta {
@@ -183,14 +197,52 @@ export function getRoleMeta(role: WebRole): RoleMeta {
 }
 
 export function getRoleNavConfig(role: WebRole): RoleNavConfig {
-  const groups =
-    role === "admin" || role === "nurse"
-      ? roleGroupsByRole[role]
-      : mapGroupHrefs(role, roleGroupsByRole[role])
-
+  const quick = quickActionByRole[role]
   return {
-    groups,
+    groups: roleGroupsByRole[role],
     footerItems: footerByRole[role],
-    quickActionLabel: quickActionByRole[role],
+    quickActionLabel: quick.label,
+    quickActionHref: quick.href,
   }
+}
+
+export function resolveRoleNavItem(
+  role: WebRole,
+  pathname: string
+): RoleNavItem {
+  const nav = getRoleNavConfig(role)
+  const allItems = [
+    ...nav.groups.flatMap((group) => group.items),
+    ...nav.footerItems,
+  ]
+
+  if (pathname.includes("/consultation/")) {
+    return {
+      title: "Consultation",
+      href: pathname,
+      icon: IconStethoscope,
+    }
+  }
+
+  const exact = allItems.find((item) => {
+    const base = item.href.split("?")[0]
+    return pathname === base || pathname === item.href
+  })
+  if (exact) return exact
+
+  const prefixMatch = allItems
+    .filter((item) => {
+      const base = item.href.split("?")[0]
+      return pathname.startsWith(`${base}/`)
+    })
+    .sort((a, b) => b.href.length - a.href.length)[0]
+  if (prefixMatch) return prefixMatch
+
+  return (
+    allItems[0] ?? {
+      title: "Dashboard",
+      href: roleGroupsByRole[role][0]?.items[0]?.href ?? "/",
+      icon: IconLayoutGrid,
+    }
+  )
 }

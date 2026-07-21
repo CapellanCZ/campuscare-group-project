@@ -23,7 +23,6 @@ export function RoleDashboardContent({ role }: RoleDashboardContentProps) {
         title={meta.title}
         subtitle={meta.subtitle}
         description={meta.description}
-        breadcrumbs={["Dashboard", role.toUpperCase()]}
       />
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

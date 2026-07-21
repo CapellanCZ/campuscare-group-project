@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 
+import { isDevAuthBypassEnabled } from "@/lib/auth/dev-bypass"
 import {
   dashboardPathForRole,
   isProtectedRolePath,
@@ -19,6 +20,10 @@ export async function middleware(request: NextRequest) {
   const requiresAuth = isDashboard || isRoleDashboard || isPending
 
   if (!user && requiresAuth) {
+    if (isDevAuthBypassEnabled() && (isDashboard || isRoleDashboard)) {
+      return supabaseResponse
+    }
+
     const url = request.nextUrl.clone()
     url.pathname = "/login"
     return NextResponse.redirect(url)

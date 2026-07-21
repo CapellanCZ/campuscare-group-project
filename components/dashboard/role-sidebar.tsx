@@ -24,6 +24,12 @@ type RoleSidebarProps = {
   role: WebRole
 }
 
+function isNavActive(pathname: string, href: string): boolean {
+  if (pathname === href) return true
+  if (href.includes("?")) return pathname === href.split("?")[0]
+  return pathname.startsWith(`${href}/`)
+}
+
 export function RoleSidebar({ role }: RoleSidebarProps) {
   const pathname = usePathname()
   const nav = getRoleNavConfig(role)
@@ -31,15 +37,27 @@ export function RoleSidebar({ role }: RoleSidebarProps) {
   return (
     <Sidebar collapsible="icon" variant="inset">
       <SidebarHeader className="h-14 justify-center">
-        <SidebarMenuButton render={<Link href={pathname} />}>
+        <SidebarMenuButton
+          render={
+            <Link
+              href={
+                nav.groups[0]?.items[0]?.href ?? `/${role}/dashboard`
+              }
+            />
+          }
+        >
           <Image src="/images/Heart.png" alt="CampusCare" width={28} height={28} />
           <span className="font-medium">CampusCare</span>
         </SidebarMenuButton>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarMenuItem className="flex items-center gap-2">
-            <Button className="min-w-8 bg-primary text-primary-foreground hover:bg-primary/90">
+        <SidebarGroup className="px-2">
+          <SidebarMenuItem className="w-full">
+            <Button
+              className="w-full justify-center bg-primary text-primary-foreground hover:bg-primary/90"
+              render={<Link href={nav.quickActionHref ?? "#"} />}
+              nativeButton={false}
+            >
               <IconPlus data-icon="inline-start" />
               <span>{nav.quickActionLabel}</span>
             </Button>
@@ -52,7 +70,7 @@ export function RoleSidebar({ role }: RoleSidebarProps) {
               {group.items.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
-                    isActive={pathname === item.href}
+                    isActive={isNavActive(pathname, item.href)}
                     render={<Link href={item.href} />}
                   >
                     {item.icon ? <item.icon /> : null}
@@ -69,7 +87,7 @@ export function RoleSidebar({ role }: RoleSidebarProps) {
           {nav.footerItems.map((item) => (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton
-                isActive={pathname === item.href}
+                isActive={isNavActive(pathname, item.href)}
                 render={<Link href={item.href} />}
               >
                 {item.icon ? <item.icon /> : null}

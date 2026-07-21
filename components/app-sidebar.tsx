@@ -1,3 +1,4 @@
+import { LogoIcon } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import {
 	Sidebar,
@@ -18,7 +19,7 @@ export function AppSidebar() {
 	return (
 		<Sidebar collapsible="icon" variant="inset">
 			<SidebarHeader className="h-14 justify-center">
-				<SidebarMenuButton render={<a href="#link" />}><img src="/images/Heart.png" alt="Heart" className="h-7" /><span className="font-medium">CampusCare</span></SidebarMenuButton>
+				<SidebarMenuButton render={<a href="#link" />}><LogoIcon /><span className="font-medium">Efferd</span></SidebarMenuButton>
 			</SidebarHeader>
 			<SidebarContent>
 				<SidebarGroup>

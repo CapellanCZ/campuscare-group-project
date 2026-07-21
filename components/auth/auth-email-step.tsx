@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { IconAt } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
@@ -37,8 +38,7 @@ export function AuthEmailStep({
       <div className="flex flex-col space-y-1">
         <h1 className="text-2xl font-bold tracking-wide">Sign in</h1>
         <p className="text-base text-muted-foreground">
-          Enter your work email to continue with a magic link or one-time
-          password.
+          Enter your work email to continue.
         </p>
       </div>
 
@@ -95,6 +95,21 @@ export function AuthEmailStep({
       >
         {isSendingOtp ? "Sending code..." : "One-Time Password (OTP)"}
       </Button>
+
+      {process.env.NODE_ENV === "development" ? (
+        <>
+          <AuthDivider>TESTING</AuthDivider>
+          <Button
+            className="w-full"
+            type="button"
+            variant="ghost"
+            render={<Link href="/admin/dashboard" />}
+            nativeButton={false}
+          >
+            Skip to dashboard
+          </Button>
+        </>
+      ) : null}
     </>
   )
 }
