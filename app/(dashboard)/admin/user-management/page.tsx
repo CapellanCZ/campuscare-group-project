@@ -1,18 +1,5 @@
-import { UserManagementPage } from "@/features/admin/components/user-management-page"
-import { RoleRouteGuard } from "@/features/dashboard/components/role-route-guard"
+import { redirect } from "next/navigation"
 
-type AdminUserManagementPageProps = {
-  searchParams: Promise<Record<string, string | string[] | undefined>>
-}
-
-export default async function AdminUserManagementPage({
-  searchParams,
-}: AdminUserManagementPageProps) {
-  const resolvedSearchParams = await searchParams
-
-  return (
-    <RoleRouteGuard expectedRole="admin">
-      <UserManagementPage searchParams={resolvedSearchParams} />
-    </RoleRouteGuard>
-  )
+export default function AdminUserManagementIndexPage() {
+  redirect("/admin/user-management/staff")
 }

@@ -44,9 +44,14 @@ export function mapAuthError(error: AuthLikeError, fallback: string): string {
     message.includes("authentication failed") ||
     message.includes("smtp") ||
     message.includes("error sending") ||
-    message.includes("unable to send")
+    message.includes("unable to send") ||
+    message.includes("resend")
   ) {
     return "Could not send the email right now. Ask an admin to check the clinic email (SMTP) settings."
+  }
+
+  if (message.includes("missing required environment variable")) {
+    return "Sign-in email is not configured yet. Ask an admin to finish email setup."
   }
 
   if (message.includes("rate limit") || status === 429) {

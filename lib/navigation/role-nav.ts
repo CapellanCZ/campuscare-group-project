@@ -9,15 +9,18 @@ import {
   IconLayoutGrid,
   IconListCheck,
   IconSettings,
+  IconShield,
   IconStethoscope,
   IconUserCog,
   IconUsers,
+  IconUserHeart,
 } from "@tabler/icons-react"
 
 export type RoleNavItem = {
   title: string
   href: string
   icon?: ComponentType<{ className?: string }>
+  children?: RoleNavItem[]
 }
 
 export type RoleNavGroup = {
@@ -78,8 +81,33 @@ const roleGroupsByRole: Record<WebRole, RoleNavGroup[]> = {
       label: "Management",
       items: [
         { title: "Reports", href: "/admin/reports", icon: IconChartBar },
-        { title: "Announcements", href: "/admin/announcements", icon: IconBellRinging },
-        { title: "User Management", href: "/admin/user-management", icon: IconUserCog },
+        {
+          title: "Announcements",
+          href: "/admin/announcements",
+          icon: IconBellRinging,
+        },
+        {
+          title: "User Management",
+          href: "/admin/user-management",
+          icon: IconUserCog,
+          children: [
+            {
+              title: "Admins",
+              href: "/admin/user-management/admins",
+              icon: IconShield,
+            },
+            {
+              title: "Clinic Staff",
+              href: "/admin/user-management/staff",
+              icon: IconStethoscope,
+            },
+            {
+              title: "Patients",
+              href: "/admin/user-management/patients",
+              icon: IconUserHeart,
+            },
+          ],
+        },
         { title: "Settings", href: "/admin/settings", icon: IconSettings },
       ],
     },
@@ -122,8 +150,11 @@ const roleGroupsByRole: Record<WebRole, RoleNavGroup[]> = {
     {
       label: "Overview",
       items: [
-        { title: "Dashboard", href: "/physician/dashboard", icon: IconLayoutGrid },
-        { title: "Analytics", href: "/physician/analytics", icon: IconChartBar },
+        {
+          title: "Dashboard",
+          href: "/physician/dashboard",
+          icon: IconLayoutGrid,
+        },
       ],
     },
     {
@@ -135,7 +166,7 @@ const roleGroupsByRole: Record<WebRole, RoleNavGroup[]> = {
           icon: IconCalendarEvent,
         },
         {
-          title: "My Patients",
+          title: "Patients",
           href: "/physician/patients",
           icon: IconUsers,
         },
@@ -151,23 +182,16 @@ const roleGroupsByRole: Record<WebRole, RoleNavGroup[]> = {
     {
       label: "Overview",
       items: [
-        { title: "Dashboard", href: "/dentist/dashboard", icon: IconLayoutGrid },
-        { title: "Analytics", href: "/dentist/analytics", icon: IconChartBar },
+        {
+          title: "Dashboard",
+          href: "/dentist/dashboard",
+          icon: IconLayoutGrid,
+        },
       ],
     },
     {
-      label: "Operations",
+      label: "Clinical",
       items: [
-        {
-          title: "Consultation Requests",
-          href: "/dentist/dashboard?module=consultation-requests",
-          icon: IconClipboardList,
-        },
-        {
-          title: "Patient Records",
-          href: "/dentist/dashboard?module=patient-records",
-          icon: IconUsers,
-        },
         {
           title: "Consultations",
           href: "/dentist/dashboard?module=consultations",
@@ -180,13 +204,24 @@ const roleGroupsByRole: Record<WebRole, RoleNavGroup[]> = {
 
 const footerByRole: Record<WebRole, RoleNavItem[]> = {
   admin: [
-    { title: "Reports", href: "/admin/reports", icon: IconChartBar },
-    { title: "Announcements", href: "/admin/announcements", icon: IconBellRinging },
-    { title: "User Management", href: "/admin/user-management", icon: IconUserCog },
+    {
+      title: "User Management",
+      href: "/admin/user-management/staff",
+      icon: IconUserCog,
+    },
+    {
+      title: "Announcements",
+      href: "/admin/announcements",
+      icon: IconBellRinging,
+    },
   ],
   nurse: [
     { title: "Reports", href: "/nurse/reports", icon: IconChartBar },
-    { title: "Announcements", href: "/nurse/announcements", icon: IconBellRinging },
+    {
+      title: "Announcements",
+      href: "/nurse/announcements",
+      icon: IconBellRinging,
+    },
     { title: "Profile", href: "/nurse/profile", icon: IconSettings },
   ],
   physician: [
@@ -194,8 +229,16 @@ const footerByRole: Record<WebRole, RoleNavItem[]> = {
     { title: "Profile", href: "/physician/profile", icon: IconSettings },
   ],
   dentist: [
-    { title: "Reports", href: "/dentist/dashboard?module=reports", icon: IconChartBar },
-    { title: "Profile", href: "/dentist/dashboard?module=profile", icon: IconSettings },
+    {
+      title: "Reports",
+      href: "/dentist/dashboard?module=reports",
+      icon: IconChartBar,
+    },
+    {
+      title: "Profile",
+      href: "/dentist/dashboard?module=profile",
+      icon: IconSettings,
+    },
   ],
 }
 
@@ -220,15 +263,21 @@ export function getRoleNavConfig(role: WebRole): RoleNavConfig {
   }
 }
 
+function flattenNavItems(items: RoleNavItem[]): RoleNavItem[] {
+  return items.flatMap((item) =>
+    item.children?.length ? [item, ...flattenNavItems(item.children)] : [item]
+  )
+}
+
 export function resolveRoleNavItem(
   role: WebRole,
   pathname: string
 ): RoleNavItem {
   const nav = getRoleNavConfig(role)
-  const allItems = [
+  const allItems = flattenNavItems([
     ...nav.groups.flatMap((group) => group.items),
     ...nav.footerItems,
-  ]
+  ])
 
   if (pathname.includes("/consultation/")) {
     return {

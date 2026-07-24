@@ -1,13 +1,19 @@
 "use server"
 
 import { getStaffAccess } from "@/lib/auth/access"
-import type { WebRole } from "@/lib/auth/types"
 import { createAdminClient } from "@/lib/supabase/admin"
-
-type ManagedRole = Extract<WebRole, "nurse" | "physician" | "dentist">
-type UserStatusFilter = "all" | "active" | "inactive"
-
-const MANAGED_ROLES: ManagedRole[] = ["nurse", "physician", "dentist"]
+import {
+  MANAGED_ROLES,
+  type CreateStaffUserInput,
+  type ListStaffUsersInput,
+  type ListStaffUsersResult,
+  type ManagedRole,
+  type ManagedStaffUser,
+  type ManageUserResult,
+  type SetStaffUserActiveInput,
+  type StaffDirectorySummary,
+  type UserStatusFilter,
+} from "@/features/admin/types/user-management"
 
 type StaffProfileRow = {
   id: string
@@ -17,56 +23,8 @@ type StaffProfileRow = {
   is_active: boolean
 }
 
-export type ManagedStaffUser = {
-  id: string
-  fullName: string
-  email: string
-  role: ManagedRole
-  isActive: boolean
-  hasClinicMembership: boolean
-}
-
-export type StaffDirectorySummary = {
-  total: number
-  active: number
-  inactive: number
-  nurses: number
-  physicians: number
-  dentists: number
-}
-
-export type ListStaffUsersResult =
-  | {
-      ok: true
-      users: ManagedStaffUser[]
-      summary: StaffDirectorySummary
-      filters: {
-        query: string
-        status: UserStatusFilter
-        role: ManagedRole | "all"
-      }
-    }
-  | { ok: false; error: string }
-
-export type ManageUserResult =
-  | { ok: true; message: string; warning?: string }
-  | { ok: false; error: string }
-
-export type ListStaffUsersInput = {
-  query?: string
-  status?: UserStatusFilter
-  role?: ManagedRole | "all"
-}
-
-export type CreateStaffUserInput = {
-  fullName: string
-  email: string
-  role: ManagedRole
-}
-
-export type SetStaffUserActiveInput = {
-  userId: string
-  isActive: boolean
+type ImportStaffUsersOptions = {
+  allowedRoles?: ManagedRole[]
 }
 
 function siteUrl() {
@@ -125,6 +83,7 @@ function summarize(users: ManagedStaffUser[]): StaffDirectorySummary {
       acc.total += 1
       if (user.isActive) acc.active += 1
       if (!user.isActive) acc.inactive += 1
+      if (user.role === "admin") acc.admins += 1
       if (user.role === "nurse") acc.nurses += 1
       if (user.role === "physician") acc.physicians += 1
       if (user.role === "dentist") acc.dentists += 1
@@ -134,6 +93,7 @@ function summarize(users: ManagedStaffUser[]): StaffDirectorySummary {
       total: 0,
       active: 0,
       inactive: 0,
+      admins: 0,
       nurses: 0,
       physicians: 0,
       dentists: 0,
@@ -142,9 +102,15 @@ function summarize(users: ManagedStaffUser[]): StaffDirectorySummary {
 }
 
 function roleWriteCandidates(role: ManagedRole): string[] {
+  if (role === "admin") return ["admin"]
   if (role === "nurse") return ["nurse"]
   if (role === "physician") return ["physician", "doctor"]
   return ["dentist"]
+}
+
+function resolveScopedRoles(roles?: ManagedRole[]): ManagedRole[] {
+  if (!roles || roles.length === 0) return MANAGED_ROLES
+  return roles.filter((role) => MANAGED_ROLES.includes(role))
 }
 
 export async function listStaffUsers(
@@ -155,7 +121,12 @@ export async function listStaffUsers(
 
   const query = normalizeSearch(input.query)
   const status: UserStatusFilter = input.status ?? "all"
-  const role: ManagedRole | "all" = input.role ?? "all"
+  const scopedRoles = resolveScopedRoles(input.roles)
+  const requestedRole: ManagedRole | "all" = input.role ?? "all"
+  const role: ManagedRole | "all" =
+    requestedRole !== "all" && scopedRoles.includes(requestedRole)
+      ? requestedRole
+      : "all"
   const adminClientResult = getAdminClientSafe()
   if (!adminClientResult.ok) {
     return { ok: false, error: adminClientResult.error }
@@ -165,7 +136,7 @@ export async function listStaffUsers(
   const { data: profileRows, error: profileError } = await adminClient
     .from("profiles")
     .select("id, full_name, email, primary_role, is_active")
-    .in("primary_role", MANAGED_ROLES)
+    .in("primary_role", scopedRoles)
 
   if (profileError) {
     return {
@@ -242,8 +213,9 @@ export async function createStaffUser(
     return { ok: false, error: "Enter a valid email address." }
   }
 
-  if (!MANAGED_ROLES.includes(input.role)) {
-    return { ok: false, error: "Choose a valid role." }
+  const allowedRoles = resolveScopedRoles(input.allowedRoles)
+  if (!allowedRoles.includes(input.role)) {
+    return { ok: false, error: "Choose a valid role for this directory." }
   }
 
   const adminClientResult = getAdminClientSafe()
@@ -377,5 +349,77 @@ export async function setStaffUserActive(
     message: input.isActive
       ? "User account has been activated."
       : "User account has been deactivated.",
+  }
+}
+
+export async function importStaffUsersFromExcel(
+  formData: FormData,
+  options: ImportStaffUsersOptions = {}
+): Promise<ManageUserResult> {
+  const authz = await requireAdmin()
+  if (!authz.ok) return authz
+
+  const allowedRoles = resolveScopedRoles(options.allowedRoles)
+  const roleHint = allowedRoles.join("|")
+
+  const file = formData.get("file")
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, error: "Choose an Excel file to import." }
+  }
+
+  const { parseExcelRows } = await import("@/features/admin/lib/excel")
+  const rows = parseExcelRows(await file.arrayBuffer())
+  if (rows.length === 0) {
+    return { ok: false, error: "No rows found in the spreadsheet." }
+  }
+
+  let created = 0
+  const failures: string[] = []
+
+  for (const [index, row] of rows.entries()) {
+    const fullName = (row.full_name || row.name || "").trim()
+    const email = (row.email || "").trim().toLowerCase()
+    const defaultRole = allowedRoles[0] ?? "nurse"
+    const roleRaw = (row.role || defaultRole).trim().toLowerCase()
+    const role = allowedRoles.includes(roleRaw as ManagedRole)
+      ? (roleRaw as ManagedRole)
+      : null
+
+    if (!fullName || !email || !role) {
+      failures.push(
+        `Row ${index + 2}: need full_name, email, and valid role (${roleHint})`
+      )
+      continue
+    }
+
+    const outcome = await createStaffUser({
+      fullName,
+      email,
+      role,
+      allowedRoles,
+    })
+    if (!outcome.ok) {
+      failures.push(`Row ${index + 2}: ${outcome.error}`)
+      continue
+    }
+    created += 1
+  }
+
+  if (created === 0) {
+    return {
+      ok: false,
+      error:
+        failures[0] ??
+        `No accounts imported. Headers: full_name, email, role (${roleHint})`,
+    }
+  }
+
+  return {
+    ok: true,
+    message: `Imported ${created} account${created === 1 ? "" : "s"}.`,
+    warning:
+      failures.length > 0
+        ? `${failures.length} row(s) failed. ${failures.slice(0, 3).join(" · ")}`
+        : undefined,
   }
 }

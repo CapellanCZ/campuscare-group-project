@@ -12,6 +12,7 @@ import {
   dashboardPathForRole,
   roleRequiresClinicMembership,
 } from "@/lib/auth/redirects"
+import { sendLoginOtpEmail } from "@/lib/auth/send-login-otp"
 import type { AuthResult, PostLoginPathResult } from "@/lib/auth/types"
 import { createClient } from "@/lib/supabase/server"
 
@@ -26,30 +27,22 @@ export async function sendOtpEmail(email: string): Promise<AuthResult> {
     return { ok: false, error: "Enter a valid email address." }
   }
 
-  const supabase = await createClient()
-  const { error } = await supabase.auth.signInWithOtp({
-    email: trimmed,
-    options: {
-      // Staff accounts are provisioned by admins; do not auto-create on login.
-      shouldCreateUser: false,
-    },
-  })
-
-  if (error) {
+  try {
+    await sendLoginOtpEmail(trimmed)
+    return { ok: true }
+  } catch (error) {
     console.error("[auth.sendOtpEmail]", {
       email: trimmed,
-      status: error.status,
-      code: error.code,
-      message: error.message,
-      name: error.name,
+      error,
     })
     return {
       ok: false,
-      error: mapAuthError(error, "Could not send verification code."),
+      error: mapAuthError(
+        error as { message?: string; status?: number; code?: string },
+        "Could not send verification code."
+      ),
     }
   }
-
-  return { ok: true }
 }
 
 export async function verifyOtpCode(
