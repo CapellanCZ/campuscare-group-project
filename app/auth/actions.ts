@@ -3,35 +3,49 @@
 import { mapAuthError } from "@/lib/auth/errors"
 import { getStaffAccess } from "@/lib/auth/access"
 import {
+  isValidEmail,
+  isValidOtpCode,
+  normalizeEmail,
+  sanitizeOtpInput,
+} from "@/lib/auth/email"
+import {
   dashboardPathForRole,
   roleRequiresClinicMembership,
 } from "@/lib/auth/redirects"
 import type { AuthResult, PostLoginPathResult } from "@/lib/auth/types"
 import { createClient } from "@/lib/supabase/server"
 
-function siteUrl() {
-  return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"
-}
-
 export async function sendOtpEmail(email: string): Promise<AuthResult> {
-  const trimmed = email.trim().toLowerCase()
+  const trimmed = normalizeEmail(email)
+
   if (!trimmed) {
     return { ok: false, error: "Enter your work email to continue." }
+  }
+
+  if (!isValidEmail(trimmed)) {
+    return { ok: false, error: "Enter a valid email address." }
   }
 
   const supabase = await createClient()
   const { error } = await supabase.auth.signInWithOtp({
     email: trimmed,
     options: {
-      shouldCreateUser: true,
-      emailRedirectTo: `${siteUrl()}/auth/callback`,
+      // Staff accounts are provisioned by admins; do not auto-create on login.
+      shouldCreateUser: false,
     },
   })
 
   if (error) {
+    console.error("[auth.sendOtpEmail]", {
+      email: trimmed,
+      status: error.status,
+      code: error.code,
+      message: error.message,
+      name: error.name,
+    })
     return {
       ok: false,
-      error: mapAuthError(error, "Could not send sign-in email."),
+      error: mapAuthError(error, "Could not send verification code."),
     }
   }
 
@@ -42,14 +56,14 @@ export async function verifyOtpCode(
   email: string,
   token: string
 ): Promise<AuthResult> {
-  const trimmedEmail = email.trim().toLowerCase()
-  const trimmedToken = token.trim()
+  const trimmedEmail = normalizeEmail(email)
+  const trimmedToken = sanitizeOtpInput(token)
 
-  if (!trimmedEmail) {
+  if (!trimmedEmail || !isValidEmail(trimmedEmail)) {
     return { ok: false, error: "Session expired. Enter your email again." }
   }
 
-  if (trimmedToken.length !== 6) {
+  if (!isValidOtpCode(trimmedToken)) {
     return { ok: false, error: "Enter the full 6-digit verification code." }
   }
 

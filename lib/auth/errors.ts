@@ -2,6 +2,7 @@ type AuthLikeError = {
   message?: string
   code?: string
   status?: number
+  name?: string
 } | null
 
 function usableMessage(message: string | undefined): string | null {
@@ -18,6 +19,9 @@ function usableMessage(message: string | undefined): string | null {
 
 export function mapAuthError(error: AuthLikeError, fallback: string): string {
   const status = error?.status
+  const code = error?.code?.toLowerCase() ?? ""
+  const rawMessage = usableMessage(error?.message)
+  const message = (rawMessage ?? "").toLowerCase()
 
   if (
     status === 502 ||
@@ -32,26 +36,43 @@ export function mapAuthError(error: AuthLikeError, fallback: string): string {
     return "Sign-in is temporarily unavailable. Please try again in a moment."
   }
 
-  const rawMessage = usableMessage(error?.message)
-  if (!rawMessage) return fallback
-
-  const message = rawMessage.toLowerCase()
+  // Supabase Auth email delivery failures (custom SMTP misconfigured/auth failed)
+  if (
+    status === 500 ||
+    code.includes("unexpected_failure") ||
+    message.includes("535") ||
+    message.includes("authentication failed") ||
+    message.includes("smtp") ||
+    message.includes("error sending") ||
+    message.includes("unable to send")
+  ) {
+    return "Could not send the email right now. Ask an admin to check the clinic email (SMTP) settings."
+  }
 
   if (message.includes("rate limit") || status === 429) {
     return "Too many attempts. Please wait a moment and try again."
   }
 
   if (
-    message.includes("token") ||
-    message.includes("otp") ||
-    message.includes("expired") ||
-    message.includes("invalid")
+    message.includes("signups not allowed") ||
+    message.includes("signup not allowed") ||
+    message.includes("user not found") ||
+    message.includes("unable to validate email") ||
+    message.includes("email not found")
   ) {
-    return "That code is invalid or expired. Request a new one."
+    return "This email is not registered as clinic staff. Ask an admin to import your account first."
   }
 
-  if (message.includes("signups not allowed") || message.includes("signup")) {
-    return "Staff accounts are invite-only. Contact a clinic admin."
+  // Verify-step failures only (avoid matching generic "otp" send failures)
+  if (
+    message.includes("token has expired") ||
+    message.includes("token is invalid") ||
+    message.includes("otp has expired") ||
+    message.includes("invalid otp") ||
+    message.includes("invalid token") ||
+    (message.includes("expired") && message.includes("token"))
+  ) {
+    return "That code is invalid or expired. Request a new one."
   }
 
   if (
@@ -61,6 +82,8 @@ export function mapAuthError(error: AuthLikeError, fallback: string): string {
   ) {
     return "Could not reach the sign-in service. Check your connection and try again."
   }
+
+  if (!rawMessage) return fallback
 
   return rawMessage
 }

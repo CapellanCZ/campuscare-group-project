@@ -6,29 +6,33 @@ import { useRouter } from "next/navigation"
 import { IconChevronLeft } from "@tabler/icons-react"
 
 import { AuthEmailStep } from "@/components/auth/auth-email-step"
-import { AuthMagicLinkSent } from "@/components/auth/auth-magic-link-sent"
 import { AuthOtpStep } from "@/components/auth/auth-otp-step"
 import { Button } from "@/components/ui/button"
 import { FloatingPaths } from "@/components/floating-paths"
 import {
+  OTP_LENGTH,
   RESEND_COOLDOWN_SECONDS,
   resolvePostLoginPath,
-  sendMagicLink,
   sendOtp,
   verifyOtp,
 } from "@/lib/auth/auth-api"
-import { isValidEmail } from "@/lib/auth/email"
+import { isValidEmail, normalizeEmail, sanitizeOtpInput } from "@/lib/auth/email"
+import { markSessionStarted } from "@/lib/auth/session-timeout"
 
-type AuthStep = "email" | "magic-link-sent" | "otp"
+type AuthStep = "email" | "otp"
 
-export function AuthPage() {
+type AuthPageProps = {
+  sessionNotice?: string | null
+}
+
+export function AuthPage({ sessionNotice = null }: AuthPageProps) {
   const router = useRouter()
   const [step, setStep] = useState<AuthStep>("email")
   const [email, setEmail] = useState("")
   const [otp, setOtp] = useState("")
   const [emailError, setEmailError] = useState<string | null>(null)
   const [otpError, setOtpError] = useState<string | null>(null)
-  const [isSendingMagicLink, setIsSendingMagicLink] = useState(false)
+  const [otpNotice, setOtpNotice] = useState<string | null>(null)
   const [isSendingOtp, setIsSendingOtp] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
   const [resendSeconds, setResendSeconds] = useState(0)
@@ -44,10 +48,15 @@ export function AuthPage() {
   }, [resendSeconds])
 
   const validateEmail = useCallback(() => {
-    const trimmedEmail = email.trim()
+    const trimmedEmail = normalizeEmail(email)
 
     if (!trimmedEmail) {
       setEmailError("Enter your work email to continue.")
+      return null
+    }
+
+    if (trimmedEmail.length > 254) {
+      setEmailError("Email address is too long.")
       return null
     }
 
@@ -60,37 +69,17 @@ export function AuthPage() {
     return trimmedEmail
   }, [email])
 
-  const handleSendMagicLink = async (
-    event?: React.FormEvent<HTMLFormElement>
-  ) => {
+  const handleSendOtp = async (event?: React.FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
 
-    const trimmedEmail = validateEmail()
-    if (!trimmedEmail) return
+    if (isSendingOtp) return
 
-    setIsSendingMagicLink(true)
-    setOtpError(null)
-
-    const result = await sendMagicLink(trimmedEmail)
-
-    setIsSendingMagicLink(false)
-
-    if (!result.ok) {
-      setEmailError(result.error)
-      return
-    }
-
-    setEmail(trimmedEmail)
-    setStep("magic-link-sent")
-    setResendSeconds(RESEND_COOLDOWN_SECONDS)
-  }
-
-  const handleSendOtp = async () => {
     const trimmedEmail = validateEmail()
     if (!trimmedEmail) return
 
     setIsSendingOtp(true)
     setOtpError(null)
+    setOtpNotice(null)
 
     const result = await sendOtp(trimmedEmail)
 
@@ -104,26 +93,53 @@ export function AuthPage() {
     setEmail(trimmedEmail)
     setOtp("")
     setStep("otp")
+    setOtpNotice(null)
     setResendSeconds(RESEND_COOLDOWN_SECONDS)
-  }
-
-  const handleResendMagicLink = async () => {
-    if (resendSeconds > 0 || isSendingMagicLink) return
-    await handleSendMagicLink()
   }
 
   const handleResendOtp = async () => {
     if (resendSeconds > 0 || isSendingOtp) return
-    await handleSendOtp()
+
+    const trimmedEmail = normalizeEmail(email)
+    if (!trimmedEmail || !isValidEmail(trimmedEmail)) {
+      setOtpError("Session expired. Enter your email again.")
+      setOtpNotice(null)
+      return
+    }
+
+    setIsSendingOtp(true)
+    setOtpError(null)
+    setOtpNotice(null)
+
+    const result = await sendOtp(trimmedEmail)
+
+    setIsSendingOtp(false)
+
+    if (!result.ok) {
+      setOtpError(result.error)
+      return
+    }
+
+    setOtp("")
+    setOtpNotice("New code sent. Check your inbox.")
+    setResendSeconds(RESEND_COOLDOWN_SECONDS)
   }
 
   const handleVerifyOtp = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
+    if (isVerifying) return
+
+    const sanitized = sanitizeOtpInput(otp)
+    if (sanitized.length !== OTP_LENGTH) {
+      setOtpError(`Enter the full ${OTP_LENGTH}-digit verification code.`)
+      return
+    }
+
     setIsVerifying(true)
     setOtpError(null)
 
-    const result = await verifyOtp(email, otp)
+    const result = await verifyOtp(email, sanitized)
 
     if (!result.ok) {
       setIsVerifying(false)
@@ -138,6 +154,7 @@ export function AuthPage() {
       return
     }
 
+    markSessionStarted(window.sessionStorage, Date.now())
     router.refresh()
     router.push(postLogin.path)
   }
@@ -146,6 +163,7 @@ export function AuthPage() {
     setStep("email")
     setOtp("")
     setOtpError(null)
+    setOtpNotice(null)
     setEmailError(null)
     setResendSeconds(0)
   }
@@ -203,26 +221,13 @@ export function AuthPage() {
             <AuthEmailStep
               email={email}
               emailError={emailError}
-              isSendingMagicLink={isSendingMagicLink}
+              sessionNotice={sessionNotice}
               isSendingOtp={isSendingOtp}
               onEmailChange={(value) => {
                 setEmail(value)
                 if (emailError) setEmailError(null)
               }}
-              onSendMagicLink={handleSendMagicLink}
               onSendOtp={handleSendOtp}
-            />
-          ) : null}
-
-          {step === "magic-link-sent" ? (
-            <AuthMagicLinkSent
-              email={email}
-              isResending={isSendingMagicLink}
-              isSendingOtp={isSendingOtp}
-              resendSeconds={resendSeconds}
-              onResend={handleResendMagicLink}
-              onSwitchToOtp={handleSendOtp}
-              onBackToEmail={handleBackToEmail}
             />
           ) : null}
 
@@ -231,12 +236,14 @@ export function AuthPage() {
               email={email}
               otp={otp}
               otpError={otpError}
+              otpNotice={otpNotice}
               isVerifying={isVerifying}
               isResending={isSendingOtp}
               resendSeconds={resendSeconds}
               onOtpChange={(value) => {
-                setOtp(value)
+                setOtp(sanitizeOtpInput(value))
                 if (otpError) setOtpError(null)
+                if (otpNotice) setOtpNotice(null)
               }}
               onVerify={handleVerifyOtp}
               onResend={handleResendOtp}

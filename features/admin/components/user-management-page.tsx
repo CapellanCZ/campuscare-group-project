@@ -216,7 +216,7 @@ export async function UserManagementPage({
       <PageHeader
         title="User Management"
         subtitle="Provision and maintain staff access"
-        description="Create nurse, physician, and dentist accounts using magic-link login and manage active or inactive access."
+        description="Create nurse, physician, and dentist accounts for OTP login and manage active or inactive access."
       />
 
       {error ? (
@@ -275,7 +275,7 @@ export async function UserManagementPage({
         <SummaryCard
           title="Active Accounts"
           value={String(summary.active)}
-          hint="Can sign in through magic link"
+          hint="Can sign in with email OTP"
           icon={<IconActivityHeartbeat className="size-4" />}
         />
       </section>
@@ -284,7 +284,7 @@ export async function UserManagementPage({
         <CardHeader>
           <CardTitle>Create Staff Account</CardTitle>
           <CardDescription>
-            Add a user with Name, Email, and Role. A magic-link invite will be sent.
+            Add a user with Name, Email, and Role. An invite email will be sent so they can sign in with OTP.
           </CardDescription>
         </CardHeader>
         <CardContent>

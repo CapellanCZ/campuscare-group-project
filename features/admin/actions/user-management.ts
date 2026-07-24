@@ -311,7 +311,7 @@ export async function createStaffUser(
       "User was created, but clinic assignment could not be resolved automatically."
     return {
       ok: true,
-      message: "User account created and magic link invite sent.",
+      message: "User account created and invite email sent.",
       warning,
     }
   }
@@ -320,7 +320,7 @@ export async function createStaffUser(
       "User was created, but no clinic exists yet. Assign clinic membership to avoid pending access."
     return {
       ok: true,
-      message: "User account created and magic link invite sent.",
+      message: "User account created and invite email sent.",
       warning,
     }
   }
@@ -339,7 +339,7 @@ export async function createStaffUser(
 
   return {
     ok: true,
-    message: "User account created and magic link invite sent.",
+    message: "User account created and invite email sent.",
     warning,
   }
 }

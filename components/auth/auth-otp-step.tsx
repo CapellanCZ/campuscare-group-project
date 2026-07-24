@@ -25,6 +25,7 @@ type AuthOtpStepProps = {
   email: string
   otp: string
   otpError: string | null
+  otpNotice: string | null
   isVerifying: boolean
   isResending: boolean
   resendSeconds: number
@@ -38,6 +39,7 @@ export function AuthOtpStep({
   email,
   otp,
   otpError,
+  otpNotice,
   isVerifying,
   isResending,
   resendSeconds,
@@ -110,8 +112,8 @@ export function AuthOtpStep({
           </InputOTP>
 
           <FieldDescription>
-            Check your inbox and spam folder if the code hasn&apos;t arrived
-            yet.
+            {otpNotice ??
+              "Check your inbox and spam folder if the code hasn't arrived yet."}
           </FieldDescription>
           <FieldError role="alert">{otpError}</FieldError>
         </Field>

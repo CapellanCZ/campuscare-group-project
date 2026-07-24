@@ -1,7 +1,9 @@
+import { IdleSessionProvider } from "@/components/auth/idle-session-provider"
+
 export default function DashboardGroupLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  return children
+  return <IdleSessionProvider>{children}</IdleSessionProvider>
 }

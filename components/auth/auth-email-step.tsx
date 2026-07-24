@@ -15,24 +15,20 @@ import { AuthDivider } from "@/components/auth/auth-divider"
 type AuthEmailStepProps = {
   email: string
   emailError: string | null
-  isSendingMagicLink: boolean
+  sessionNotice?: string | null
   isSendingOtp: boolean
   onEmailChange: (value: string) => void
-  onSendMagicLink: (event: React.FormEvent<HTMLFormElement>) => void
-  onSendOtp: () => void
+  onSendOtp: (event: React.FormEvent<HTMLFormElement>) => void
 }
 
 export function AuthEmailStep({
   email,
   emailError,
-  isSendingMagicLink,
+  sessionNotice = null,
   isSendingOtp,
   onEmailChange,
-  onSendMagicLink,
   onSendOtp,
 }: AuthEmailStepProps) {
-  const isBusy = isSendingMagicLink || isSendingOtp
-
   return (
     <>
       <div className="flex flex-col space-y-1">
@@ -42,7 +38,16 @@ export function AuthEmailStep({
         </p>
       </div>
 
-      <form className="space-y-4" onSubmit={onSendMagicLink} noValidate>
+      {sessionNotice ? (
+        <p
+          role="status"
+          className="rounded-2xl border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
+        >
+          {sessionNotice}
+        </p>
+      ) : null}
+
+      <form className="space-y-4" onSubmit={onSendOtp} noValidate>
         <Field
           className="max-w-sm"
           data-invalid={emailError ? true : undefined}
@@ -62,39 +67,25 @@ export function AuthEmailStep({
               onChange={(event) => onEmailChange(event.target.value)}
               aria-invalid={emailError ? true : undefined}
               required
-              disabled={isBusy}
+              disabled={isSendingOtp}
+              maxLength={254}
+              spellCheck={false}
             />
             <InputGroupAddon align="inline-start">
               <IconAt aria-hidden />
             </InputGroupAddon>
           </InputGroup>
-          <FieldError>{emailError}</FieldError>
+          <FieldError role="alert">{emailError}</FieldError>
         </Field>
 
         <p className="text-start text-xs text-muted-foreground">
-          We&apos;ll send a secure link to sign in without a password.
+          We&apos;ll send a one-time password (OTP) to verify your email.
         </p>
 
-        <Button
-          className="w-full"
-          type="submit"
-          disabled={isBusy}
-        >
-          {isSendingMagicLink ? "Sending magic link..." : "Send magic link"}
+        <Button className="w-full" type="submit" disabled={isSendingOtp}>
+          {isSendingOtp ? "Sending code..." : "One-Time Password (OTP)"}
         </Button>
       </form>
-
-      <AuthDivider>OR</AuthDivider>
-
-      <Button
-        className="w-full"
-        type="button"
-        variant="outline"
-        disabled={isBusy}
-        onClick={onSendOtp}
-      >
-        {isSendingOtp ? "Sending code..." : "One-Time Password (OTP)"}
-      </Button>
 
       {process.env.NODE_ENV === "development" ? (
         <>

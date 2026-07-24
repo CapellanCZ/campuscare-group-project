@@ -14,10 +14,6 @@ export { OTP_LENGTH, RESEND_COOLDOWN_SECONDS }
 export type { AuthResult }
 export type { PostLoginPathResult }
 
-export async function sendMagicLink(email: string): Promise<AuthResult> {
-  return sendOtpEmail(email)
-}
-
 export async function sendOtp(email: string): Promise<AuthResult> {
   return sendOtpEmail(email)
 }
