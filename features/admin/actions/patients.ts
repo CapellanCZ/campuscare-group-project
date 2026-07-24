@@ -235,7 +235,7 @@ export async function importPatientsFromExcel(
     return { ok: false, error: "Choose an Excel file to import." }
   }
 
-  const rows = parseExcelRows(await file.arrayBuffer())
+  const rows = await parseExcelRows(await file.arrayBuffer())
   if (rows.length === 0) {
     return { ok: false, error: "No rows found in the spreadsheet." }
   }

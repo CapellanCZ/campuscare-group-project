@@ -1,7 +1,10 @@
+import { cache } from "react"
+
 import { createClient } from "@/lib/supabase/server"
 import { normalizeWebRole, type StaffAccess } from "@/lib/auth/types"
 
-export async function getStaffAccess(): Promise<StaffAccess | null> {
+/** Deduped per request so layout + page/actions share one auth lookup. */
+export const getStaffAccess = cache(async (): Promise<StaffAccess | null> => {
   const supabase = await createClient()
   const {
     data: { user },
@@ -32,4 +35,4 @@ export async function getStaffAccess(): Promise<StaffAccess | null> {
     primaryRole: normalizeWebRole(profile.primary_role),
     hasClinicMembership: Boolean(membership),
   }
-}
+})

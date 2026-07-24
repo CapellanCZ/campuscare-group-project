@@ -30,6 +30,6 @@
     "**/*.mts",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
-, "app/(auth)/login"  ],
+  ],
   "exclude": ["node_modules"]
 }

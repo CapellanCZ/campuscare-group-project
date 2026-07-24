@@ -1,7 +1,6 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
 import Image from "next/image"
 import { IconChevronRight, IconPlus } from "@tabler/icons-react"
 
@@ -25,6 +24,8 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
+import { SidebarUtilityFooter } from "@/components/dashboard/sidebar-utility-footer"
+import { useNavPending } from "@/components/dashboard/nav-pending"
 import {
   getRoleNavConfig,
   type RoleNavItem,
@@ -46,22 +47,62 @@ function itemOrChildActive(pathname: string, item: RoleNavItem): boolean {
   return Boolean(item.children?.some((child) => isNavActive(pathname, child.href)))
 }
 
-function NavLeaf({ item, pathname }: { item: RoleNavItem; pathname: string }) {
+function NavLeaf({
+  item,
+  activePath,
+  onNavigate,
+  onPrefetch,
+}: {
+  item: RoleNavItem
+  activePath: string
+  onNavigate: (href: string) => void
+  onPrefetch: (href: string) => void
+}) {
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
-        isActive={isNavActive(pathname, item.href)}
-        render={<Link href={item.href} />}
+        isActive={isNavActive(activePath, item.href)}
+        render={
+          <Link
+            href={item.href}
+            prefetch
+            onClick={(event) => {
+              if (
+                event.metaKey ||
+                event.ctrlKey ||
+                event.shiftKey ||
+                event.altKey ||
+                event.button !== 0
+              ) {
+                return
+              }
+              event.preventDefault()
+              onNavigate(item.href)
+            }}
+            onMouseEnter={() => onPrefetch(item.href)}
+            onFocus={() => onPrefetch(item.href)}
+          />
+        }
       >
-        {item.icon ? <item.icon /> : null}
+        {item.icon ? <item.icon aria-hidden /> : null}
         <span>{item.title}</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
   )
 }
 
-function NavBranch({ item, pathname }: { item: RoleNavItem; pathname: string }) {
-  const open = itemOrChildActive(pathname, item)
+function NavBranch({
+  item,
+  activePath,
+  onNavigate,
+  onPrefetch,
+}: {
+  item: RoleNavItem
+  activePath: string
+  onNavigate: (href: string) => void
+  onPrefetch: (href: string) => void
+}) {
+  const open = itemOrChildActive(activePath, item)
 
   return (
     <Collapsible
@@ -71,22 +112,45 @@ function NavBranch({ item, pathname }: { item: RoleNavItem; pathname: string }) 
     >
       <CollapsibleTrigger
         render={
-          <SidebarMenuButton isActive={itemOrChildActive(pathname, item)} />
+          <SidebarMenuButton isActive={itemOrChildActive(activePath, item)} />
         }
       >
-        {item.icon ? <item.icon /> : null}
+        {item.icon ? <item.icon aria-hidden /> : null}
         <span>{item.title}</span>
-        <IconChevronRight className="ml-auto transition-transform duration-200 group-data-[panel-open]/collapsible:rotate-90 group-data-[open]/collapsible:rotate-90" />
+        <IconChevronRight
+          aria-hidden
+          className="ml-auto transition-transform duration-150 group-data-[panel-open]/collapsible:rotate-90 group-data-[open]/collapsible:rotate-90"
+        />
       </CollapsibleTrigger>
       <CollapsibleContent>
         <SidebarMenuSub>
           {item.children?.map((child) => (
             <SidebarMenuSubItem key={child.href}>
               <SidebarMenuSubButton
-                isActive={isNavActive(pathname, child.href)}
-                render={<Link href={child.href} />}
+                isActive={isNavActive(activePath, child.href)}
+                render={
+                  <Link
+                    href={child.href}
+                    prefetch
+                    onClick={(event) => {
+                      if (
+                        event.metaKey ||
+                        event.ctrlKey ||
+                        event.shiftKey ||
+                        event.altKey ||
+                        event.button !== 0
+                      ) {
+                        return
+                      }
+                      event.preventDefault()
+                      onNavigate(child.href)
+                    }}
+                    onMouseEnter={() => onPrefetch(child.href)}
+                    onFocus={() => onPrefetch(child.href)}
+                  />
+                }
               >
-                {child.icon ? <child.icon /> : null}
+                {child.icon ? <child.icon aria-hidden /> : null}
                 <span>{child.title}</span>
               </SidebarMenuSubButton>
             </SidebarMenuSubItem>
@@ -98,8 +162,9 @@ function NavBranch({ item, pathname }: { item: RoleNavItem; pathname: string }) 
 }
 
 export function RoleSidebar({ role }: RoleSidebarProps) {
-  const pathname = usePathname()
+  const { activePath, navigate, prefetch } = useNavPending()
   const nav = getRoleNavConfig(role)
+  const homeHref = nav.groups[0]?.items[0]?.href ?? `/${role}/dashboard`
 
   return (
     <Sidebar collapsible="icon" variant="inset">
@@ -107,7 +172,21 @@ export function RoleSidebar({ role }: RoleSidebarProps) {
         <SidebarMenuButton
           render={
             <Link
-              href={nav.groups[0]?.items[0]?.href ?? `/${role}/dashboard`}
+              href={homeHref}
+              prefetch
+              onClick={(event) => {
+                if (
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey ||
+                  event.button !== 0
+                ) {
+                  return
+                }
+                event.preventDefault()
+                navigate(homeHref)
+              }}
             />
           }
         >
@@ -120,10 +199,29 @@ export function RoleSidebar({ role }: RoleSidebarProps) {
           <SidebarMenuItem className="w-full">
             <Button
               className="w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90"
-              render={<Link href={nav.quickActionHref ?? "#"} />}
+              render={
+                <Link
+                  href={nav.quickActionHref ?? "#"}
+                  prefetch={Boolean(nav.quickActionHref)}
+                  onClick={(event) => {
+                    if (!nav.quickActionHref) return
+                    if (
+                      event.metaKey ||
+                      event.ctrlKey ||
+                      event.shiftKey ||
+                      event.altKey ||
+                      event.button !== 0
+                    ) {
+                      return
+                    }
+                    event.preventDefault()
+                    navigate(nav.quickActionHref)
+                  }}
+                />
+              }
               nativeButton={false}
             >
-              <IconPlus data-icon="inline-start" />
+              <IconPlus data-icon="inline-start" aria-hidden />
               <span>{nav.quickActionLabel}</span>
             </Button>
           </SidebarMenuItem>
@@ -134,9 +232,21 @@ export function RoleSidebar({ role }: RoleSidebarProps) {
             <SidebarMenu>
               {group.items.map((item) =>
                 item.children?.length ? (
-                  <NavBranch key={item.title} item={item} pathname={pathname} />
+                  <NavBranch
+                    key={item.title}
+                    item={item}
+                    activePath={activePath}
+                    onNavigate={navigate}
+                    onPrefetch={prefetch}
+                  />
                 ) : (
-                  <NavLeaf key={item.title} item={item} pathname={pathname} />
+                  <NavLeaf
+                    key={item.title}
+                    item={item}
+                    activePath={activePath}
+                    onNavigate={navigate}
+                    onPrefetch={prefetch}
+                  />
                 )
               )}
             </SidebarMenu>
@@ -144,19 +254,7 @@ export function RoleSidebar({ role }: RoleSidebarProps) {
         ))}
       </SidebarContent>
       <SidebarFooter>
-        <SidebarMenu>
-          {nav.footerItems.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton
-                isActive={isNavActive(pathname, item.href)}
-                render={<Link href={item.href} />}
-              >
-                {item.icon ? <item.icon /> : null}
-                <span>{item.title}</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
+        <SidebarUtilityFooter />
       </SidebarFooter>
     </Sidebar>
   )

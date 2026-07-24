@@ -2,7 +2,6 @@ import { Suspense } from "react"
 import { notFound } from "next/navigation"
 
 import { StateBlock } from "@/features/common/components/state-block"
-import { RoleRouteGuard } from "@/features/dashboard/components/role-route-guard"
 import { ConsultationMode } from "@/features/physician/components/consultation-mode"
 import { loadPhysicianWorkspace } from "@/features/physician/data/queries"
 import { startConsultation } from "@/features/physician/actions/appointments"
@@ -51,10 +50,8 @@ export default async function Page({ params }: PageProps) {
   const { appointmentId } = await params
 
   return (
-    <RoleRouteGuard expectedRole="physician">
-      <Suspense fallback={<StateBlock state="loading" />}>
-        <Content appointmentId={appointmentId} />
-      </Suspense>
-    </RoleRouteGuard>
+    <Suspense fallback={<StateBlock state="loading" />}>
+      <Content appointmentId={appointmentId} />
+    </Suspense>
   )
 }

@@ -1,6 +1,18 @@
 {
   "version": 1,
   "skills": {
+    "interface-design": {
+      "source": "Dammyjay93/interface-design",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/interface-design/SKILL.md",
+      "computedHash": "55a83a96d1e3d161b8c3630dab8ae2dd4547d92636d3d9b4b447d7d59163e084"
+    },
+    "linear-local-first-architecture": {
+      "source": "brotzky/performance-skills",
+      "sourceType": "github",
+      "skillPath": "performance/skills/linear-local-first-architecture/SKILL.md",
+      "computedHash": "7e8f54b5c1f83f5c5e1fdbe7d29ed5ed06976f469cce54f8f973e26c3d3732b4"
+    },
     "supabase": {
       "source": "supabase/agent-skills",
       "sourceType": "github",

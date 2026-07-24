@@ -35,38 +35,8 @@ export type RoleNavConfig = {
   quickActionHref?: string
 }
 
-export type RoleMeta = {
-  title: string
-  subtitle: string
-  description: string
-}
-
-const roleMetaMap: Record<WebRole, RoleMeta> = {
-  admin: {
-    title: "Admin Dashboard",
-    subtitle: "System-wide monitoring and management",
-    description:
-      "Track operations, manage users, and oversee reports and announcements across the clinic.",
-  },
-  nurse: {
-    title: "Nurse Dashboard",
-    subtitle: "Queue and initial assessment operations",
-    description:
-      "Handle consultation intake, queue updates, vital signs, and initial assessment workflows.",
-  },
-  physician: {
-    title: "Physician Dashboard",
-    subtitle: "Consultation and treatment workspace",
-    description:
-      "Manage appointments, consultations, diagnosis notes, prescriptions, and availability.",
-  },
-  dentist: {
-    title: "Dentist Dashboard",
-    subtitle: "Dental consultation management",
-    description:
-      "Handle dental consultations, findings, procedures, and dental medical certificates.",
-  },
-}
+export type { RoleMeta } from "@/lib/navigation/role-meta"
+export { getRoleMeta } from "@/lib/navigation/role-meta"
 
 const roleGroupsByRole: Record<WebRole, RoleNavGroup[]> = {
   admin: [
@@ -249,10 +219,6 @@ const quickActionByRole: Record<WebRole, { label: string; href: string }> = {
   dentist: { label: "Start Dental Consultation", href: "/dentist/dashboard" },
 }
 
-export function getRoleMeta(role: WebRole): RoleMeta {
-  return roleMetaMap[role]
-}
-
 export function getRoleNavConfig(role: WebRole): RoleNavConfig {
   const quick = quickActionByRole[role]
   return {
@@ -267,6 +233,18 @@ function flattenNavItems(items: RoleNavItem[]): RoleNavItem[] {
   return items.flatMap((item) =>
     item.children?.length ? [item, ...flattenNavItems(item.children)] : [item]
   )
+}
+
+/** Flat href list for idle prefetch / router cache warming. */
+export function collectRoleNavHrefs(role: WebRole): string[] {
+  const nav = getRoleNavConfig(role)
+  const items = flattenNavItems([
+    ...nav.groups.flatMap((group) => group.items),
+    ...nav.footerItems,
+  ])
+  const hrefs = items.map((item) => item.href)
+  if (nav.quickActionHref) hrefs.push(nav.quickActionHref)
+  return hrefs
 }
 
 export function resolveRoleNavItem(

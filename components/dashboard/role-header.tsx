@@ -1,7 +1,6 @@
 "use client"
 
-import { usePathname } from "next/navigation"
-import { IconBell, IconMoon, IconSun } from "@tabler/icons-react"
+import { IconBell } from "@tabler/icons-react"
 
 import {
   Breadcrumb,
@@ -12,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { NavUser } from "@/components/nav-user"
-import { useTheme } from "@/components/theme-provider"
+import { useNavPending } from "@/components/dashboard/nav-pending"
 import { resolveRoleNavItem } from "@/lib/navigation/role-nav"
 import type { WebRole } from "@/lib/auth/types"
 
@@ -31,9 +30,8 @@ export function RoleHeader({
   staffRoleLabel = "Staff",
   profileHref = "/physician/profile",
 }: RoleHeaderProps) {
-  const pathname = usePathname()
-  const { resolvedTheme, setTheme } = useTheme()
-  const currentPage = resolveRoleNavItem(role, pathname)
+  const { activePath } = useNavPending()
+  const currentPage = resolveRoleNavItem(role, activePath)
   const PageIcon = currentPage.icon
 
   return (
@@ -41,8 +39,8 @@ export function RoleHeader({
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem className="gap-2">
-          {PageIcon ? (
-              <PageIcon className="size-4 text-black/70" aria-hidden="true" />
+            {PageIcon ? (
+              <PageIcon className="size-4 text-foreground/70" aria-hidden />
             ) : null}
             <BreadcrumbPage className="text-sm font-medium">
               {currentPage.title}
@@ -52,16 +50,8 @@ export function RoleHeader({
       </Breadcrumb>
 
       <div className="flex items-center gap-3">
-        <Button
-          variant="outline"
-          size="icon-sm"
-          aria-label="Toggle theme"
-          onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-        >
-          {resolvedTheme === "dark" ? <IconSun /> : <IconMoon />}
-        </Button>
-        <Button variant="outline" size="icon-sm" aria-label="Notifications">
-          <IconBell />
+        <Button type="button" variant="outline" size="icon-sm" aria-label="Notifications">
+          <IconBell aria-hidden />
         </Button>
         <Separator
           orientation="vertical"

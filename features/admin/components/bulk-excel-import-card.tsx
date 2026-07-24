@@ -36,13 +36,13 @@ export function BulkExcelImportCard({
           type="button"
           variant="outline"
           size="sm"
-          onClick={() =>
-            downloadExcelTemplate(
+          onClick={() => {
+            void downloadExcelTemplate(
               templateFilename,
               templateHeaders,
               templateSampleRows
             )
-          }
+          }}
         >
           <IconDownload data-icon="inline-start" aria-hidden />
           Download template

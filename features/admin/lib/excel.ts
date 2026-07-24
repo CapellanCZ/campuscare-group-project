@@ -1,5 +1,3 @@
-import * as XLSX from "xlsx"
-
 export type ExcelRow = Record<string, string>
 
 function cellToString(value: unknown): string {
@@ -9,7 +7,8 @@ function cellToString(value: unknown): string {
 }
 
 /** Parse first sheet of an .xlsx / .xls / .csv file into normalized string rows. */
-export function parseExcelRows(buffer: ArrayBuffer): ExcelRow[] {
+export async function parseExcelRows(buffer: ArrayBuffer): Promise<ExcelRow[]> {
+  const XLSX = await import("xlsx")
   const workbook = XLSX.read(buffer, { type: "array", cellDates: true })
   const sheetName = workbook.SheetNames[0]
   if (!sheetName) return []
@@ -31,11 +30,13 @@ export function parseExcelRows(buffer: ArrayBuffer): ExcelRow[] {
   })
 }
 
-export function downloadExcelTemplate(
+/** Lazy-loads xlsx only when the user downloads a template (keeps page compile light). */
+export async function downloadExcelTemplate(
   filename: string,
   headers: string[],
   sampleRows: string[][] = []
 ) {
+  const XLSX = await import("xlsx")
   const worksheet = XLSX.utils.aoa_to_sheet([headers, ...sampleRows])
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, worksheet, "Import")
