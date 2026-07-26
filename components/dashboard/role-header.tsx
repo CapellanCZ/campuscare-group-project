@@ -23,13 +23,7 @@ type RoleHeaderProps = {
   profileHref?: string
 }
 
-export function RoleHeader({
-  role,
-  staffName = "Clinic Staff",
-  staffEmail = "staff@clinic.edu",
-  staffRoleLabel = "Staff",
-  profileHref = "/physician/profile",
-}: RoleHeaderProps) {
+export function RoleHeader({ role }: RoleHeaderProps) {
   const { activePath } = useNavPending()
   const currentPage = resolveRoleNavItem(role, activePath)
   const PageIcon = currentPage.icon
@@ -57,12 +51,7 @@ export function RoleHeader({
           orientation="vertical"
           className="h-4 data-[orientation=vertical]:self-center"
         />
-        <NavUser
-          name={staffName}
-          email={staffEmail}
-          roleLabel={staffRoleLabel}
-          profileHref={profileHref}
-        />
+        <NavUser />
       </div>
     </header>
   )

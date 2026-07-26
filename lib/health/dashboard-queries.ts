@@ -45,24 +45,42 @@ async function buildKpis(
   const supabase = await createClient()
   const { ymd, startIso, endIso } = manilaDayBounds()
 
-  const { count: consultCount } = await supabase
-    .from("health_consultations")
-    .select("id", { count: "exact", head: true })
-    .gte("visit_date", ymd)
-    .lte("visit_date", ymd)
+  const safeCount = async (
+    run: () => PromiseLike<{ count: number | null; error: { message: string } | null }>
+  ) => {
+    try {
+      const { count, error } = await run()
+      if (error) return 0
+      return count ?? 0
+    } catch {
+      return 0
+    }
+  }
 
-  const { count: certCount } = await supabase
-    .from("health_consultations")
-    .select("id", { count: "exact", head: true })
-    .gte("visit_date", ymd)
-    .lte("visit_date", ymd)
-    .ilike("certificate_status", "%issued%")
+  const consultCount = await safeCount(() =>
+    supabase
+      .from("health_consultations")
+      .select("id", { count: "exact", head: true })
+      .gte("visit_date", ymd)
+      .lte("visit_date", ymd)
+  )
 
-  const { count: appointmentCount } = await supabase
-    .from("health_appointments")
-    .select("id", { count: "exact", head: true })
-    .gte("created_at", startIso)
-    .lte("created_at", endIso)
+  const certCount = await safeCount(() =>
+    supabase
+      .from("health_consultations")
+      .select("id", { count: "exact", head: true })
+      .gte("visit_date", ymd)
+      .lte("visit_date", ymd)
+      .ilike("certificate_status", "%issued%")
+  )
+
+  const appointmentCount = await safeCount(() =>
+    supabase
+      .from("health_appointments")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", startIso)
+      .lte("created_at", endIso)
+  )
 
   const patientsToday = new Set(
     scoped.map((t) => t.studentId).filter(Boolean)
@@ -76,7 +94,7 @@ async function buildKpis(
         {
           key: "requests",
           label: "Consultation requests",
-          value: String(appointmentCount ?? 0),
+          value: String(appointmentCount),
           description: "Created today",
         },
         {
@@ -95,13 +113,13 @@ async function buildKpis(
         {
           key: "completed",
           label: "Completed consultations",
-          value: String(consultCount ?? stats.completedToday),
+          value: String(consultCount || stats.completedToday),
           description: "Recorded today",
         },
         {
           key: "certs",
           label: "Medical certificates issued",
-          value: String(certCount ?? 0),
+          value: String(certCount),
           description: "Issued today",
         },
         {
@@ -120,7 +138,7 @@ async function buildKpis(
         {
           key: "pending",
           label: "Pending requests",
-          value: String(appointmentCount ?? 0),
+          value: String(appointmentCount),
           description: "Appointments today",
         },
         {
@@ -192,7 +210,7 @@ async function buildKpis(
           designation === "dentist"
             ? "Dental certificates issued"
             : "Medical certificates issued today",
-        value: String(certCount ?? 0),
+        value: String(certCount),
         description: "Issued today",
       },
     ],

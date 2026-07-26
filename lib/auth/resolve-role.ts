@@ -8,12 +8,10 @@ const CLINIC_ROLES = [
   "queue_display",
 ] as const satisfies readonly ClinicDesignation[]
 
+/** Fields that exist on live `profiles` for RBAC gates. */
 export type ProfileRoleFields = {
   primary_role?: string | null
-  designation?: string | null
-  role?: string | null
-  user_role?: string | null
-  account_status?: string | null
+  is_active?: boolean | null
 }
 
 export function isClinicWebRole(value: string | null | undefined): value is WebRole {
@@ -23,8 +21,7 @@ export function isClinicWebRole(value: string | null | undefined): value is WebR
 
 /**
  * Resolve clinic RBAC role from profiles.
- * Prefer `primary_role` (web_role), then `designation`. No silent default —
- * missing role means the user is not a clinic web staff member.
+ * Prefer `primary_role` (web_role). No silent default.
  */
 export function resolveClinicRole(
   profile: ProfileRoleFields | null | undefined
@@ -34,25 +31,21 @@ export function resolveClinicRole(
   const primary = (profile.primary_role ?? "").toLowerCase().trim()
   if (isClinicWebRole(primary)) return primary
 
-  const designation = (profile.designation ?? "").toLowerCase().trim()
-  if (isClinicWebRole(designation)) return designation
-
   return null
 }
 
+/** Active clinic staff with a resolved RBAC role may enter the staff shell. */
 export function hasApprovedClinicAccess(
   profile: ProfileRoleFields | null | undefined
 ): boolean {
   if (!profile) return false
-  const status = (profile.account_status ?? "").toLowerCase().trim()
-  if (status !== "approved") return false
-  if ((profile.user_role ?? "").toLowerCase().trim() === "student") return false
+  if (profile.is_active === false) return false
   return resolveClinicRole(profile) !== null
 }
 
+/** Same gate as approved access for this schema (no account_status column). */
 export function canUseWebApp(
   profile: ProfileRoleFields | null | undefined
 ): boolean {
-  const status = (profile?.account_status ?? "").toLowerCase().trim()
-  return status === "approved" || status === "pending"
+  return hasApprovedClinicAccess(profile)
 }

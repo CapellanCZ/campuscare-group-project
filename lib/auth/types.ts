@@ -21,6 +21,8 @@ export type StaffAccess = {
   userId: string
   email: string
   fullName: string
+  /** Optional profile photo from `profiles.avatar_url` */
+  avatarUrl: string | null
   /** RBAC role from profiles.primary_role */
   primaryRole: WebRole
   /** Same as primaryRole — kept for permission/queue call sites */

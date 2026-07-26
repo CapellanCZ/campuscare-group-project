@@ -156,7 +156,7 @@ const staffNavGroupTemplates: NavGroupTemplate[] = [
       {
         id: "users",
         title: "User Management",
-        suffix: "/users",
+        suffix: "/user-management/staff",
         icon: "users",
         module: "user_management",
       },
@@ -304,6 +304,7 @@ const routeModuleBySuffix: { suffix: string; module: NavModule }[] = [
   { suffix: "/certificates", module: "medical_certificates" },
   { suffix: "/reports", module: "reports" },
   { suffix: "/announcements", module: "announcements" },
+  { suffix: "/user-management", module: "user_management" },
   { suffix: "/users", module: "user_management" },
   { suffix: "/settings", module: "settings" },
   { suffix: "", module: "dashboard" },

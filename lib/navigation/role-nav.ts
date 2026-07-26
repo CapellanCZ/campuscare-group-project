@@ -170,6 +170,18 @@ const roleGroupsByRole: Record<WebRole, RoleNavGroup[]> = {
       ],
     },
   ],
+  queue_display: [
+    {
+      label: "Display",
+      items: [
+        {
+          title: "Queue Display",
+          href: "/queue-management/display",
+          icon: IconListCheck,
+        },
+      ],
+    },
+  ],
 }
 
 const footerByRole: Record<WebRole, RoleNavItem[]> = {
@@ -210,6 +222,7 @@ const footerByRole: Record<WebRole, RoleNavItem[]> = {
       icon: IconSettings,
     },
   ],
+  queue_display: [],
 }
 
 const quickActionByRole: Record<WebRole, { label: string; href: string }> = {
@@ -217,6 +230,10 @@ const quickActionByRole: Record<WebRole, { label: string; href: string }> = {
   nurse: { label: "Register Walk-In", href: "/nurse/consultation-requests" },
   physician: { label: "Start Consultation", href: "/physician/appointments" },
   dentist: { label: "Start Dental Consultation", href: "/dentist/dashboard" },
+  queue_display: {
+    label: "Open Display",
+    href: "/queue-management/display",
+  },
 }
 
 export function getRoleNavConfig(role: WebRole): RoleNavConfig {

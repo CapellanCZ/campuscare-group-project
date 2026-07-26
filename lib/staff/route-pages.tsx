@@ -9,7 +9,6 @@ import { QueuePage } from "@/components/queue/queue-page"
 import { ReportsDemoPage } from "@/components/reports/reports-demo-page"
 import { RequestsDemoPage } from "@/components/requests/requests-demo-page"
 import { SettingsDemoPage } from "@/components/settings/settings-demo-page"
-import { UsersDemoPage } from "@/components/users/users-demo-page"
 import { getStaffAccess } from "@/lib/auth/access"
 import { requireStaffModule } from "@/lib/auth/require-module"
 import { getDashboardBundle } from "@/lib/health/dashboard-queries"
@@ -95,8 +94,11 @@ export async function StaffAnnouncementsPage() {
 }
 
 export async function StaffUsersPage() {
-  const access = await requireStaffModule("user_management")
-  return <UsersDemoPage access={access} />
+  await requireStaffModule("user_management")
+  const { UserManagementPage } = await import(
+    "@/features/admin/components/user-management-page"
+  )
+  return <UserManagementPage directory="staff" />
 }
 
 export async function StaffSettingsPage() {

@@ -185,6 +185,7 @@ export function AuthPage() {
               email={email}
               otp={otp}
               otpError={otpError}
+              otpNotice={null}
               isVerifying={isVerifying}
               isResending={isSendingOtp}
               resendSeconds={resendSeconds}

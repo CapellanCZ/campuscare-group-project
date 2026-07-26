@@ -39,6 +39,13 @@ export function mapAuthError(error: AuthLikeError, fallback: string): string {
     : ""
   const message = rawMessage.toLowerCase()
 
+  if (
+    message.includes("not registered") ||
+    message.includes("import your account")
+  ) {
+    return rawMessage
+  }
+
   if (status === 429 || message.includes("rate limit")) {
     return "Too many attempts. Please wait a moment and try again."
   }

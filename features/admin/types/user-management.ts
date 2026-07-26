@@ -5,7 +5,7 @@ export type ManagedRole = Extract<
   "admin" | "nurse" | "physician" | "dentist"
 >
 
-export type UserStatusFilter = "all" | "active" | "inactive"
+export type UserStatusFilter = "all" | "active" | "invited" | "inactive"
 
 export const MANAGED_ROLES: ManagedRole[] = [
   "admin",
@@ -22,18 +22,27 @@ export const STAFF_DIRECTORY_ROLES: ManagedRole[] = [
   "dentist",
 ]
 
+/** Derived account state for the directory. */
+export type AccountLifecycleStatus = "active" | "invited" | "inactive"
+
 export type ManagedStaffUser = {
   id: string
   fullName: string
   email: string
   role: ManagedRole
   isActive: boolean
+  /** Invite sent; user has not signed in yet. */
+  invitePending: boolean
   hasClinicMembership: boolean
+  /** ISO timestamp from Auth, or null if never signed in. */
+  lastSignInAt: string | null
+  status: AccountLifecycleStatus
 }
 
 export type StaffDirectorySummary = {
   total: number
   active: number
+  invited: number
   inactive: number
   admins: number
   nurses: number
@@ -77,6 +86,20 @@ export type CreateStaffUserInput = {
 export type SetStaffUserActiveInput = {
   userId: string
   isActive: boolean
+}
+
+export type UpdateStaffUserRoleInput = {
+  userId: string
+  role: ManagedRole
+  allowedRoles?: ManagedRole[]
+}
+
+export type AssignClinicMembershipInput = {
+  userId: string
+}
+
+export type ResendStaffInviteInput = {
+  userId: string
 }
 
 export type ImportStaffUsersInput = {

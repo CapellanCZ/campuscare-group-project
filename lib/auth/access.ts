@@ -9,23 +9,14 @@ import { createClient } from "@/lib/supabase/server"
 type ProfileRow = {
   id: string
   email: string | null
-  first_name: string | null
-  last_name: string | null
-  role: string | null
-  user_role: string | null
-  account_status: string | null
-  office: string | null
-  designation: string | null
+  full_name: string | null
+  avatar_url: string | null
   primary_role: string | null
+  is_active: boolean | null
 }
 
 function displayName(profile: ProfileRow) {
-  const name = [profile.first_name, profile.last_name]
-    .map((part) => part?.trim())
-    .filter(Boolean)
-    .join(" ")
-
-  return name || profile.email || "Staff"
+  return profile.full_name?.trim() || profile.email || "Staff"
 }
 
 export async function getStaffAccess(): Promise<StaffAccess | null> {
@@ -36,11 +27,10 @@ export async function getStaffAccess(): Promise<StaffAccess | null> {
 
   if (!user) return null
 
+  // Live profiles: id, email, full_name, avatar_url, primary_role, is_active
   const { data: profile, error } = await supabase
     .from("profiles")
-    .select(
-      "id, email, first_name, last_name, role, user_role, account_status, office, designation, primary_role"
-    )
+    .select("id, email, full_name, avatar_url, primary_role, is_active")
     .eq("id", user.id)
     .maybeSingle()
 
@@ -52,22 +42,22 @@ export async function getStaffAccess(): Promise<StaffAccess | null> {
   const clinicRole = resolveClinicRole(row)
   const hasClinicMembership = hasApprovedClinicAccess(row)
 
-  // Without a clinic RBAC role, expose a safe shell identity only for pending UI.
   if (!clinicRole) {
-    return {
-      userId: row.id,
-      email: row.email ?? user.email ?? "",
-      fullName: displayName(row),
-      primaryRole: "nurse",
-      designation: "nurse",
-      hasClinicMembership: false,
-    }
+    return null
   }
+
+  const metaAvatar =
+    typeof user.user_metadata?.avatar_url === "string"
+      ? user.user_metadata.avatar_url
+      : typeof user.user_metadata?.picture === "string"
+        ? user.user_metadata.picture
+        : null
 
   return {
     userId: row.id,
     email: row.email ?? user.email ?? "",
     fullName: displayName(row),
+    avatarUrl: row.avatar_url?.trim() || metaAvatar,
     primaryRole: clinicRole,
     designation: clinicRole,
     hasClinicMembership,

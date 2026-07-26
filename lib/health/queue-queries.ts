@@ -24,7 +24,18 @@ async function fetchJoinedTickets(): Promise<QueueTicketRow[]> {
     .or(`created_at.gte.${startIso},status.in.(waiting,called)`)
     .order("queue_position", { ascending: true })
 
-  if (error) throw new Error(error.message)
+  if (error) {
+    // Queue tables may not be provisioned yet on this project.
+    const msg = error.message.toLowerCase()
+    if (
+      msg.includes("schema cache") ||
+      msg.includes("does not exist") ||
+      msg.includes("could not find the table")
+    ) {
+      return []
+    }
+    throw new Error(error.message)
+  }
 
   const rows = tickets ?? []
   const appointmentIds = [

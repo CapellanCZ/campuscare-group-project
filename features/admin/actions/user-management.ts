@@ -4,14 +4,18 @@ import { getStaffAccess } from "@/lib/auth/access"
 import { createAdminClient } from "@/lib/supabase/admin"
 import {
   MANAGED_ROLES,
+  type AccountLifecycleStatus,
+  type AssignClinicMembershipInput,
   type CreateStaffUserInput,
   type ListStaffUsersInput,
   type ListStaffUsersResult,
   type ManagedRole,
   type ManagedStaffUser,
   type ManageUserResult,
+  type ResendStaffInviteInput,
   type SetStaffUserActiveInput,
   type StaffDirectorySummary,
+  type UpdateStaffUserRoleInput,
   type UserStatusFilter,
 } from "@/features/admin/types/user-management"
 
@@ -81,8 +85,9 @@ function summarize(users: ManagedStaffUser[]): StaffDirectorySummary {
   return users.reduce<StaffDirectorySummary>(
     (acc, user) => {
       acc.total += 1
-      if (user.isActive) acc.active += 1
-      if (!user.isActive) acc.inactive += 1
+      if (user.status === "active") acc.active += 1
+      if (user.status === "invited") acc.invited += 1
+      if (user.status === "inactive") acc.inactive += 1
       if (user.role === "admin") acc.admins += 1
       if (user.role === "nurse") acc.nurses += 1
       if (user.role === "physician") acc.physicians += 1
@@ -92,6 +97,7 @@ function summarize(users: ManagedStaffUser[]): StaffDirectorySummary {
     {
       total: 0,
       active: 0,
+      invited: 0,
       inactive: 0,
       admins: 0,
       nurses: 0,
@@ -99,6 +105,15 @@ function summarize(users: ManagedStaffUser[]): StaffDirectorySummary {
       dentists: 0,
     }
   )
+}
+
+function resolveAccountStatus(
+  isActive: boolean,
+  lastSignInAt: string | null
+): AccountLifecycleStatus {
+  if (!isActive) return "inactive"
+  if (!lastSignInAt) return "invited"
+  return "active"
 }
 
 function roleWriteCandidates(role: ManagedRole): string[] {
@@ -168,19 +183,44 @@ export async function listStaffUsers(
     }
   }
 
+  const lastSignInById = new Map<string, string | null>()
+  if (userIds.length > 0) {
+    const { data: authData, error: authError } =
+      await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+
+    if (authError) {
+      return {
+        ok: false,
+        error: `Could not load invite status. ${authError.message}`,
+      }
+    }
+
+    for (const authUser of authData.users) {
+      lastSignInById.set(authUser.id, authUser.last_sign_in_at ?? null)
+    }
+  }
+
   const users = rows
-    .map((row) => ({
-      id: row.id,
-      fullName: deriveDisplayName(row),
-      email: row.email,
-      role: row.primary_role,
-      isActive: row.is_active,
-      hasClinicMembership: membershipSet.has(row.id),
-    }))
+    .map((row) => {
+      const lastSignInAt = lastSignInById.get(row.id) ?? null
+      const status = resolveAccountStatus(row.is_active, lastSignInAt)
+      return {
+        id: row.id,
+        fullName: deriveDisplayName(row),
+        email: row.email,
+        role: row.primary_role,
+        isActive: row.is_active,
+        invitePending: status === "invited",
+        hasClinicMembership: membershipSet.has(row.id),
+        lastSignInAt,
+        status,
+      } satisfies ManagedStaffUser
+    })
     .filter((user) => {
       if (role !== "all" && user.role !== role) return false
-      if (status === "active" && !user.isActive) return false
-      if (status === "inactive" && user.isActive) return false
+      if (status === "active" && user.status !== "active") return false
+      if (status === "invited" && user.status !== "invited") return false
+      if (status === "inactive" && user.status !== "inactive") return false
       if (!query) return true
 
       const target = `${user.fullName} ${user.email}`.toLowerCase()
@@ -350,6 +390,174 @@ export async function setStaffUserActive(
       ? "User account has been activated."
       : "User account has been deactivated.",
   }
+}
+
+export async function updateStaffUserRole(
+  input: UpdateStaffUserRoleInput
+): Promise<ManageUserResult> {
+  const authz = await requireAdmin()
+  if (!authz.ok) return authz
+
+  const userId = input.userId.trim()
+  if (!userId) {
+    return { ok: false, error: "Missing user identifier." }
+  }
+
+  const allowedRoles = resolveScopedRoles(input.allowedRoles)
+  if (!allowedRoles.includes(input.role)) {
+    return { ok: false, error: "Choose a valid role for this directory." }
+  }
+
+  const adminClientResult = getAdminClientSafe()
+  if (!adminClientResult.ok) {
+    return { ok: false, error: adminClientResult.error }
+  }
+  const adminClient = adminClientResult.client
+
+  let saved = false
+  let writeError: string | null = null
+  for (const roleCandidate of roleWriteCandidates(input.role)) {
+    const { data, error } = await adminClient
+      .from("profiles")
+      .update({ primary_role: roleCandidate })
+      .eq("id", userId)
+      .in("primary_role", MANAGED_ROLES)
+      .select("id")
+      .maybeSingle()
+
+    if (!error && data) {
+      saved = true
+      break
+    }
+    writeError = error?.message ?? "Profile not found."
+  }
+
+  if (!saved) {
+    return {
+      ok: false,
+      error: `Could not update role. ${writeError ?? ""}`.trim(),
+    }
+  }
+
+  return {
+    ok: true,
+    message: `Role updated to ${input.role}.`,
+  }
+}
+
+export async function assignClinicMembership(
+  input: AssignClinicMembershipInput
+): Promise<ManageUserResult> {
+  const authz = await requireAdmin()
+  if (!authz.ok) return authz
+
+  const userId = input.userId.trim()
+  if (!userId) {
+    return { ok: false, error: "Missing user identifier." }
+  }
+
+  const adminClientResult = getAdminClientSafe()
+  if (!adminClientResult.ok) {
+    return { ok: false, error: adminClientResult.error }
+  }
+  const adminClient = adminClientResult.client
+
+  const { data: profile, error: profileError } = await adminClient
+    .from("profiles")
+    .select("id")
+    .eq("id", userId)
+    .in("primary_role", MANAGED_ROLES)
+    .maybeSingle()
+
+  if (profileError || !profile) {
+    return { ok: false, error: "User not found in the directory." }
+  }
+
+  let clinicId: string | null = null
+  try {
+    clinicId = await resolveDefaultClinicId()
+  } catch {
+    return { ok: false, error: "Could not resolve a clinic for assignment." }
+  }
+
+  if (!clinicId) {
+    return {
+      ok: false,
+      error: "No clinic exists yet. Create a clinic before assigning membership.",
+    }
+  }
+
+  const { error: membershipError } = await adminClient
+    .from("clinic_members")
+    .upsert(
+      { profile_id: userId, clinic_id: clinicId, is_active: true },
+      { onConflict: "profile_id,clinic_id" }
+    )
+
+  if (membershipError) {
+    return {
+      ok: false,
+      error: `Could not assign clinic membership. ${membershipError.message}`,
+    }
+  }
+
+  return { ok: true, message: "Clinic membership assigned." }
+}
+
+export async function resendStaffInvite(
+  input: ResendStaffInviteInput
+): Promise<ManageUserResult> {
+  const authz = await requireAdmin()
+  if (!authz.ok) return authz
+
+  const userId = input.userId.trim()
+  if (!userId) {
+    return { ok: false, error: "Missing user identifier." }
+  }
+
+  const adminClientResult = getAdminClientSafe()
+  if (!adminClientResult.ok) {
+    return { ok: false, error: adminClientResult.error }
+  }
+  const adminClient = adminClientResult.client
+
+  const { data: profile, error: profileError } = await adminClient
+    .from("profiles")
+    .select("email, full_name, primary_role")
+    .eq("id", userId)
+    .in("primary_role", MANAGED_ROLES)
+    .maybeSingle()
+
+  if (profileError || !profile?.email) {
+    return { ok: false, error: "Could not find that user's email." }
+  }
+
+  const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
+    profile.email,
+    {
+      redirectTo: `${siteUrl()}/auth/callback`,
+      data: {
+        full_name: profile.full_name,
+        primary_role: profile.primary_role,
+      },
+    }
+  )
+
+  if (inviteError) {
+    const already =
+      /already|registered|exists/i.test(inviteError.message)
+    if (already) {
+      return {
+        ok: true,
+        message:
+          "Account already exists. They can sign in with email OTP from the login page.",
+        warning: inviteError.message,
+      }
+    }
+    return { ok: false, error: inviteError.message }
+  }
+
+  return { ok: true, message: "Invite email resent." }
 }
 
 export async function importStaffUsersFromExcel(

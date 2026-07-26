@@ -5,7 +5,9 @@ import { useTransition } from "react"
 import {
   Avatar,
   AvatarFallback,
+  AvatarImage,
 } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,8 +20,19 @@ import {
 import { useOptionalStaffAccess } from "@/components/staff-access-provider"
 import { signOut } from "@/app/auth/actions"
 import { staffBasePath } from "@/lib/auth/home-path"
-import { designationLabel } from "@/lib/health/roles"
-import { IconLogout2, IconUser } from "@tabler/icons-react"
+import {
+  IconCreditCard,
+  IconLogout,
+  IconSettings,
+  IconUser,
+} from "@tabler/icons-react"
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return "?"
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase()
+  return `${parts[0].charAt(0)}${parts[1].charAt(0)}`.toUpperCase()
+}
 
 export function NavUser() {
   const access = useOptionalStaffAccess()
@@ -27,43 +40,71 @@ export function NavUser() {
 
   const name = access?.fullName ?? "Staff"
   const email = access?.email ?? ""
-  const role = access ? designationLabel(access.primaryRole) : "Clinic"
-  const home = access ? staffBasePath(access.primaryRole) : "/login"
+  const avatarUrl = access?.avatarUrl ?? null
+  const base = access ? staffBasePath(access.primaryRole) : "/login"
+  const settingsHref = `${base}/settings`
+  const mark = initials(name)
 
   return (
     <DropdownMenu>
+      {/* c-avatar-35: put trigger UI inside `render`, keep Trigger self-closing */}
       <DropdownMenuTrigger
-        className="rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-        aria-label="Open profile menu"
-      >
-        <Avatar className="size-8">
-          <AvatarFallback>{name.charAt(0).toUpperCase()}</AvatarFallback>
-        </Avatar>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-60">
-        <DropdownMenuItem className="flex items-center justify-start gap-2">
-          <DropdownMenuLabel className="flex items-center gap-3">
-            <Avatar className="size-10">
-              <AvatarFallback>{name.charAt(0).toUpperCase()}</AvatarFallback>
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8 shrink-0 rounded-full p-0"
+            aria-label="Open profile menu"
+          >
+            <Avatar className="size-8">
+              {avatarUrl ? (
+                <AvatarImage src={avatarUrl} alt={name} />
+              ) : null}
+              <AvatarFallback className="bg-muted text-sm font-medium text-foreground">
+                {mark}
+              </AvatarFallback>
             </Avatar>
-            <div className="min-w-0">
-              <span className="font-medium text-foreground">{name}</span>
-              <div className="truncate text-muted-foreground text-xs">{email}</div>
-              <div className="text-muted-foreground text-xs">{role}</div>
+          </Button>
+        }
+      />
+      <DropdownMenuContent className="w-56" align="end" sideOffset={8}>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="flex items-center gap-2 py-2">
+            <Avatar className="size-8">
+              {avatarUrl ? (
+                <AvatarImage src={avatarUrl} alt={name} />
+              ) : null}
+              <AvatarFallback className="bg-muted text-sm font-medium text-foreground">
+                {mark}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex min-w-0 flex-col">
+              <span className="truncate text-sm font-medium text-foreground">
+                {name}
+              </span>
+              <span className="truncate text-xs font-normal text-muted-foreground">
+                {email || "Signed in"}
+              </span>
             </div>
           </DropdownMenuLabel>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem render={<Link href={home} />}>
-            <IconUser />
-            Dashboard
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup>
+            <DropdownMenuItem render={<Link href={settingsHref} />}>
+              <IconUser aria-hidden="true" />
+              Account
+            </DropdownMenuItem>
+            <DropdownMenuItem render={<Link href={settingsHref} />}>
+              <IconSettings aria-hidden="true" />
+              Settings
+            </DropdownMenuItem>
+            <DropdownMenuItem render={<Link href={settingsHref} />}>
+              <IconCreditCard aria-hidden="true" />
+              Plan & Billing
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
           <DropdownMenuItem
-            className="w-full cursor-pointer"
             variant="destructive"
             disabled={pending}
             onClick={() => {
@@ -73,7 +114,7 @@ export function NavUser() {
               })
             }}
           >
-            <IconLogout2 />
+            <IconLogout aria-hidden="true" />
             Log out
           </DropdownMenuItem>
         </DropdownMenuGroup>

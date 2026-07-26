@@ -61,9 +61,10 @@ export async function sendLoginOtpEmail(email: string): Promise<void> {
 
   const resend = new Resend(requiredEnv("RESEND_API_KEY"))
   const fromEmail = process.env.RESEND_FROM_EMAIL?.trim() || "nud-hso@campuscare.click"
+  // Keep From display name ASCII-safe for SMTP providers.
   const fromName =
-    process.env.RESEND_FROM_NAME?.trim() ||
-    "NU Dasmariñas Health Services Office"
+    process.env.RESEND_FROM_NAME?.trim().replace(/[^\x20-\x7E]/g, "") ||
+    "NU Dasmarinas Health Services Office"
 
   const { error: sendError } = await resend.emails.send({
     from: `${fromName} <${fromEmail}>`,
@@ -74,6 +75,10 @@ export async function sendLoginOtpEmail(email: string): Promise<void> {
   })
 
   if (sendError) {
-    throw sendError
+    throw new Error(
+      typeof sendError === "object" && sendError && "message" in sendError
+        ? String((sendError as { message?: string }).message)
+        : "Could not send sign-in email."
+    )
   }
 }

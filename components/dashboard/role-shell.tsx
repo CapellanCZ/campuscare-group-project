@@ -21,6 +21,7 @@ const ROLE_LABEL: Record<WebRole, string> = {
   nurse: "Nurse",
   physician: "Physician",
   dentist: "Dentist",
+  queue_display: "Queue Display",
 }
 
 const PROFILE_HREF: Record<WebRole, string> = {
@@ -28,6 +29,7 @@ const PROFILE_HREF: Record<WebRole, string> = {
   nurse: "/nurse/profile",
   physician: "/physician/profile",
   dentist: "/dentist/dashboard?module=profile",
+  queue_display: "/queue-management/display",
 }
 
 function ShellContent({

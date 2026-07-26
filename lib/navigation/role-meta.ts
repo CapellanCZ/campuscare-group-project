@@ -31,6 +31,11 @@ const roleMetaMap: Record<WebRole, RoleMeta> = {
     description:
       "Handle dental consultations, findings, procedures, and dental medical certificates.",
   },
+  queue_display: {
+    title: "Queue Display",
+    subtitle: "Public waiting-room board",
+    description: "Live queue board for clinic waiting areas.",
+  },
 }
 
 export function getRoleMeta(role: WebRole): RoleMeta {
