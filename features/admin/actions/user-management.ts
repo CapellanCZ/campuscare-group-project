@@ -55,18 +55,30 @@ async function requireAdmin() {
   return { ok: true as const }
 }
 
-async function resolveDefaultClinicId(adminClient: AdminClient) {
-  const { data, error } = await adminClient
-    .from("clinics")
-    .select("id")
+/**
+ * Single-clinic campus: resolve clinic_id from existing memberships only.
+ * Do not query a clinics catalog table (it may not exist in this project).
+ */
+async function resolveClinicIdForMembership(
+  adminClient: AdminClient,
+  userId: string
+): Promise<string | null> {
+  const { data: existing } = await adminClient
+    .from("clinic_members")
+    .select("clinic_id")
+    .eq("profile_id", userId)
     .limit(1)
     .maybeSingle()
 
-  if (error) {
-    throw new Error("Could not resolve clinic for new staff user.")
-  }
+  if (existing?.clinic_id) return existing.clinic_id
 
-  return data?.id ?? null
+  const { data: anyMember } = await adminClient
+    .from("clinic_members")
+    .select("clinic_id")
+    .limit(1)
+    .maybeSingle()
+
+  return anyMember?.clinic_id ?? null
 }
 
 function getAdminClientSafe() {
@@ -146,17 +158,41 @@ async function upsertClinicMembership(
   role: ManagedRole,
   isActive = true
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  let clinicId: string | null = null
-  try {
-    clinicId = await resolveDefaultClinicId(adminClient)
-  } catch {
-    return { ok: false, error: "Could not resolve a clinic for assignment." }
+  // Prefer updating the user's existing membership — no clinics table needed.
+  const { data: existingRows, error: existingError } = await adminClient
+    .from("clinic_members")
+    .select("clinic_id")
+    .eq("profile_id", userId)
+
+  if (existingError) {
+    return {
+      ok: false,
+      error: `Could not load clinic membership. ${existingError.message}`,
+    }
   }
 
+  if (existingRows && existingRows.length > 0) {
+    const { error: updateError } = await adminClient
+      .from("clinic_members")
+      .update({ member_role: role, is_active: isActive })
+      .eq("profile_id", userId)
+
+    if (updateError) {
+      return {
+        ok: false,
+        error: `Could not update clinic membership. ${updateError.message}`,
+      }
+    }
+
+    return { ok: true }
+  }
+
+  const clinicId = await resolveClinicIdForMembership(adminClient, userId)
   if (!clinicId) {
     return {
       ok: false,
-      error: "No clinic exists yet. Create a clinic before assigning membership.",
+      error:
+        "No clinic membership exists yet for this campus. Seed clinic_members before inviting staff.",
     }
   }
 
