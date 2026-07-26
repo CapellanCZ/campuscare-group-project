@@ -1,0 +1,7 @@
+# Minimal remote config for Edge Functions.
+# Public OTP endpoint: JWT gateway verification is disabled so callers can use
+# the legacy anon / publishable key. Auth is enforced inside the function via
+# the modern secret key for admin.generateLink.
+
+[functions.web-sign-in-otp]
+verify_jwt = false

@@ -3,49 +3,43 @@
 import { IconAt } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
-import { Field, FieldError, FieldLabel } from "@/components/ui/field"
+import { Field, FieldLabel } from "@/components/ui/field"
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
-import { AuthDivider } from "@/components/auth/auth-divider"
 
 type AuthEmailStepProps = {
   email: string
   emailError: string | null
-  isSendingMagicLink: boolean
   isSendingOtp: boolean
   onEmailChange: (value: string) => void
-  onSendMagicLink: (event: React.FormEvent<HTMLFormElement>) => void
-  onSendOtp: () => void
+  onSendOtp: (event: React.FormEvent<HTMLFormElement>) => void
 }
 
 export function AuthEmailStep({
   email,
   emailError,
-  isSendingMagicLink,
   isSendingOtp,
   onEmailChange,
-  onSendMagicLink,
   onSendOtp,
 }: AuthEmailStepProps) {
-  const isBusy = isSendingMagicLink || isSendingOtp
-
   return (
     <>
       <div className="flex flex-col space-y-1">
         <h1 className="text-2xl font-bold tracking-wide">Sign in</h1>
         <p className="text-base text-muted-foreground">
-          Enter your work email to continue with a magic link or one-time
-          password.
+          Enter your work email and we&apos;ll send a one-time password.
         </p>
       </div>
 
-      <form className="space-y-4" onSubmit={onSendMagicLink} noValidate>
+      <form className="space-y-4" onSubmit={onSendOtp} noValidate>
         <Field
           className="max-w-sm"
-          data-invalid={emailError ? true : undefined}
+          data-invalid={
+            typeof emailError === "string" && emailError ? true : undefined
+          }
         >
           <FieldLabel htmlFor="work-email" className="sr-only">
             Work email
@@ -60,41 +54,33 @@ export function AuthEmailStep({
               type="email"
               value={email}
               onChange={(event) => onEmailChange(event.target.value)}
-              aria-invalid={emailError ? true : undefined}
+              aria-invalid={
+                typeof emailError === "string" && emailError ? true : undefined
+              }
               required
-              disabled={isBusy}
+              disabled={isSendingOtp}
             />
             <InputGroupAddon align="inline-start">
               <IconAt aria-hidden />
             </InputGroupAddon>
           </InputGroup>
-          <FieldError>{emailError}</FieldError>
+          {typeof emailError === "string" &&
+          emailError &&
+          emailError !== "{}" ? (
+            <p role="alert" className="text-sm text-destructive">
+              {emailError}
+            </p>
+          ) : null}
         </Field>
 
         <p className="text-start text-xs text-muted-foreground">
-          We&apos;ll send a secure link to sign in without a password.
+          We&apos;ll email a 6-digit code. No password needed.
         </p>
 
-        <Button
-          className="w-full"
-          type="submit"
-          disabled={isBusy}
-        >
-          {isSendingMagicLink ? "Sending magic link..." : "Send magic link"}
+        <Button className="w-full" type="submit" disabled={isSendingOtp}>
+          {isSendingOtp ? "Sending code..." : "Send one-time password"}
         </Button>
       </form>
-
-      <AuthDivider>OR</AuthDivider>
-
-      <Button
-        className="w-full"
-        type="button"
-        variant="outline"
-        disabled={isBusy}
-        onClick={onSendOtp}
-      >
-        {isSendingOtp ? "Sending code..." : "One-Time Password (OTP)"}
-      </Button>
     </>
   )
 }

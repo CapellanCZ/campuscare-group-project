@@ -1,8 +1,6 @@
-import { AuthPage } from "@/components/auth/auth-page";
+import { redirect } from "next/navigation"
 
-export default function Page() {
-  return (
-    <AuthPage />
-  )
+/** Site root → landing folder route. */
+export default function RootPage() {
+  redirect("/landing")
 }
-

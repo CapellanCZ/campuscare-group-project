@@ -2,32 +2,28 @@
 
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { IconChevronLeft } from "@tabler/icons-react"
 
 import { AuthEmailStep } from "@/components/auth/auth-email-step"
-import { AuthMagicLinkSent } from "@/components/auth/auth-magic-link-sent"
 import { AuthOtpStep } from "@/components/auth/auth-otp-step"
 import { Button } from "@/components/ui/button"
 import { FloatingPaths } from "@/components/floating-paths"
 import {
   RESEND_COOLDOWN_SECONDS,
-  sendMagicLink,
   sendOtp,
   verifyOtp,
 } from "@/lib/auth/auth-api"
+import { asErrorMessage } from "@/lib/auth/errors"
 import { isValidEmail } from "@/lib/auth/email"
 
-type AuthStep = "email" | "magic-link-sent" | "otp"
+type AuthStep = "email" | "otp"
 
 export function AuthPage() {
-  const router = useRouter()
   const [step, setStep] = useState<AuthStep>("email")
   const [email, setEmail] = useState("")
   const [otp, setOtp] = useState("")
   const [emailError, setEmailError] = useState<string | null>(null)
   const [otpError, setOtpError] = useState<string | null>(null)
-  const [isSendingMagicLink, setIsSendingMagicLink] = useState(false)
   const [isSendingOtp, setIsSendingOtp] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
   const [resendSeconds, setResendSeconds] = useState(0)
@@ -59,32 +55,9 @@ export function AuthPage() {
     return trimmedEmail
   }, [email])
 
-  const handleSendMagicLink = async (
-    event?: React.FormEvent<HTMLFormElement>
-  ) => {
+  const handleSendOtp = async (event?: React.FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
 
-    const trimmedEmail = validateEmail()
-    if (!trimmedEmail) return
-
-    setIsSendingMagicLink(true)
-    setOtpError(null)
-
-    const result = await sendMagicLink(trimmedEmail)
-
-    setIsSendingMagicLink(false)
-
-    if (!result.ok) {
-      setEmailError(result.error)
-      return
-    }
-
-    setEmail(trimmedEmail)
-    setStep("magic-link-sent")
-    setResendSeconds(RESEND_COOLDOWN_SECONDS)
-  }
-
-  const handleSendOtp = async () => {
     const trimmedEmail = validateEmail()
     if (!trimmedEmail) return
 
@@ -96,7 +69,9 @@ export function AuthPage() {
     setIsSendingOtp(false)
 
     if (!result.ok) {
-      setEmailError(result.error)
+      setEmailError(
+        asErrorMessage(result.error, "Could not send sign-in email.")
+      )
       return
     }
 
@@ -104,11 +79,6 @@ export function AuthPage() {
     setOtp("")
     setStep("otp")
     setResendSeconds(RESEND_COOLDOWN_SECONDS)
-  }
-
-  const handleResendMagicLink = async () => {
-    if (resendSeconds > 0 || isSendingMagicLink) return
-    await handleSendMagicLink()
   }
 
   const handleResendOtp = async () => {
@@ -122,16 +92,22 @@ export function AuthPage() {
     setIsVerifying(true)
     setOtpError(null)
 
-    const result = await verifyOtp(email, otp)
+    try {
+      const result = await verifyOtp(email, otp)
 
-    if (!result.ok) {
+      if (!result.ok) {
+        setOtpError(asErrorMessage(result.error, "Could not verify that code."))
+        setIsVerifying(false)
+        return
+      }
+
+      // Hard navigation avoids leaving this screen stuck on "Verifying..."
+      // while /auth/continue resolves the role home.
+      window.location.assign("/auth/continue")
+    } catch {
+      setOtpError("Could not verify that code.")
       setIsVerifying(false)
-      setOtpError(result.error)
-      return
     }
-
-    router.refresh()
-    router.push("/dashboard")
   }
 
   const handleBackToEmail = () => {
@@ -195,26 +171,12 @@ export function AuthPage() {
             <AuthEmailStep
               email={email}
               emailError={emailError}
-              isSendingMagicLink={isSendingMagicLink}
               isSendingOtp={isSendingOtp}
               onEmailChange={(value) => {
                 setEmail(value)
                 if (emailError) setEmailError(null)
               }}
-              onSendMagicLink={handleSendMagicLink}
               onSendOtp={handleSendOtp}
-            />
-          ) : null}
-
-          {step === "magic-link-sent" ? (
-            <AuthMagicLinkSent
-              email={email}
-              isResending={isSendingMagicLink}
-              isSendingOtp={isSendingOtp}
-              resendSeconds={resendSeconds}
-              onResend={handleResendMagicLink}
-              onSwitchToOtp={handleSendOtp}
-              onBackToEmail={handleBackToEmail}
             />
           ) : null}
 

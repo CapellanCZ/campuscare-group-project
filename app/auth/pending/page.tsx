@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 
 import { signOut } from "@/app/auth/actions"
 import { getStaffAccess } from "@/lib/auth/access"
+import { homePathForDesignation } from "@/lib/auth/home-path"
 import { Button } from "@/components/ui/button"
 
 export default async function AuthPendingPage() {
@@ -13,7 +14,7 @@ export default async function AuthPendingPage() {
   }
 
   if (access.hasClinicMembership) {
-    redirect("/dashboard")
+    redirect(homePathForDesignation(access.primaryRole))
   }
 
   return (
