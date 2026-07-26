@@ -14,6 +14,7 @@ import {
 } from "@tabler/icons-react"
 
 import {
+  deleteStaffUser,
   resendStaffInvite,
   setStaffUserActive,
   updateStaffUserRole,
@@ -32,6 +33,7 @@ import {
   DirectoryColumnLabel,
   type ColumnSortDirection,
 } from "@/features/admin/components/directory-column-header"
+import { UserDeleteDialog } from "@/features/admin/components/user-delete-dialog"
 import { UserImportSheet } from "@/features/admin/components/user-import-sheet"
 import { UserInviteSheet } from "@/features/admin/components/user-invite-sheet"
 import {
@@ -126,12 +128,22 @@ function withActiveFlag(
     }
   }
 
+  // Activate alone restores prior access — not a re-invite.
   const status = user.lastSignInAt ? "active" : "invited"
   return {
     ...user,
     isActive: true,
     invitePending: status === "invited",
     status,
+  }
+}
+
+function withInvitePending(user: ManagedStaffUser): ManagedStaffUser {
+  return {
+    ...user,
+    isActive: true,
+    invitePending: true,
+    status: "invited",
   }
 }
 
@@ -171,22 +183,20 @@ export function UserDirectoryPanel({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [bulkPending, setBulkPending] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const [, startTransition] = useTransition()
   const deferredQuery = useDeferredValue(query.trim().toLowerCase())
 
   useEffect(() => {
     setUsers(initialUsers)
-  }, [initialUsers])
-
-  useEffect(() => {
     setSelectedIds((prev) => {
       const next = new Set<string>()
       for (const id of prev) {
-        if (users.some((user) => user.id === id)) next.add(id)
+        if (initialUsers.some((user) => user.id === id)) next.add(id)
       }
-      return next.size === prev.size ? prev : next
+      return next
     })
-  }, [users])
+  }, [initialUsers])
 
   function setColumnSort(column: SortColumn, direction: ColumnSortDirection) {
     setSortColumn(column)
@@ -303,7 +313,7 @@ export function UserDirectoryPanel({
     })
   }
 
-  function runBulkStatus(isActive: boolean) {
+  function runBulkStatus(isActive: boolean, label: "activate" | "archive" | "deactivate" = isActive ? "activate" : "deactivate") {
     const ids = [...selectedIds]
     if (ids.length === 0) return
 
@@ -331,15 +341,57 @@ export function UserDirectoryPanel({
         return
       }
 
+      const noun = ids.length === 1 ? "account" : "accounts"
       toast.success(
-        isActive
-          ? `Activated ${ids.length} account${ids.length === 1 ? "" : "s"}.`
-          : `Deactivated ${ids.length} account${ids.length === 1 ? "" : "s"}.`
+        label === "activate"
+          ? `Activated ${ids.length} ${noun}.`
+          : label === "archive"
+            ? `Archived ${ids.length} ${noun}.`
+            : `Deactivated ${ids.length} ${noun}.`
       )
       clearSelection()
       syncFromServer()
     })
   }
+
+  function confirmDeleteSelected() {
+    const ids = [...selectedIds]
+    if (ids.length === 0) return
+
+    const snapshot = users
+    const idSet = new Set(ids)
+
+    // Local-first: remove selected rows immediately, sync in background.
+    setUsers((current) => current.filter((row) => !idSet.has(row.id)))
+    setDeleteOpen(false)
+    setBulkPending(true)
+    clearSelection()
+
+    startTransition(async () => {
+      const failures: string[] = []
+      for (const userId of ids) {
+        const result = await deleteStaffUser({ userId })
+        if (!result.ok) failures.push(result.error)
+      }
+      setBulkPending(false)
+
+      if (failures.length > 0) {
+        setUsers(snapshot)
+        toast.error(
+          `Could not delete ${failures.length} account${failures.length === 1 ? "" : "s"}. ${failures[0] ?? ""}`.trim()
+        )
+        return
+      }
+
+      toast.success(
+        `Deleted ${ids.length} account${ids.length === 1 ? "" : "s"}.`
+      )
+      syncFromServer()
+    })
+  }
+
+  const deleteSelection = users.filter((user) => selectedIds.has(user.id))
+  const deletePrimary = deleteSelection[0]
 
   return (
     <div className="flex min-h-0 flex-col gap-5">
@@ -437,7 +489,7 @@ export function UserDirectoryPanel({
                 size="sm"
                 variant="outline"
                 disabled={bulkPending}
-                onClick={() => runBulkStatus(true)}
+                onClick={() => runBulkStatus(true, "activate")}
               >
                 Activate
               </Button>
@@ -446,9 +498,27 @@ export function UserDirectoryPanel({
                 size="sm"
                 variant="outline"
                 disabled={bulkPending}
-                onClick={() => runBulkStatus(false)}
+                onClick={() => runBulkStatus(false, "deactivate")}
               >
                 Deactivate
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={bulkPending}
+                onClick={() => runBulkStatus(false, "archive")}
+              >
+                Archive
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={bulkPending}
+                onClick={() => setDeleteOpen(true)}
+              >
+                Delete
               </Button>
               <Button
                 type="button"
@@ -638,7 +708,12 @@ export function UserDirectoryPanel({
                               onClick={() =>
                                 runUserAction(
                                   user.id,
-                                  (current) => current,
+                                  (current) =>
+                                    current.map((row) =>
+                                      row.id === user.id
+                                        ? withInvitePending(row)
+                                        : row
+                                    ),
                                   () =>
                                     resendStaffInvite({ userId: user.id })
                                 )
@@ -730,6 +805,16 @@ export function UserDirectoryPanel({
           </Table>
         </CardContent>
       </Card>
+
+      <UserDeleteDialog
+        open={deleteOpen}
+        count={selectedIds.size}
+        userName={deletePrimary?.fullName}
+        userEmail={deletePrimary?.email}
+        pending={bulkPending && deleteOpen}
+        onOpenChange={setDeleteOpen}
+        onConfirm={confirmDeleteSelected}
+      />
 
       <p className="sr-only" role="status">
         {selectedIds.size > 0

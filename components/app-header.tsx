@@ -1,22 +1,29 @@
 "use client"
 
 import { usePathname } from "next/navigation"
-import { IconBell } from "@tabler/icons-react"
+import { IconSettings } from "@tabler/icons-react"
 
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { AppBreadcrumbs } from "@/components/app-breadcrumbs"
 import { CustomSidebarTrigger } from "@/components/custom-sidebar-trigger"
 import { resolveActiveNav } from "@/components/app-shared"
+import { HeaderNotifications } from "@/components/header-notifications"
 import { HeaderSearch } from "@/components/header-search"
 import { NavUser } from "@/components/nav-user"
 import { useOptionalStaffAccess } from "@/components/staff-access-provider"
+import { stripStaffBasePath } from "@/lib/auth/home-path"
 
 export function AppHeader() {
   const pathname = usePathname()
   const access = useOptionalStaffAccess()
   const activeItem = resolveActiveNav(pathname, access?.primaryRole)
+  const relative = stripStaffBasePath(pathname)
+  const page =
+    activeItem ??
+    (relative === "/settings" || relative.startsWith("/settings/")
+      ? { title: "Settings", icon: <IconSettings /> }
+      : undefined)
 
   return (
     <header
@@ -30,23 +37,11 @@ export function AppHeader() {
           className="mr-2 h-4 data-[orientation=vertical]:self-center"
           orientation="vertical"
         />
-        <AppBreadcrumbs page={activeItem} />
+        <AppBreadcrumbs page={page} />
       </div>
       <div className="flex shrink-0 items-center gap-2.5 sm:gap-3">
         <HeaderSearch />
-        <Button
-          type="button"
-          aria-label="Notifications"
-          size="icon-sm"
-          variant="outline"
-          className="relative shrink-0 rounded-full"
-        >
-          <IconBell aria-hidden="true" />
-          <span
-            aria-hidden="true"
-            className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-foreground"
-          />
-        </Button>
+        <HeaderNotifications />
         <Separator
           className="hidden h-4 shrink-0 data-[orientation=vertical]:self-center sm:block"
           orientation="vertical"

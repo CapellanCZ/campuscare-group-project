@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { clearInvitePendingAfterSignIn } from "@/lib/auth/clear-invite-pending"
 import { homePathForDesignation } from "@/lib/auth/home-path"
 import {
   hasApprovedClinicAccess,
@@ -40,9 +41,19 @@ export async function GET(request: Request) {
 
   const gate = profile as ProfileRoleFields | null
 
-  if (!hasApprovedClinicAccess(gate)) {
+  const { data: membership } = await supabase
+    .from("clinic_members")
+    .select("clinic_id")
+    .eq("profile_id", user.id)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle()
+
+  if (!hasApprovedClinicAccess(gate) || !membership) {
     return NextResponse.redirect(`${origin}/auth/pending`)
   }
+
+  await clearInvitePendingAfterSignIn(user.id)
 
   const clinicRole = resolveClinicRole(gate)
   const home = clinicRole

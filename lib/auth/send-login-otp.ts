@@ -1,17 +1,8 @@
 import "server-only"
 
-import { Resend } from "resend"
-
 import { OTP_LENGTH } from "@/lib/auth/types"
+import { sendResendEmail } from "@/lib/auth/resend-client"
 import { createAdminClient } from "@/lib/supabase/admin"
-
-function requiredEnv(name: string) {
-  const value = process.env[name]?.trim()
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`)
-  }
-  return value
-}
 
 function buildOtpEmailHtml(token: string) {
   return `<h2>Your CampusCare sign-in code</h2>
@@ -29,7 +20,7 @@ export async function sendLoginOtpEmail(email: string): Promise<void> {
 
   const { data: profile, error: profileError } = await admin
     .from("profiles")
-    .select("id")
+    .select("id, is_active, primary_role")
     .eq("email", email)
     .maybeSingle()
 
@@ -43,6 +34,30 @@ export async function sendLoginOtpEmail(email: string): Promise<void> {
     )
     ;(notRegistered as Error & { status?: number }).status = 400
     throw notRegistered
+  }
+
+  if (profile.is_active === false) {
+    const inactive = new Error(
+      "This account is inactive. Ask an admin to restore access."
+    )
+    ;(inactive as Error & { status?: number }).status = 403
+    throw inactive
+  }
+
+  const { data: membership } = await admin
+    .from("clinic_members")
+    .select("clinic_id")
+    .eq("profile_id", profile.id)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle()
+
+  if (!membership) {
+    const pending = new Error(
+      "This account is not assigned to a clinic yet. Ask an admin to finish setup."
+    )
+    ;(pending as Error & { status?: number }).status = 403
+    throw pending
   }
 
   const { data, error } = await admin.auth.admin.generateLink({
@@ -59,26 +74,10 @@ export async function sendLoginOtpEmail(email: string): Promise<void> {
     throw new Error("Could not generate a verification code. Please try again.")
   }
 
-  const resend = new Resend(requiredEnv("RESEND_API_KEY"))
-  const fromEmail = process.env.RESEND_FROM_EMAIL?.trim() || "nud-hso@campuscare.click"
-  // Keep From display name ASCII-safe for SMTP providers.
-  const fromName =
-    process.env.RESEND_FROM_NAME?.trim().replace(/[^\x20-\x7E]/g, "") ||
-    "NU Dasmarinas Health Services Office"
-
-  const { error: sendError } = await resend.emails.send({
-    from: `${fromName} <${fromEmail}>`,
+  await sendResendEmail({
     to: email,
     subject: "Your CampusCare sign-in code",
     html: buildOtpEmailHtml(token),
     text: `Your CampusCare sign-in code is ${token}. It expires soon.`,
   })
-
-  if (sendError) {
-    throw new Error(
-      typeof sendError === "object" && sendError && "message" in sendError
-        ? String((sendError as { message?: string }).message)
-        : "Could not send sign-in email."
-    )
-  }
 }

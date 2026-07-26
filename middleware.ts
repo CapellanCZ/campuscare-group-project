@@ -44,7 +44,15 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
-    const allowed = hasApprovedClinicAccess(gate)
+    const { data: membership } = await supabase
+      .from("clinic_members")
+      .select("clinic_id")
+      .eq("profile_id", user.id)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle()
+
+    const allowed = hasApprovedClinicAccess(gate) && Boolean(membership)
     const clinicRole = resolveClinicRole(gate)
     const home = clinicRole
       ? homePathForDesignation(clinicRole)

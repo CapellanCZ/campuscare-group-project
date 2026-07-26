@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { IconSearch } from "@tabler/icons-react"
+import { IconSearch, IconSettings } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -17,6 +17,8 @@ import {
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { getNavGroupsForRole } from "@/components/app-shared"
 import { useOptionalStaffAccess } from "@/components/staff-access-provider"
+import { staffBasePath } from "@/lib/auth/home-path"
+import { canViewModule } from "@/lib/auth/permissions"
 import { cn } from "@/lib/utils"
 
 export function HeaderSearch({ className }: { className?: string }) {
@@ -25,6 +27,8 @@ export function HeaderSearch({ className }: { className?: string }) {
   const access = useOptionalStaffAccess()
   const role = access?.primaryRole ?? "admin"
   const groups = getNavGroupsForRole(role)
+  const settingsHref = `${staffBasePath(role)}/settings`
+  const canOpenSettings = canViewModule(role, "settings")
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -66,41 +70,57 @@ export function HeaderSearch({ className }: { className?: string }) {
       >
         <IconSearch aria-hidden="true" />
       </Button>
-      <CommandDialog
-        open={open}
-        onOpenChange={setOpen}
-        title="Search"
-        description="Jump to a page or setting"
-      >
-        <Command className="**:data-[selected=true]:bg-muted **:data-selected:bg-transparent">
-          <CommandInput placeholder="Search..." />
-          <CommandList className="min-h-0">
-            <CommandEmpty>No results found.</CommandEmpty>
-            {groups.map((group) => (
-              <CommandGroup
-                key={group.label ?? "main"}
-                heading={group.label ?? "Platform"}
-              >
-                {group.items.map((item) =>
-                  item.path ? (
-                    <CommandItem
-                      key={item.path}
-                      value={`${item.title} ${group.label ?? ""}`}
-                      onSelect={() => {
-                        setOpen(false)
-                        router.push(item.path!)
-                      }}
-                    >
-                      {item.icon}
-                      <span>{item.title}</span>
-                    </CommandItem>
-                  ) : null
-                )}
-              </CommandGroup>
-            ))}
-          </CommandList>
-        </Command>
-      </CommandDialog>
+      {open ? (
+        <CommandDialog
+          open={open}
+          onOpenChange={setOpen}
+          title="Search"
+          description="Jump to a page or setting"
+        >
+          <Command className="**:data-[selected=true]:bg-muted **:data-selected:bg-transparent">
+            <CommandInput placeholder="Search..." />
+            <CommandList className="min-h-0">
+              <CommandEmpty>No results found.</CommandEmpty>
+              {groups.map((group) => (
+                <CommandGroup
+                  key={group.label ?? "main"}
+                  heading={group.label ?? "Platform"}
+                >
+                  {group.items.map((item) =>
+                    item.path ? (
+                      <CommandItem
+                        key={item.path}
+                        value={`${item.title} ${group.label ?? ""}`}
+                        onSelect={() => {
+                          setOpen(false)
+                          router.push(item.path!)
+                        }}
+                      >
+                        {item.icon}
+                        <span>{item.title}</span>
+                      </CommandItem>
+                    ) : null
+                  )}
+                </CommandGroup>
+              ))}
+              {canOpenSettings ? (
+                <CommandGroup heading="Account">
+                  <CommandItem
+                    value="Settings Account"
+                    onSelect={() => {
+                      setOpen(false)
+                      router.push(settingsHref)
+                    }}
+                  >
+                    <IconSettings aria-hidden="true" />
+                    <span>Settings</span>
+                  </CommandItem>
+                </CommandGroup>
+              ) : null}
+            </CommandList>
+          </Command>
+        </CommandDialog>
+      ) : null}
     </>
   )
 }

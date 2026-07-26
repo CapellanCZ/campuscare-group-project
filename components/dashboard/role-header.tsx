@@ -1,14 +1,12 @@
 "use client"
 
-import { IconBell } from "@tabler/icons-react"
-
+import { HeaderNotifications } from "@/components/header-notifications"
 import {
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbList,
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb"
-import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { NavUser } from "@/components/nav-user"
 import { useNavPending } from "@/components/dashboard/nav-pending"
@@ -44,9 +42,7 @@ export function RoleHeader({ role }: RoleHeaderProps) {
       </Breadcrumb>
 
       <div className="flex items-center gap-3">
-        <Button type="button" variant="outline" size="icon-sm" aria-label="Notifications">
-          <IconBell aria-hidden />
-        </Button>
+        <HeaderNotifications />
         <Separator
           orientation="vertical"
           className="h-4 data-[orientation=vertical]:self-center"

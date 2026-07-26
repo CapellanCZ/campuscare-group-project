@@ -79,12 +79,12 @@ export function DirectoryColumnHeader({
               "hover:bg-muted/60 hover:text-foreground data-[popup-open]:bg-muted/60",
               className
             )}
-          >
-            <span>{title}</span>
-            {sortIcon}
-          </Button>
+          />
         }
-      />
+      >
+        <span>{title}</span>
+        {sortIcon}
+      </DropdownMenuTrigger>
       <DropdownMenuContent align={align} className="w-44">
         {canSort ? (
           <DropdownMenuGroup>

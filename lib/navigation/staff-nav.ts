@@ -160,13 +160,6 @@ const staffNavGroupTemplates: NavGroupTemplate[] = [
         icon: "users",
         module: "user_management",
       },
-      {
-        id: "settings",
-        title: "Settings",
-        suffix: "/settings",
-        icon: "settings",
-        module: "settings",
-      },
     ],
   },
 ]

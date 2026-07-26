@@ -1,12 +1,14 @@
 "use server"
 
 import { getStaffAccess } from "@/lib/auth/access"
+import { sendStaffInviteEmail } from "@/lib/auth/send-staff-invite"
 import { createAdminClient } from "@/lib/supabase/admin"
 import {
   MANAGED_ROLES,
   type AccountLifecycleStatus,
   type AssignClinicMembershipInput,
   type CreateStaffUserInput,
+  type DeleteStaffUserInput,
   type ListStaffUsersInput,
   type ListStaffUsersResult,
   type ManagedRole,
@@ -25,14 +27,13 @@ type StaffProfileRow = {
   email: string
   primary_role: ManagedRole
   is_active: boolean
+  invite_pending: boolean
 }
+
+type AdminClient = ReturnType<typeof createAdminClient>
 
 type ImportStaffUsersOptions = {
   allowedRoles?: ManagedRole[]
-}
-
-function siteUrl() {
-  return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"
 }
 
 function normalizeSearch(input?: string): string {
@@ -54,8 +55,7 @@ async function requireAdmin() {
   return { ok: true as const }
 }
 
-async function resolveDefaultClinicId() {
-  const adminClient = createAdminClient()
+async function resolveDefaultClinicId(adminClient: AdminClient) {
   const { data, error } = await adminClient
     .from("clinics")
     .select("id")
@@ -109,23 +109,75 @@ function summarize(users: ManagedStaffUser[]): StaffDirectorySummary {
 
 function resolveAccountStatus(
   isActive: boolean,
-  lastSignInAt: string | null
+  lastSignInAt: string | null,
+  invitePending = false
 ): AccountLifecycleStatus {
   if (!isActive) return "inactive"
-  if (!lastSignInAt) return "invited"
+  // Re-invite (or first invite) stays Invited until they sign in again.
+  if (invitePending || !lastSignInAt) return "invited"
   return "active"
-}
-
-function roleWriteCandidates(role: ManagedRole): string[] {
-  if (role === "admin") return ["admin"]
-  if (role === "nurse") return ["nurse"]
-  if (role === "physician") return ["physician", "doctor"]
-  return ["dentist"]
 }
 
 function resolveScopedRoles(roles?: ManagedRole[]): ManagedRole[] {
   if (!roles || roles.length === 0) return MANAGED_ROLES
   return roles.filter((role) => MANAGED_ROLES.includes(role))
+}
+
+/** Persist RBAC role in app_metadata (not user-editable) + display fields. */
+async function syncAuthRoleMetadata(
+  adminClient: AdminClient,
+  userId: string,
+  role: ManagedRole,
+  fullName?: string | null
+) {
+  const { error } = await adminClient.auth.admin.updateUserById(userId, {
+    app_metadata: { primary_role: role },
+    user_metadata: {
+      primary_role: role,
+      ...(fullName ? { full_name: fullName } : {}),
+    },
+  })
+  return error
+}
+
+async function upsertClinicMembership(
+  adminClient: AdminClient,
+  userId: string,
+  role: ManagedRole,
+  isActive = true
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  let clinicId: string | null = null
+  try {
+    clinicId = await resolveDefaultClinicId(adminClient)
+  } catch {
+    return { ok: false, error: "Could not resolve a clinic for assignment." }
+  }
+
+  if (!clinicId) {
+    return {
+      ok: false,
+      error: "No clinic exists yet. Create a clinic before assigning membership.",
+    }
+  }
+
+  const { error } = await adminClient.from("clinic_members").upsert(
+    {
+      profile_id: userId,
+      clinic_id: clinicId,
+      member_role: role,
+      is_active: isActive,
+    },
+    { onConflict: "clinic_id,profile_id" }
+  )
+
+  if (error) {
+    return {
+      ok: false,
+      error: `Could not assign clinic membership. ${error.message}`,
+    }
+  }
+
+  return { ok: true }
 }
 
 export async function listStaffUsers(
@@ -150,7 +202,7 @@ export async function listStaffUsers(
 
   const { data: profileRows, error: profileError } = await adminClient
     .from("profiles")
-    .select("id, full_name, email, primary_role, is_active")
+    .select("id, full_name, email, primary_role, is_active, invite_pending")
     .in("primary_role", scopedRoles)
 
   if (profileError) {
@@ -203,17 +255,22 @@ export async function listStaffUsers(
   const users = rows
     .map((row) => {
       const lastSignInAt = lastSignInById.get(row.id) ?? null
-      const status = resolveAccountStatus(row.is_active, lastSignInAt)
+      const invitePending = row.invite_pending === true
+      const accountStatus = resolveAccountStatus(
+        row.is_active,
+        lastSignInAt,
+        invitePending
+      )
       return {
         id: row.id,
         fullName: deriveDisplayName(row),
         email: row.email,
         role: row.primary_role,
         isActive: row.is_active,
-        invitePending: status === "invited",
+        invitePending: accountStatus === "invited",
         hasClinicMembership: membershipSet.has(row.id),
         lastSignInAt,
-        status,
+        status: accountStatus,
       } satisfies ManagedStaffUser
     })
     .filter((user) => {
@@ -263,96 +320,107 @@ export async function createStaffUser(
     return { ok: false, error: adminClientResult.error }
   }
   const adminClient = adminClientResult.client
-  const { data: inviteData, error: inviteError } =
-    await adminClient.auth.admin.inviteUserByEmail(email, {
-      redirectTo: `${siteUrl()}/auth/callback`,
-      data: {
+
+  // Create the Auth user without Supabase's built-in mailer — we deliver via Resend.
+  const { data: created, error: createError } =
+    await adminClient.auth.admin.createUser({
+      email,
+      email_confirm: true,
+      user_metadata: {
         full_name: fullName,
+        primary_role: input.role,
+      },
+      app_metadata: {
         primary_role: input.role,
       },
     })
 
-  const userId = inviteData.user?.id ?? null
-  let warning: string | undefined
-
-  if (inviteError) {
-    return { ok: false, error: inviteError.message }
+  if (createError) {
+    const already = /already|registered|exists/i.test(createError.message)
+    if (already) {
+      return {
+        ok: false,
+        error:
+          "An account with this email already exists. Use Resend invite from the row menu instead.",
+      }
+    }
+    return { ok: false, error: createError.message }
   }
 
+  const userId = created.user?.id ?? null
   if (!userId) {
     return {
       ok: false,
       error:
-        "User invite was sent but account details were missing. Try again or check Supabase auth settings.",
+        "User was created but account details were missing. Try again or check Supabase auth settings.",
     }
   }
 
-  let savedProfile = false
-  let profileWriteError: string | null = null
-  for (const roleCandidate of roleWriteCandidates(input.role)) {
-    const { error: profileError } = await adminClient.from("profiles").upsert(
-      {
-        id: userId,
-        email,
-        full_name: fullName,
-        primary_role: roleCandidate,
-        is_active: true,
-      },
-      { onConflict: "id" }
-    )
-
-    if (!profileError) {
-      savedProfile = true
-      break
-    }
-    profileWriteError = profileError.message
-  }
-
-  if (!savedProfile) {
+  // Server-controlled role claim — never rely on user_metadata alone for authz.
+  const metaError = await syncAuthRoleMetadata(
+    adminClient,
+    userId,
+    input.role,
+    fullName
+  )
+  if (metaError) {
     return {
       ok: false,
-      error: `Could not save user profile details. ${profileWriteError ?? ""}`.trim(),
+      error: `Account created but role metadata could not be saved. ${metaError.message}`,
     }
   }
 
-  let clinicId: string | null = null
+  const { error: profileError } = await adminClient.from("profiles").upsert(
+    {
+      id: userId,
+      email,
+      full_name: fullName,
+      primary_role: input.role,
+      is_active: true,
+      invite_pending: true,
+    },
+    { onConflict: "id" }
+  )
+
+  if (profileError) {
+    return {
+      ok: false,
+      error: `Could not save user profile details. ${profileError.message}`,
+    }
+  }
+
+  const membership = await upsertClinicMembership(
+    adminClient,
+    userId,
+    input.role,
+    true
+  )
+  if (!membership.ok) {
+    return {
+      ok: false,
+      error: membership.error,
+    }
+  }
+
   try {
-    clinicId = await resolveDefaultClinicId()
-  } catch {
-    warning =
-      "User was created, but clinic assignment could not be resolved automatically."
+    await sendStaffInviteEmail({
+      email,
+      fullName,
+      role: input.role,
+    })
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Could not send invite email."
     return {
       ok: true,
-      message: "User account created and invite email sent.",
-      warning,
+      message: "User account created, but the invite email failed to send.",
+      warning: `${message} Use Resend invite from the row menu after checking RESEND_API_KEY.`,
     }
-  }
-  if (!clinicId) {
-    warning =
-      "User was created, but no clinic exists yet. Assign clinic membership to avoid pending access."
-    return {
-      ok: true,
-      message: "User account created and invite email sent.",
-      warning,
-    }
-  }
-
-  const { error: membershipError } = await adminClient
-    .from("clinic_members")
-    .upsert(
-      { profile_id: userId, clinic_id: clinicId, is_active: true },
-      { onConflict: "profile_id,clinic_id" }
-    )
-
-  if (membershipError) {
-    warning =
-      "User was created, but clinic membership could not be assigned automatically."
   }
 
   return {
     ok: true,
-    message: "User account created and invite email sent.",
-    warning,
+    message: "User account created and invite email sent via Resend.",
   }
 }
 
@@ -372,9 +440,26 @@ export async function setStaffUserActive(
     return { ok: false, error: adminClientResult.error }
   }
   const adminClient = adminClientResult.client
+
+  const { data: profile, error: profileLookupError } = await adminClient
+    .from("profiles")
+    .select("id, primary_role")
+    .eq("id", userId)
+    .in("primary_role", MANAGED_ROLES)
+    .maybeSingle()
+
+  if (profileLookupError || !profile) {
+    return { ok: false, error: "Could not update user status." }
+  }
+
   const { data, error } = await adminClient
     .from("profiles")
-    .update({ is_active: input.isActive })
+    .update({
+      is_active: input.isActive,
+      // Deactivate clears a pending invite; Activate alone restores prior access
+      // (Active if they already signed in). Use Resend invite to reopen as Invited.
+      ...(input.isActive ? {} : { invite_pending: false }),
+    })
     .eq("id", userId)
     .in("primary_role", MANAGED_ROLES)
     .select("id")
@@ -382,6 +467,33 @@ export async function setStaffUserActive(
 
   if (error || !data) {
     return { ok: false, error: "Could not update user status." }
+  }
+
+  const { error: membershipError } = await adminClient
+    .from("clinic_members")
+    .update({ is_active: input.isActive })
+    .eq("profile_id", userId)
+
+  if (membershipError) {
+    return {
+      ok: false,
+      error: `Profile updated, but clinic access could not be synced. ${membershipError.message}`,
+    }
+  }
+
+  // Ban revoked sessions from using Auth while deactivated.
+  const { error: banError } = await adminClient.auth.admin.updateUserById(
+    userId,
+    {
+      ban_duration: input.isActive ? "none" : "876000h",
+    }
+  )
+
+  if (banError) {
+    return {
+      ok: false,
+      error: `Access flag updated, but auth ban could not be synced. ${banError.message}`,
+    }
   }
 
   return {
@@ -414,29 +526,42 @@ export async function updateStaffUserRole(
   }
   const adminClient = adminClientResult.client
 
-  let saved = false
-  let writeError: string | null = null
-  for (const roleCandidate of roleWriteCandidates(input.role)) {
-    const { data, error } = await adminClient
-      .from("profiles")
-      .update({ primary_role: roleCandidate })
-      .eq("id", userId)
-      .in("primary_role", MANAGED_ROLES)
-      .select("id")
-      .maybeSingle()
+  const { data, error } = await adminClient
+    .from("profiles")
+    .update({ primary_role: input.role })
+    .eq("id", userId)
+    .in("primary_role", MANAGED_ROLES)
+    .select("id, full_name, is_active")
+    .maybeSingle()
 
-    if (!error && data) {
-      saved = true
-      break
-    }
-    writeError = error?.message ?? "Profile not found."
-  }
-
-  if (!saved) {
+  if (error || !data) {
     return {
       ok: false,
-      error: `Could not update role. ${writeError ?? ""}`.trim(),
+      error: `Could not update role. ${error?.message ?? "Profile not found."}`,
     }
+  }
+
+  const metaError = await syncAuthRoleMetadata(
+    adminClient,
+    userId,
+    input.role,
+    data.full_name
+  )
+  if (metaError) {
+    return {
+      ok: false,
+      error: `Profile role updated, but auth metadata failed. ${metaError.message}`,
+    }
+  }
+
+  const membership = await upsertClinicMembership(
+    adminClient,
+    userId,
+    input.role,
+    data.is_active !== false
+  )
+  if (!membership.ok) {
+    return { ok: false, error: membership.error }
   }
 
   return {
@@ -464,7 +589,7 @@ export async function assignClinicMembership(
 
   const { data: profile, error: profileError } = await adminClient
     .from("profiles")
-    .select("id")
+    .select("id, primary_role, is_active")
     .eq("id", userId)
     .in("primary_role", MANAGED_ROLES)
     .maybeSingle()
@@ -473,32 +598,14 @@ export async function assignClinicMembership(
     return { ok: false, error: "User not found in the directory." }
   }
 
-  let clinicId: string | null = null
-  try {
-    clinicId = await resolveDefaultClinicId()
-  } catch {
-    return { ok: false, error: "Could not resolve a clinic for assignment." }
-  }
-
-  if (!clinicId) {
-    return {
-      ok: false,
-      error: "No clinic exists yet. Create a clinic before assigning membership.",
-    }
-  }
-
-  const { error: membershipError } = await adminClient
-    .from("clinic_members")
-    .upsert(
-      { profile_id: userId, clinic_id: clinicId, is_active: true },
-      { onConflict: "profile_id,clinic_id" }
-    )
-
-  if (membershipError) {
-    return {
-      ok: false,
-      error: `Could not assign clinic membership. ${membershipError.message}`,
-    }
+  const membership = await upsertClinicMembership(
+    adminClient,
+    userId,
+    profile.primary_role as ManagedRole,
+    profile.is_active !== false
+  )
+  if (!membership.ok) {
+    return { ok: false, error: membership.error }
   }
 
   return { ok: true, message: "Clinic membership assigned." }
@@ -523,7 +630,7 @@ export async function resendStaffInvite(
 
   const { data: profile, error: profileError } = await adminClient
     .from("profiles")
-    .select("email, full_name, primary_role")
+    .select("email, full_name, primary_role, is_active")
     .eq("id", userId)
     .in("primary_role", MANAGED_ROLES)
     .maybeSingle()
@@ -532,32 +639,119 @@ export async function resendStaffInvite(
     return { ok: false, error: "Could not find that user's email." }
   }
 
-  const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
-    profile.email,
-    {
-      redirectTo: `${siteUrl()}/auth/callback`,
-      data: {
-        full_name: profile.full_name,
-        primary_role: profile.primary_role,
-      },
-    }
-  )
+  const role = profile.primary_role as ManagedRole
 
-  if (inviteError) {
-    const already =
-      /already|registered|exists/i.test(inviteError.message)
-    if (already) {
-      return {
-        ok: true,
-        message:
-          "Account already exists. They can sign in with email OTP from the login page.",
-        warning: inviteError.message,
-      }
+  // Re-invite reopens access and resets lifecycle to Invited until they sign in.
+  const { error: reopenError } = await adminClient
+    .from("profiles")
+    .update({ is_active: true, invite_pending: true })
+    .eq("id", userId)
+
+  if (reopenError) {
+    return {
+      ok: false,
+      error: `Could not reopen account for invite. ${reopenError.message}`,
     }
-    return { ok: false, error: inviteError.message }
   }
 
-  return { ok: true, message: "Invite email resent." }
+  const { error: banError } = await adminClient.auth.admin.updateUserById(
+    userId,
+    { ban_duration: "none" }
+  )
+  if (banError) {
+    return {
+      ok: false,
+      error: `Invite prepared, but auth access could not be restored. ${banError.message}`,
+    }
+  }
+
+  // Ensure membership + role metadata stay intact before invite mail.
+  await syncAuthRoleMetadata(
+    adminClient,
+    userId,
+    role,
+    profile.full_name
+  )
+  const membership = await upsertClinicMembership(
+    adminClient,
+    userId,
+    role,
+    true
+  )
+  if (!membership.ok) {
+    return { ok: false, error: membership.error }
+  }
+
+  try {
+    await sendStaffInviteEmail({
+      email: profile.email,
+      fullName: profile.full_name ?? profile.email,
+      role,
+    })
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Could not send invite email."
+    return { ok: false, error: message }
+  }
+
+  return {
+    ok: true,
+    message: "Invite resent. Status set to Invited until they sign in.",
+  }
+}
+
+export async function deleteStaffUser(
+  input: DeleteStaffUserInput
+): Promise<ManageUserResult> {
+  const authz = await requireAdmin()
+  if (!authz.ok) return authz
+
+  const userId = input.userId.trim()
+  if (!userId) {
+    return { ok: false, error: "Missing user identifier." }
+  }
+
+  const access = await getStaffAccess()
+  if (!access) {
+    return { ok: false, error: "Only admins can manage user accounts." }
+  }
+
+  if (access.userId === userId) {
+    return { ok: false, error: "You cannot delete your own account." }
+  }
+
+  const adminClientResult = getAdminClientSafe()
+  if (!adminClientResult.ok) {
+    return { ok: false, error: adminClientResult.error }
+  }
+  const adminClient = adminClientResult.client
+
+  const { data: profile, error: profileError } = await adminClient
+    .from("profiles")
+    .select("id, email, primary_role")
+    .eq("id", userId)
+    .in("primary_role", MANAGED_ROLES)
+    .maybeSingle()
+
+  if (profileError || !profile) {
+    return { ok: false, error: "User not found in the directory." }
+  }
+
+  // Auth delete cascades to profiles + clinic_members.
+  const { error: deleteError } =
+    await adminClient.auth.admin.deleteUser(userId)
+
+  if (deleteError) {
+    return {
+      ok: false,
+      error: `Could not delete account. ${deleteError.message}`,
+    }
+  }
+
+  return {
+    ok: true,
+    message: `${profile.email} has been permanently deleted.`,
+  }
 }
 
 export async function importStaffUsersFromExcel(

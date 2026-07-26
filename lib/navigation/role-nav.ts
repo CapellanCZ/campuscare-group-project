@@ -78,7 +78,6 @@ const roleGroupsByRole: Record<WebRole, RoleNavGroup[]> = {
             },
           ],
         },
-        { title: "Settings", href: "/admin/settings", icon: IconSettings },
       ],
     },
   ],

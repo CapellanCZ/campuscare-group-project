@@ -1,5 +1,6 @@
 "use server"
 
+import { clearInvitePendingAfterSignIn } from "@/lib/auth/clear-invite-pending"
 import { asErrorMessage, mapAuthError } from "@/lib/auth/errors"
 import { sendLoginOtpEmail } from "@/lib/auth/send-login-otp"
 import type { AuthResult } from "@/lib/auth/types"
@@ -54,6 +55,13 @@ export async function verifyOtpCode(
         ok: false,
         error: mapAuthError(error, "Could not verify that code."),
       }
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (user) {
+      await clearInvitePendingAfterSignIn(user.id)
     }
 
     return { ok: true }

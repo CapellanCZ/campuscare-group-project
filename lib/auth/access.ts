@@ -27,7 +27,6 @@ export async function getStaffAccess(): Promise<StaffAccess | null> {
 
   if (!user) return null
 
-  // Live profiles: id, email, full_name, avatar_url, primary_role, is_active
   const { data: profile, error } = await supabase
     .from("profiles")
     .select("id, email, full_name, avatar_url, primary_role, is_active")
@@ -40,9 +39,23 @@ export async function getStaffAccess(): Promise<StaffAccess | null> {
 
   const row = profile as ProfileRow
   const clinicRole = resolveClinicRole(row)
-  const hasClinicMembership = hasApprovedClinicAccess(row)
 
   if (!clinicRole) {
+    return null
+  }
+
+  // Real membership — required for clinic-scoped RLS to function.
+  const { data: membership } = await supabase
+    .from("clinic_members")
+    .select("clinic_id")
+    .eq("profile_id", user.id)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle()
+
+  const hasClinicMembership = Boolean(membership)
+
+  if (!hasApprovedClinicAccess(row)) {
     return null
   }
 

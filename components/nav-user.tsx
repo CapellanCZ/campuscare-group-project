@@ -20,12 +20,7 @@ import {
 import { useOptionalStaffAccess } from "@/components/staff-access-provider"
 import { signOut } from "@/app/auth/actions"
 import { staffBasePath } from "@/lib/auth/home-path"
-import {
-  IconCreditCard,
-  IconLogout,
-  IconSettings,
-  IconUser,
-} from "@tabler/icons-react"
+import { IconLogout, IconSettings, IconUser } from "@tabler/icons-react"
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -47,7 +42,6 @@ export function NavUser() {
 
   return (
     <DropdownMenu>
-      {/* c-avatar-35: put trigger UI inside `render`, keep Trigger self-closing */}
       <DropdownMenuTrigger
         render={
           <Button
@@ -56,18 +50,18 @@ export function NavUser() {
             size="icon"
             className="size-8 shrink-0 rounded-full p-0"
             aria-label="Open profile menu"
-          >
-            <Avatar className="size-8">
-              {avatarUrl ? (
-                <AvatarImage src={avatarUrl} alt={name} />
-              ) : null}
-              <AvatarFallback className="bg-muted text-sm font-medium text-foreground">
-                {mark}
-              </AvatarFallback>
-            </Avatar>
-          </Button>
+          />
         }
-      />
+      >
+        <Avatar className="size-8">
+          {avatarUrl ? (
+            <AvatarImage src={avatarUrl} alt={name} />
+          ) : null}
+          <AvatarFallback className="bg-muted text-sm font-medium text-foreground">
+            {mark}
+          </AvatarFallback>
+        </Avatar>
+      </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" sideOffset={8}>
         <DropdownMenuGroup>
           <DropdownMenuLabel className="flex items-center gap-2 py-2">
@@ -97,10 +91,6 @@ export function NavUser() {
             <DropdownMenuItem render={<Link href={settingsHref} />}>
               <IconSettings aria-hidden="true" />
               Settings
-            </DropdownMenuItem>
-            <DropdownMenuItem render={<Link href={settingsHref} />}>
-              <IconCreditCard aria-hidden="true" />
-              Plan & Billing
             </DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />

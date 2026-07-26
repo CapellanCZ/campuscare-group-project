@@ -14,9 +14,20 @@ export type ProfileRoleFields = {
   is_active?: boolean | null
 }
 
+/** Normalize DB role labels (legacy `doctor`) to app WebRole. */
+export function normalizeClinicRole(
+  value: string | null | undefined
+): string | null {
+  if (!value) return null
+  const role = value.toLowerCase().trim()
+  if (role === "doctor") return "physician"
+  return role
+}
+
 export function isClinicWebRole(value: string | null | undefined): value is WebRole {
-  if (!value) return false
-  return (CLINIC_ROLES as readonly string[]).includes(value.toLowerCase().trim())
+  const role = normalizeClinicRole(value)
+  if (!role) return false
+  return (CLINIC_ROLES as readonly string[]).includes(role)
 }
 
 /**
@@ -28,8 +39,8 @@ export function resolveClinicRole(
 ): ClinicDesignation | null {
   if (!profile) return null
 
-  const primary = (profile.primary_role ?? "").toLowerCase().trim()
-  if (isClinicWebRole(primary)) return primary
+  const primary = normalizeClinicRole(profile.primary_role)
+  if (primary && isClinicWebRole(primary)) return primary
 
   return null
 }

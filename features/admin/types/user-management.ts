@@ -31,7 +31,7 @@ export type ManagedStaffUser = {
   email: string
   role: ManagedRole
   isActive: boolean
-  /** Invite sent; user has not signed in yet. */
+  /** Invite/re-invite sent; clears to Active after they sign in. */
   invitePending: boolean
   hasClinicMembership: boolean
   /** ISO timestamp from Auth, or null if never signed in. */
@@ -99,6 +99,10 @@ export type AssignClinicMembershipInput = {
 }
 
 export type ResendStaffInviteInput = {
+  userId: string
+}
+
+export type DeleteStaffUserInput = {
   userId: string
 }
 
