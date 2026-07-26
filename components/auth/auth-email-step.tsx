@@ -1,21 +1,18 @@
 "use client"
 
-import Link from "next/link"
 import { IconAt } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
-import { Field, FieldError, FieldLabel } from "@/components/ui/field"
+import { Field, FieldLabel } from "@/components/ui/field"
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
-import { AuthDivider } from "@/components/auth/auth-divider"
 
 type AuthEmailStepProps = {
   email: string
   emailError: string | null
-  sessionNotice?: string | null
   isSendingOtp: boolean
   onEmailChange: (value: string) => void
   onSendOtp: (event: React.FormEvent<HTMLFormElement>) => void
@@ -24,7 +21,6 @@ type AuthEmailStepProps = {
 export function AuthEmailStep({
   email,
   emailError,
-  sessionNotice = null,
   isSendingOtp,
   onEmailChange,
   onSendOtp,
@@ -34,23 +30,16 @@ export function AuthEmailStep({
       <div className="flex flex-col space-y-1">
         <h1 className="text-2xl font-bold tracking-wide">Sign in</h1>
         <p className="text-base text-muted-foreground">
-          Enter your work email to continue.
+          Enter your work email and we&apos;ll send a one-time password.
         </p>
       </div>
-
-      {sessionNotice ? (
-        <p
-          role="status"
-          className="rounded-2xl border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
-        >
-          {sessionNotice}
-        </p>
-      ) : null}
 
       <form className="space-y-4" onSubmit={onSendOtp} noValidate>
         <Field
           className="max-w-sm"
-          data-invalid={emailError ? true : undefined}
+          data-invalid={
+            typeof emailError === "string" && emailError ? true : undefined
+          }
         >
           <FieldLabel htmlFor="work-email" className="sr-only">
             Work email
@@ -65,42 +54,33 @@ export function AuthEmailStep({
               type="email"
               value={email}
               onChange={(event) => onEmailChange(event.target.value)}
-              aria-invalid={emailError ? true : undefined}
+              aria-invalid={
+                typeof emailError === "string" && emailError ? true : undefined
+              }
               required
               disabled={isSendingOtp}
-              maxLength={254}
-              spellCheck={false}
             />
             <InputGroupAddon align="inline-start">
               <IconAt aria-hidden />
             </InputGroupAddon>
           </InputGroup>
-          <FieldError role="alert">{emailError}</FieldError>
+          {typeof emailError === "string" &&
+          emailError &&
+          emailError !== "{}" ? (
+            <p role="alert" className="text-sm text-destructive">
+              {emailError}
+            </p>
+          ) : null}
         </Field>
 
         <p className="text-start text-xs text-muted-foreground">
-          We&apos;ll send a one-time password (OTP) to verify your email.
+          We&apos;ll email a 6-digit code. No password needed.
         </p>
 
         <Button className="w-full" type="submit" disabled={isSendingOtp}>
-          {isSendingOtp ? "Sending code..." : "One-Time Password (OTP)"}
+          {isSendingOtp ? "Sending code..." : "Send one-time password"}
         </Button>
       </form>
-
-      {process.env.NODE_ENV === "development" ? (
-        <>
-          <AuthDivider>TESTING</AuthDivider>
-          <Button
-            className="w-full"
-            type="button"
-            variant="ghost"
-            render={<Link href="/admin/dashboard" />}
-            nativeButton={false}
-          >
-            Skip to dashboard
-          </Button>
-        </>
-      ) : null}
     </>
   )
 }

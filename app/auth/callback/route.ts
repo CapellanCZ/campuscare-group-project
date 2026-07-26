@@ -1,15 +1,18 @@
 import { NextResponse } from "next/server"
 
+import { homePathForDesignation } from "@/lib/auth/home-path"
 import {
-  dashboardPathForRole,
-  roleRequiresClinicMembership,
-} from "@/lib/auth/redirects"
-import { normalizeWebRole } from "@/lib/auth/types"
+  hasApprovedClinicAccess,
+  resolveClinicRole,
+  type ProfileRoleFields,
+} from "@/lib/auth/resolve-role"
 import { createClient } from "@/lib/supabase/server"
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get("code")
+  const nextParam = searchParams.get("next")
+
   if (!code) {
     return NextResponse.redirect(`${origin}/auth/error`)
   }
@@ -31,23 +34,25 @@ export async function GET(request: Request) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("primary_role")
+    .select("account_status, user_role, designation, role, primary_role")
     .eq("id", user.id)
     .maybeSingle()
 
-  const { data: membership } = await supabase
-    .from("clinic_members")
-    .select("clinic_id")
-    .eq("profile_id", user.id)
-    .eq("is_active", true)
-    .limit(1)
-    .maybeSingle()
+  const gate = profile as ProfileRoleFields | null
 
-  const role = normalizeWebRole(profile?.primary_role)
-  if (roleRequiresClinicMembership(role) && !membership) {
+  if (!hasApprovedClinicAccess(gate)) {
     return NextResponse.redirect(`${origin}/auth/pending`)
   }
 
-  const rolePath = dashboardPathForRole(role)
-  return NextResponse.redirect(`${origin}${rolePath}`)
+  const clinicRole = resolveClinicRole(gate)
+  const home = clinicRole
+    ? homePathForDesignation(clinicRole)
+    : "/auth/pending"
+
+  const next =
+    nextParam?.startsWith("/") && !nextParam.startsWith("//")
+      ? nextParam
+      : home
+
+  return NextResponse.redirect(`${origin}${next}`)
 }

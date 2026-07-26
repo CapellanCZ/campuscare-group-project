@@ -1,22 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import {
-  IconBell,
-  IconBook,
-  IconCommand,
-  IconCreditCard,
-  IconLifebuoy,
-  IconLogout,
-  IconUser,
-} from "@tabler/icons-react"
-
+import { useTransition } from "react"
 import {
   Avatar,
   AvatarFallback,
-  AvatarImage,
 } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,114 +15,65 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useOptionalStaffAccess } from "@/components/staff-access-provider"
+import { signOut } from "@/app/auth/actions"
+import { staffBasePath } from "@/lib/auth/home-path"
+import { designationLabel } from "@/lib/health/roles"
+import { IconLogout2, IconUser } from "@tabler/icons-react"
 
-type NavUserProps = {
-  name?: string
-  email?: string
-  roleLabel?: string
-  avatarUrl?: string | null
-  profileHref?: string
-  docsHref?: string
-}
+export function NavUser() {
+  const access = useOptionalStaffAccess()
+  const [pending, startTransition] = useTransition()
 
-export function NavUser({
-  name = "Clinic Staff",
-  email = "staff@clinic.edu",
-  roleLabel = "Staff",
-  avatarUrl,
-  profileHref = "/physician/profile",
-  docsHref = "/docs",
-}: NavUserProps) {
-  const initials = name
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase()
+  const name = access?.fullName ?? "Staff"
+  const email = access?.email ?? ""
+  const role = access ? designationLabel(access.primaryRole) : "Clinic"
+  const home = access ? staffBasePath(access.primaryRole) : "/login"
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            className="overflow-hidden rounded-full p-0"
-            aria-label={`${name} account menu`}
-          />
-        }
+        className="rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        aria-label="Open profile menu"
       >
         <Avatar className="size-8">
-          {avatarUrl ? <AvatarImage src={avatarUrl} alt="" /> : null}
-          <AvatarFallback className="text-xs">{initials || "CC"}</AvatarFallback>
+          <AvatarFallback>{name.charAt(0).toUpperCase()}</AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
-
-      <DropdownMenuContent align="end" sideOffset={8} className="w-60">
-        <DropdownMenuGroup>
-          <DropdownMenuLabel className="flex items-center gap-3 py-2">
+      <DropdownMenuContent align="end" className="w-60">
+        <DropdownMenuItem className="flex items-center justify-start gap-2">
+          <DropdownMenuLabel className="flex items-center gap-3">
             <Avatar className="size-10">
-              {avatarUrl ? <AvatarImage src={avatarUrl} alt="" /> : null}
-              <AvatarFallback>{initials || "CC"}</AvatarFallback>
+              <AvatarFallback>{name.charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium text-foreground">
-                {name}
-              </div>
-              <div className="truncate text-xs font-normal text-muted-foreground">
-                {email}
-              </div>
-              <div className="mt-0.5 truncate text-[10px] text-muted-foreground">
-                {roleLabel}
-              </div>
+            <div className="min-w-0">
+              <span className="font-medium text-foreground">{name}</span>
+              <div className="truncate text-muted-foreground text-xs">{email}</div>
+              <div className="text-muted-foreground text-xs">{role}</div>
             </div>
           </DropdownMenuLabel>
-        </DropdownMenuGroup>
-
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
-
         <DropdownMenuGroup>
-          <DropdownMenuItem render={<Link href={profileHref} />}>
-            <IconUser aria-hidden />
-            Profile
-          </DropdownMenuItem>
-          <DropdownMenuItem>
-            <IconBell aria-hidden />
-            Notifications
-          </DropdownMenuItem>
-          <DropdownMenuItem>
-            <IconCommand aria-hidden />
-            Keyboard shortcuts
+          <DropdownMenuItem render={<Link href={home} />}>
+            <IconUser />
+            Dashboard
           </DropdownMenuItem>
         </DropdownMenuGroup>
-
         <DropdownMenuSeparator />
-
-        <DropdownMenuGroup>
-          <DropdownMenuItem>
-            <IconLifebuoy aria-hidden />
-            Help
-          </DropdownMenuItem>
-          <DropdownMenuItem render={<Link href={docsHref} />}>
-            <IconBook aria-hidden />
-            Documentation
-          </DropdownMenuItem>
-          <DropdownMenuItem>
-            <IconCreditCard aria-hidden />
-            Plan & billing
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-
-        <DropdownMenuSeparator />
-
         <DropdownMenuGroup>
           <DropdownMenuItem
+            className="w-full cursor-pointer"
             variant="destructive"
-            render={<Link href="/auth/logout" />}
+            disabled={pending}
+            onClick={() => {
+              startTransition(async () => {
+                await signOut()
+                window.location.assign("/login")
+              })
+            }}
           >
-            <IconLogout aria-hidden />
+            <IconLogout2 />
             Log out
           </DropdownMenuItem>
         </DropdownMenuGroup>

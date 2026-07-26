@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { IconChevronLeft } from "@tabler/icons-react"
 
 import { AuthEmailStep } from "@/components/auth/auth-email-step"
@@ -10,29 +9,21 @@ import { AuthOtpStep } from "@/components/auth/auth-otp-step"
 import { Button } from "@/components/ui/button"
 import { FloatingPaths } from "@/components/floating-paths"
 import {
-  OTP_LENGTH,
   RESEND_COOLDOWN_SECONDS,
-  resolvePostLoginPath,
   sendOtp,
   verifyOtp,
 } from "@/lib/auth/auth-api"
-import { isValidEmail, normalizeEmail, sanitizeOtpInput } from "@/lib/auth/email"
-import { markSessionStarted } from "@/lib/auth/session-timeout"
+import { asErrorMessage } from "@/lib/auth/errors"
+import { isValidEmail } from "@/lib/auth/email"
 
 type AuthStep = "email" | "otp"
 
-type AuthPageProps = {
-  sessionNotice?: string | null
-}
-
-export function AuthPage({ sessionNotice = null }: AuthPageProps) {
-  const router = useRouter()
+export function AuthPage() {
   const [step, setStep] = useState<AuthStep>("email")
   const [email, setEmail] = useState("")
   const [otp, setOtp] = useState("")
   const [emailError, setEmailError] = useState<string | null>(null)
   const [otpError, setOtpError] = useState<string | null>(null)
-  const [otpNotice, setOtpNotice] = useState<string | null>(null)
   const [isSendingOtp, setIsSendingOtp] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
   const [resendSeconds, setResendSeconds] = useState(0)
@@ -48,15 +39,10 @@ export function AuthPage({ sessionNotice = null }: AuthPageProps) {
   }, [resendSeconds])
 
   const validateEmail = useCallback(() => {
-    const trimmedEmail = normalizeEmail(email)
+    const trimmedEmail = email.trim()
 
     if (!trimmedEmail) {
       setEmailError("Enter your work email to continue.")
-      return null
-    }
-
-    if (trimmedEmail.length > 254) {
-      setEmailError("Email address is too long.")
       return null
     }
 
@@ -72,98 +58,62 @@ export function AuthPage({ sessionNotice = null }: AuthPageProps) {
   const handleSendOtp = async (event?: React.FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
 
-    if (isSendingOtp) return
-
     const trimmedEmail = validateEmail()
     if (!trimmedEmail) return
 
     setIsSendingOtp(true)
     setOtpError(null)
-    setOtpNotice(null)
 
     const result = await sendOtp(trimmedEmail)
 
     setIsSendingOtp(false)
 
     if (!result.ok) {
-      setEmailError(result.error)
+      setEmailError(
+        asErrorMessage(result.error, "Could not send sign-in email.")
+      )
       return
     }
 
     setEmail(trimmedEmail)
     setOtp("")
     setStep("otp")
-    setOtpNotice(null)
     setResendSeconds(RESEND_COOLDOWN_SECONDS)
   }
 
   const handleResendOtp = async () => {
     if (resendSeconds > 0 || isSendingOtp) return
-
-    const trimmedEmail = normalizeEmail(email)
-    if (!trimmedEmail || !isValidEmail(trimmedEmail)) {
-      setOtpError("Session expired. Enter your email again.")
-      setOtpNotice(null)
-      return
-    }
-
-    setIsSendingOtp(true)
-    setOtpError(null)
-    setOtpNotice(null)
-
-    const result = await sendOtp(trimmedEmail)
-
-    setIsSendingOtp(false)
-
-    if (!result.ok) {
-      setOtpError(result.error)
-      return
-    }
-
-    setOtp("")
-    setOtpNotice("New code sent. Check your inbox.")
-    setResendSeconds(RESEND_COOLDOWN_SECONDS)
+    await handleSendOtp()
   }
 
   const handleVerifyOtp = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
-    if (isVerifying) return
-
-    const sanitized = sanitizeOtpInput(otp)
-    if (sanitized.length !== OTP_LENGTH) {
-      setOtpError(`Enter the full ${OTP_LENGTH}-digit verification code.`)
-      return
-    }
-
     setIsVerifying(true)
     setOtpError(null)
 
-    const result = await verifyOtp(email, sanitized)
+    try {
+      const result = await verifyOtp(email, otp)
 
-    if (!result.ok) {
+      if (!result.ok) {
+        setOtpError(asErrorMessage(result.error, "Could not verify that code."))
+        setIsVerifying(false)
+        return
+      }
+
+      // Hard navigation avoids leaving this screen stuck on "Verifying..."
+      // while /auth/continue resolves the role home.
+      window.location.assign("/auth/continue")
+    } catch {
+      setOtpError("Could not verify that code.")
       setIsVerifying(false)
-      setOtpError(result.error)
-      return
     }
-
-    const postLogin = await resolvePostLoginPath()
-    if (!postLogin.ok) {
-      setIsVerifying(false)
-      setOtpError(postLogin.error)
-      return
-    }
-
-    markSessionStarted(window.sessionStorage, Date.now())
-    router.refresh()
-    router.push(postLogin.path)
   }
 
   const handleBackToEmail = () => {
     setStep("email")
     setOtp("")
     setOtpError(null)
-    setOtpNotice(null)
     setEmailError(null)
     setResendSeconds(0)
   }
@@ -221,7 +171,6 @@ export function AuthPage({ sessionNotice = null }: AuthPageProps) {
             <AuthEmailStep
               email={email}
               emailError={emailError}
-              sessionNotice={sessionNotice}
               isSendingOtp={isSendingOtp}
               onEmailChange={(value) => {
                 setEmail(value)
@@ -236,14 +185,12 @@ export function AuthPage({ sessionNotice = null }: AuthPageProps) {
               email={email}
               otp={otp}
               otpError={otpError}
-              otpNotice={otpNotice}
               isVerifying={isVerifying}
               isResending={isSendingOtp}
               resendSeconds={resendSeconds}
               onOtpChange={(value) => {
-                setOtp(sanitizeOtpInput(value))
+                setOtp(value)
                 if (otpError) setOtpError(null)
-                if (otpNotice) setOtpNotice(null)
               }}
               onVerify={handleVerifyOtp}
               onResend={handleResendOtp}

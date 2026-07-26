@@ -1,5 +1,6 @@
-import { LandingPage } from "@/components/landing/landing-page"
+import { redirect } from "next/navigation"
 
-export default function Page() {
-  return <LandingPage />
+/** Site root → landing folder route. */
+export default function RootPage() {
+  redirect("/landing")
 }

@@ -115,7 +115,9 @@ export function AuthOtpStep({
             {otpNotice ??
               "Check your inbox and spam folder if the code hasn't arrived yet."}
           </FieldDescription>
-          <FieldError role="alert">{otpError}</FieldError>
+          {typeof otpError === "string" && otpError ? (
+            <FieldError role="alert">{otpError}</FieldError>
+          ) : null}
         </Field>
 
         <Button className="w-full" type="submit" disabled={isBusy}>

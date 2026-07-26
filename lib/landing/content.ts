@@ -1,199 +1,191 @@
-export type NavItem = {
+import type { ComponentType } from "react"
+import {
+  IconChartBar,
+  IconClipboardHeart,
+  IconCertificate,
+  IconFileDescription,
+  IconSpeakerphone,
+  IconStack2,
+} from "@tabler/icons-react"
+
+export type NavLink = {
   label: string
   href: string
+  id: string
 }
 
 export type FeatureItem = {
   title: string
   description: string
+  icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>
 }
 
-export type StepItem = {
+export type HowItWorksStep = {
+  step: number
   title: string
   description: string
+  label: string
 }
 
 export type FaqItem = {
+  id: string
   question: string
   answer: string
 }
 
-export type FooterLinkGroup = {
-  title: string
-  links: NavItem[]
+export const navLinks: NavLink[] = [
+  { label: "Home", href: "#home", id: "home" },
+  { label: "About", href: "#about", id: "about" },
+  { label: "Features", href: "#features", id: "features" },
+  { label: "How It Works", href: "#how-it-works", id: "how-it-works" },
+  { label: "FAQ", href: "#faq", id: "faq" },
+  { label: "Contact", href: "#contact", id: "contact" },
+]
+
+export const heroRotatingPhrases = [
+  "Faster clinic visits for every Bulldog",
+  "Queue visibility without the waiting-room guesswork",
+  "Records, certificates, and care—connected",
+]
+
+export const heroCopy = {
+  brand: "CampusCare",
+  headline: "Campus health services, designed for clarity",
+  description:
+    "CampusCare helps the NU Dasmariñas Health Services Office manage consultations, queues, and patient records in one calm, modern workspace.",
 }
 
-export const landingNavItems: NavItem[] = [
-  { label: "Home", href: "#home" },
-  { label: "About", href: "#about" },
-  { label: "Features", href: "#features" },
-  { label: "How It Works", href: "#how-it-works" },
-  { label: "FAQ", href: "#faq" },
-  { label: "Contact", href: "#contact" },
-]
+export const aboutCopy = {
+  eyebrow: "About CampusCare",
+  title: "Built for the NU Dasmariñas Health Services Office",
+  body: [
+    "The Health Services Office (HSO) of National University – Dasmariñas supports the well-being of students, faculty, and staff by providing accessible campus-based clinical care and health coordination.",
+    "From walk-in consultations and preventive services to documentation and follow-up, HSO keeps the campus community healthy so learning and work can continue with confidence.",
+    "CampusCare digitizes that day-to-day clinic flow—so requests are clearer, queues are transparent, and records stay ready when staff need them.",
+  ],
+}
 
 export const features: FeatureItem[] = [
   {
     title: "Consultation Requests",
     description:
-      "HSO staff can receive, triage, and track consultation requests in one centralized queue.",
+      "Submit and organize clinic visit requests without paper slips or scattered messages.",
+    icon: IconClipboardHeart,
   },
   {
     title: "Queue Management",
     description:
-      "The HSO can manage consultation queues in real time and reduce waiting bottlenecks.",
+      "Give patients and staff a shared view of who’s next—reducing crowding and confusion.",
+    icon: IconStack2,
   },
   {
     title: "Patient Records",
     description:
-      "Digital records centralize patient history for better continuity of campus healthcare.",
+      "Keep consultation history and care notes in one secure place for authorized clinic staff.",
+    icon: IconFileDescription,
   },
   {
     title: "Medical Certificates",
     description:
-      "Generate and track medical certificates quickly through standardized digital workflows.",
+      "Streamline certificate requests and issuance with clear status from request to release.",
+    icon: IconCertificate,
   },
   {
     title: "Reports & Analytics",
     description:
-      "Operational reports help the office monitor trends, demand, and service performance.",
+      "Understand visit volume, peak hours, and service trends to plan staffing and care.",
+    icon: IconChartBar,
   },
   {
     title: "Health Announcements",
     description:
-      "Broadcast health advisories and reminders to keep the university community informed.",
+      "Publish clinic advisories, vaccine schedules, and wellness updates to the campus community.",
+    icon: IconSpeakerphone,
   },
 ]
 
-export const consultationSteps: StepItem[] = [
+export const howItWorksSteps: HowItWorksStep[] = [
   {
-    title: "Submit Request",
-    description: "A user submits a consultation request through the web or mobile app.",
-  },
-  {
-    title: "Queue Assignment",
-    description: "The system assigns and updates queue status for efficient processing.",
-  },
-  {
-    title: "HSO Review",
+    step: 1,
+    label: "Step 1",
+    title: "Submit a consultation request",
     description:
-      "HSO personnel review request details and prepare for the consultation session.",
+      "Patients or staff start a visit request with the reason for consultation and preferred timing.",
   },
   {
-    title: "Consultation",
+    step: 2,
+    label: "Step 2",
+    title: "Receive queue confirmation",
     description:
-      "The patient is assisted by HSO staff with documented notes and outcomes.",
+      "The clinic confirms the request and issues a queue ticket so everyone knows the visit is logged.",
   },
   {
-    title: "Completion & Follow-up",
+    step: 3,
+    label: "Step 3",
+    title: "Track your place in line",
     description:
-      "The case is completed, records are updated, and certificates are issued when needed.",
-  },
-]
-
-export const benefits: FeatureItem[] = [
-  {
-    title: "Faster Services",
-    description: "Less manual processing means shorter queues and quicker response times.",
+      "Live queue updates help patients prepare for their turn without hovering at the counter.",
   },
   {
-    title: "Digital Records",
+    step: 4,
+    label: "Step 4",
+    title: "Attend the consultation",
     description:
-      "Reliable documentation improves continuity of care and reduces filing overhead.",
+      "Clinicians see the request context and continue care with the information already on hand.",
   },
   {
-    title: "Better Accessibility",
+    step: 5,
+    label: "Step 5",
+    title: "Complete and update records",
     description:
-      "Users can request services remotely with consistent access across devices.",
-  },
-  {
-    title: "Secure Information",
-    description:
-      "Health data is centralized with controlled access and traceable activity.",
-  },
-]
-
-export const userTypes: FeatureItem[] = [
-  {
-    title: "Students",
-    description:
-      "Access consultations, queue updates, and health announcements from one portal.",
-  },
-  {
-    title: "Faculty",
-    description:
-      "Request support efficiently and keep medical documentation organized digitally.",
-  },
-  {
-    title: "Non-Teaching Employees",
-    description:
-      "Use streamlined health services with transparent queue and request visibility.",
-  },
-  {
-    title: "HSO Personnel",
-    description:
-      "Manage daily operations, patient records, and reporting with a unified system.",
+      "Notes, certificates, and follow-ups are recorded so the next visit starts from a complete chart.",
   },
 ]
 
 export const faqs: FaqItem[] = [
   {
+    id: "who",
     question: "Who can use CampusCare?",
     answer:
-      "CampusCare is used by authorized Health Services Office personnel at National University - Dasmarinas.",
+      "CampusCare is built for NU Dasmariñas Health Services Office staff and the campus community they serve. Staff sign in with their work email; students and patients interact through clinic workflows managed by HSO.",
   },
   {
-    question: "Can users request consultations online?",
+    id: "hours",
+    question: "What are the Health Services Office hours?",
     answer:
-      "Yes. Users can submit consultation requests digitally and monitor queue progress in the platform.",
+      "The clinic is open from 7:00 AM to 9:00 PM. For schedule changes or special advisories, check Health Announcements in CampusCare or contact the office directly.",
   },
   {
-    question: "Are records stored securely?",
+    id: "queue",
+    question: "How does queue management work?",
     answer:
-      "CampusCare is designed with secure handling of health information and controlled access for authorized personnel.",
+      "After a consultation request is accepted, you receive a queue position. Staff advance the queue as consultations finish so waiting times stay visible and fair.",
   },
   {
-    question: "Does CampusCare support medical certificates?",
+    id: "certificates",
+    question: "Can I request a medical certificate online?",
     answer:
-      "Yes. HSO personnel can generate and manage medical certificates through the digital workflow.",
+      "Yes. Certificate requests can be submitted through CampusCare, tracked by status, and released according to HSO policies and clinician approval.",
+  },
+  {
+    id: "emergency",
+    question: "What should I do in a medical emergency?",
+    answer:
+      "CampusCare is for scheduled and walk-in clinic workflows. For emergencies, seek immediate on-campus emergency assistance or call local emergency services first.",
+  },
+  {
+    id: "access",
+    question: "How do staff get an account?",
+    answer:
+      "Clinic access is invite-based. Ask an HSO administrator to approve your staff profile, then sign in with your work email using a one-time password.",
   },
 ]
 
-export const contactDetails = {
-  location:
-    "Health Services Office, National University - Dasmarinas, Cavite, Philippines",
-  officeHours: "Monday to Friday, 8:00 AM to 5:00 PM",
-  email: "hso@nu-dasma.edu.ph",
-  phone: "(046) 000-0000",
+export const footerContact = {
+  location: "NU Dasmariñas, 4th Floor",
+  hours: "7:00 AM – 9:00 PM",
+  email: "clinic@nu-dasma.edu.ph",
 }
 
-export const heroHighlights = [
-  "HSO staff workspace for consultation intake and queue coordination",
-  "Centralized records and medical certificate processing",
-  "Operational visibility for day-to-day clinic service delivery",
-]
-
-export const footerLinkGroups: FooterLinkGroup[] = [
-  {
-    title: "Company",
-    links: [
-      { label: "Home", href: "#home" },
-      { label: "About Us", href: "#about" },
-      { label: "Features", href: "#features" },
-      { label: "How It Works", href: "#how-it-works" },
-      { label: "FAQ", href: "#faq" },
-    ],
-  },
-  {
-    title: "Contact",
-    links: [],
-  },
-  {
-    title: "Legal",
-    links: [
-      { label: "Privacy Policy", href: "/login" },
-      { label: "Terms & Conditions", href: "/login" },
-      { label: "Data Privacy Notice", href: "/login" },
-    ],
-  },
-]
+export const footerBlurb =
+  "CampusCare connects the NU Dasmariñas Health Services Office with a clearer digital clinic experience—from request to consultation completion."

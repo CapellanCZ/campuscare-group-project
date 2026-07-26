@@ -1,30 +1,62 @@
-import {
-  getPostLoginPath,
-  sendOtpEmail,
-  verifyOtpCode,
-} from "@/app/auth/actions"
+import { sendOtpEmail, verifyOtpCode } from "@/app/auth/actions"
+import { asErrorMessage } from "@/lib/auth/errors"
 import {
   OTP_LENGTH,
   RESEND_COOLDOWN_SECONDS,
   type AuthResult,
-  type PostLoginPathResult,
 } from "@/lib/auth/types"
 
 export { OTP_LENGTH, RESEND_COOLDOWN_SECONDS }
 export type { AuthResult }
-export type { PostLoginPathResult }
+
+function normalizeAuthResult(
+  result: AuthResult | null | undefined,
+  fallback: string
+): AuthResult {
+  if (!result || typeof result !== "object") {
+    return { ok: false, error: fallback }
+  }
+
+  if ("ok" in result && result.ok === true) {
+    return { ok: true }
+  }
+
+  return {
+    ok: false,
+    error: asErrorMessage(
+      "error" in result ? result.error : undefined,
+      fallback
+    ),
+  }
+}
 
 export async function sendOtp(email: string): Promise<AuthResult> {
-  return sendOtpEmail(email)
+  try {
+    return normalizeAuthResult(
+      await sendOtpEmail(email),
+      "Could not send sign-in email."
+    )
+  } catch (error) {
+    return {
+      ok: false,
+      error: asErrorMessage(error, "Could not send sign-in email."),
+    }
+  }
 }
 
 export async function verifyOtp(
   email: string,
   code: string
 ): Promise<AuthResult> {
-  return verifyOtpCode(email, code)
-}
-
-export async function resolvePostLoginPath(): Promise<PostLoginPathResult> {
-  return getPostLoginPath()
+  try {
+    return normalizeAuthResult(
+      await verifyOtpCode(email, code),
+      "Could not verify that code."
+    )
+  } catch (error) {
+    return {
+      ok: false,
+      error: asErrorMessage(error, "Could not verify that code."),
+    }
+  }
 }

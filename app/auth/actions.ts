@@ -1,46 +1,71 @@
 "use server"
 
-import { mapAuthError } from "@/lib/auth/errors"
-import { getStaffAccess } from "@/lib/auth/access"
-import {
-  isValidEmail,
-  isValidOtpCode,
-  normalizeEmail,
-  sanitizeOtpInput,
-} from "@/lib/auth/email"
-import {
-  dashboardPathForRole,
-  roleRequiresClinicMembership,
-} from "@/lib/auth/redirects"
-import { sendLoginOtpEmail } from "@/lib/auth/send-login-otp"
-import type { AuthResult, PostLoginPathResult } from "@/lib/auth/types"
+import { asErrorMessage, mapAuthError } from "@/lib/auth/errors"
+import type { AuthResult } from "@/lib/auth/types"
 import { createClient } from "@/lib/supabase/server"
 
+function siteUrl() {
+  return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"
+}
+
+function supabaseUrl() {
+  return process.env.NEXT_PUBLIC_SUPABASE_URL!
+}
+
+function supabaseAnonKey() {
+  return process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+}
+
+type WebSignInResponse = {
+  ok?: boolean
+  error?: string
+}
+
 export async function sendOtpEmail(email: string): Promise<AuthResult> {
-  const trimmed = normalizeEmail(email)
-
-  if (!trimmed) {
-    return { ok: false, error: "Enter your work email to continue." }
-  }
-
-  if (!isValidEmail(trimmed)) {
-    return { ok: false, error: "Enter a valid email address." }
-  }
-
   try {
-    await sendLoginOtpEmail(trimmed)
+    const trimmed = email.trim().toLowerCase()
+    if (!trimmed) {
+      return { ok: false, error: "Enter your work email to continue." }
+    }
+
+    // Bypass broken Supabase SMTP: generate link/OTP via admin API inside the
+    // edge function, then deliver with Resend HTTP (same path as staff OTP).
+    // apikey only — do not send legacy anon JWT as Bearer (ES256 signing keys
+    // reject HS256 API keys with "unrecognized JWT kid <nil>").
+    const response = await fetch(
+      `${supabaseUrl()}/functions/v1/web-sign-in-otp`,
+      {
+        method: "POST",
+        headers: {
+          apikey: supabaseAnonKey(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: trimmed,
+          redirectTo: `${siteUrl()}/auth/callback`,
+        }),
+      }
+    )
+
+    const payload = (await response.json().catch(() => null)) as
+      | WebSignInResponse
+      | null
+
+    if (!response.ok || !payload?.ok) {
+      return {
+        ok: false,
+        error: asErrorMessage(
+          payload?.error,
+          "Could not send sign-in email."
+        ),
+      }
+    }
+
     return { ok: true }
   } catch (error) {
-    console.error("[auth.sendOtpEmail]", {
-      email: trimmed,
-      error,
-    })
     return {
       ok: false,
-      error: mapAuthError(
-        error as { message?: string; status?: number; code?: string },
-        "Could not send verification code."
-      ),
+      error: asErrorMessage(error, "Could not send sign-in email."),
     }
   }
 }
@@ -49,58 +74,55 @@ export async function verifyOtpCode(
   email: string,
   token: string
 ): Promise<AuthResult> {
-  const trimmedEmail = normalizeEmail(email)
-  const trimmedToken = sanitizeOtpInput(token)
+  try {
+    const trimmedEmail = email.trim().toLowerCase()
+    const trimmedToken = token.trim()
 
-  if (!trimmedEmail || !isValidEmail(trimmedEmail)) {
-    return { ok: false, error: "Session expired. Enter your email again." }
-  }
+    if (!trimmedEmail) {
+      return { ok: false, error: "Session expired. Enter your email again." }
+    }
 
-  if (!isValidOtpCode(trimmedToken)) {
-    return { ok: false, error: "Enter the full 6-digit verification code." }
-  }
+    if (trimmedToken.length !== 6) {
+      return { ok: false, error: "Enter the full 6-digit verification code." }
+    }
 
-  const supabase = await createClient()
-  const { error } = await supabase.auth.verifyOtp({
-    email: trimmedEmail,
-    token: trimmedToken,
-    type: "email",
-  })
+    const supabase = await createClient()
+    const { error } = await supabase.auth.verifyOtp({
+      email: trimmedEmail,
+      token: trimmedToken,
+      type: "email",
+    })
 
-  if (error) {
+    if (error) {
+      return {
+        ok: false,
+        error: mapAuthError(error, "Could not verify that code."),
+      }
+    }
+
+    return { ok: true }
+  } catch (error) {
     return {
       ok: false,
-      error: mapAuthError(error, "Could not verify that code."),
+      error: asErrorMessage(error, "Could not verify that code."),
     }
   }
-
-  return { ok: true }
 }
 
 export async function signOut(): Promise<AuthResult> {
-  const supabase = await createClient()
-  const { error } = await supabase.auth.signOut()
+  try {
+    const supabase = await createClient()
+    const { error } = await supabase.auth.signOut()
 
-  if (error) {
-    return { ok: false, error: mapAuthError(error, "Could not sign out.") }
+    if (error) {
+      return { ok: false, error: mapAuthError(error, "Could not sign out.") }
+    }
+
+    return { ok: true }
+  } catch (error) {
+    return {
+      ok: false,
+      error: asErrorMessage(error, "Could not sign out."),
+    }
   }
-
-  return { ok: true }
-}
-
-export async function getPostLoginPath(): Promise<PostLoginPathResult> {
-  const access = await getStaffAccess()
-
-  if (!access) {
-    return { ok: false, error: "Could not resolve your staff access." }
-  }
-
-  if (
-    roleRequiresClinicMembership(access.primaryRole) &&
-    !access.hasClinicMembership
-  ) {
-    return { ok: true, path: "/auth/pending" }
-  }
-
-  return { ok: true, path: dashboardPathForRole(access.primaryRole) }
 }

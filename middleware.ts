@@ -1,75 +1,86 @@
 import { NextResponse, type NextRequest } from "next/server"
 
-import { isDevAuthBypassEnabled } from "@/lib/auth/dev-bypass"
+import { homePathForDesignation, isStaffAreaPath } from "@/lib/auth/home-path"
 import {
-  dashboardPathForRole,
-  isProtectedRolePath,
-  isRolePathAllowed,
-  roleRequiresClinicMembership,
-} from "@/lib/auth/redirects"
-import { normalizeWebRole } from "@/lib/auth/types"
+  canUseWebApp,
+  hasApprovedClinicAccess,
+  resolveClinicRole,
+  type ProfileRoleFields,
+} from "@/lib/auth/resolve-role"
 import { updateSession } from "@/lib/supabase/middleware"
 
 export async function middleware(request: NextRequest) {
   const { supabase, user, supabaseResponse } = await updateSession(request)
   const { pathname } = request.nextUrl
 
-  const isDashboard = pathname.startsWith("/dashboard")
-  const isRoleDashboard = isProtectedRolePath(pathname)
+  const isPublicDisplay =
+    pathname === "/queue-management/display" ||
+    pathname.startsWith("/queue-management/display/") ||
+    pathname === "/display" ||
+    pathname.startsWith("/display/")
+
+  const isStaffArea = isStaffAreaPath(pathname) && !isPublicDisplay
   const isPending = pathname.startsWith("/auth/pending")
-  const requiresAuth = isDashboard || isRoleDashboard || isPending
+  const isContinue = pathname.startsWith("/auth/continue")
 
-  if (!user && requiresAuth) {
-    if (isDevAuthBypassEnabled() && (isDashboard || isRoleDashboard)) {
-      return supabaseResponse
-    }
-
+  if (!user && (isStaffArea || isPending || isContinue)) {
     const url = request.nextUrl.clone()
     url.pathname = "/login"
     return NextResponse.redirect(url)
   }
 
-  if (user && requiresAuth) {
+  if (user && (isStaffArea || isPending || isContinue)) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("is_active, primary_role")
+      .select("account_status, user_role, designation, role, primary_role")
       .eq("id", user.id)
       .maybeSingle()
 
-    if (!profile?.is_active) {
+    const gate = profile as ProfileRoleFields | null
+
+    if (!canUseWebApp(gate)) {
       const url = request.nextUrl.clone()
-      url.pathname = "/"
+      url.pathname = "/login"
       return NextResponse.redirect(url)
     }
 
-    const role = normalizeWebRole(profile.primary_role)
-    const { data: membership } = await supabase
-      .from("clinic_members")
-      .select("clinic_id")
-      .eq("profile_id", user.id)
-      .eq("is_active", true)
-      .limit(1)
-      .maybeSingle()
+    const allowed = hasApprovedClinicAccess(gate)
+    const clinicRole = resolveClinicRole(gate)
+    const home = clinicRole
+      ? homePathForDesignation(clinicRole)
+      : "/auth/pending"
 
-    const hasMembership = Boolean(membership)
-    const requiresMembership = roleRequiresClinicMembership(role)
-    const hasRouteAccess = !requiresMembership || hasMembership
+    if (isContinue) {
+      const url = request.nextUrl.clone()
+      url.pathname = allowed ? home : "/auth/pending"
+      return NextResponse.redirect(url)
+    }
 
-    if ((isDashboard || isRoleDashboard) && !hasRouteAccess) {
+    if (isStaffArea && !allowed) {
       const url = request.nextUrl.clone()
       url.pathname = "/auth/pending"
       return NextResponse.redirect(url)
     }
 
-    if (hasRouteAccess && (isPending || isDashboard)) {
-      const url = request.nextUrl.clone()
-      url.pathname = dashboardPathForRole(role)
-      return NextResponse.redirect(url)
+    // Enforce role folder: /nurse/* only for primary_role = nurse, etc.
+    if (isStaffArea && allowed && clinicRole && clinicRole !== "queue_display") {
+      const rolePrefix = `/${clinicRole}`
+      const onOwnTree =
+        pathname === rolePrefix || pathname.startsWith(`${rolePrefix}/`)
+      const onQueueManagement =
+        pathname === "/queue-management" ||
+        pathname.startsWith("/queue-management/")
+
+      if (!onOwnTree && !onQueueManagement) {
+        const url = request.nextUrl.clone()
+        url.pathname = home
+        return NextResponse.redirect(url)
+      }
     }
 
-    if (hasRouteAccess && isRoleDashboard && !isRolePathAllowed(pathname, role)) {
+    if (isPending && allowed) {
       const url = request.nextUrl.clone()
-      url.pathname = dashboardPathForRole(role)
+      url.pathname = home
       return NextResponse.redirect(url)
     }
   }

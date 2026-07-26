@@ -5,90 +5,76 @@ type AuthLikeError = {
   name?: string
 } | null
 
-function usableMessage(message: string | undefined): string | null {
-  if (!message) return null
-
+function isUsableMessage(message: unknown): message is string {
+  if (typeof message !== "string") return false
   const trimmed = message.trim()
-  if (!trimmed) return null
+  if (!trimmed) return false
+  // Supabase sometimes surfaces AuthRetryableFetchError with message "{}"
+  if (trimmed === "{}" || trimmed === "null" || trimmed === "[object Object]") {
+    return false
+  }
+  return true
+}
 
-  // auth-js stringifies fetch Response bodies as "{}" on 5xx timeouts
-  if (trimmed === "{}" || trimmed === "[object Object]") return null
+export function asErrorMessage(value: unknown, fallback: string): string {
+  if (isUsableMessage(value)) {
+    return value.trim()
+  }
 
-  return trimmed
+  if (value && typeof value === "object" && "message" in value) {
+    const message = (value as { message?: unknown }).message
+    if (isUsableMessage(message)) {
+      return message.trim()
+    }
+  }
+
+  return fallback
 }
 
 export function mapAuthError(error: AuthLikeError, fallback: string): string {
   const status = error?.status
-  const code = error?.code?.toLowerCase() ?? ""
-  const rawMessage = usableMessage(error?.message)
-  const message = (rawMessage ?? "").toLowerCase()
+  const name = error?.name?.toLowerCase() ?? ""
+  const rawMessage = isUsableMessage(error?.message)
+    ? error.message.trim()
+    : ""
+  const message = rawMessage.toLowerCase()
 
-  if (
-    status === 502 ||
-    status === 503 ||
-    status === 504 ||
-    status === 520 ||
-    status === 521 ||
-    status === 522 ||
-    status === 523 ||
-    status === 524
-  ) {
-    return "Sign-in is temporarily unavailable. Please try again in a moment."
-  }
-
-  // Supabase Auth email delivery failures (custom SMTP misconfigured/auth failed)
-  if (
-    status === 500 ||
-    code.includes("unexpected_failure") ||
-    message.includes("535") ||
-    message.includes("authentication failed") ||
-    message.includes("smtp") ||
-    message.includes("error sending") ||
-    message.includes("unable to send") ||
-    message.includes("resend")
-  ) {
-    return "Could not send the email right now. Ask an admin to check the clinic email (SMTP) settings."
-  }
-
-  if (message.includes("missing required environment variable")) {
-    return "Sign-in email is not configured yet. Ask an admin to finish email setup."
-  }
-
-  if (message.includes("rate limit") || status === 429) {
+  if (status === 429 || message.includes("rate limit")) {
     return "Too many attempts. Please wait a moment and try again."
   }
 
   if (
-    message.includes("signups not allowed") ||
-    message.includes("signup not allowed") ||
-    message.includes("user not found") ||
-    message.includes("unable to validate email") ||
-    message.includes("email not found")
+    status === 500 ||
+    name.includes("retryable") ||
+    message.includes("sending magic link") ||
+    message.includes("error sending") ||
+    message.includes("smtp") ||
+    (message.includes("email") && message.includes("send"))
   ) {
-    return "This email is not registered as clinic staff. Ask an admin to import your account first."
+    return "We couldn't send the sign-in email. Please try again in a moment."
   }
 
-  // Verify-step failures only (avoid matching generic "otp" send failures)
   if (
-    message.includes("token has expired") ||
-    message.includes("token is invalid") ||
-    message.includes("otp has expired") ||
-    message.includes("invalid otp") ||
-    message.includes("invalid token") ||
-    (message.includes("expired") && message.includes("token"))
+    message.includes("jwt") ||
+    message.includes("kid") ||
+    message.includes("unrecognized") ||
+    message.includes("unable to parse or verify")
+  ) {
+    return "Sign-in is temporarily unavailable. Please try again in a moment."
+  }
+
+  if (
+    message.includes("token") ||
+    message.includes("otp") ||
+    ((message.includes("expired") || message.includes("invalid")) &&
+      !message.includes("credential"))
   ) {
     return "That code is invalid or expired. Request a new one."
   }
 
-  if (
-    message.includes("fetch failed") ||
-    message.includes("network") ||
-    message.includes("timeout")
-  ) {
-    return "Could not reach the sign-in service. Check your connection and try again."
+  if (message.includes("signups not allowed") || message.includes("signup")) {
+    return "Staff accounts are invite-only. Contact a clinic admin."
   }
 
-  if (!rawMessage) return fallback
-
-  return rawMessage
+  return rawMessage || fallback
 }
