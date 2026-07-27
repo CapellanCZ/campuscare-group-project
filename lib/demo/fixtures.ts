@@ -1,6 +1,5 @@
 import type {
   DemoAnnouncement,
-  DemoCertificate,
   DemoConsultation,
   DemoConsultationRequest,
   DemoPatient,
@@ -228,56 +227,6 @@ export const demoConsultations: DemoConsultation[] = [
     hasAssessment: true,
     hasDiagnosis: true,
     hasPrescription: true,
-  },
-]
-
-export const demoCertificateStats: DemoStat[] = [
-  { key: "issued", label: "Issued this month", value: "64", description: "All types" },
-  { key: "today", label: "Issued today", value: "5", description: "Ready to print" },
-  { key: "draft", label: "Drafts", value: "2", description: "Incomplete" },
-  { key: "pending", label: "Pending request", value: "4", description: "From consultations" },
-]
-
-export const demoCertificates: DemoCertificate[] = [
-  {
-    id: "cert-301",
-    patientName: "Aisha Rahman",
-    studentId: "2022-06714",
-    certificateType: "Fitness for internship",
-    issuedBy: "Dr. Ramon Villanueva",
-    issuedAt: "2026-07-25 08:55",
-    status: "issued",
-    validUntil: "2026-10-25",
-  },
-  {
-    id: "cert-302",
-    patientName: "Carlo Mendoza",
-    studentId: "2019-03388",
-    certificateType: "Medical excuse",
-    issuedBy: "Dr. Ramon Villanueva",
-    issuedAt: "2026-07-22 14:10",
-    status: "printed",
-    validUntil: "2026-07-29",
-  },
-  {
-    id: "cert-303",
-    patientName: "Grace Lim",
-    studentId: "2023-00912",
-    certificateType: "Dental clearance",
-    issuedBy: "Dr. Elise Torres",
-    issuedAt: "2026-07-20 11:40",
-    status: "issued",
-    validUntil: "2026-08-20",
-  },
-  {
-    id: "cert-304",
-    patientName: "Maria Santos",
-    studentId: "2021-04521",
-    certificateType: "Medical excuse",
-    issuedBy: "—",
-    issuedAt: "—",
-    status: "draft",
-    validUntil: "—",
   },
 ]
 

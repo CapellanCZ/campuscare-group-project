@@ -291,3 +291,21 @@
     animation: none;
   }
 }
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  #medical-certificate-print,
+  #medical-certificate-print * {
+    visibility: visible !important;
+  }
+
+  #medical-certificate-print {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    background: white;
+  }
+}

@@ -1,13 +1,18 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { toast } from "sonner"
-
 import {
-  DemoPageHeader,
-  DemoStatGrid,
-  demoToast,
-} from "@/components/demo/demo-page"
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react"
+import { toast } from "sonner"
+import { IconFileText } from "@tabler/icons-react"
+
+import { CertificateDetailSheet } from "@/components/certificates/certificate-detail-sheet"
+import { DemoPageHeader, DemoStatGrid } from "@/components/demo/demo-page"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,7 +21,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -25,61 +38,232 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  fetchMedicalCertificateStatsAction,
+  searchMedicalCertificatesAction,
+  updateMedicalCertificateAction,
+} from "@/features/certificates/actions"
+import {
+  formatCertificateDate,
+  formatCertificateDateTime,
+} from "@/features/certificates/lib/format"
 import { can, getAccessLevel } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
-import {
-  demoCertificates,
-  demoCertificateStats,
-} from "@/lib/demo/fixtures"
-import type { CertificateStatus } from "@/lib/demo/types"
+import type { DemoStat } from "@/lib/demo/types"
+import type {
+  MedicalCertificate,
+  MedicalCertificateListResult,
+  MedicalCertificateStats,
+} from "@/types/medicalCertificate"
 
-export function CertificatesDemoPage({ access }: { access: StaffAccess }) {
+const PAGE_SIZE = 10
+const SEARCH_DEBOUNCE_MS = 300
+
+function statusVariant(
+  status: MedicalCertificate["status"]
+): "default" | "secondary" | "outline" {
+  if (status === "issued") return "default"
+  if (status === "printed") return "secondary"
+  return "outline"
+}
+
+function toStatCards(stats: MedicalCertificateStats): DemoStat[] {
+  return [
+    {
+      key: "issued",
+      label: "Issued this month",
+      value: String(stats.issuedThisMonth),
+      description: "All types",
+    },
+    {
+      key: "today",
+      label: "Issued today",
+      value: String(stats.issuedToday),
+      description: "Ready to print",
+    },
+    {
+      key: "draft",
+      label: "Drafts",
+      value: String(stats.drafts),
+      description: "Incomplete",
+    },
+    {
+      key: "pending",
+      label: "Pending request",
+      value: String(stats.pending),
+      description: "From consultations",
+    },
+  ]
+}
+
+function CertificatesTableSkeleton() {
+  return (
+    <div className="space-y-3 p-4">
+      {Array.from({ length: 5 }).map((_, index) => (
+        <div key={index} className="flex items-center gap-3">
+          <Skeleton className="h-10 w-40" />
+          <Skeleton className="h-10 flex-1" />
+          <Skeleton className="h-10 w-36" />
+          <Skeleton className="h-10 w-20" />
+          <Skeleton className="h-10 w-28" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export function CertificatesPage({
+  access,
+  initialList,
+  initialStats,
+  initialError,
+}: {
+  access: StaffAccess
+  initialList: MedicalCertificateListResult
+  initialStats: MedicalCertificateStats
+  initialError?: string | null
+}) {
   const [query, setQuery] = useState("")
+  const [debouncedQuery, setDebouncedQuery] = useState("")
+  const [page, setPage] = useState(1)
+  const [list, setList] = useState(initialList)
+  const [stats, setStats] = useState(initialStats)
+  const [loading, setLoading] = useState(false)
+  const [selected, setSelected] = useState<MedicalCertificate | null>(null)
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [isPending, startTransition] = useTransition()
+  const skipNextFetch = useRef(true)
+
   const d = access.designation
   const cardsLevel = getAccessLevel(d, "certificates.summary_cards")
   const canGenerate = can(d, "certificates.generate")
+  const canPrint = can(d, "certificates.print")
 
-  const rows = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return demoCertificates
-    return demoCertificates.filter(
-      (row) =>
-        row.patientName.toLowerCase().includes(q) ||
-        row.studentId.toLowerCase().includes(q) ||
-        row.certificateType.toLowerCase().includes(q)
-    )
-  }, [query])
+  useEffect(() => {
+    if (initialError) {
+      toast.error(initialError)
+    }
+  }, [initialError])
 
-  function statusVariant(
-    status: CertificateStatus
-  ): "default" | "secondary" | "outline" {
-    if (status === "issued") return "default"
-    if (status === "printed") return "secondary"
-    return "outline"
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const nextQuery = query.trim()
+      if (nextQuery === debouncedQuery) return
+      setDebouncedQuery(nextQuery)
+      setPage(1)
+    }, SEARCH_DEBOUNCE_MS)
+    return () => window.clearTimeout(timer)
+  }, [query, debouncedQuery])
+
+  const loadPage = useCallback(async (nextQuery: string, nextPage: number) => {
+    setLoading(true)
+    try {
+      const [listResult, statsResult] = await Promise.all([
+        searchMedicalCertificatesAction(nextQuery, {
+          page: nextPage,
+          pageSize: PAGE_SIZE,
+          sortBy: "issued_at",
+          sortDirection: "desc",
+        }),
+        fetchMedicalCertificateStatsAction(),
+      ])
+
+      if (!listResult.ok) {
+        toast.error(listResult.error)
+        return
+      }
+      if (!statsResult.ok) {
+        toast.error(statsResult.error)
+        return
+      }
+
+      setList(listResult.data)
+      setStats(statsResult.data)
+    } catch {
+      toast.error(
+        "Unable to reach the database. Check your connection and try again."
+      )
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (skipNextFetch.current) {
+      skipNextFetch.current = false
+      return
+    }
+    void loadPage(debouncedQuery, page)
+  }, [debouncedQuery, page, loadPage])
+
+  const statCards = useMemo(() => toStatCards(stats), [stats])
+  const showSkeleton = loading || isPending
+  const rows = list.items
+  const hasRows = rows.length > 0
+
+  function openCertificate(certificate: MedicalCertificate) {
+    setSelected(certificate)
+    setSheetOpen(true)
+  }
+
+  function handlePrintRow(certificate: MedicalCertificate) {
+    setSelected(certificate)
+    setSheetOpen(true)
+    startTransition(async () => {
+      if (certificate.status === "issued") {
+        const result = await updateMedicalCertificateAction({
+          id: certificate.id,
+          status: "printed",
+        })
+        if (!result.ok) {
+          toast.error(result.error)
+          return
+        }
+        setSelected(result.data)
+        setList((current) => ({
+          ...current,
+          items: current.items.map((item) =>
+            item.id === result.data.id ? result.data : item
+          ),
+        }))
+        const statsResult = await fetchMedicalCertificateStatsAction()
+        if (statsResult.ok) setStats(statsResult.data)
+      }
+      window.setTimeout(() => window.print(), 150)
+    })
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4 md:p-6">
-      <DemoPageHeader
-        title="Medical Certificates"
-        description="Browse history and generate printable certificates"
-        designation={d}
-        actions={
-          canGenerate ? (
-            <Button
-              onClick={() => toast.success(demoToast("Generate certificate"))}
-            >
-              Generate certificate
-            </Button>
-          ) : null
-        }
-      />
+    <div className="flex flex-col gap-4 p-4 md:p-6 print:p-0">
+      <div className="print:hidden">
+        <DemoPageHeader
+          title="Medical Certificates"
+          description="Browse history and generate printable certificates"
+          designation={d}
+          showDemoBanner={false}
+          actions={
+            canGenerate ? (
+              <Button
+                onClick={() =>
+                  toast.message(
+                    "Select a patient consultation to generate a certificate."
+                  )
+                }
+              >
+                Generate certificate
+              </Button>
+            ) : null
+          }
+        />
+      </div>
 
       {cardsLevel !== "none" ? (
-        <DemoStatGrid stats={demoCertificateStats} />
+        <div className="print:hidden">
+          <DemoStatGrid stats={statCards} />
+        </div>
       ) : null}
 
-      <Card className="min-w-0 shadow-none dark:ring-0">
+      <Card className="min-w-0 shadow-none print:hidden dark:ring-0">
         <CardHeader className="flex flex-col gap-3 border-b sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-base">
             Certificate history
@@ -99,87 +283,151 @@ export function CertificatesDemoPage({ access }: { access: StaffAccess }) {
           ) : null}
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Patient</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Issued</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell>
-                    <p className="font-medium">{row.patientName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {row.studentId}
-                    </p>
-                  </TableCell>
-                  <TableCell>{row.certificateType}</TableCell>
-                  <TableCell>
-                    <p>{row.issuedAt}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {row.issuedBy} · valid until {row.validUntil}
-                    </p>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={statusVariant(row.status)}>
-                      {row.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap justify-end gap-1">
-                      {can(d, "certificates.view_history") ? (
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          onClick={() =>
-                            toast.info(demoToast("View certificate history"))
-                          }
-                        >
-                          View
-                        </Button>
-                      ) : null}
-                      {can(d, "certificates.preview") &&
-                      row.status !== "draft" ? (
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          onClick={() => toast.info(demoToast("Preview certificate"))}
-                        >
-                          Preview
-                        </Button>
-                      ) : null}
-                      {can(d, "certificates.print") &&
-                      row.status !== "draft" ? (
-                        <Button
-                          size="xs"
-                          onClick={() => toast.success(demoToast("Print certificate"))}
-                        >
-                          Print
-                        </Button>
-                      ) : null}
-                      {can(d, "certificates.download_pdf") &&
-                      row.status !== "draft" ? (
-                        <Button
-                          size="xs"
-                          variant="secondary"
-                          onClick={() => toast.success(demoToast("Download PDF"))}
-                        >
-                          PDF
-                        </Button>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          {showSkeleton ? (
+            <CertificatesTableSkeleton />
+          ) : !hasRows ? (
+            <Empty className="border-0">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <IconFileText />
+                </EmptyMedia>
+                <EmptyTitle>No medical certificates found.</EmptyTitle>
+                <EmptyDescription>
+                  No medical certificates available.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          ) : (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Patient</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Issued</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell>
+                        <p className="font-medium">{row.patient.fullName}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {row.patient.studentId ?? "—"}
+                        </p>
+                      </TableCell>
+                      <TableCell>{row.certificateType}</TableCell>
+                      <TableCell>
+                        <p>{formatCertificateDateTime(row.issuedAt)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {row.doctorName ?? "—"} · valid until{" "}
+                          {formatCertificateDate(row.validUntil)}
+                        </p>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={statusVariant(row.status)}>
+                          {row.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap justify-end gap-1">
+                          {can(d, "certificates.view_history") ? (
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              onClick={() => openCertificate(row)}
+                            >
+                              View
+                            </Button>
+                          ) : null}
+                          {can(d, "certificates.preview") &&
+                          row.status !== "draft" ? (
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              onClick={() => openCertificate(row)}
+                            >
+                              Preview
+                            </Button>
+                          ) : null}
+                          {canPrint && row.status !== "draft" ? (
+                            <Button
+                              size="xs"
+                              onClick={() => handlePrintRow(row)}
+                            >
+                              Print
+                            </Button>
+                          ) : null}
+                          {can(d, "certificates.download_pdf") &&
+                          row.status !== "draft" ? (
+                            <Button
+                              size="xs"
+                              variant="secondary"
+                              onClick={() => {
+                                openCertificate(row)
+                                window.setTimeout(() => window.print(), 150)
+                              }}
+                            >
+                              PDF
+                            </Button>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {list.totalPages > 1 ? (
+                <div className="flex items-center justify-between gap-3 border-t px-4 py-3">
+                  <p className="text-xs text-muted-foreground">
+                    Page {list.page} of {list.totalPages} · {list.total}{" "}
+                    certificates
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      disabled={list.page <= 1 || showSkeleton}
+                      onClick={() =>
+                        setPage((current) => Math.max(1, current - 1))
+                      }
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      disabled={
+                        list.page >= list.totalPages || showSkeleton
+                      }
+                      onClick={() =>
+                        setPage((current) =>
+                          Math.min(list.totalPages, current + 1)
+                        )
+                      }
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </>
+          )}
         </CardContent>
       </Card>
+
+      <CertificateDetailSheet
+        certificate={selected}
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        canPrint={canPrint}
+      />
     </div>
   )
 }
+
+/** @deprecated Prefer CertificatesPage — kept for route re-exports. */
+export { CertificatesPage as CertificatesDemoPage }
