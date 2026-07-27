@@ -49,11 +49,19 @@ export function CertificateDetailSheet({
   open,
   onOpenChange,
   canPrint,
+  canEdit,
+  canDelete,
+  onEdit,
+  onDelete,
 }: {
   certificate: MedicalCertificate | null
   open: boolean
   onOpenChange: (open: boolean) => void
   canPrint: boolean
+  canEdit?: boolean
+  canDelete?: boolean
+  onEdit?: (certificate: MedicalCertificate) => void
+  onDelete?: (certificate: MedicalCertificate) => void
 }) {
   function handlePrint() {
     if (!certificate) return
@@ -130,7 +138,23 @@ export function CertificateDetailSheet({
             </div>
           ) : null}
 
-          <SheetFooter className="border-t sm:flex-row">
+          <SheetFooter className="border-t sm:flex-row sm:flex-wrap">
+            {canEdit && certificate && onEdit ? (
+              <Button
+                variant="secondary"
+                onClick={() => onEdit(certificate)}
+              >
+                Edit
+              </Button>
+            ) : null}
+            {canDelete && certificate && onDelete ? (
+              <Button
+                variant="destructive"
+                onClick={() => onDelete(certificate)}
+              >
+                Delete
+              </Button>
+            ) : null}
             {canPrint &&
             certificate &&
             certificate.status !== "draft" ? (

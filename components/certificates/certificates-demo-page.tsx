@@ -11,7 +11,9 @@ import {
 import { toast } from "sonner"
 import { IconFileText } from "@tabler/icons-react"
 
+import { CertificateDeleteDialog } from "@/components/certificates/certificate-delete-dialog"
 import { CertificateDetailSheet } from "@/components/certificates/certificate-detail-sheet"
+import { CertificateFormSheet } from "@/components/certificates/certificate-form-sheet"
 import { DemoPageHeader, DemoStatGrid } from "@/components/demo/demo-page"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -23,6 +25,7 @@ import {
 } from "@/components/ui/card"
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -47,7 +50,7 @@ import {
   formatCertificateDate,
   formatCertificateDateTime,
 } from "@/features/certificates/lib/format"
-import { can, getAccessLevel } from "@/lib/auth/permissions"
+import { can, canMutate, getAccessLevel } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { DemoStat } from "@/lib/demo/types"
 import type {
@@ -131,13 +134,18 @@ export function CertificatesPage({
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<MedicalCertificate | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [formOpen, setFormOpen] = useState(false)
+  const [formMode, setFormMode] = useState<"create" | "edit">("create")
+  const [editing, setEditing] = useState<MedicalCertificate | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState<MedicalCertificate | null>(null)
   const [isPending, startTransition] = useTransition()
   const skipNextFetch = useRef(true)
 
   const d = access.designation
   const cardsLevel = getAccessLevel(d, "certificates.summary_cards")
-  const canGenerate = can(d, "certificates.generate")
   const canPrint = can(d, "certificates.print")
+  const canManage = canMutate(d, "certificates.generate")
 
   useEffect(() => {
     if (initialError) {
@@ -188,6 +196,10 @@ export function CertificatesPage({
     }
   }, [])
 
+  const refresh = useCallback(async () => {
+    await loadPage(debouncedQuery, page)
+  }, [debouncedQuery, page, loadPage])
+
   useEffect(() => {
     if (skipNextFetch.current) {
       skipNextFetch.current = false
@@ -204,6 +216,25 @@ export function CertificatesPage({
   function openCertificate(certificate: MedicalCertificate) {
     setSelected(certificate)
     setSheetOpen(true)
+  }
+
+  function openCreate() {
+    setFormMode("create")
+    setEditing(null)
+    setFormOpen(true)
+  }
+
+  function openEdit(certificate: MedicalCertificate) {
+    setSheetOpen(false)
+    setFormMode("edit")
+    setEditing(certificate)
+    setFormOpen(true)
+  }
+
+  function openDelete(certificate: MedicalCertificate) {
+    setSheetOpen(false)
+    setDeleting(certificate)
+    setDeleteOpen(true)
   }
 
   function handlePrintRow(certificate: MedicalCertificate) {
@@ -233,6 +264,20 @@ export function CertificatesPage({
     })
   }
 
+  async function handleSaved(certificate: MedicalCertificate) {
+    setSelected(certificate)
+    await refresh()
+  }
+
+  async function handleDeleted(id: string) {
+    if (selected?.id === id) {
+      setSelected(null)
+      setSheetOpen(false)
+    }
+    setDeleting(null)
+    await refresh()
+  }
+
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6 print:p-0">
       <div className="print:hidden">
@@ -241,19 +286,6 @@ export function CertificatesPage({
           description="Browse history and generate printable certificates"
           designation={d}
           showDemoBanner={false}
-          actions={
-            canGenerate ? (
-              <Button
-                onClick={() =>
-                  toast.message(
-                    "Select a patient consultation to generate a certificate."
-                  )
-                }
-              >
-                Generate certificate
-              </Button>
-            ) : null
-          }
         />
       </div>
 
@@ -273,14 +305,21 @@ export function CertificatesPage({
               </span>
             ) : null}
           </CardTitle>
-          {can(d, "certificates.search_patient") ? (
-            <Input
-              className="sm:w-72"
-              placeholder="Search patient or certificate type"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          ) : null}
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            {can(d, "certificates.search_patient") ? (
+              <Input
+                className="sm:w-72"
+                placeholder="Search patient or certificate type"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            ) : null}
+            {canManage ? (
+              <Button className="shrink-0" onClick={openCreate}>
+                New Medical Certificate
+              </Button>
+            ) : null}
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {showSkeleton ? (
@@ -296,6 +335,11 @@ export function CertificatesPage({
                   No medical certificates available.
                 </EmptyDescription>
               </EmptyHeader>
+              {canManage ? (
+                <EmptyContent>
+                  <Button onClick={openCreate}>New Medical Certificate</Button>
+                </EmptyContent>
+              ) : null}
             </Empty>
           ) : (
             <>
@@ -342,6 +386,15 @@ export function CertificatesPage({
                               View
                             </Button>
                           ) : null}
+                          {canManage ? (
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              onClick={() => openEdit(row)}
+                            >
+                              Edit
+                            </Button>
+                          ) : null}
                           {can(d, "certificates.preview") &&
                           row.status !== "draft" ? (
                             <Button
@@ -371,6 +424,15 @@ export function CertificatesPage({
                               }}
                             >
                               PDF
+                            </Button>
+                          ) : null}
+                          {canManage ? (
+                            <Button
+                              size="xs"
+                              variant="destructive"
+                              onClick={() => openDelete(row)}
+                            >
+                              Delete
                             </Button>
                           ) : null}
                         </div>
@@ -424,6 +486,25 @@ export function CertificatesPage({
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         canPrint={canPrint}
+        canEdit={canManage}
+        canDelete={canManage}
+        onEdit={openEdit}
+        onDelete={openDelete}
+      />
+
+      <CertificateFormSheet
+        open={formOpen}
+        mode={formMode}
+        certificate={editing}
+        onOpenChange={setFormOpen}
+        onSaved={handleSaved}
+      />
+
+      <CertificateDeleteDialog
+        certificate={deleting}
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        onDeleted={handleDeleted}
       />
     </div>
   )

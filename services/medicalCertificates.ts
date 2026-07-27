@@ -10,6 +10,7 @@ import {
   type MedicalCertificate,
   type MedicalCertificateListParams,
   type MedicalCertificateListResult,
+  type MedicalCertificatePatient,
   type MedicalCertificateSortField,
   type MedicalCertificateStats,
   type MedicalCertificateStatus,
@@ -450,6 +451,25 @@ export async function updateMedicalCertificate(
   }
 
   return mapCertificate(data as CertificateRow)
+}
+
+export async function listCertificatePatients(
+  client?: SupabaseClient
+): Promise<MedicalCertificatePatient[]> {
+  const supabase = await getClient(client)
+  const { data, error } = await supabase
+    .from("patients")
+    .select("id, full_name, student_id, email")
+    .order("full_name", { ascending: true })
+
+  if (error) mapError(error)
+
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    fullName: row.full_name as string,
+    studentId: (row.student_id as string | null) ?? null,
+    email: (row.email as string | null) ?? null,
+  }))
 }
 
 export async function deleteMedicalCertificate(

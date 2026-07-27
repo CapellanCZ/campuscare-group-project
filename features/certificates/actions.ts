@@ -6,6 +6,7 @@ import {
   getMedicalCertificateById,
   getMedicalCertificates,
   getMedicalCertificateStats,
+  listCertificatePatients,
   searchMedicalCertificates,
   updateMedicalCertificate,
 } from "@/services/medicalCertificates"
@@ -15,6 +16,7 @@ import {
   type MedicalCertificate,
   type MedicalCertificateListParams,
   type MedicalCertificateListResult,
+  type MedicalCertificatePatient,
   type MedicalCertificateStats,
   type UpdateMedicalCertificateInput,
 } from "@/types/medicalCertificate"
@@ -90,6 +92,17 @@ export async function fetchMedicalCertificateStatsAction(): Promise<
 > {
   try {
     const data = await getMedicalCertificateStats()
+    return { ok: true, data }
+  } catch (error) {
+    return toErrorResult(error)
+  }
+}
+
+export async function listCertificatePatientsAction(): Promise<
+  MedicalCertificateActionResult<MedicalCertificatePatient[]>
+> {
+  try {
+    const data = await listCertificatePatients()
     return { ok: true, data }
   } catch (error) {
     return toErrorResult(error)

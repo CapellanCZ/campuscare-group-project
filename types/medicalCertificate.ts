@@ -15,6 +15,8 @@ export type MedicalCertificatePatient = {
   email: string | null
 }
 
+export type MedicalCertificatePatientOption = MedicalCertificatePatient
+
 export type MedicalCertificate = {
   id: string
   patientId: string

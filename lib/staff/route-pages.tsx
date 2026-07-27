@@ -13,7 +13,11 @@ import {
   getMedicalCertificates,
   getMedicalCertificateStats,
 } from "@/services/medicalCertificates"
-import { MedicalCertificateServiceError } from "@/types/medicalCertificate"
+import {
+  MedicalCertificateServiceError,
+  type MedicalCertificateListResult,
+  type MedicalCertificateStats,
+} from "@/types/medicalCertificate"
 import { getStaffAccess } from "@/lib/auth/access"
 import { requireStaffModule } from "@/lib/auth/require-module"
 import { getDashboardBundle } from "@/lib/health/dashboard-queries"
@@ -86,14 +90,14 @@ export async function StaffConsultationsPage() {
 export async function StaffCertificatesPage() {
   const access = await requireStaffModule("medical_certificates")
 
-  const emptyList = {
+  const emptyList: MedicalCertificateListResult = {
     items: [],
     total: 0,
     page: 1,
     pageSize: 10,
     totalPages: 1,
   }
-  const emptyStats = {
+  const emptyStats: MedicalCertificateStats = {
     issuedThisMonth: 0,
     issuedToday: 0,
     drafts: 0,
