@@ -57,7 +57,7 @@ export function AnnouncementsDemoPage({ access }: { access: StaffAccess }) {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4 md:p-6">
+    <div className="flex flex-col gap-4">
       <DemoPageHeader
         title="Announcements"
         description="Clinic notices for students and staff"

@@ -36,7 +36,7 @@ export function ReportsDemoPage({ access }: { access: StaffAccess }) {
   const canExcel = can(d, "reports.export_excel")
 
   return (
-    <div className="flex flex-col gap-4 p-4 md:p-6">
+    <div className="flex flex-col gap-4">
       <DemoPageHeader
         title="Reports"
         description="Consultation and certificate analytics"

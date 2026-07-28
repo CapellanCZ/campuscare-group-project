@@ -3,11 +3,11 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
+import { cn } from "@/lib/utils"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -18,10 +18,9 @@ import {
   getFooterNavLinks,
   getNavGroupsForRole,
 } from "@/components/app-shared"
+import { LatestChange } from "@/components/latest-change"
 import { useStaffAccess } from "@/components/staff-access-provider"
 import { staffBasePath } from "@/lib/auth/home-path"
-import { canViewModule } from "@/lib/auth/permissions"
-import { IconHeartPlus } from "@tabler/icons-react"
 
 export function AppSidebar() {
   const pathname = usePathname()
@@ -31,37 +30,31 @@ export function AppSidebar() {
 
   const groups = getNavGroupsForRole(role, pathname)
   const footerNavLinks = getFooterNavLinks(role)
-  const showQueueCta = canViewModule(role, "queue_management")
 
   return (
-    <Sidebar collapsible="icon" variant="inset">
-      <SidebarHeader className="h-14 justify-center">
+    <Sidebar
+      className={cn(
+        "*:data-[slot=sidebar-inner]:bg-background",
+        "*:data-[slot=sidebar-inner]:dark:bg-[radial-gradient(60%_18%_at_10%_0%,--theme(--color-foreground/.08),transparent)]",
+        "**:data-[slot=sidebar-menu-button]:[&>span]:text-foreground/75"
+      )}
+      collapsible="icon"
+      variant="sidebar"
+    >
+      <SidebarHeader className="h-14 justify-center border-b px-2">
         <SidebarMenuButton render={<Link href={base} />}>
-          <img src="/images/Heart.png" alt="" className="h-7" />
-          <span className="font-medium">CampusCare</span>
+          <img src="/images/Heart.png" alt="" className="size-5" />
+          <span className="font-medium text-foreground!">CampusCare</span>
         </SidebarMenuButton>
       </SidebarHeader>
       <SidebarContent>
-        {showQueueCta ? (
-          <SidebarGroup>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                className="min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
-                tooltip="Open live queue"
-                render={<Link href={`${base}/queue`} />}
-              >
-                <IconHeartPlus />
-                <span>Manage queue</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarGroup>
-        ) : null}
         {groups.map((group, index) => (
           <NavGroup key={`sidebar-group-${index}`} {...group} />
         ))}
       </SidebarContent>
-      <SidebarFooter>
-        <SidebarMenu className="mt-2">
+      <SidebarFooter className="gap-0 p-0">
+        <LatestChange />
+        <SidebarMenu className="border-t p-2">
           {footerNavLinks.map((item) => (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton
@@ -70,11 +63,16 @@ export function AppSidebar() {
                 render={<Link href={item.path ?? base} />}
               >
                 {item.icon}
-                <span>{item.title}</span>
+                <span className="font-medium">{item.title}</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
         </SidebarMenu>
+        <div className="px-4 pt-4 pb-2 transition-opacity group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:opacity-0">
+          <p className="text-nowrap text-[9px] text-muted-foreground">
+            © {new Date().getFullYear()} CampusCare · NU Dasmariñas
+          </p>
+        </div>
       </SidebarFooter>
     </Sidebar>
   )

@@ -56,7 +56,7 @@ export function SettingsDemoPage({ access }: { access: StaffAccess }) {
     .filter(Boolean)
 
   return (
-    <div className="flex flex-col gap-4 p-4 md:p-6">
+    <div className="flex flex-col gap-4">
       <DemoPageHeader
         title="Settings"
         description="Clinic configuration and your profile"

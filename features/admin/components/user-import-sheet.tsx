@@ -75,8 +75,7 @@ export function UserImportSheet({
         render={
           <Button
             variant="outline"
-            size={toolbar ? "sm" : "default"}
-            className={toolbar ? "h-9 shrink-0 gap-1.5 rounded-md" : undefined}
+            className={toolbar ? "shrink-0" : undefined}
           />
         }
       >

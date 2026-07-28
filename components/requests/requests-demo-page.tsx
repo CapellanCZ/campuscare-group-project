@@ -65,7 +65,7 @@ export function RequestsDemoPage({ access }: { access: StaffAccess }) {
   }, [query, status])
 
   return (
-    <div className="flex flex-col gap-4 p-4 md:p-6">
+    <div className="flex flex-col gap-4">
       <DemoPageHeader
         title="Consultation Requests"
         description="Review and process incoming appointment requests"

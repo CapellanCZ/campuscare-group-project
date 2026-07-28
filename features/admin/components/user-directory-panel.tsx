@@ -10,7 +10,6 @@ import {
   IconUser,
   IconUserCheck,
   IconUserOff,
-  IconUsers,
 } from "@tabler/icons-react"
 
 import {
@@ -47,6 +46,8 @@ import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -394,7 +395,7 @@ export function UserDirectoryPanel({
   const deletePrimary = deleteSelection[0]
 
   return (
-    <div className="flex min-h-0 flex-col gap-4 p-4 md:p-6">
+    <div className="flex min-h-0 flex-col gap-4">
       <div className="min-w-0 space-y-1.5">
         <h1 className="truncate text-2xl font-semibold tracking-tight">
           {config.title}
@@ -435,24 +436,18 @@ export function UserDirectoryPanel({
       </div>
 
       <Card className="min-w-0 gap-0 py-0 shadow-none dark:ring-0">
-        <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
-          <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-muted-foreground">
-            <IconUsers
-              className="size-4 shrink-0 text-muted-foreground"
-              aria-hidden="true"
-            />
-            <span className="truncate leading-none">
-              {config.directoryTitle}
-            </span>
-          </div>
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-            <div className="relative w-full min-w-[12rem] sm:w-56">
+        <CardHeader className="flex flex-col gap-3 border-b pt-(--card-spacing) sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle className="text-base">
+            {config.directoryTitle}
+          </CardTitle>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <div className="relative w-full sm:w-72">
               <IconSearch
                 className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
                 aria-hidden="true"
               />
               <Input
-                className="h-9 rounded-md bg-background pl-8"
+                className="pl-8"
                 placeholder="Search users…"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -470,11 +465,11 @@ export function UserDirectoryPanel({
               toolbar
             />
           </div>
-        </div>
+        </CardHeader>
 
         {selectedIds.size > 0 ? (
           <div
-            className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-4 py-3"
+            className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-(--card-spacing) py-3"
             role="status"
           >
             <p className="text-sm">

@@ -214,7 +214,7 @@ export function PatientsPage({
   const rows = list.items
 
   return (
-    <div className="flex flex-col gap-4 p-4 md:p-6">
+    <div className="flex flex-col gap-4">
       <DemoPageHeader
         title="Patient Records"
         description="Search student patients and open clinical profiles"

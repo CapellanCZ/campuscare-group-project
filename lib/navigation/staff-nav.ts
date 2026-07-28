@@ -64,7 +64,8 @@ type NavGroupTemplate = {
  */
 const staffNavGroupTemplates: NavGroupTemplate[] = [
   {
-    id: "home",
+    id: "products",
+    label: "Products",
     items: [
       {
         id: "dashboard",
@@ -72,6 +73,20 @@ const staffNavGroupTemplates: NavGroupTemplate[] = [
         suffix: "",
         icon: "dashboard",
         module: "dashboard",
+      },
+      {
+        id: "reports",
+        title: "Reports",
+        suffix: "/reports",
+        icon: "reports",
+        module: "reports",
+      },
+      {
+        id: "announcements",
+        title: "Announcements",
+        suffix: "/announcements",
+        icon: "announcements",
+        module: "announcements",
       },
     ],
   },
@@ -126,26 +141,6 @@ const staffNavGroupTemplates: NavGroupTemplate[] = [
         suffix: "/certificates",
         icon: "certificates",
         module: "medical_certificates",
-      },
-    ],
-  },
-  {
-    id: "insights",
-    label: "Insights",
-    items: [
-      {
-        id: "reports",
-        title: "Reports",
-        suffix: "/reports",
-        icon: "reports",
-        module: "reports",
-      },
-      {
-        id: "announcements",
-        title: "Announcements",
-        suffix: "/announcements",
-        icon: "announcements",
-        module: "announcements",
       },
     ],
   },
