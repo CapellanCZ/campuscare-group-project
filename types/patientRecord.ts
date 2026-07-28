@@ -1,10 +1,14 @@
+export type PatientType = "student" | "faculty"
+
 export type PatientRecord = {
   id: string
-  studentId: string
+  patientType: PatientType
+  studentId: string | null
+  employeeId: string | null
   firstName: string
   middleName: string | null
   lastName: string
-  course: string
+  course: string | null
   yearLevel: string | null
   gender: string | null
   birthDate: string | null
@@ -26,11 +30,13 @@ export type PatientRecord = {
 
 export type PatientRecordJson = {
   id: string
-  student_id: string
+  patient_type: PatientType
+  student_id: string | null
+  employee_id: string | null
   first_name: string
   middle_name: string | null
   last_name: string
-  course: string
+  course: string | null
   year_level: string | null
   gender: string | null
   birth_date: string | null
@@ -57,8 +63,17 @@ export type PatientRecordStats = {
   documents: number
 }
 
+export type PatientRecordSortColumn =
+  | "patient"
+  | "type"
+  | "program"
+  | "lastVisit"
+
 export type PatientRecordListParams = {
   query?: string
+  patientType?: PatientType | "all"
+  sortBy?: PatientRecordSortColumn
+  sortDir?: "asc" | "desc"
   page?: number
   pageSize?: number
 }
@@ -72,11 +87,13 @@ export type PatientRecordListResult = {
 }
 
 export type CreatePatientRecordInput = {
-  studentId: string
+  patientType: PatientType
+  studentId?: string | null
+  employeeId?: string | null
   firstName: string
   middleName?: string | null
   lastName: string
-  course: string
+  course?: string | null
   yearLevel?: string | null
   gender?: string | null
   birthDate?: string | null
@@ -115,6 +132,14 @@ export class PatientRecordServiceError extends Error {
   }
 }
 
+export function normalizePatientType(
+  value?: string | null
+): PatientType | null {
+  const raw = (value ?? "").trim().toLowerCase()
+  if (raw === "student" || raw === "faculty") return raw
+  return null
+}
+
 export function patientFullName(patient: {
   firstName: string
   middleName?: string | null
@@ -126,10 +151,23 @@ export function patientFullName(patient: {
     .join(" ")
 }
 
+export function patientCampusId(patient: {
+  patientType: PatientType
+  studentId?: string | null
+  employeeId?: string | null
+}): string | null {
+  const value =
+    patient.patientType === "faculty" ? patient.employeeId : patient.studentId
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : null
+}
+
 export function patientRecordFromJson(json: PatientRecordJson): PatientRecord {
   return {
     id: json.id,
+    patientType: normalizePatientType(json.patient_type) ?? "student",
     studentId: json.student_id,
+    employeeId: json.employee_id,
     firstName: json.first_name,
     middleName: json.middle_name,
     lastName: json.last_name,
@@ -157,12 +195,20 @@ export function patientRecordFromJson(json: PatientRecordJson): PatientRecord {
 export function patientRecordToJson(
   patient: CreatePatientRecordInput | UpdatePatientRecordInput
 ): Record<string, string | null> {
+  const patientType = patient.patientType
+  const studentId =
+    patientType === "student" ? emptyToNull(patient.studentId) : null
+  const employeeId =
+    patientType === "faculty" ? emptyToNull(patient.employeeId) : null
+
   return {
-    student_id: patient.studentId.trim(),
+    patient_type: patientType,
+    student_id: studentId,
+    employee_id: employeeId,
     first_name: patient.firstName.trim(),
     middle_name: emptyToNull(patient.middleName),
     last_name: patient.lastName.trim(),
-    course: patient.course.trim(),
+    course: emptyToNull(patient.course),
     year_level: emptyToNull(patient.yearLevel),
     gender: emptyToNull(patient.gender),
     birth_date: emptyToNull(patient.birthDate),

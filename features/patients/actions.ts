@@ -6,6 +6,7 @@ import {
   getPatientRecordById,
   getPatientRecords,
   getPatientRecordStats,
+  importPatientRecordsFromExcel,
   listPatientOptions,
   searchPatientRecords,
   updatePatientRecord,
@@ -26,6 +27,10 @@ import type { Consultation } from "@/types/consultation"
 
 export type PatientRecordActionResult<T> =
   | { ok: true; data: T }
+  | { ok: false; error: string; code: string }
+
+export type PatientRecordImportActionResult =
+  | { ok: true; message: string; warning?: string }
   | { ok: false; error: string; code: string }
 
 function toErrorResult(error: unknown): PatientRecordActionResult<never> {
@@ -151,5 +156,24 @@ export async function fetchPatientConsultationHistoryAction(
     return { ok: true, data }
   } catch (error) {
     return toErrorResult(error)
+  }
+}
+
+export async function importPatientRecordsFromExcelAction(
+  formData: FormData
+): Promise<PatientRecordImportActionResult> {
+  try {
+    const result = await importPatientRecordsFromExcel(formData)
+    return {
+      ok: true,
+      message: `Imported ${result.created} patient${result.created === 1 ? "" : "s"}.`,
+      warning:
+        result.failures.length > 0
+          ? `${result.failures.length} row(s) failed. ${result.failures.slice(0, 3).join(" · ")}`
+          : undefined,
+    }
+  } catch (error) {
+    const failed = toErrorResult(error)
+    return { ok: false, error: failed.error, code: failed.code }
   }
 }

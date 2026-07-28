@@ -53,6 +53,7 @@ import {
   type CreateConsultationInput,
 } from "@/types/consultation"
 import {
+  patientCampusId,
   patientFullName,
   type PatientRecord,
 } from "@/types/patientRecord"
@@ -252,7 +253,7 @@ export function ConsultationFormSheet({
                     >
                       <span className="truncate">
                         {selectedPatient
-                          ? `${patientFullName(selectedPatient)} · ${selectedPatient.studentId}`
+                          ? `${patientFullName(selectedPatient)} · ${patientCampusId(selectedPatient) ?? "No ID"}`
                           : consultation?.patient.fullName
                             ? `${consultation.patient.fullName} · ${consultation.patient.studentId}`
                             : "Search patient records"}
@@ -289,7 +290,8 @@ export function ConsultationFormSheet({
                               )}
                             />
                             <span className="truncate">
-                              {patientFullName(patient)} · {patient.studentId}
+                              {patientFullName(patient)} ·{" "}
+                              {patientCampusId(patient) ?? "No ID"}
                             </span>
                           </CommandItem>
                         ))}

@@ -8,6 +8,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import {
+  patientCampusId,
   patientFullName,
   type PatientRecord,
 } from "@/types/patientRecord"
@@ -43,9 +44,25 @@ export function PatientProfileSheet({
         </SheetHeader>
         {patient ? (
           <dl className="flex-1 space-y-3 overflow-y-auto px-4 pb-6">
-            <Row label="Student ID" value={patient.studentId} />
-            <Row label="Course" value={patient.course} />
-            <Row label="Year level" value={patient.yearLevel} />
+            <Row
+              label="Type"
+              value={patient.patientType === "faculty" ? "Faculty" : "Student"}
+            />
+            <Row
+              label={
+                patient.patientType === "faculty" ? "Employee ID" : "Student ID"
+              }
+              value={patientCampusId(patient)}
+            />
+            <Row
+              label={
+                patient.patientType === "faculty" ? "Department" : "Course"
+              }
+              value={patient.course}
+            />
+            {patient.patientType === "student" ? (
+              <Row label="Year level" value={patient.yearLevel} />
+            ) : null}
             <Row label="Gender" value={patient.gender} />
             <Row label="Birth date" value={patient.birthDate} />
             <Row label="Blood type" value={patient.bloodType} />

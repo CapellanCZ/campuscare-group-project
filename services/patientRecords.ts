@@ -5,6 +5,8 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { createClient } from "@/lib/supabase/server"
 import {
   PatientRecordServiceError,
+  normalizePatientType,
+  patientFullName,
   patientRecordFromJson,
   patientRecordToJson,
   type CreatePatientRecordInput,
@@ -13,6 +15,7 @@ import {
   type PatientRecordListParams,
   type PatientRecordListResult,
   type PatientRecordStats,
+  type PatientType,
   type UpdatePatientRecordInput,
 } from "@/types/patientRecord"
 
@@ -20,7 +23,9 @@ const DEFAULT_PAGE_SIZE = 20
 
 const SELECT_COLUMNS = `
   id,
+  patient_type,
   student_id,
+  employee_id,
   first_name,
   middle_name,
   last_name,
@@ -72,12 +77,13 @@ function mapError(error: { message: string; code?: string }): never {
   }
   if (
     error.code === "23505" ||
-    message.includes("patient_records_student_id_key") ||
+    message.includes("patient_records_student_id") ||
+    message.includes("patient_records_employee_id") ||
     message.includes("duplicate key")
   ) {
     throw new PatientRecordServiceError(
       "duplicate",
-      "A patient with this Student ID already exists."
+      "A patient with this campus ID already exists."
     )
   }
   if (error.code === "PGRST116" || message.includes("0 rows")) {
@@ -113,12 +119,38 @@ function matchesQuery(patient: PatientRecord, query: string): boolean {
     patient.firstName,
     patient.middleName ?? "",
     patient.lastName,
-    patient.studentId,
-    patient.course,
+    patient.studentId ?? "",
+    patient.employeeId ?? "",
+    patient.course ?? "",
+    patient.patientType,
   ]
     .join(" ")
     .toLowerCase()
   return haystack.includes(q)
+}
+
+function comparePatients(
+  a: PatientRecord,
+  b: PatientRecord,
+  sortBy: PatientRecordListParams["sortBy"],
+  sortDir: "asc" | "desc"
+) {
+  const direction = sortDir === "desc" ? -1 : 1
+  const left = (value: string | null | undefined) => (value ?? "").toLowerCase()
+
+  let result = 0
+  if (sortBy === "type") {
+    result = left(a.patientType).localeCompare(left(b.patientType))
+  } else if (sortBy === "program") {
+    result = left(a.course).localeCompare(left(b.course))
+  } else if (sortBy === "lastVisit") {
+    result = left(a.lastVisit).localeCompare(left(b.lastVisit))
+  } else {
+    result = left(patientFullName(a)).localeCompare(left(patientFullName(b)))
+  }
+
+  if (result !== 0) return result * direction
+  return left(patientFullName(a)).localeCompare(left(patientFullName(b))) * direction
 }
 
 function manilaMonthBounds(date = new Date()) {
@@ -138,8 +170,12 @@ function manilaMonthBounds(date = new Date()) {
 }
 
 function validateRequired(input: CreatePatientRecordInput) {
-  if (!input.studentId.trim()) {
-    throw new PatientRecordServiceError("validation", "Student ID is required.")
+  const patientType = normalizePatientType(input.patientType)
+  if (!patientType) {
+    throw new PatientRecordServiceError(
+      "validation",
+      "Choose student or faculty."
+    )
   }
   if (!input.firstName.trim()) {
     throw new PatientRecordServiceError("validation", "First name is required.")
@@ -147,8 +183,21 @@ function validateRequired(input: CreatePatientRecordInput) {
   if (!input.lastName.trim()) {
     throw new PatientRecordServiceError("validation", "Last name is required.")
   }
-  if (!input.course.trim()) {
-    throw new PatientRecordServiceError("validation", "Course is required.")
+  if (patientType === "student") {
+    if (!input.studentId?.trim()) {
+      throw new PatientRecordServiceError(
+        "validation",
+        "Student ID is required."
+      )
+    }
+    if (!input.course?.trim()) {
+      throw new PatientRecordServiceError("validation", "Course is required.")
+    }
+  } else if (!input.employeeId?.trim()) {
+    throw new PatientRecordServiceError(
+      "validation",
+      "Employee / faculty ID is required."
+    )
   }
 }
 
@@ -164,6 +213,9 @@ export async function getPatientRecords(
   const page = Math.max(1, params.page ?? 1)
   const pageSize = Math.min(50, Math.max(1, params.pageSize ?? DEFAULT_PAGE_SIZE))
   const query = params.query?.trim() ?? ""
+  const patientTypeFilter = params.patientType ?? "all"
+  const sortBy = params.sortBy ?? "patient"
+  const sortDir = params.sortDir ?? "asc"
 
   const { data, error } = await supabase
     .from("patient_records")
@@ -174,9 +226,13 @@ export async function getPatientRecords(
   if (error) mapError(error)
 
   let items = ((data ?? []) as PatientRow[]).map(mapPatient)
+  if (patientTypeFilter !== "all") {
+    items = items.filter((item) => item.patientType === patientTypeFilter)
+  }
   if (query) {
     items = items.filter((item) => matchesQuery(item, query))
   }
+  items = [...items].sort((a, b) => comparePatients(a, b, sortBy, sortDir))
 
   const total = items.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
@@ -326,3 +382,114 @@ export async function listPatientOptions(
   )
   return result.items
 }
+
+export type ImportPatientRecordsResult = {
+  created: number
+  failures: string[]
+}
+
+function splitFullName(value: string): { firstName: string; lastName: string } {
+  const parts = value.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return { firstName: "", lastName: "" }
+  if (parts.length === 1) return { firstName: parts[0], lastName: parts[0] }
+  return {
+    firstName: parts.slice(0, -1).join(" "),
+    lastName: parts[parts.length - 1] ?? "",
+  }
+}
+
+export async function importPatientRecordsFromExcel(
+  formData: FormData,
+  client?: SupabaseClient
+): Promise<ImportPatientRecordsResult> {
+  const file = formData.get("file")
+  if (!(file instanceof File) || file.size === 0) {
+    throw new PatientRecordServiceError(
+      "validation",
+      "Choose an Excel file to import."
+    )
+  }
+
+  const { parseExcelRows } = await import("@/features/admin/lib/excel")
+  const rows = await parseExcelRows(await file.arrayBuffer())
+  if (rows.length === 0) {
+    throw new PatientRecordServiceError(
+      "validation",
+      "No rows found in the spreadsheet."
+    )
+  }
+
+  let created = 0
+  const failures: string[] = []
+
+  for (const [index, row] of rows.entries()) {
+    const patientType =
+      normalizePatientType(
+        row.patient_type || row.affiliation || row.type || row.category
+      ) ?? "student"
+
+    const fromFullName = splitFullName(row.full_name || row.name || "")
+    const firstName = (row.first_name || fromFullName.firstName).trim()
+    const lastName = (row.last_name || fromFullName.lastName).trim()
+    const middleName = (row.middle_name || "").trim()
+    const studentId = (row.student_id || "").trim()
+    const employeeId = (row.employee_id || row.id_number || "").trim()
+
+    try {
+      await createPatientRecord(
+        {
+          patientType,
+          studentId:
+            patientType === "student"
+              ? studentId || employeeId
+              : studentId || null,
+          employeeId:
+            patientType === "faculty"
+              ? employeeId || studentId
+              : employeeId || null,
+          firstName,
+          middleName: middleName || null,
+          lastName,
+          course: (row.course || row.department || "").trim() || null,
+          yearLevel: (row.year_level || "").trim() || null,
+          gender: (row.gender || row.sex || "").trim() || null,
+          birthDate: (row.birth_date || row.date_of_birth || row.dob || "").trim() || null,
+          bloodType: (row.blood_type || "").trim() || null,
+          allergies: (row.allergies || "").trim() || null,
+          phone: (row.phone || "").trim() || null,
+          email: (row.email || "").trim().toLowerCase() || null,
+          address: (row.address || "").trim() || null,
+          emergencyContactName:
+            (row.emergency_contact_name || "").trim() || null,
+          emergencyContactPhone:
+            (row.emergency_contact_phone || "").trim() || null,
+          medicalConditions: (row.medical_conditions || "").trim() || null,
+          notes: (row.notes || "").trim() || null,
+          lastVisit: (row.last_visit || "").trim() || null,
+        },
+        client
+      )
+      created += 1
+    } catch (error) {
+      const message =
+        error instanceof PatientRecordServiceError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Unknown error"
+      failures.push(`Row ${index + 2}: ${message}`)
+    }
+  }
+
+  if (created === 0) {
+    throw new PatientRecordServiceError(
+      "validation",
+      failures[0] ??
+        "No patients imported. Headers: patient_type, student_id, employee_id, first_name, last_name, course, phone, email"
+    )
+  }
+
+  return { created, failures }
+}
+
+export type { PatientType }

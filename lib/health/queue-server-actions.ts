@@ -7,14 +7,21 @@ import { STAFF_ROUTE_ROLES } from "@/lib/auth/home-path"
 import {
   assignQueueNumber,
   callNextTicket,
+  completeNurseIntakeAndAssign,
   completeTicket,
+  recallTicket,
   registerWalkIn,
+  rejoinQueue,
   skipOrNoShow,
   startConsultation,
   transferTicket,
   verifyCheckIn,
 } from "@/lib/health/queue-actions"
-import type { HealthActionResult, StationId } from "@/lib/health/types"
+import type {
+  HealthActionResult,
+  NurseIntakeInput,
+  StationId,
+} from "@/lib/health/types"
 
 function revalidateQueueSurfaces() {
   for (const role of STAFF_ROUTE_ROLES) {
@@ -45,6 +52,16 @@ export async function actionCallNext(station?: StationId) {
     callNextTicket({
       designation: access.designation,
       station,
+      staffName: access.fullName,
+    })
+  )
+}
+
+export async function actionRecallTicket(ticketId: string) {
+  return withStaff((access) =>
+    recallTicket({
+      designation: access.designation,
+      ticketId,
       staffName: access.fullName,
     })
   )
@@ -86,6 +103,12 @@ export async function actionNoShowTicket(ticketId: string) {
   )
 }
 
+export async function actionRejoinQueue(ticketId: string) {
+  return withStaff((access) =>
+    rejoinQueue({ designation: access.designation, ticketId })
+  )
+}
+
 export async function actionVerifyCheckIn(ticketId: string) {
   return withStaff((access) =>
     verifyCheckIn({ designation: access.designation, ticketId })
@@ -101,6 +124,20 @@ export async function actionTransferTicket(
       designation: access.designation,
       ticketId,
       toStation,
+    })
+  )
+}
+
+export async function actionCompleteNurseIntake(
+  ticketId: string,
+  intake: NurseIntakeInput
+) {
+  return withStaff((access) =>
+    completeNurseIntakeAndAssign({
+      designation: access.designation,
+      ticketId,
+      staffName: access.fullName,
+      intake,
     })
   )
 }

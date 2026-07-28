@@ -26,7 +26,10 @@ export type ConsultationPatient = {
   id: string
   firstName: string
   lastName: string
+  /** Campus ID shown in lists (student or employee). */
   studentId: string
+  employeeId: string | null
+  patientType: "student" | "faculty"
   fullName: string
 }
 
@@ -74,15 +77,19 @@ export type ConsultationJson = {
   patient_records?:
     | {
         id: string
+        patient_type?: string | null
         first_name: string
         last_name: string
-        student_id: string
+        student_id: string | null
+        employee_id?: string | null
       }
     | {
         id: string
+        patient_type?: string | null
         first_name: string
         last_name: string
-        student_id: string
+        student_id: string | null
+        employee_id?: string | null
       }[]
     | null
 }
@@ -159,7 +166,13 @@ export function consultationFromJson(json: ConsultationJson): Consultation {
 
   const firstName = joined?.first_name ?? ""
   const lastName = joined?.last_name ?? ""
-  const studentId = joined?.student_id ?? ""
+  const patientType =
+    joined?.patient_type === "faculty" ? "faculty" : "student"
+  const employeeId = joined?.employee_id ?? null
+  const studentId =
+    patientType === "faculty"
+      ? (employeeId ?? joined?.student_id ?? "")
+      : (joined?.student_id ?? "")
   const fullName = [firstName, lastName].filter(Boolean).join(" ") || "Unknown patient"
 
   if (!isStatus(json.status)) {
@@ -199,6 +212,8 @@ export function consultationFromJson(json: ConsultationJson): Consultation {
       firstName,
       lastName,
       studentId,
+      employeeId,
+      patientType,
       fullName,
     },
   }

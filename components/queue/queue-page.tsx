@@ -8,11 +8,15 @@ import {
   actionCallNext,
   actionCompleteTicket,
   actionNoShowTicket,
+  actionRecallTicket,
+  actionRejoinQueue,
   actionSkipTicket,
   actionStartConsultation,
   actionTransferTicket,
   actionVerifyCheckIn,
 } from "@/lib/health/queue-server-actions"
+import { NurseIntakeSheet } from "@/components/queue/nurse-intake-sheet"
+import { VitalsStrip } from "@/components/queue/vitals-strip"
 import { WalkInSheet } from "@/components/queue/walk-in-sheet"
 import { ActivityFeed } from "@/components/shared/activity-feed"
 import { RecentlyServedCard } from "@/components/shared/recently-served-card"
@@ -99,6 +103,7 @@ export function QueuePage({
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [stationFilter, setStationFilter] = useState<string>("all")
   const [page, setPage] = useState(0)
+  const [intakeTicket, setIntakeTicket] = useState<QueueTicketRow | null>(null)
   const pageSize = 8
 
   const readOnly = isReadOnlyQueue(access.designation)
@@ -111,6 +116,7 @@ export function QueuePage({
       const matchesQuery =
         !q ||
         t.patientName.toLowerCase().includes(q) ||
+        (t.campusId ?? "").toLowerCase().includes(q) ||
         t.ticketCode.toLowerCase().includes(q) ||
         String(t.queueNumber ?? "").includes(q)
       const matchesStatus =
@@ -187,7 +193,9 @@ export function QueuePage({
               onClick={() =>
                 run(() =>
                   actionCallNext(
-                    access.designation === "nurse" ? undefined : myStation ?? undefined
+                    access.designation === "admin"
+                      ? undefined
+                      : (myStation ?? "nurse")
                   )
                 )
               }
@@ -242,6 +250,7 @@ export function QueuePage({
                   <SelectItem value="waiting">Waiting</SelectItem>
                   <SelectItem value="called">Called</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="no_show">No-show</SelectItem>
                   <SelectItem value="expired">Expired</SelectItem>
                 </SelectContent>
               </Select>
@@ -287,9 +296,10 @@ export function QueuePage({
                   <TableHead>Queue #</TableHead>
                   <TableHead>Patient</TableHead>
                   <TableHead className="hidden md:table-cell">Type</TableHead>
+                  <TableHead className="hidden lg:table-cell">Vitals</TableHead>
                   <TableHead className="hidden sm:table-cell">Station</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="hidden lg:table-cell">Wait</TableHead>
+                  <TableHead className="hidden xl:table-cell">Wait</TableHead>
                   {!readOnly ? <TableHead className="w-12" /> : null}
                 </TableRow>
               </TableHeader>
@@ -300,10 +310,21 @@ export function QueuePage({
                       {ticketLabel(row.queueNumber, row.ticketCode)}
                     </TableCell>
                     <TableCell className="max-w-[9rem] truncate">
-                      {row.patientName}
+                      <p className="truncate font-medium">{row.patientName}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {row.campusId ?? "No campus ID"}
+                        {row.callCount > 0 ? ` · call ${row.callCount}` : ""}
+                      </p>
                     </TableCell>
                     <TableCell className="hidden max-w-[9rem] truncate md:table-cell">
                       {row.consultationType}
+                    </TableCell>
+                    <TableCell className="hidden min-w-44 lg:table-cell">
+                      <VitalsStrip
+                        vitals={row.vitals}
+                        chiefComplaint={row.chiefComplaint}
+                        dense
+                      />
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
                       {stationLabel(row.station)}
@@ -311,7 +332,7 @@ export function QueuePage({
                     <TableCell>
                       <Badge variant="outline">{row.status}</Badge>
                     </TableCell>
-                    <TableCell className="hidden lg:table-cell tabular-nums">
+                    <TableCell className="hidden xl:table-cell tabular-nums">
                       {row.estimatedWaitMinutes != null
                         ? `${row.estimatedWaitMinutes}m`
                         : "—"}
@@ -342,6 +363,11 @@ export function QueuePage({
                                   Verify check-in
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
+                                  onClick={() => setIntakeTicket(row)}
+                                >
+                                  Intake & assign specialty
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
                                   onClick={() => {
                                     const n = window.prompt(
                                       "Assign queue number",
@@ -356,8 +382,16 @@ export function QueuePage({
                                 >
                                   Assign queue number
                                 </DropdownMenuItem>
+                                <DropdownMenuSeparator />
                               </>
                             ) : null}
+                            <DropdownMenuItem
+                              onClick={() =>
+                                run(() => actionRecallTicket(row.ticketId))
+                              }
+                            >
+                              Call / recall
+                            </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() =>
                                 run(() => actionStartConsultation(row.ticketId))
@@ -381,12 +415,23 @@ export function QueuePage({
                               Skip
                             </DropdownMenuItem>
                             <DropdownMenuItem
+                              disabled={row.callCount < 2}
                               onClick={() =>
                                 run(() => actionNoShowTicket(row.ticketId))
                               }
                             >
                               Mark no-show
+                              {row.callCount < 2 ? " (need 2 calls)" : ""}
                             </DropdownMenuItem>
+                            {row.canRejoin ? (
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  run(() => actionRejoinQueue(row.ticketId))
+                                }
+                              >
+                                Rejoin end of queue
+                              </DropdownMenuItem>
+                            ) : null}
                             {canTransferQueue(access.designation) ? (
                               <>
                                 <DropdownMenuSeparator />
@@ -480,6 +525,14 @@ export function QueuePage({
           </CardContent>
         </Card>
       </div>
+
+      <NurseIntakeSheet
+        ticket={intakeTicket}
+        open={Boolean(intakeTicket)}
+        onOpenChange={(open) => {
+          if (!open) setIntakeTicket(null)
+        }}
+      />
     </div>
   )
 }

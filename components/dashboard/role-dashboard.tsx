@@ -31,6 +31,7 @@ import {
 import type { StaffAccess } from "@/lib/auth/types"
 import { designationLabel, stationLabel } from "@/lib/health/roles"
 import { ticketLabel } from "@/lib/health/mappers"
+import { VitalsStrip } from "@/components/queue/vitals-strip"
 import type {
   ActivityItem,
   DashboardKpis,
@@ -58,7 +59,12 @@ export function RoleDashboard({
   recent: RecentlyServedItem[]
   stats: QueueStats
 }) {
-  const waiting = tickets.filter((t) => t.status === "waiting").slice(0, 6)
+  const isSpecialty =
+    access.designation === "physician" || access.designation === "dentist"
+  const nowServing = tickets.find((t) => t.status === "called") ?? null
+  const waiting = tickets
+    .filter((t) => t.status === "waiting" || (isSpecialty && t.status === "called"))
+    .slice(0, isSpecialty ? 8 : 6)
 
   return (
     <div className="flex flex-col gap-4">
@@ -102,6 +108,43 @@ export function RoleDashboard({
         ))}
       </div>
 
+      {isSpecialty && nowServing ? (
+        <Card className="min-w-0 shadow-none dark:ring-0">
+          <CardHeader className="border-b">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className="text-base">Now serving</CardTitle>
+              <Badge>
+                {ticketLabel(nowServing.queueNumber, nowServing.ticketCode)}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3 pt-(--card-spacing)">
+            <div className="min-w-0">
+              <p className="font-medium">{nowServing.patientName}</p>
+              <p className="text-sm text-muted-foreground">
+                {nowServing.campusId ?? "No campus ID"} ·{" "}
+                {nowServing.consultationType ?? "Consultation"}
+              </p>
+            </div>
+            <div>
+              <p className="mb-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                Nurse vitals
+              </p>
+              <VitalsStrip
+                vitals={nowServing.vitals}
+                chiefComplaint={nowServing.chiefComplaint}
+              />
+            </div>
+            {nowServing.intakeNotes?.trim() ? (
+              <p className="text-sm text-muted-foreground">
+                <span className="font-medium text-foreground">Notes:</span>{" "}
+                {nowServing.intakeNotes}
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="min-w-0 shadow-none dark:ring-0 lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between gap-2 border-b">
@@ -110,9 +153,9 @@ export function RoleDashboard({
                 ? "Live queue overview"
                 : access.designation === "nurse"
                   ? "Today's queue"
-                  : "Waiting patients"}
+                  : "Your station queue"}
             </CardTitle>
-            <Badge variant="outline">{waiting.length} waiting</Badge>
+            <Badge variant="outline">{waiting.length} active</Badge>
           </CardHeader>
           <CardContent className="p-0">
             {waiting.length === 0 ? (
@@ -123,7 +166,9 @@ export function RoleDashboard({
                   </EmptyMedia>
                   <EmptyTitle>Queue is clear</EmptyTitle>
                   <EmptyDescription>
-                    New check-ins and walk-ins will appear here.
+                    {isSpecialty
+                      ? "Patients appear here after nurse intake assigns them to your station."
+                      : "New check-ins and walk-ins will appear here."}
                   </EmptyDescription>
                 </EmptyHeader>
               </Empty>
@@ -133,8 +178,20 @@ export function RoleDashboard({
                   <TableRow>
                     <TableHead>Ticket</TableHead>
                     <TableHead>Patient</TableHead>
-                    <TableHead className="hidden sm:table-cell">Station</TableHead>
-                    <TableHead className="hidden md:table-cell">Type</TableHead>
+                    {isSpecialty ? (
+                      <TableHead className="hidden md:table-cell">
+                        Nurse vitals
+                      </TableHead>
+                    ) : (
+                      <>
+                        <TableHead className="hidden sm:table-cell">
+                          Station
+                        </TableHead>
+                        <TableHead className="hidden md:table-cell">
+                          Type
+                        </TableHead>
+                      </>
+                    )}
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -144,15 +201,30 @@ export function RoleDashboard({
                       <TableCell className="font-medium tabular-nums">
                         {ticketLabel(row.queueNumber, row.ticketCode)}
                       </TableCell>
-                      <TableCell className="max-w-[10rem] truncate">
-                        {row.patientName}
+                      <TableCell className="max-w-[10rem]">
+                        <p className="truncate font-medium">{row.patientName}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {row.campusId ?? row.consultationType}
+                        </p>
                       </TableCell>
-                      <TableCell className="hidden sm:table-cell">
-                        {stationLabel(row.station)}
-                      </TableCell>
-                      <TableCell className="hidden max-w-[10rem] truncate md:table-cell">
-                        {row.consultationType}
-                      </TableCell>
+                      {isSpecialty ? (
+                        <TableCell className="hidden min-w-48 md:table-cell">
+                          <VitalsStrip
+                            vitals={row.vitals}
+                            chiefComplaint={row.chiefComplaint}
+                            dense
+                          />
+                        </TableCell>
+                      ) : (
+                        <>
+                          <TableCell className="hidden sm:table-cell">
+                            {stationLabel(row.station)}
+                          </TableCell>
+                          <TableCell className="hidden max-w-[10rem] truncate md:table-cell">
+                            {row.consultationType}
+                          </TableCell>
+                        </>
+                      )}
                       <TableCell>
                         <Badge variant="outline">{row.status}</Badge>
                       </TableCell>

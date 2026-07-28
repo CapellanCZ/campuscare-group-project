@@ -11,6 +11,13 @@ import { Button } from "@/components/ui/button"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   Sheet,
   SheetClose,
   SheetContent,
@@ -23,10 +30,13 @@ import { Textarea } from "@/components/ui/textarea"
 import type {
   CreatePatientRecordInput,
   PatientRecord,
+  PatientType,
 } from "@/types/patientRecord"
 
 type FormState = {
+  patientType: PatientType
   studentId: string
+  employeeId: string
   firstName: string
   middleName: string
   lastName: string
@@ -47,7 +57,9 @@ type FormState = {
 }
 
 const emptyForm: FormState = {
+  patientType: "student",
   studentId: "",
+  employeeId: "",
   firstName: "",
   middleName: "",
   lastName: "",
@@ -70,11 +82,13 @@ const emptyForm: FormState = {
 function toForm(patient: PatientRecord | null): FormState {
   if (!patient) return emptyForm
   return {
-    studentId: patient.studentId,
+    patientType: patient.patientType,
+    studentId: patient.studentId ?? "",
+    employeeId: patient.employeeId ?? "",
     firstName: patient.firstName,
     middleName: patient.middleName ?? "",
     lastName: patient.lastName,
-    course: patient.course,
+    course: patient.course ?? "",
     yearLevel: patient.yearLevel ?? "",
     gender: patient.gender ?? "",
     birthDate: patient.birthDate ?? "",
@@ -93,7 +107,9 @@ function toForm(patient: PatientRecord | null): FormState {
 
 function toInput(form: FormState): CreatePatientRecordInput {
   return {
+    patientType: form.patientType,
     studentId: form.studentId,
+    employeeId: form.employeeId,
     firstName: form.firstName,
     middleName: form.middleName,
     lastName: form.lastName,
@@ -129,6 +145,7 @@ export function PatientFormSheet({
 }) {
   const [form, setForm] = useState<FormState>(emptyForm)
   const [pending, startTransition] = useTransition()
+  const isStudent = form.patientType === "student"
 
   useEffect(() => {
     if (open) setForm(toForm(mode === "edit" ? patient : null))
@@ -164,26 +181,65 @@ export function PatientFormSheet({
       <SheetContent className="flex w-full flex-col sm:max-w-xl">
         <SheetHeader>
           <SheetTitle>
-            {mode === "edit" ? "Edit patient" : "Create patient"}
+            {mode === "edit" ? "Edit patient" : "Register patient"}
           </SheetTitle>
           <SheetDescription>
-            {mode === "edit"
-              ? "Update the patient record. Student ID must remain unique."
-              : "Add a student patient record. Student ID, first name, last name, and course are required."}
+            {isStudent
+              ? "Students need a student ID and course. Campus ID must stay unique."
+              : "Faculty need an employee ID. Campus ID must stay unique."}
           </SheetDescription>
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-4 pb-4">
           <FieldGroup className="gap-4">
             <Field>
-              <FieldLabel htmlFor="studentId">Student ID *</FieldLabel>
-              <Input
-                id="studentId"
-                value={form.studentId}
-                onChange={(e) => update("studentId", e.target.value)}
-                placeholder="2021-04521"
-              />
+              <FieldLabel htmlFor="patientType">Patient type *</FieldLabel>
+              <Select
+                value={form.patientType}
+                onValueChange={(value) => {
+                  if (value === "student" || value === "faculty") {
+                    update("patientType", value)
+                  }
+                }}
+              >
+                <SelectTrigger
+                  id="patientType"
+                  className="w-full"
+                  aria-label="Patient type"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="student">Student</SelectItem>
+                  <SelectItem value="faculty">Faculty</SelectItem>
+                </SelectContent>
+              </Select>
             </Field>
+
+            {isStudent ? (
+              <Field>
+                <FieldLabel htmlFor="studentId">Student ID *</FieldLabel>
+                <Input
+                  id="studentId"
+                  value={form.studentId}
+                  onChange={(e) => update("studentId", e.target.value)}
+                  placeholder="2021-04521"
+                  autoComplete="off"
+                />
+              </Field>
+            ) : (
+              <Field>
+                <FieldLabel htmlFor="employeeId">Employee ID *</FieldLabel>
+                <Input
+                  id="employeeId"
+                  value={form.employeeId}
+                  onChange={(e) => update("employeeId", e.target.value)}
+                  placeholder="FAC-0124"
+                  autoComplete="off"
+                />
+              </Field>
+            )}
+
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="firstName">First name *</FieldLabel>
@@ -212,21 +268,28 @@ export function PatientFormSheet({
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>
-                <FieldLabel htmlFor="course">Course *</FieldLabel>
+                <FieldLabel htmlFor="course">
+                  {isStudent ? "Course *" : "Department"}
+                </FieldLabel>
                 <Input
                   id="course"
                   value={form.course}
                   onChange={(e) => update("course", e.target.value)}
+                  placeholder={isStudent ? "BSIT" : "College of Nursing"}
                 />
               </Field>
-              <Field>
-                <FieldLabel htmlFor="yearLevel">Year level</FieldLabel>
-                <Input
-                  id="yearLevel"
-                  value={form.yearLevel}
-                  onChange={(e) => update("yearLevel", e.target.value)}
-                />
-              </Field>
+              {isStudent ? (
+                <Field>
+                  <FieldLabel htmlFor="yearLevel">Year level</FieldLabel>
+                  <Input
+                    id="yearLevel"
+                    value={form.yearLevel}
+                    onChange={(e) => update("yearLevel", e.target.value)}
+                  />
+                </Field>
+              ) : (
+                <div aria-hidden className="hidden sm:block" />
+              )}
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>
@@ -363,7 +426,7 @@ export function PatientFormSheet({
                 : "Creating…"
               : mode === "edit"
                 ? "Save changes"
-                : "Create patient"}
+                : "Register patient"}
           </Button>
         </SheetFooter>
       </SheetContent>
