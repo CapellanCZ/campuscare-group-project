@@ -22,10 +22,21 @@ export async function middleware(request: NextRequest) {
   const isStaffArea = isStaffAreaPath(pathname) && !isPublicDisplay
   const isPending = pathname.startsWith("/auth/pending")
   const isContinue = pathname.startsWith("/auth/continue")
+  const isLogin = pathname === "/login"
 
   if (!user && (isStaffArea || isPending || isContinue)) {
     const url = request.nextUrl.clone()
     url.pathname = "/login"
+    return NextResponse.redirect(url)
+  }
+
+  if (user && isContinue) {
+    return supabaseResponse
+  }
+
+  if (user && isLogin) {
+    const url = request.nextUrl.clone()
+    url.pathname = "/auth/continue"
     return NextResponse.redirect(url)
   }
 
@@ -59,9 +70,7 @@ export async function middleware(request: NextRequest) {
       : "/auth/pending"
 
     if (isContinue) {
-      const url = request.nextUrl.clone()
-      url.pathname = allowed ? home : "/auth/pending"
-      return NextResponse.redirect(url)
+      return supabaseResponse
     }
 
     if (isStaffArea && !allowed) {

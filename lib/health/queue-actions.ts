@@ -124,6 +124,13 @@ export async function startConsultation(params: {
 
   if (appointmentId) {
     const station = stationForDesignation(params.designation) ?? "physician"
+
+    const { data: appt } = await supabase
+      .from("health_appointments")
+      .select("student_id, purpose, service")
+      .eq("id", appointmentId)
+      .maybeSingle()
+
     await supabase
       .from("health_appointments")
       .update({
@@ -134,6 +141,21 @@ export async function startConsultation(params: {
         updated_at: new Date().toISOString(),
       })
       .eq("id", appointmentId)
+
+    try {
+      const { ensureConsultationForAppointment } = await import(
+        "@/services/consultations"
+      )
+      await ensureConsultationForAppointment({
+        appointmentId,
+        studentId: appt?.student_id ?? null,
+        station: station === "nurse" ? "nurse" : station,
+        chiefComplaint: appt?.purpose ?? appt?.service ?? null,
+        providerName: params.staffName,
+      })
+    } catch {
+      // Consultation table may not be provisioned yet.
+    }
   }
 
   return { ok: true, message: "Consultation started." }

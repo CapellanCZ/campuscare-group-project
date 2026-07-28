@@ -1,27 +1,42 @@
 import { NextResponse } from "next/server"
+import type { EmailOtpType } from "@supabase/supabase-js"
 
-import { clearInvitePendingAfterSignIn } from "@/lib/auth/clear-invite-pending"
-import { homePathForDesignation } from "@/lib/auth/home-path"
-import {
-  hasApprovedClinicAccess,
-  resolveClinicRole,
-  type ProfileRoleFields,
-} from "@/lib/auth/resolve-role"
+import { ensureStaffSession } from "@/lib/auth/ensure-staff-session"
 import { createClient } from "@/lib/supabase/server"
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get("code")
-  const nextParam = searchParams.get("next")
+  const tokenHash = searchParams.get("token_hash")
+  const type = searchParams.get("type")
+  const authError = searchParams.get("error")
+  const authErrorDescription = searchParams.get("error_description")
 
-  if (!code) {
-    return NextResponse.redirect(`${origin}/auth/error`)
+  if (authError) {
+    const loginUrl = new URL("/login", origin)
+    loginUrl.searchParams.set(
+      "error",
+      authErrorDescription?.trim() || authError
+    )
+    return NextResponse.redirect(loginUrl)
   }
 
   const supabase = await createClient()
-  const { error } = await supabase.auth.exchangeCodeForSession(code)
 
-  if (error) {
+  if (code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    if (error) {
+      return NextResponse.redirect(`${origin}/auth/error`)
+    }
+  } else if (tokenHash && type) {
+    const { error } = await supabase.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: type as EmailOtpType,
+    })
+    if (error) {
+      return NextResponse.redirect(`${origin}/auth/error`)
+    }
+  } else {
     return NextResponse.redirect(`${origin}/auth/error`)
   }
 
@@ -33,37 +48,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/auth/error`)
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("primary_role, is_active")
-    .eq("id", user.id)
-    .maybeSingle()
+  await ensureStaffSession(user.id)
 
-  const gate = profile as ProfileRoleFields | null
-
-  const { data: membership } = await supabase
-    .from("clinic_members")
-    .select("clinic_id")
-    .eq("profile_id", user.id)
-    .eq("is_active", true)
-    .limit(1)
-    .maybeSingle()
-
-  if (!hasApprovedClinicAccess(gate) || !membership) {
-    return NextResponse.redirect(`${origin}/auth/pending`)
-  }
-
-  await clearInvitePendingAfterSignIn(user.id)
-
-  const clinicRole = resolveClinicRole(gate)
-  const home = clinicRole
-    ? homePathForDesignation(clinicRole)
-    : "/auth/pending"
-
-  const next =
-    nextParam?.startsWith("/") && !nextParam.startsWith("//")
-      ? nextParam
-      : home
-
-  return NextResponse.redirect(`${origin}${next}`)
+  return NextResponse.redirect(`${origin}/auth/continue`)
 }

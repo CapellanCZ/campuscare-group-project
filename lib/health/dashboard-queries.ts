@@ -67,11 +67,25 @@ async function buildKpis(
 
   const certCount = await safeCount(() =>
     supabase
-      .from("health_consultations")
+      .from("medical_certificates")
       .select("id", { count: "exact", head: true })
-      .gte("visit_date", ymd)
-      .lte("visit_date", ymd)
-      .ilike("certificate_status", "%issued%")
+      .gte("issued_at", startIso)
+      .lte("issued_at", endIso)
+      .in("status", ["issued", "printed"])
+  )
+
+  const pendingRequestCount = await safeCount(() =>
+    supabase
+      .from("health_appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending")
+  )
+
+  const announcementCount = await safeCount(() =>
+    supabase
+      .from("announcements")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "published")
   )
 
   const appointmentCount = await safeCount(() =>
@@ -94,8 +108,10 @@ async function buildKpis(
         {
           key: "requests",
           label: "Consultation requests",
-          value: String(appointmentCount),
-          description: "Created today",
+          value: String(pendingRequestCount || appointmentCount),
+          description: pendingRequestCount
+            ? "Pending review"
+            : "Created today",
         },
         {
           key: "patients",
@@ -125,8 +141,8 @@ async function buildKpis(
         {
           key: "announcements",
           label: "Active announcements",
-          value: "0",
-          description: "Reserved for later module",
+          value: String(announcementCount),
+          description: "Published now",
         },
       ],
     }
@@ -138,8 +154,10 @@ async function buildKpis(
         {
           key: "pending",
           label: "Pending requests",
-          value: String(appointmentCount),
-          description: "Appointments today",
+          value: String(pendingRequestCount || appointmentCount),
+          description: pendingRequestCount
+            ? "Awaiting review"
+            : "Appointments today",
         },
         {
           key: "walkin",
