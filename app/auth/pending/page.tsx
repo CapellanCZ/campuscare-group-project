@@ -10,7 +10,7 @@ export default async function AuthPendingPage() {
   const access = await getStaffAccess()
 
   if (!access) {
-    redirect("/")
+    redirect("/login")
   }
 
   if (access.hasClinicMembership) {
@@ -30,14 +30,14 @@ export default async function AuthPendingPage() {
         action={async () => {
           "use server"
           await signOut()
-          redirect("/")
+          redirect("/login")
         }}
       >
         <Button type="submit" variant="outline">
           Sign out
         </Button>
       </form>
-      <Button variant="ghost" render={<Link href="/" />} nativeButton={false}>
+      <Button variant="ghost" render={<Link href="/login" />} nativeButton={false}>
         Back to sign in
       </Button>
     </main>

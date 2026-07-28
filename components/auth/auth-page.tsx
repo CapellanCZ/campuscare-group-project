@@ -159,7 +159,7 @@ export function AuthPage() {
         <Button
           className="absolute top-7 left-5"
           variant="ghost"
-          render={<Link href="/" />}
+          render={<Link href="/landing" />}
           nativeButton={false}
         >
           <IconChevronLeft data-icon="inline-start" />

@@ -57,19 +57,6 @@ export type DemoConsultation = {
   hasPrescription: boolean
 }
 
-export type CertificateStatus = "draft" | "issued" | "printed"
-
-export type DemoCertificate = {
-  id: string
-  patientName: string
-  studentId: string
-  certificateType: string
-  issuedBy: string
-  issuedAt: string
-  status: CertificateStatus
-  validUntil: string
-}
-
 export type DemoReportRow = {
   id: string
   period: string

@@ -168,10 +168,10 @@ const MATRIX: Record<Permission, RoleAccess> = {
   "certificates.summary_cards": roles(ALL, VIEW, ALL, ALL),
   "certificates.search_patient": roles(ALL, VIEW, ALL, ALL),
   "certificates.view_history": roles(ALL, VIEW, ALL, ALL),
-  "certificates.generate": roles(NONE, NONE, ALL, ALL),
-  "certificates.preview": roles(NONE, NONE, ALL, ALL),
-  "certificates.print": roles(NONE, NONE, ALL, ALL),
-  "certificates.download_pdf": roles(NONE, NONE, ALL, ALL),
+  "certificates.generate": roles(ALL, NONE, ALL, ALL),
+  "certificates.preview": roles(ALL, NONE, ALL, ALL),
+  "certificates.print": roles(ALL, NONE, ALL, ALL),
+  "certificates.download_pdf": roles(ALL, NONE, ALL, ALL),
 
   // Reports
   "reports.summary_cards": roles(ALL, VIEW, VIEW, VIEW),

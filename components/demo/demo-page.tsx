@@ -19,16 +19,18 @@ export function DemoPageHeader({
   description,
   designation,
   actions,
+  showDemoBanner = true,
 }: {
   title: string
   description: string
   designation: ClinicDesignation
   actions?: React.ReactNode
+  showDemoBanner?: boolean
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0 space-y-2">
-        <DemoBanner />
+        {showDemoBanner ? <DemoBanner /> : null}
         <div className="space-y-1">
           <h1 className="truncate text-2xl font-semibold tracking-tight">
             {title}

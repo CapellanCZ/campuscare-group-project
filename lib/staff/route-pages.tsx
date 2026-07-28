@@ -1,14 +1,59 @@
 import { redirect } from "next/navigation"
 
-import { AnnouncementsDemoPage } from "@/components/announcements/announcements-demo-page"
-import { CertificatesDemoPage } from "@/components/certificates/certificates-demo-page"
-import { ConsultationsDemoPage } from "@/components/consultations/consultations-demo-page"
+import { AnnouncementsPage } from "@/components/announcements/announcements-page"
+import { CertificatesPage } from "@/components/certificates/certificates-demo-page"
+import { ConsultationsPage } from "@/components/consultations/consultations-page"
 import { RoleDashboard } from "@/components/dashboard/role-dashboard"
-import { PatientsDemoPage } from "@/components/patients/patients-demo-page"
+import { PatientsPage } from "@/components/patients/patients-page"
 import { QueuePage } from "@/components/queue/queue-page"
 import { ReportsDemoPage } from "@/components/reports/reports-demo-page"
-import { RequestsDemoPage } from "@/components/requests/requests-demo-page"
+import { RequestsPage } from "@/components/requests/requests-page"
 import { SettingsDemoPage } from "@/components/settings/settings-demo-page"
+import {
+  getAnnouncements,
+  getAnnouncementStats,
+} from "@/services/announcements"
+import {
+  getConsultations,
+  getConsultationStats,
+} from "@/services/consultations"
+import {
+  getConsultationRequests,
+  getConsultationRequestStats,
+} from "@/services/consultationRequests"
+import {
+  getMedicalCertificates,
+  getMedicalCertificateStats,
+} from "@/services/medicalCertificates"
+import {
+  getPatientRecords,
+  getPatientRecordStats,
+} from "@/services/patientRecords"
+import {
+  AnnouncementServiceError,
+  type AnnouncementListResult,
+  type AnnouncementStats,
+} from "@/types/announcement"
+import {
+  ConsultationServiceError,
+  type ConsultationListResult,
+  type ConsultationStats,
+} from "@/types/consultation"
+import {
+  ConsultationRequestServiceError,
+  type ConsultationRequestListResult,
+  type ConsultationRequestStats,
+} from "@/types/consultationRequest"
+import {
+  MedicalCertificateServiceError,
+  type MedicalCertificateListResult,
+  type MedicalCertificateStats,
+} from "@/types/medicalCertificate"
+import {
+  PatientRecordServiceError,
+  type PatientRecordListResult,
+  type PatientRecordStats,
+} from "@/types/patientRecord"
 import { getStaffAccess } from "@/lib/auth/access"
 import { requireStaffModule } from "@/lib/auth/require-module"
 import { getDashboardBundle } from "@/lib/health/dashboard-queries"
@@ -65,22 +110,187 @@ export async function StaffQueuePage() {
 
 export async function StaffRequestsPage() {
   const access = await requireStaffModule("consultation_requests")
-  return <RequestsDemoPage access={access} />
+
+  const emptyList: ConsultationRequestListResult = {
+    items: [],
+    total: 0,
+    page: 1,
+    pageSize: 10,
+    totalPages: 1,
+  }
+  const emptyStats: ConsultationRequestStats = {
+    pending: 0,
+    approvedToday: 0,
+    rescheduled: 0,
+    declined: 0,
+  }
+
+  let list = emptyList
+  let stats = emptyStats
+  let initialError: string | null = null
+
+  try {
+    const [nextList, nextStats] = await Promise.all([
+      getConsultationRequests({ page: 1, pageSize: 10 }),
+      getConsultationRequestStats(),
+    ])
+    list = nextList
+    stats = nextStats
+  } catch (error) {
+    initialError =
+      error instanceof ConsultationRequestServiceError
+        ? error.message
+        : "Could not load consultation requests. Please try again."
+  }
+
+  return (
+    <RequestsPage
+      access={access}
+      initialList={list}
+      initialStats={stats}
+      initialError={initialError}
+    />
+  )
 }
 
 export async function StaffPatientsPage() {
   const access = await requireStaffModule("patient_records")
-  return <PatientsDemoPage access={access} />
+
+  const emptyList: PatientRecordListResult = {
+    items: [],
+    total: 0,
+    page: 1,
+    pageSize: 10,
+    totalPages: 1,
+  }
+  const emptyStats: PatientRecordStats = {
+    total: 0,
+    visitedThisMonth: 0,
+    flaggedAllergies: 0,
+    documents: 0,
+  }
+
+  let list = emptyList
+  let stats = emptyStats
+  let initialError: string | null = null
+
+  try {
+    const [nextList, nextStats] = await Promise.all([
+      getPatientRecords({ page: 1, pageSize: 10 }),
+      getPatientRecordStats(),
+    ])
+    list = nextList
+    stats = nextStats
+  } catch (error) {
+    initialError =
+      error instanceof PatientRecordServiceError
+        ? error.message
+        : "Could not load patient records. Please try again."
+  }
+
+  return (
+    <PatientsPage
+      access={access}
+      initialList={list}
+      initialStats={stats}
+      initialError={initialError}
+    />
+  )
 }
 
 export async function StaffConsultationsPage() {
   const access = await requireStaffModule("consultations")
-  return <ConsultationsDemoPage access={access} />
+
+  const emptyList: ConsultationListResult = {
+    items: [],
+    total: 0,
+    page: 1,
+    pageSize: 10,
+    totalPages: 1,
+  }
+  const emptyStats: ConsultationStats = {
+    openToday: 0,
+    awaitingAssessment: 0,
+    inProgress: 0,
+    completedToday: 0,
+  }
+
+  let list = emptyList
+  let stats = emptyStats
+  let initialError: string | null = null
+
+  try {
+    const [nextList, nextStats] = await Promise.all([
+      getConsultations({ page: 1, pageSize: 10 }),
+      getConsultationStats(),
+    ])
+    list = nextList
+    stats = nextStats
+  } catch (error) {
+    initialError =
+      error instanceof ConsultationServiceError
+        ? error.message
+        : "Could not load consultations. Please try again."
+  }
+
+  return (
+    <ConsultationsPage
+      access={access}
+      initialList={list}
+      initialStats={stats}
+      initialError={initialError}
+    />
+  )
 }
 
 export async function StaffCertificatesPage() {
   const access = await requireStaffModule("medical_certificates")
-  return <CertificatesDemoPage access={access} />
+
+  const emptyList: MedicalCertificateListResult = {
+    items: [],
+    total: 0,
+    page: 1,
+    pageSize: 10,
+    totalPages: 1,
+  }
+  const emptyStats: MedicalCertificateStats = {
+    issuedThisMonth: 0,
+    issuedToday: 0,
+    drafts: 0,
+    pending: 0,
+  }
+
+  let list = emptyList
+  let stats = emptyStats
+  let initialError: string | null = null
+
+  try {
+    const [nextList, nextStats] = await Promise.all([
+      getMedicalCertificates({
+        page: 1,
+        pageSize: 10,
+        sortBy: "issued_at",
+        sortDirection: "desc",
+      }),
+      getMedicalCertificateStats(),
+    ])
+    list = nextList
+    stats = nextStats
+  } catch (error) {
+    initialError =
+      error instanceof MedicalCertificateServiceError
+        ? error.message
+        : "Could not load medical certificates. Please try again."
+  }
+
+  return (
+    <CertificatesPage
+      access={access}
+      initialList={list}
+      initialStats={stats}
+      initialError={initialError}
+    />
+  )
 }
 
 export async function StaffReportsPage() {
@@ -90,7 +300,51 @@ export async function StaffReportsPage() {
 
 export async function StaffAnnouncementsPage() {
   const access = await requireStaffModule("announcements")
-  return <AnnouncementsDemoPage access={access} />
+
+  const emptyList: AnnouncementListResult = {
+    items: [],
+    total: 0,
+    page: 1,
+    pageSize: 10,
+    totalPages: 1,
+  }
+  const emptyStats: AnnouncementStats = {
+    published: 0,
+    scheduled: 0,
+    drafts: 0,
+  }
+
+  let list = emptyList
+  let stats = emptyStats
+  let initialError: string | null = null
+
+  try {
+    const [nextList, nextStats] = await Promise.all([
+      getAnnouncements({
+        page: 1,
+        pageSize: 10,
+        sortBy: "updated_at",
+        sortDirection: "desc",
+      }),
+      getAnnouncementStats(),
+    ])
+    list = nextList
+    stats = nextStats
+  } catch (error) {
+    initialError =
+      error instanceof AnnouncementServiceError
+        ? error.message
+        : "Could not load announcements. Please try again."
+  }
+
+  return (
+    <AnnouncementsPage
+      access={access}
+      initialList={list}
+      initialStats={stats}
+      initialError={initialError}
+    />
+  )
 }
 
 export async function StaffUsersPage() {

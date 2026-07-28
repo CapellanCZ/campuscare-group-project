@@ -83,5 +83,16 @@ export function mapAuthError(error: AuthLikeError, fallback: string): string {
     return "Staff accounts are invite-only. Contact a clinic admin."
   }
 
+  const missingEnv = rawMessage.match(
+    /missing required environment variable:\s*([A-Z0-9_]+)/i
+  )
+  if (missingEnv?.[1]) {
+    return `Server sign-in is not configured yet. Add ${missingEnv[1]} to .env.local and restart the app.`
+  }
+
+  if (message.includes("supabase_service_role_key")) {
+    return "Server sign-in is not configured yet. Add SUPABASE_SERVICE_ROLE_KEY to .env.local and restart the app."
+  }
+
   return rawMessage || fallback
 }

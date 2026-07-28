@@ -1,10 +1,8 @@
 export type {
   AnnouncementStatus,
-  CertificateStatus,
   ConsultationRequestStatus,
   ConsultationStatus,
   DemoAnnouncement,
-  DemoCertificate,
   DemoConsultation,
   DemoConsultationRequest,
   DemoPatient,
@@ -18,8 +16,6 @@ export type {
 export {
   demoAnnouncementStats,
   demoAnnouncements,
-  demoCertificateStats,
-  demoCertificates,
   demoConsultationRequests,
   demoConsultationStats,
   demoConsultations,

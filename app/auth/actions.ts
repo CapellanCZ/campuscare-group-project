@@ -1,20 +1,47 @@
 "use server"
 
 import { clearInvitePendingAfterSignIn } from "@/lib/auth/clear-invite-pending"
+import { ensureStaffSession } from "@/lib/auth/ensure-staff-session"
+import {
+  isValidEmail,
+  isValidOtpCode,
+  normalizeEmail,
+  sanitizeOtpInput,
+} from "@/lib/auth/email"
 import { asErrorMessage, mapAuthError } from "@/lib/auth/errors"
-import { sendLoginOtpEmail } from "@/lib/auth/send-login-otp"
+import { authCallbackUrl } from "@/lib/auth/site-url"
 import type { AuthResult } from "@/lib/auth/types"
 import { createClient } from "@/lib/supabase/server"
 
 export async function sendOtpEmail(email: string): Promise<AuthResult> {
   try {
-    const trimmed = email.trim().toLowerCase()
+    const trimmed = normalizeEmail(email)
+
     if (!trimmed) {
       return { ok: false, error: "Enter your work email to continue." }
     }
 
-    // Deliver OTP via Resend from the Next.js server (edge function not required).
-    await sendLoginOtpEmail(trimmed)
+    if (!isValidEmail(trimmed)) {
+      return { ok: false, error: "Enter a valid email address." }
+    }
+
+    const supabase = await createClient()
+    const { error } = await supabase.auth.signInWithOtp({
+      email: trimmed,
+      options: {
+        // Staff accounts are provisioned by admins; do not auto-create on login.
+        shouldCreateUser: false,
+        emailRedirectTo: authCallbackUrl(),
+      },
+    })
+
+    if (error) {
+      return {
+        ok: false,
+        error: mapAuthError(error, "Could not send sign-in email."),
+      }
+    }
+
     return { ok: true }
   } catch (error) {
     return {
@@ -32,14 +59,14 @@ export async function verifyOtpCode(
   token: string
 ): Promise<AuthResult> {
   try {
-    const trimmedEmail = email.trim().toLowerCase()
-    const trimmedToken = token.trim()
+    const trimmedEmail = normalizeEmail(email)
+    const trimmedToken = sanitizeOtpInput(token)
 
-    if (!trimmedEmail) {
+    if (!trimmedEmail || !isValidEmail(trimmedEmail)) {
       return { ok: false, error: "Session expired. Enter your email again." }
     }
 
-    if (trimmedToken.length !== 6) {
+    if (!isValidOtpCode(trimmedToken)) {
       return { ok: false, error: "Enter the full 6-digit verification code." }
     }
 
@@ -61,6 +88,7 @@ export async function verifyOtpCode(
       data: { user },
     } = await supabase.auth.getUser()
     if (user) {
+      await ensureStaffSession(user.id)
       await clearInvitePendingAfterSignIn(user.id)
     }
 

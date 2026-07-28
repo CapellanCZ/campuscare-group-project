@@ -23,6 +23,14 @@ export function homePathForDesignation(
   if (designation === "queue_display") {
     return "/queue-management/display"
   }
+  if (
+    designation === "admin" ||
+    designation === "nurse" ||
+    designation === "physician" ||
+    designation === "dentist"
+  ) {
+    return `/${designation}/dashboard`
+  }
   return `/${designation}`
 }
 

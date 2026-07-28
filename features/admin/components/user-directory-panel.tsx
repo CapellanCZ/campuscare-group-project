@@ -394,7 +394,7 @@ export function UserDirectoryPanel({
   const deletePrimary = deleteSelection[0]
 
   return (
-    <div className="flex min-h-0 flex-col gap-5">
+    <div className="flex min-h-0 flex-col gap-4 p-4 md:p-6">
       <div className="min-w-0 space-y-1.5">
         <h1 className="truncate text-2xl font-semibold tracking-tight">
           {config.title}
