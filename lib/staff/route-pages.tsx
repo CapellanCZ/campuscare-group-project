@@ -1,14 +1,18 @@
 import { redirect } from "next/navigation"
 
-import { AnnouncementsDemoPage } from "@/components/announcements/announcements-demo-page"
+import { AnnouncementsPage } from "@/components/announcements/announcements-demo-page"
 import { CertificatesPage } from "@/components/certificates/certificates-demo-page"
 import { ConsultationsPage } from "@/components/consultations/consultations-demo-page"
 import { RoleDashboard } from "@/components/dashboard/role-dashboard"
 import { PatientsPage } from "@/components/patients/patients-demo-page"
 import { QueuePage } from "@/components/queue/queue-page"
-import { ReportsDemoPage } from "@/components/reports/reports-demo-page"
+import { ReportsPage } from "@/components/reports/reports-demo-page"
 import { RequestsDemoPage } from "@/components/requests/requests-demo-page"
 import { SettingsDemoPage } from "@/components/settings/settings-demo-page"
+import {
+  getAnnouncements,
+  getAnnouncementStats,
+} from "@/services/announcements"
 import {
   getConsultations,
   getConsultationStats,
@@ -22,6 +26,12 @@ import {
   getPatientRecords,
   getPatientRecordStats,
 } from "@/services/patientRecords"
+import { getClinicReport } from "@/services/reports"
+import {
+  AnnouncementServiceError,
+  type AnnouncementListResult,
+  type AnnouncementStats,
+} from "@/types/announcement"
 import {
   ConsultationServiceError,
   type ConsultationListResult,
@@ -37,6 +47,10 @@ import {
   type PatientRecordListResult,
   type PatientRecordStats,
 } from "@/types/patientRecord"
+import {
+  ReportServiceError,
+  type ClinicReportBundle,
+} from "@/types/report"
 import { getStaffAccess } from "@/lib/auth/access"
 import { requireStaffModule } from "@/lib/auth/require-module"
 import { getDashboardBundle } from "@/lib/health/dashboard-queries"
@@ -245,12 +259,96 @@ export async function StaffCertificatesPage() {
 
 export async function StaffReportsPage() {
   const access = await requireStaffModule("reports")
-  return <ReportsDemoPage access={access} />
+
+  const emptyReport: ClinicReportBundle = {
+    range: "30d",
+    rangeLabel: "Last 30 days",
+    startIso: new Date().toISOString(),
+    endIso: new Date().toISOString(),
+    stats: {
+      consultations: 0,
+      certificates: 0,
+      walkIns: 0,
+      avgWaitMinutes: 0,
+    },
+    analytics: {
+      peakDayLabel: "—",
+      peakDayCount: 0,
+      topStationLabel: "—",
+      topStationShare: 0,
+    },
+    periodRows: [],
+  }
+
+  let report = emptyReport
+  let initialError: string | null = null
+
+  try {
+    report = await getClinicReport("30d")
+  } catch (error) {
+    initialError =
+      error instanceof ReportServiceError
+        ? error.message
+        : "Could not load reports. Please try again."
+  }
+
+  return (
+    <ReportsPage
+      access={access}
+      initialReport={report}
+      initialError={initialError}
+    />
+  )
 }
 
 export async function StaffAnnouncementsPage() {
   const access = await requireStaffModule("announcements")
-  return <AnnouncementsDemoPage access={access} />
+
+  const emptyList: AnnouncementListResult = {
+    items: [],
+    total: 0,
+    page: 1,
+    pageSize: 10,
+    totalPages: 1,
+  }
+  const emptyStats: AnnouncementStats = {
+    published: 0,
+    scheduled: 0,
+    drafts: 0,
+    total: 0,
+  }
+
+  let list = emptyList
+  let stats = emptyStats
+  let initialError: string | null = null
+
+  try {
+    const [nextList, nextStats] = await Promise.all([
+      getAnnouncements({
+        page: 1,
+        pageSize: 10,
+        sortBy: "updated_at",
+        sortDirection: "desc",
+      }),
+      getAnnouncementStats(),
+    ])
+    list = nextList
+    stats = nextStats
+  } catch (error) {
+    initialError =
+      error instanceof AnnouncementServiceError
+        ? error.message
+        : "Could not load announcements. Please try again."
+  }
+
+  return (
+    <AnnouncementsPage
+      access={access}
+      initialList={list}
+      initialStats={stats}
+      initialError={initialError}
+    />
+  )
 }
 
 export async function StaffUsersPage() {

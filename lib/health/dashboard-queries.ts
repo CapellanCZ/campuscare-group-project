@@ -74,6 +74,13 @@ async function buildKpis(
       .ilike("certificate_status", "%issued%")
   )
 
+  const announcementCount = await safeCount(() =>
+    supabase
+      .from("announcements")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "published")
+  )
+
   const appointmentCount = await safeCount(() =>
     supabase
       .from("health_appointments")
@@ -125,8 +132,8 @@ async function buildKpis(
         {
           key: "announcements",
           label: "Active announcements",
-          value: "0",
-          description: "Reserved for later module",
+          value: String(announcementCount),
+          description: "Published notices",
         },
       ],
     }
