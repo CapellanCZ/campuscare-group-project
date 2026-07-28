@@ -6,6 +6,7 @@ import {
   type AdminActionResult,
 } from "@/features/admin/lib/admin-access"
 import { parseExcelRows } from "@/features/admin/lib/excel"
+import { resolveCampusClinicId } from "@/lib/auth/campus-clinic"
 
 export type PatientAffiliation = "student" | "faculty"
 
@@ -33,24 +34,14 @@ async function resolveClinicId() {
   const adminClientResult = getAdminClientSafe()
   if (!adminClientResult.ok) return adminClientResult
 
-  const { data, error } = await adminClientResult.client
-    .from("clinics")
-    .select("id")
-    .eq("is_active", true)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle()
-
-  if (error) {
-    return { ok: false as const, error: `Could not resolve clinic. ${error.message}` }
-  }
-  if (!data?.id) {
+  const clinicId = await resolveCampusClinicId(adminClientResult.client)
+  if (!clinicId) {
     return {
       ok: false as const,
-      error: "No clinic is set up yet. Ask a developer to seed the clinic record.",
+      error: "No campus clinic is set up yet. Ask a developer to seed the clinic.",
     }
   }
-  return { ok: true as const, clinicId: data.id as string }
+  return { ok: true as const, clinicId }
 }
 
 function normalizeAffiliation(value?: string): PatientAffiliation | null {

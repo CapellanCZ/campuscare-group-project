@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { homePathForDesignation, isStaffAreaPath } from "@/lib/auth/home-path"
+import { hasCampusAccess } from "@/lib/auth/campus-access"
 import {
   canUseWebApp,
   hasApprovedClinicAccess,
@@ -44,15 +45,13 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
-    const { data: membership } = await supabase
-      .from("clinic_members")
-      .select("clinic_id")
-      .eq("profile_id", user.id)
-      .eq("is_active", true)
-      .limit(1)
-      .maybeSingle()
+    const membershipOk = await hasCampusAccess(
+      supabase,
+      user.id,
+      gate?.primary_role
+    )
 
-    const allowed = hasApprovedClinicAccess(gate) && Boolean(membership)
+    const allowed = hasApprovedClinicAccess(gate) && membershipOk
     const clinicRole = resolveClinicRole(gate)
     const home = clinicRole
       ? homePathForDesignation(clinicRole)

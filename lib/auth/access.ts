@@ -1,3 +1,4 @@
+import { hasCampusAccess } from "@/lib/auth/campus-access"
 import {
   canUseWebApp,
   hasApprovedClinicAccess,
@@ -44,16 +45,11 @@ export async function getStaffAccess(): Promise<StaffAccess | null> {
     return null
   }
 
-  // Real membership — required for clinic-scoped RLS to function.
-  const { data: membership } = await supabase
-    .from("clinic_members")
-    .select("clinic_id")
-    .eq("profile_id", user.id)
-    .eq("is_active", true)
-    .limit(1)
-    .maybeSingle()
-
-  const hasClinicMembership = Boolean(membership)
+  const hasClinicMembership = await hasCampusAccess(
+    supabase,
+    user.id,
+    row.primary_role
+  )
 
   if (!hasApprovedClinicAccess(row)) {
     return null

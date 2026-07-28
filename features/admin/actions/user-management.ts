@@ -57,7 +57,7 @@ async function requireAdmin() {
 
 /**
  * Single-clinic campus: resolve clinic_id from existing memberships only.
- * Do not query a clinics catalog table (it may not exist in this project).
+ * Do not query a clinics catalog as the source of truth for new memberships.
  */
 async function resolveClinicIdForMembership(
   adminClient: AdminClient,
@@ -72,13 +72,8 @@ async function resolveClinicIdForMembership(
 
   if (existing?.clinic_id) return existing.clinic_id
 
-  const { data: anyMember } = await adminClient
-    .from("clinic_members")
-    .select("clinic_id")
-    .limit(1)
-    .maybeSingle()
-
-  return anyMember?.clinic_id ?? null
+  const { resolveCampusClinicId } = await import("@/lib/auth/campus-clinic")
+  return resolveCampusClinicId(adminClient)
 }
 
 function getAdminClientSafe() {
@@ -152,13 +147,46 @@ async function syncAuthRoleMetadata(
   return error
 }
 
+async function upsertAdminAccount(
+  adminClient: AdminClient,
+  userId: string,
+  isActive = true
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  // Admins are never clinic_members — keep directories separate.
+  await adminClient.from("clinic_members").delete().eq("profile_id", userId)
+
+  const { error } = await adminClient.from("admin_accounts").upsert(
+    {
+      profile_id: userId,
+      is_active: isActive,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "profile_id" }
+  )
+
+  if (error) {
+    return {
+      ok: false,
+      error: `Could not save admin account. ${error.message}`,
+    }
+  }
+
+  return { ok: true }
+}
+
 async function upsertClinicMembership(
   adminClient: AdminClient,
   userId: string,
   role: ManagedRole,
   isActive = true
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  // Prefer updating the user's existing membership — no clinics table needed.
+  if (role === "admin") {
+    return upsertAdminAccount(adminClient, userId, isActive)
+  }
+
+  // Staff never belong in admin_accounts.
+  await adminClient.from("admin_accounts").delete().eq("profile_id", userId)
+
   const { data: existingRows, error: existingError } = await adminClient
     .from("clinic_members")
     .select("clinic_id")
@@ -192,7 +220,7 @@ async function upsertClinicMembership(
     return {
       ok: false,
       error:
-        "No clinic membership exists yet for this campus. Seed clinic_members before inviting staff.",
+        "No campus clinic exists yet. Seed clinics before inviting staff.",
     }
   }
 
@@ -248,11 +276,53 @@ export async function listStaffUsers(
     }
   }
 
-  const rows = (profileRows ?? []) as StaffProfileRow[]
+  let rows = (profileRows ?? []) as StaffProfileRow[]
+  const listingAdmins = scopedRoles.length === 1 && scopedRoles[0] === "admin"
+
+  // Staff directory = clinic_members only. Admin directory = admin_accounts only.
+  if (listingAdmins) {
+    const { data: adminRows, error: adminError } = await adminClient
+      .from("admin_accounts")
+      .select("profile_id")
+
+    if (adminError) {
+      return {
+        ok: false,
+        error: `Could not load admin accounts. ${adminError.message}`,
+      }
+    }
+
+    const adminIds = new Set(
+      (adminRows ?? []).map((row) => row.profile_id as string)
+    )
+    rows = rows.filter((row) => adminIds.has(row.id))
+  } else {
+    const { data: memberRows, error: memberError } = await adminClient
+      .from("clinic_members")
+      .select("profile_id, member_role")
+      .in("member_role", scopedRoles)
+
+    if (memberError) {
+      return {
+        ok: false,
+        error: `Could not load clinic members. ${memberError.message}`,
+      }
+    }
+
+    const memberIds = new Set(
+      (memberRows ?? []).map((row) => row.profile_id as string)
+    )
+    rows = rows.filter(
+      (row) => memberIds.has(row.id) && row.primary_role !== "admin"
+    )
+  }
+
   const userIds = rows.map((row) => row.id)
 
   const membershipSet = new Set<string>()
-  if (userIds.length > 0) {
+  if (listingAdmins) {
+    for (const id of userIds) membershipSet.add(id)
+  } else if (userIds.length > 0) {
     const { data: membershipRows, error: membershipError } = await adminClient
       .from("clinic_members")
       .select("profile_id")
@@ -505,15 +575,21 @@ export async function setStaffUserActive(
     return { ok: false, error: "Could not update user status." }
   }
 
-  const { error: membershipError } = await adminClient
-    .from("clinic_members")
-    .update({ is_active: input.isActive })
-    .eq("profile_id", userId)
+  const { error: membershipError } =
+    profile.primary_role === "admin"
+      ? await adminClient
+          .from("admin_accounts")
+          .update({ is_active: input.isActive })
+          .eq("profile_id", userId)
+      : await adminClient
+          .from("clinic_members")
+          .update({ is_active: input.isActive })
+          .eq("profile_id", userId)
 
   if (membershipError) {
     return {
       ok: false,
-      error: `Profile updated, but clinic access could not be synced. ${membershipError.message}`,
+      error: `Profile updated, but access could not be synced. ${membershipError.message}`,
     }
   }
 

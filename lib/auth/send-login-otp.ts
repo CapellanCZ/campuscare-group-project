@@ -44,20 +44,38 @@ export async function sendLoginOtpEmail(email: string): Promise<void> {
     throw inactive
   }
 
-  const { data: membership } = await admin
-    .from("clinic_members")
-    .select("clinic_id")
-    .eq("profile_id", profile.id)
-    .eq("is_active", true)
-    .limit(1)
-    .maybeSingle()
+  const role = String(profile.primary_role ?? "").toLowerCase()
+  if (role === "admin") {
+    const { data: adminRow } = await admin
+      .from("admin_accounts")
+      .select("profile_id")
+      .eq("profile_id", profile.id)
+      .eq("is_active", true)
+      .maybeSingle()
 
-  if (!membership) {
-    const pending = new Error(
-      "This account is not assigned to a clinic yet. Ask an admin to finish setup."
-    )
-    ;(pending as Error & { status?: number }).status = 403
-    throw pending
+    if (!adminRow) {
+      const pending = new Error(
+        "This admin account is not activated yet. Ask another admin to finish setup."
+      )
+      ;(pending as Error & { status?: number }).status = 403
+      throw pending
+    }
+  } else {
+    const { data: membership } = await admin
+      .from("clinic_members")
+      .select("clinic_id")
+      .eq("profile_id", profile.id)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle()
+
+    if (!membership) {
+      const pending = new Error(
+        "This account is not assigned to a clinic yet. Ask an admin to finish setup."
+      )
+      ;(pending as Error & { status?: number }).status = 403
+      throw pending
+    }
   }
 
   const { data, error } = await admin.auth.admin.generateLink({
