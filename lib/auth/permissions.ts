@@ -148,7 +148,7 @@ const MATRIX: Record<Permission, RoleAccess> = {
   "patients.table": roles(ALL, ALL, ALL, ALL),
   "patients.view_profile": roles(ALL, ALL, ALL, ALL),
   "patients.edit_information": roles(ALL, ALL, ALL, ALL),
-  "patients.update_medical": roles(NONE, ALL, ALL, ALL),
+  "patients.update_medical": roles(ALL, ALL, ALL, ALL),
   "patients.view_consultation_history": roles(ALL, ALL, ALL, ALL),
   "patients.view_medical_documents": roles(ALL, ALL, ALL, ALL),
 

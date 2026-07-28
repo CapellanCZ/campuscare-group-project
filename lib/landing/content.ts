@@ -42,6 +42,8 @@ export const navLinks: NavLink[] = [
   { label: "Contact", href: "#contact", id: "contact" },
 ]
 
+export const landingNavItems = navLinks
+
 export const heroRotatingPhrases = [
   "Faster clinic visits for every Bulldog",
   "Queue visibility without the waiting-room guesswork",
@@ -142,6 +144,20 @@ export const howItWorksSteps: HowItWorksStep[] = [
   },
 ]
 
+export const benefits = features
+export const heroHighlights = heroRotatingPhrases
+export const consultationSteps = howItWorksSteps
+export const userTypes = [
+  {
+    title: "Students",
+    description: "Book and track campus clinic visits.",
+  },
+  {
+    title: "Clinic staff",
+    description: "Manage queues, records, and certificates.",
+  },
+]
+
 export const faqs: FaqItem[] = [
   {
     id: "who",
@@ -153,7 +169,7 @@ export const faqs: FaqItem[] = [
     id: "hours",
     question: "What are the Health Services Office hours?",
     answer:
-      "The clinic is open from 7:00 AM to 9:00 PM. For schedule changes or special advisories, check Health Announcements in CampusCare or contact the office directly.",
+      "The clinic is open Mondays to Fridays from 7:00 AM to 9:00 PM, and Saturdays from 7:00 AM to 7:00 PM. Physician and dentist hours vary by day—check CampusCare or Health Announcements for clinician schedules and break advisories.",
   },
   {
     id: "queue",
@@ -183,7 +199,7 @@ export const faqs: FaqItem[] = [
 
 export const footerContact = {
   location: "NU Dasmariñas, 4th Floor",
-  hours: "7:00 AM – 9:00 PM",
+  hours: "Mon–Fri 7:00 AM – 9:00 PM · Sat 7:00 AM – 7:00 PM",
   email: "clinic@nu-dasma.edu.ph",
 }
 

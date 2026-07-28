@@ -6,22 +6,25 @@ import { ConsultationsPage } from "@/components/consultations/consultations-demo
 import { RoleDashboard } from "@/components/dashboard/role-dashboard"
 import { PatientsPage } from "@/components/patients/patients-demo-page"
 import { QueuePage } from "@/components/queue/queue-page"
-import { ReportsDemoPage } from "@/components/reports/reports-demo-page"
 import { RequestsDemoPage } from "@/components/requests/requests-demo-page"
 import { SettingsDemoPage } from "@/components/settings/settings-demo-page"
+import { ReportsAnalyticsPage } from "@/features/reports/components/reports-analytics-page"
+import { loadReportsBundle } from "@/features/reports/data/queries"
+import { loadOfficeHoursBundle } from "@/features/availability/actions/availability"
+import { OfficeHoursSettings } from "@/features/admin/components/office-hours-settings"
 import {
   getConsultations,
   getConsultationStats,
   listConsultationFilterOptions,
 } from "@/services/consultations"
 import {
+  getDirectoryPatientRecordStats,
+  listDirectoryPatientRecords,
+} from "@/lib/students/directory"
+import {
   getMedicalCertificates,
   getMedicalCertificateStats,
 } from "@/services/medicalCertificates"
-import {
-  getPatientRecords,
-  getPatientRecordStats,
-} from "@/services/patientRecords"
 import {
   ConsultationServiceError,
   type ConsultationListResult,
@@ -39,7 +42,11 @@ import {
 } from "@/types/patientRecord"
 import { getStaffAccess } from "@/lib/auth/access"
 import { requireStaffModule } from "@/lib/auth/require-module"
-import { getDashboardBundle } from "@/lib/health/dashboard-queries"
+import {
+  enrichDashboardKpis,
+  getDashboardBundle,
+} from "@/lib/health/dashboard-queries"
+import { loadRoleDashboardSummary } from "@/lib/health/load-role-dashboard-summary"
 import {
   computeQueueStats,
   getQueueActivity,
@@ -54,16 +61,29 @@ export async function StaffHomePage() {
   if (!access?.hasClinicMembership) redirect("/login")
 
   const bundle = await getDashboardBundle(access.designation)
+  const summary = await loadRoleDashboardSummary({
+    designation: access.designation,
+    userId: access.userId,
+    allTickets: bundle.allTickets,
+    checkedIn: bundle.stats.checkedIn,
+  })
+  const kpis = enrichDashboardKpis(
+    access.designation,
+    bundle.kpis,
+    summary,
+    bundle.allTickets
+  )
 
   return (
     <RoleDashboard
       access={access}
-      kpis={bundle.kpis}
+      kpis={kpis}
       tickets={bundle.tickets}
       boards={bundle.boards}
       activity={bundle.activity}
       recent={bundle.recent}
       stats={bundle.stats}
+      summary={summary}
     />
   )
 }
@@ -119,8 +139,8 @@ export async function StaffPatientsPage() {
 
   try {
     const [nextList, nextStats] = await Promise.all([
-      getPatientRecords({ page: 1, pageSize: 20 }),
-      getPatientRecordStats(),
+      listDirectoryPatientRecords({ page: 1, pageSize: 20 }),
+      getDirectoryPatientRecordStats(),
     ])
     list = nextList
     stats = nextStats
@@ -245,7 +265,8 @@ export async function StaffCertificatesPage() {
 
 export async function StaffReportsPage() {
   const access = await requireStaffModule("reports")
-  return <ReportsDemoPage access={access} />
+  const bundle = await loadReportsBundle(access.designation)
+  return <ReportsAnalyticsPage access={access} initialBundle={bundle} />
 }
 
 export async function StaffAnnouncementsPage() {
@@ -263,5 +284,15 @@ export async function StaffUsersPage() {
 
 export async function StaffSettingsPage() {
   const access = await requireStaffModule("settings")
+  if (access.primaryRole === "admin") {
+    const bundle = await loadOfficeHoursBundle()
+    return (
+      <OfficeHoursSettings
+        access={access}
+        clinicHours={bundle.clinicHours}
+        staff={bundle.staff}
+      />
+    )
+  }
   return <SettingsDemoPage access={access} />
 }

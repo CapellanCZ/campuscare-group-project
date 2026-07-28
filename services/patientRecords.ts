@@ -3,12 +3,16 @@ import "server-only"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { createClient } from "@/lib/supabase/server"
+import { PATIENT_RECORD_SELECT_COLUMNS } from "@/lib/students/patient-record-select"
 import {
   PatientRecordServiceError,
+  allergiesSummaryFromHistory,
   normalizePatientType,
   patientFullName,
   patientRecordFromJson,
   patientRecordToJson,
+  parseMedicalHistory,
+  parsePhysicalExam,
   type CreatePatientRecordInput,
   type PatientRecord,
   type PatientRecordJson,
@@ -16,36 +20,13 @@ import {
   type PatientRecordListResult,
   type PatientRecordStats,
   type PatientType,
+  type UpdatePatientMedicalRecordInput,
   type UpdatePatientRecordInput,
 } from "@/types/patientRecord"
 
 const DEFAULT_PAGE_SIZE = 20
 
-const SELECT_COLUMNS = `
-  id,
-  patient_type,
-  student_id,
-  employee_id,
-  first_name,
-  middle_name,
-  last_name,
-  course,
-  year_level,
-  gender,
-  birth_date,
-  blood_type,
-  allergies,
-  phone,
-  email,
-  address,
-  emergency_contact_name,
-  emergency_contact_phone,
-  medical_conditions,
-  notes,
-  last_visit,
-  created_at,
-  updated_at
-`
+const SELECT_COLUMNS = PATIENT_RECORD_SELECT_COLUMNS
 
 type CountJoin = { count: number | null } | { count: number | null }[] | null
 
@@ -110,6 +91,19 @@ function mapPatient(row: PatientRow): PatientRecord {
     consultations_count: consultationCount(row.consultations ?? null),
     documents_count: 0,
   })
+}
+
+async function resolveEditorName(
+  userId: string | null,
+  client: SupabaseClient
+): Promise<string | null> {
+  if (!userId) return null
+  const { data } = await client
+    .from("users")
+    .select("full_name")
+    .eq("id", userId)
+    .maybeSingle()
+  return (data?.full_name as string | null) ?? null
 }
 
 function matchesQuery(patient: PatientRecord, query: string): boolean {
@@ -272,7 +266,9 @@ export async function getPatientRecordById(
     throw new PatientRecordServiceError("not_found", "Patient record not found.")
   }
 
-  return mapPatient(data as PatientRow)
+  const mapped = mapPatient(data as PatientRow)
+  const editorName = await resolveEditorName(mapped.lastEditedBy, supabase)
+  return { ...mapped, lastEditedByName: editorName }
 }
 
 export async function getPatientRecordStats(
@@ -350,6 +346,72 @@ export async function updatePatientRecord(
   }
 
   return mapPatient(data as PatientRow)
+}
+
+export async function updatePatientMedicalRecord(
+  input: UpdatePatientMedicalRecordInput,
+  client?: SupabaseClient
+): Promise<PatientRecord> {
+  if (!input.id.trim()) {
+    throw new PatientRecordServiceError("validation", "Patient ID is required.")
+  }
+
+  const supabase = await getClient(client)
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) {
+    throw new PatientRecordServiceError(
+      "permission",
+      "You must be signed in to update medical records."
+    )
+  }
+
+  const { data: existing, error: findError } = await supabase
+    .from("patient_records")
+    .select("id, patient_type, student_id")
+    .eq("id", input.id)
+    .maybeSingle()
+
+  if (findError) mapError(findError)
+  if (!existing) {
+    throw new PatientRecordServiceError("not_found", "Patient record not found.")
+  }
+  if (existing.patient_type !== "student") {
+    throw new PatientRecordServiceError(
+      "validation",
+      "Only student medical records can be updated here."
+    )
+  }
+
+  const medicalHistory = parseMedicalHistory(input.medicalHistory)
+  const physicalExam = parsePhysicalExam(input.physicalExam)
+  const now = new Date().toISOString()
+
+  const { data, error } = await supabase
+    .from("patient_records")
+    .update({
+      medical_history: medicalHistory,
+      physical_exam: physicalExam,
+      allergies: allergiesSummaryFromHistory(medicalHistory),
+      last_edited_at: now,
+      last_edited_by: user.id,
+    })
+    .eq("id", input.id)
+    .select(`${SELECT_COLUMNS}, consultations(count)`)
+    .maybeSingle()
+
+  if (error) mapError(error)
+  if (!data) {
+    throw new PatientRecordServiceError("not_found", "Patient record not found.")
+  }
+
+  const mapped = mapPatient(data as PatientRow)
+  const editorName = await resolveEditorName(user.id, supabase)
+  return {
+    ...mapped,
+    lastEditedByName: editorName,
+  }
 }
 
 export async function deletePatientRecord(

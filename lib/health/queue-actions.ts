@@ -1,4 +1,5 @@
 import type { ClinicDesignation } from "@/lib/auth/types"
+import { assertCanAccommodate } from "@/lib/availability/queries"
 import {
   canMutateQueue,
   canRegisterWalkIn,
@@ -15,6 +16,9 @@ import type {
   StationId,
 } from "@/lib/health/types"
 import { createClient } from "@/lib/supabase/server"
+import { lookupEnrolledStudentById } from "@/lib/students/enrolled-dataset"
+import { ensurePatientFromEnrollment } from "@/lib/students/ensure-patient"
+import { NO_STUDENT_FOUND } from "@/lib/students/types"
 
 async function requireMutable(designation: ClinicDesignation) {
   if (isReadOnlyQueue(designation) || !canMutateQueue(designation)) {
@@ -315,6 +319,11 @@ export async function completeNurseIntakeAndAssign(params: {
     return { ok: false, error: "Only nurses can complete intake and assign specialty." }
   }
 
+  const openCheck = await assertCanAccommodate({ at: new Date() })
+  if (!openCheck.ok) {
+    return { ok: false, error: openCheck.error }
+  }
+
   const toStation = params.intake.toStation
   if (toStation !== "physician" && toStation !== "dentist") {
     return { ok: false, error: "Assign physician or dentist only." }
@@ -407,6 +416,11 @@ export async function registerWalkIn(params: {
     return { ok: false, error: "Only nurses can register walk-ins." }
   }
 
+  const openCheck = await assertCanAccommodate({ at: new Date() })
+  if (!openCheck.ok) {
+    return { ok: false, error: openCheck.error }
+  }
+
   const name = params.patientName.trim()
   if (!name) return { ok: false, error: "Enter a patient name." }
 
@@ -419,31 +433,37 @@ export async function registerWalkIn(params: {
   let resolvedCampusId = campusId
 
   if (campusId) {
-    const { data: byStudent } = await supabase
-      .from("patients")
-      .select("id, full_name, student_id, employee_id, patient_type")
-      .eq("student_id", campusId)
-      .limit(1)
-      .maybeSingle()
+    const enrolled = await lookupEnrolledStudentById(campusId)
+    if (enrolled) {
+      try {
+        const ensured = await ensurePatientFromEnrollment(enrolled)
+        patientId = ensured.operational.id
+        resolvedName = ensured.operational.fullName || name
+        resolvedCampusId = ensured.operational.studentId ?? campusId
+      } catch (error) {
+        return {
+          ok: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Could not sync enrolled student for walk-in.",
+        }
+      }
+    } else {
+      const { data: byEmployee } = await supabase
+        .from("patients")
+        .select("id, full_name, student_id, employee_id, patient_type")
+        .eq("employee_id", campusId)
+        .limit(1)
+        .maybeSingle()
 
-    const { data: byEmployee } =
-      byStudent == null
-        ? await supabase
-            .from("patients")
-            .select("id, full_name, student_id, employee_id, patient_type")
-            .eq("employee_id", campusId)
-            .limit(1)
-            .maybeSingle()
-        : { data: null }
-
-    const match = byStudent ?? byEmployee
-    if (match) {
-      patientId = match.id
-      resolvedName = match.full_name
-      resolvedCampusId =
-        match.patient_type === "faculty"
-          ? match.employee_id
-          : match.student_id
+      if (byEmployee) {
+        patientId = byEmployee.id
+        resolvedName = byEmployee.full_name
+        resolvedCampusId = byEmployee.employee_id
+      } else {
+        return { ok: false, error: NO_STUDENT_FOUND }
+      }
     }
   }
 

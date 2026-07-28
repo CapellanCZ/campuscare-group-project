@@ -99,4 +99,14 @@ export const roleDashboardSeed: Record<WebRole, RoleDashboardSeed> = {
     ],
     rows: baseRows,
   },
+  queue_display: {
+    metrics: [
+      { title: "Now Serving", value: "—", hint: "Public display" },
+      { title: "Waiting", value: "—", hint: "Live queue" },
+      { title: "Called", value: "—", hint: "Today" },
+      { title: "Completed", value: "—", hint: "Today" },
+    ],
+    quickModules: ["Queue Display"],
+    rows: baseRows,
+  },
 }

@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import {
   IconDots,
   IconMailForward,
+  IconPencil,
   IconSearch,
   IconUser,
   IconUserCheck,
@@ -33,6 +34,7 @@ import {
   type ColumnSortDirection,
 } from "@/features/admin/components/directory-column-header"
 import { UserDeleteDialog } from "@/features/admin/components/user-delete-dialog"
+import { UserEditSheet } from "@/features/admin/components/user-edit-sheet"
 import { UserImportSheet } from "@/features/admin/components/user-import-sheet"
 import { UserInviteSheet } from "@/features/admin/components/user-invite-sheet"
 import {
@@ -185,6 +187,7 @@ export function UserDirectoryPanel({
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [bulkPending, setBulkPending] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [editingUser, setEditingUser] = useState<ManagedStaffUser | null>(null)
   const [, startTransition] = useTransition()
   const deferredQuery = useDeferredValue(query.trim().toLowerCase())
 
@@ -700,6 +703,13 @@ export function UserDirectoryPanel({
                           <DropdownMenuGroup>
                             <DropdownMenuItem
                               disabled={busy}
+                              onClick={() => setEditingUser(user)}
+                            >
+                              <IconPencil aria-hidden="true" />
+                              Edit details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={busy}
                               onClick={() =>
                                 runUserAction(
                                   user.id,
@@ -809,6 +819,21 @@ export function UserDirectoryPanel({
         pending={bulkPending && deleteOpen}
         onOpenChange={setDeleteOpen}
         onConfirm={confirmDeleteSelected}
+      />
+
+      <UserEditSheet
+        config={config}
+        user={editingUser}
+        open={Boolean(editingUser)}
+        onOpenChange={(next) => {
+          if (!next) setEditingUser(null)
+        }}
+        onSaved={(updated) => {
+          setUsers((current) =>
+            current.map((row) => (row.id === updated.id ? updated : row))
+          )
+          setEditingUser(null)
+        }}
       />
 
       <p className="sr-only" role="status">

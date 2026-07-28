@@ -6,6 +6,7 @@ import { IconChevronLeft } from "@tabler/icons-react"
 
 import { AuthEmailStep } from "@/components/auth/auth-email-step"
 import { AuthOtpStep } from "@/components/auth/auth-otp-step"
+import { CampusCareLogo } from "@/components/campuscare-logo"
 import { Button } from "@/components/ui/button"
 import { FloatingPaths } from "@/components/floating-paths"
 import {
@@ -122,10 +123,12 @@ export function AuthPage() {
     <main className="relative md:h-screen md:overflow-hidden lg:grid lg:grid-cols-2">
       <div className="relative hidden h-full flex-col border-r bg-secondary p-10 lg:flex dark:bg-secondary/20">
         <div className="absolute inset-0 bg-linear-to-b from-transparent via-transparent to-background" />
-        <img
-          src="/images/logo.png"
-          alt="Logo"
-          className="relative z-10 mr-auto h-10"
+        <CampusCareLogo
+          alt="CampusCare"
+          className="relative z-10 mr-auto h-10 w-auto"
+          width={160}
+          height={40}
+          priority
         />
 
         <div className="z-10 mt-auto">

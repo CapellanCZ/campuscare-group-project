@@ -10,10 +10,8 @@ import {
 } from "react"
 import { toast } from "sonner"
 
-import { PatientDeleteDialog } from "@/components/patients/patient-delete-dialog"
-import { PatientFormSheet } from "@/components/patients/patient-form-sheet"
 import { PatientHistorySheet } from "@/components/patients/patient-history-sheet"
-import { PatientImportSheet } from "@/components/patients/patient-import-sheet"
+import { PatientMedicalSheet } from "@/components/patients/patient-medical-sheet"
 import { PatientProfileSheet } from "@/components/patients/patient-profile-sheet"
 import { DemoPageHeader, DemoStatGrid } from "@/components/demo/demo-page"
 import {
@@ -29,7 +27,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -41,14 +38,16 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  ensurePatientRecordAction,
   fetchPatientRecordStatsAction,
   searchPatientRecordsAction,
 } from "@/features/patients/actions"
 import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { DemoStat } from "@/lib/demo/types"
+import { isEnrolledVirtualId } from "@/lib/students/virtual-id"
+import { NO_STUDENT_FOUND } from "@/lib/students/types"
 import { createClient } from "@/lib/supabase/client"
-import { cn } from "@/lib/utils"
 import {
   patientCampusId,
   patientFullName,
@@ -56,9 +55,8 @@ import {
   type PatientRecordListResult,
   type PatientRecordSortColumn,
   type PatientRecordStats,
-  type PatientType,
 } from "@/types/patientRecord"
-import { IconSearch, IconUserPlus } from "@tabler/icons-react"
+import { IconSearch } from "@tabler/icons-react"
 
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 300
@@ -69,7 +67,7 @@ function toStatCards(stats: PatientRecordStats): DemoStat[] {
       key: "total",
       label: "Patients on file",
       value: String(stats.patientsOnFile),
-      description: "Students and faculty",
+      description: "Enrolled students",
     },
     {
       key: "visited",
@@ -121,7 +119,6 @@ export function PatientsPage({
 }) {
   const [query, setQuery] = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
-  const [patientType, setPatientType] = useState<PatientType | "all">("all")
   const [sortColumn, setSortColumn] =
     useState<PatientRecordSortColumn>("patient")
   const [sortDirection, setSortDirection] =
@@ -129,22 +126,28 @@ export function PatientsPage({
   const [list, setList] = useState(initialList)
   const [stats, setStats] = useState(initialStats)
   const [loading, setLoading] = useState(false)
-  const [formOpen, setFormOpen] = useState(false)
-  const [formMode, setFormMode] = useState<"create" | "edit">("create")
-  const [editing, setEditing] = useState<PatientRecord | null>(null)
+  const [medicalPatient, setMedicalPatient] = useState<PatientRecord | null>(
+    null
+  )
   const [profilePatient, setProfilePatient] = useState<PatientRecord | null>(null)
   const [historyPatient, setHistoryPatient] = useState<PatientRecord | null>(null)
-  const [deletePatient, setDeletePatient] = useState<PatientRecord | null>(null)
   const [isPending, startTransition] = useTransition()
   const skipNextFetch = useRef(true)
+  const mountedRef = useRef(false)
 
-  const canEdit = can(access.designation, "patients.edit_information")
   const canUpdateMedical = can(access.designation, "patients.update_medical")
   const canViewHistory = can(
     access.designation,
     "patients.view_consultation_history"
   )
   const canViewDocs = can(access.designation, "patients.view_medical_documents")
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     if (initialError) toast.error(initialError)
@@ -162,7 +165,6 @@ export function PatientsPage({
   const loadPage = useCallback(
     async (
       nextQuery: string,
-      nextType: PatientType | "all",
       nextSortBy: PatientRecordSortColumn,
       nextSortDir: "asc" | "desc"
     ) => {
@@ -172,13 +174,25 @@ export function PatientsPage({
           searchPatientRecordsAction(nextQuery, {
             page: 1,
             pageSize: PAGE_SIZE,
-            patientType: nextType,
+            patientType: "student",
             sortBy: nextSortBy,
             sortDir: nextSortDir,
           }),
           fetchPatientRecordStatsAction(),
         ])
+        if (!mountedRef.current) return
         if (!listResult.ok) {
+          if (listResult.error === NO_STUDENT_FOUND) {
+            setList({
+              items: [],
+              total: 0,
+              page: 1,
+              pageSize: PAGE_SIZE,
+              totalPages: 1,
+            })
+            toast.error(NO_STUDENT_FOUND)
+            return
+          }
           toast.error(listResult.error)
           return
         }
@@ -189,11 +203,12 @@ export function PatientsPage({
         setList(listResult.data)
         setStats(statsResult.data)
       } catch {
+        if (!mountedRef.current) return
         toast.error(
           "Unable to reach the database. Check your connection and try again."
         )
       } finally {
-        setLoading(false)
+        if (mountedRef.current) setLoading(false)
       }
     },
     []
@@ -203,23 +218,17 @@ export function PatientsPage({
 
   const refresh = useCallback(() => {
     startTransition(() => {
-      void loadPage(debouncedQuery, patientType, sortColumn, activeSortDir)
+      void loadPage(debouncedQuery, sortColumn, activeSortDir)
     })
-  }, [
-    activeSortDir,
-    debouncedQuery,
-    loadPage,
-    patientType,
-    sortColumn,
-  ])
+  }, [activeSortDir, debouncedQuery, loadPage, sortColumn])
 
   useEffect(() => {
     if (skipNextFetch.current) {
       skipNextFetch.current = false
       return
     }
-    void loadPage(debouncedQuery, patientType, sortColumn, activeSortDir)
-  }, [activeSortDir, debouncedQuery, loadPage, patientType, sortColumn])
+    void loadPage(debouncedQuery, sortColumn, activeSortDir)
+  }, [activeSortDir, debouncedQuery, loadPage, sortColumn])
 
   useEffect(() => {
     const supabase = createClient()
@@ -229,14 +238,14 @@ export function PatientsPage({
         "postgres_changes",
         { event: "*", schema: "public", table: "patient_records" },
         () => {
-          void loadPage(debouncedQuery, patientType, sortColumn, activeSortDir)
+          void loadPage(debouncedQuery, sortColumn, activeSortDir)
         }
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "consultations" },
         () => {
-          void loadPage(debouncedQuery, patientType, sortColumn, activeSortDir)
+          void loadPage(debouncedQuery, sortColumn, activeSortDir)
         }
       )
       .subscribe()
@@ -244,7 +253,7 @@ export function PatientsPage({
     return () => {
       void supabase.removeChannel(channel)
     }
-  }, [activeSortDir, debouncedQuery, loadPage, patientType, sortColumn])
+  }, [activeSortDir, debouncedQuery, loadPage, sortColumn])
 
   function setColumnSort(
     column: PatientRecordSortColumn,
@@ -261,34 +270,59 @@ export function PatientsPage({
   }
 
   function handleSaved(patient: PatientRecord) {
-    setList((prev) => {
-      const exists = prev.items.some((item) => item.id === patient.id)
-      if (exists) {
-        return {
-          ...prev,
-          items: prev.items.map((item) =>
-            item.id === patient.id ? patient : item
-          ),
-        }
-      }
-      return {
-        ...prev,
-        items: [patient, ...prev.items].slice(0, PAGE_SIZE),
-        total: prev.total + 1,
-      }
-    })
+    setList((prev) => ({
+      ...prev,
+      items: prev.items.map((item) =>
+        item.id === patient.id ||
+        (patient.studentId != null && item.studentId === patient.studentId)
+          ? patient
+          : item
+      ),
+    }))
     refresh()
+  }
+
+  async function openEnsuredPatient(
+    patient: PatientRecord,
+    then: (ensured: PatientRecord) => void
+  ) {
+    if (!isEnrolledVirtualId(patient.id)) {
+      then(patient)
+      return
+    }
+    setLoading(true)
+    try {
+      const result = await ensurePatientRecordAction(patient)
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      setList((prev) => ({
+        ...prev,
+        items: prev.items.map((item) =>
+          item.studentId === result.data.studentId ? result.data : item
+        ),
+      }))
+      then(result.data)
+    } catch {
+      toast.error("Could not sync enrolled student into patient records.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const statCards = useMemo(() => toStatCards(stats), [stats])
   const showSkeleton = loading || isPending
   const rows = list.items
+  const emptyMessage = debouncedQuery
+    ? NO_STUDENT_FOUND
+    : "No enrolled students found. Check the Student Dataset file in Storage."
 
   return (
     <div className="flex flex-col gap-4">
       <DemoPageHeader
         title="Patient Records"
-        description="Register and search students or faculty by campus ID"
+        description="Enrolled student medical records. Search by Student ID; update medical history and physical exam here."
         designation={access.designation}
         showDemoBanner={false}
       />
@@ -299,7 +333,7 @@ export function PatientsPage({
 
       <Card className="min-w-0 gap-0 py-0 shadow-none dark:ring-0">
         <CardHeader className="flex flex-col gap-3 border-b pt-(--card-spacing) sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle className="text-base">Patient directory</CardTitle>
+          <CardTitle className="text-base">Student directory</CardTitle>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             {can(access.designation, "patients.search") ? (
               <div className="relative w-full sm:w-72">
@@ -309,29 +343,12 @@ export function PatientsPage({
                 />
                 <Input
                   className="pl-8"
-                  placeholder="Search name or campus ID"
+                  placeholder="Search by Student ID Number"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  aria-label="Search patients"
+                  aria-label="Search by Student ID Number"
                 />
               </div>
-            ) : null}
-            {canEdit ? (
-              <>
-                <PatientImportSheet onImported={refresh} toolbar />
-                <Button
-                  size="sm"
-                  className="shrink-0"
-                  onClick={() => {
-                    setFormMode("create")
-                    setEditing(null)
-                    setFormOpen(true)
-                  }}
-                >
-                  <IconUserPlus data-icon="inline-start" aria-hidden="true" />
-                  Register patient
-                </Button>
-              </>
             ) : null}
           </div>
         </CardHeader>
@@ -349,33 +366,6 @@ export function PatientsPage({
                       onSortAsc={() => setColumnSort("patient", "asc")}
                       onSortDesc={() => setColumnSort("patient", "desc")}
                       onClearSort={() => setColumnSort("patient", "asc")}
-                      filterLabel="Type"
-                      filterItems={
-                        <>
-                          <DropdownMenuItem
-                            onClick={() => setPatientType("all")}
-                            className={cn(patientType === "all" && "bg-accent")}
-                          >
-                            All types
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => setPatientType("student")}
-                            className={cn(
-                              patientType === "student" && "bg-accent"
-                            )}
-                          >
-                            Students
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => setPatientType("faculty")}
-                            className={cn(
-                              patientType === "faculty" && "bg-accent"
-                            )}
-                          >
-                            Faculty
-                          </DropdownMenuItem>
-                        </>
-                      }
                     />
                   </TableHead>
                   <TableHead className="h-12 px-4">
@@ -388,11 +378,11 @@ export function PatientsPage({
                     />
                   </TableHead>
                   <TableHead className="h-12 px-4">
-                    <DirectoryColumnLabel title="Blood / allergies" />
+                    <DirectoryColumnLabel title="Allergies / flags" />
                   </TableHead>
                   <TableHead className="h-12 px-4">
                     <DirectoryColumnHeader
-                      title="Last visit"
+                      title="Last edited"
                       sortDirection={sortDirectionFor("lastVisit")}
                       onSortAsc={() => setColumnSort("lastVisit", "asc")}
                       onSortDesc={() => setColumnSort("lastVisit", "desc")}
@@ -414,7 +404,7 @@ export function PatientsPage({
                       colSpan={5}
                       className="py-10 text-center text-sm text-muted-foreground"
                     >
-                      No patient records found. Register one or import a roster.
+                      {emptyMessage}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -423,30 +413,40 @@ export function PatientsPage({
                       <TableCell className="px-4">
                         <div className="flex items-center gap-2">
                           <p className="font-medium">{patientFullName(row)}</p>
-                          <Badge variant="outline" className="capitalize">
-                            {row.patientType}
-                          </Badge>
+                          <Badge variant="outline">Student</Badge>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          {row.patientType === "faculty"
-                            ? "Employee"
-                            : "Student"}{" "}
-                          ID {patientCampusId(row) ?? "—"}
+                          Student ID {patientCampusId(row) ?? "—"}
                           {row.yearLevel ? ` · ${row.yearLevel}` : ""}
                         </p>
                       </TableCell>
                       <TableCell className="px-4">{row.course || "—"}</TableCell>
                       <TableCell className="px-4">
-                        <p>{row.bloodType || "—"}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {row.allergies || "None"}
+                        <p className="text-sm">
+                          {row.allergies ||
+                            (row.medicalHistory?.allergy
+                              ? "Allergy noted"
+                              : "None")}
                         </p>
                       </TableCell>
                       <TableCell className="px-4">
-                        <p>{row.lastVisit || "—"}</p>
+                        <p>
+                          {row.lastEditedAt
+                            ? new Date(row.lastEditedAt).toLocaleString(
+                                "en-PH",
+                                {
+                                  timeZone: "Asia/Manila",
+                                  dateStyle: "medium",
+                                }
+                              )
+                            : "—"}
+                        </p>
                         <p className="text-xs text-muted-foreground">
-                          {row.consultationsCount} consults ·{" "}
-                          {row.documentsCount} docs
+                          {row.lastEditedByName
+                            ? `by ${row.lastEditedByName}`
+                            : row.lastEditedAt
+                              ? "Editor unknown"
+                              : "Never edited"}
                         </p>
                       </TableCell>
                       <TableCell className="px-4">
@@ -455,7 +455,9 @@ export function PatientsPage({
                             <Button
                               size="xs"
                               variant="outline"
-                              onClick={() => setProfilePatient(row)}
+                              onClick={() =>
+                                void openEnsuredPatient(row, setProfilePatient)
+                              }
                             >
                               Profile
                             </Button>
@@ -464,7 +466,9 @@ export function PatientsPage({
                             <Button
                               size="xs"
                               variant="outline"
-                              onClick={() => setHistoryPatient(row)}
+                              onClick={() =>
+                                void openEnsuredPatient(row, setHistoryPatient)
+                              }
                             >
                               History
                             </Button>
@@ -482,38 +486,14 @@ export function PatientsPage({
                               Documents
                             </Button>
                           ) : null}
-                          {canEdit ? (
-                            <Button
-                              size="xs"
-                              onClick={() => {
-                                setFormMode("edit")
-                                setEditing(row)
-                                setFormOpen(true)
-                              }}
-                            >
-                              Edit
-                            </Button>
-                          ) : null}
                           {canUpdateMedical ? (
                             <Button
                               size="xs"
-                              variant="secondary"
-                              onClick={() => {
-                                setFormMode("edit")
-                                setEditing(row)
-                                setFormOpen(true)
-                              }}
+                              onClick={() =>
+                                void openEnsuredPatient(row, setMedicalPatient)
+                              }
                             >
-                              Medical
-                            </Button>
-                          ) : null}
-                          {canEdit ? (
-                            <Button
-                              size="xs"
-                              variant="destructive"
-                              onClick={() => setDeletePatient(row)}
-                            >
-                              Delete
+                              Update medical
                             </Button>
                           ) : null}
                         </div>
@@ -527,11 +507,12 @@ export function PatientsPage({
         </CardContent>
       </Card>
 
-      <PatientFormSheet
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        mode={formMode}
-        patient={editing}
+      <PatientMedicalSheet
+        patient={medicalPatient}
+        open={Boolean(medicalPatient)}
+        onOpenChange={(open) => {
+          if (!open) setMedicalPatient(null)
+        }}
         onSaved={handleSaved}
       />
       <PatientProfileSheet
@@ -547,14 +528,6 @@ export function PatientsPage({
         onOpenChange={(open) => {
           if (!open) setHistoryPatient(null)
         }}
-      />
-      <PatientDeleteDialog
-        patient={deletePatient}
-        open={Boolean(deletePatient)}
-        onOpenChange={(open) => {
-          if (!open) setDeletePatient(null)
-        }}
-        onDeleted={() => refresh()}
       />
     </div>
   )

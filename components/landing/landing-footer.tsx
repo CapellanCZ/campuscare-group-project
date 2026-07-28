@@ -7,6 +7,7 @@ import {
   IconMapPin,
 } from "@tabler/icons-react"
 
+import { CampusCareLogo } from "@/components/campuscare-logo"
 import { Reveal, ScrollFadeSection } from "@/components/landing/motion"
 import {
   footerBlurb,
@@ -20,10 +21,12 @@ export function LandingFooter() {
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-2 lg:grid-cols-4 lg:gap-8 lg:py-16">
         <Reveal className="min-w-0 space-y-3 lg:col-span-1">
           <div className="flex items-center gap-2">
-            <img
-              src="/images/logo.png"
+            <CampusCareLogo
+              variant="white"
               alt=""
-              className="h-8 w-auto brightness-0 invert"
+              className="h-8 w-auto"
+              width={48}
+              height={32}
             />
             <span className="font-semibold tracking-tight">CampusCare</span>
           </div>

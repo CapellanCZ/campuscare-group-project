@@ -1,10 +1,10 @@
 "use client"
 
 import { type MouseEvent, useEffect, useState } from "react"
-import Image from "next/image"
 import Link from "next/link"
 import { IconMenu2 } from "@tabler/icons-react"
 
+import { CampusCareLogo } from "@/components/campuscare-logo"
 import { landingNavItems } from "@/lib/landing/content"
 import { buttonVariants } from "@/components/ui/button"
 import {
@@ -68,8 +68,8 @@ export function LandingNavbar() {
           href="#home"
           onClick={(event) => handleAnchorClick(event, "#home")}
         >
-          <Image
-            src="/images/campuscare-logo.png"
+          <CampusCareLogo
+            variant="blue"
             alt="CampusCare logo"
             width={34}
             height={34}
@@ -123,8 +123,8 @@ export function LandingNavbar() {
           <SheetContent side="right" className="w-[84vw] max-w-sm bg-white">
             <SheetHeader className="border-b border-slate-100 pb-4">
               <SheetTitle className="flex items-center gap-2 text-slate-900">
-                <Image
-                  src="/images/campuscare-logo.png"
+                <CampusCareLogo
+                  variant="blue"
                   alt="CampusCare logo"
                   width={26}
                   height={26}

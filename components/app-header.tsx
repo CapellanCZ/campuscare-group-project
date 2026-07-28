@@ -12,6 +12,7 @@ import { resolveActiveNav } from "@/components/app-shared"
 import { HeaderNotifications } from "@/components/header-notifications"
 import { HeaderSearch } from "@/components/header-search"
 import { NavUser } from "@/components/nav-user"
+import { OnBreakControl } from "@/components/availability/on-break-control"
 import { useOptionalStaffAccess } from "@/components/staff-access-provider"
 import { stripStaffBasePath } from "@/lib/auth/home-path"
 
@@ -25,6 +26,11 @@ export function AppHeader() {
     (relative === "/settings" || relative.startsWith("/settings/")
       ? { title: "Settings", icon: <IconSettings className="size-3.5" /> }
       : undefined)
+
+  const role = access?.primaryRole
+  const showClinicBreak = role === "nurse" || role === "admin"
+  const showStaffBreak =
+    role === "physician" || role === "dentist" || role === "nurse"
 
   return (
     <header
@@ -42,7 +48,13 @@ export function AppHeader() {
         />
         <AppBreadcrumbs page={page} />
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        {showClinicBreak ? (
+          <OnBreakControl mode="clinic" role={role} />
+        ) : null}
+        {showStaffBreak ? (
+          <OnBreakControl mode="staff" role={role} />
+        ) : null}
         <HeaderSearch />
         <HeaderNotifications />
         <Separator

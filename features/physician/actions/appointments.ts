@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 
 import { getStaffAccess } from "@/lib/auth/access"
+import { assertCanAccommodate } from "@/lib/availability/queries"
 import { createClient } from "@/lib/supabase/server"
 import { rangesOverlap } from "@/lib/physician/timezone"
 import type { AppointmentStatus } from "@/features/physician/types"
@@ -84,6 +85,27 @@ export async function rescheduleAppointment(
 
   if (new Date(startsAt) < new Date()) {
     return { ok: false, error: "Cannot reschedule into the past." }
+  }
+
+  const hoursCheck = await assertCanAccommodate({
+    at: startsAt,
+    clinicianUserId: access.userId,
+    staffLabel: "You",
+  })
+  if (!hoursCheck.ok) {
+    return { ok: false, error: hoursCheck.error }
+  }
+
+  const endCheck = await assertCanAccommodate({
+    at: endsAt,
+    clinicianUserId: access.userId,
+    staffLabel: "You",
+  })
+  if (!endCheck.ok) {
+    return {
+      ok: false,
+      error: `Appointment end is outside open hours: ${endCheck.error}`,
+    }
   }
 
   const supabase = await createClient()
@@ -247,84 +269,3 @@ export async function saveConsultation(input: {
   return { ok: true }
 }
 
-export async function upsertAvailabilitySlot(input: {
-  id?: string
-  dayOfWeek: number
-  startTime: string
-  endTime: string
-  timezone: string
-  isActive: boolean
-}): Promise<ActionResult> {
-  const access = await requirePhysician()
-  if (!access) {
-    return { ok: false, error: "Unauthorized. Physician access required." }
-  }
-
-  if (input.endTime <= input.startTime) {
-    return { ok: false, error: "End time must be after start time." }
-  }
-
-  const supabase = await createClient()
-
-  const { data: membership } = await supabase
-    .from("clinic_members")
-    .select("clinic_id")
-    .eq("user_id", access.userId)
-    .eq("is_active", true)
-    .limit(1)
-    .maybeSingle()
-
-  if (!membership) {
-    return { ok: false, error: "No active clinic membership found." }
-  }
-
-  if (input.id) {
-    const { error } = await supabase
-      .from("doctor_availability")
-      .update({
-        day_of_week: input.dayOfWeek,
-        start_time: input.startTime,
-        end_time: input.endTime,
-        timezone: input.timezone,
-        is_active: input.isActive,
-      })
-      .eq("id", input.id)
-      .eq("doctor_id", access.userId)
-
-    if (error) return { ok: false, error: error.message }
-  } else {
-    const { error } = await supabase.from("doctor_availability").insert({
-      clinic_id: membership.clinic_id,
-      doctor_id: access.userId,
-      day_of_week: input.dayOfWeek,
-      start_time: input.startTime,
-      end_time: input.endTime,
-      timezone: input.timezone,
-      is_active: input.isActive,
-    })
-
-    if (error) return { ok: false, error: error.message }
-  }
-
-  revalidatePath("/physician/schedule")
-  return { ok: true }
-}
-
-export async function deleteAvailabilitySlot(id: string): Promise<ActionResult> {
-  const access = await requirePhysician()
-  if (!access) {
-    return { ok: false, error: "Unauthorized. Physician access required." }
-  }
-
-  const supabase = await createClient()
-  const { error } = await supabase
-    .from("doctor_availability")
-    .delete()
-    .eq("id", id)
-    .eq("doctor_id", access.userId)
-
-  if (error) return { ok: false, error: error.message }
-
-  revalidatePath("/physician/schedule")
-  return { ok: true }
-}

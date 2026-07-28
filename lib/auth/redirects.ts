@@ -5,6 +5,7 @@ export const ROLE_DASHBOARD_PATHS: Record<WebRole, string> = {
   nurse: "/nurse/dashboard",
   physician: "/physician/dashboard",
   dentist: "/dentist/dashboard",
+  queue_display: "/queue-management/display",
 }
 
 const ROLE_PREFIXES: Record<WebRole, string> = {
@@ -12,6 +13,7 @@ const ROLE_PREFIXES: Record<WebRole, string> = {
   nurse: "/nurse",
   physician: "/physician",
   dentist: "/dentist",
+  queue_display: "/queue-management",
 }
 
 const PREFIX_TO_ROLE = new Map<string, WebRole>(
