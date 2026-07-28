@@ -167,7 +167,7 @@ export async function startConsultation(
     .eq("id", appointmentId)
 
   const { data: existing } = await supabase
-    .from("consultations")
+    .from("appointment_consultations")
     .select("id")
     .eq("appointment_id", appointmentId)
     .maybeSingle()
@@ -179,7 +179,7 @@ export async function startConsultation(
   }
 
   const { data: created, error } = await supabase
-    .from("consultations")
+    .from("appointment_consultations")
     .insert({
       appointment_id: appointmentId,
       clinic_id: appointment.clinic_id,
@@ -225,7 +225,7 @@ export async function saveConsultation(input: {
   }
 
   const { error } = await supabase
-    .from("consultations")
+    .from("appointment_consultations")
     .update(payload)
     .eq("appointment_id", input.appointmentId)
     .eq("doctor_id", access.userId)

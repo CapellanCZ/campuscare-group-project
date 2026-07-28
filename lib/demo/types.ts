@@ -25,38 +25,6 @@ export type DemoConsultationRequest = {
   submittedAt: string
 }
 
-export type DemoPatient = {
-  id: string
-  studentId: string
-  fullName: string
-  course: string
-  yearLevel: string
-  bloodType: string
-  allergies: string
-  lastVisit: string
-  consultationsCount: number
-  documentsCount: number
-}
-
-export type ConsultationStatus =
-  | "awaiting_assessment"
-  | "in_progress"
-  | "completed"
-
-export type DemoConsultation = {
-  id: string
-  patientName: string
-  studentId: string
-  station: "nurse" | "physician" | "dentist"
-  chiefComplaint: string
-  status: ConsultationStatus
-  startedAt: string
-  provider: string
-  hasAssessment: boolean
-  hasDiagnosis: boolean
-  hasPrescription: boolean
-}
-
 export type DemoReportRow = {
   id: string
   period: string

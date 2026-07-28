@@ -157,7 +157,7 @@ export async function loadPhysicianWorkspace(): Promise<PhysicianWorkspace> {
     })) ?? []
 
   const { data: consultationRows } = await supabase
-    .from("consultations")
+    .from("appointment_consultations")
     .select(
       `
       id,
