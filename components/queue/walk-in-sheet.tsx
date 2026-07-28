@@ -4,7 +4,7 @@ import { useState, useTransition } from "react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 
-import { actionRegisterWalkIn } from "@/lib/health/queue-server-actions"
+import { SelectWithOtherField } from "@/components/shared/select-with-other-field"
 import { Button } from "@/components/ui/button"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -17,7 +17,11 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
+import { CONSULTATION_TYPE_OPTIONS } from "@/lib/health/form-options"
+import { actionRegisterWalkIn } from "@/lib/health/queue-server-actions"
 import { IconUserPlus } from "@tabler/icons-react"
+
+const DEFAULT_CONSULTATION = "Walk-in consultation"
 
 export function WalkInSheet() {
   const router = useRouter()
@@ -25,8 +29,17 @@ export function WalkInSheet() {
   const [pending, startTransition] = useTransition()
   const [patientName, setPatientName] = useState("")
   const [campusId, setCampusId] = useState("")
-  const [consultationType, setConsultationType] = useState("Walk-in consultation")
+  const [consultationType, setConsultationType] = useState(DEFAULT_CONSULTATION)
   const [error, setError] = useState<string | null>(null)
+  const [formKey, setFormKey] = useState(0)
+
+  function resetForm() {
+    setPatientName("")
+    setCampusId("")
+    setConsultationType(DEFAULT_CONSULTATION)
+    setError(null)
+    setFormKey((key) => key + 1)
+  }
 
   function onSubmit(event: React.FormEvent) {
     event.preventDefault()
@@ -36,13 +49,16 @@ export function WalkInSheet() {
       setError("Enter the patient name.")
       return
     }
+    if (!consultationType.trim()) {
+      setError("Choose a consultation type, or specify Other.")
+      return
+    }
 
     startTransition(async () => {
       const result = await actionRegisterWalkIn({
         patientName,
         studentId: campusId || undefined,
-        consultationType,
-        // Phase 2: walk-ins always land on nurse first.
+        consultationType: consultationType.trim(),
         providerQueue: "nurse",
       })
 
@@ -54,27 +70,36 @@ export function WalkInSheet() {
 
       toast.success(result.message ?? "Walk-in registered")
       setOpen(false)
-      setPatientName("")
-      setCampusId("")
-      setConsultationType("Walk-in consultation")
+      resetForm()
       router.refresh()
     })
   }
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) resetForm()
+      }}
+    >
       <SheetTrigger render={<Button variant="outline" />}>
-        <IconUserPlus data-icon="inline-start" />
+        <IconUserPlus data-icon="inline-start" aria-hidden />
         Register walk-in
       </SheetTrigger>
-      <SheetContent className="flex flex-col gap-0 sm:max-w-md">
-        <SheetHeader>
+      <SheetContent className="flex flex-col gap-0 p-0 sm:max-w-md">
+        <SheetHeader className="gap-1 border-b px-4 py-3 text-left">
           <SheetTitle>Register walk-in</SheetTitle>
-          <SheetDescription>
-            Check-in starts at the nurse station for vitals and specialty assignment.
+          <SheetDescription className="text-xs">
+            Check-in starts at the nurse station for vitals and specialty
+            assignment.
           </SheetDescription>
         </SheetHeader>
-        <form className="flex flex-1 flex-col gap-4 px-4 py-4" onSubmit={onSubmit}>
+        <form
+          key={formKey}
+          className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-4"
+          onSubmit={onSubmit}
+        >
           <Field data-invalid={error ? true : undefined}>
             <FieldLabel htmlFor="walkin-name">Patient name</FieldLabel>
             <Input
@@ -84,6 +109,7 @@ export function WalkInSheet() {
               placeholder="Full name"
               required
               disabled={pending}
+              autoComplete="name"
             />
           </Field>
           <Field>
@@ -96,17 +122,20 @@ export function WalkInSheet() {
               onChange={(e) => setCampusId(e.target.value)}
               placeholder="2023-000000 or FAC-12"
               disabled={pending}
+              autoComplete="off"
             />
           </Field>
-          <Field>
-            <FieldLabel htmlFor="walkin-type">Consultation type</FieldLabel>
-            <Input
-              id="walkin-type"
-              value={consultationType}
-              onChange={(e) => setConsultationType(e.target.value)}
-              disabled={pending}
-            />
-          </Field>
+          <SelectWithOtherField
+            id="walkin-type"
+            label="Consultation type"
+            options={CONSULTATION_TYPE_OPTIONS}
+            value={consultationType}
+            onValueChange={setConsultationType}
+            placeholder="Select consultation type"
+            otherPlaceholder="e.g. Vaccination, counseling…"
+            disabled={pending}
+            required
+          />
           {error ? (
             <p role="alert" className="text-sm text-destructive">
               {error}

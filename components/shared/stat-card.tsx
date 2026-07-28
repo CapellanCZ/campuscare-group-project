@@ -2,10 +2,12 @@ import { cn } from "@/lib/utils"
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
 import { Delta, DeltaIcon, DeltaValue } from "@/components/delta"
+import { panelCardClassName } from "@/components/layout/panel-frame"
 
 type StatCardProps = {
   label: string
@@ -15,6 +17,8 @@ type StatCardProps = {
   lowerIsBetter?: boolean
   className?: string
   icon?: React.ReactNode
+  /** Efferd flush cell — no radius/ring when nested in PanelFrame */
+  flush?: boolean
 }
 
 export function StatCard({
@@ -22,33 +26,40 @@ export function StatCard({
   value,
   description,
   delta,
-  lowerIsBetter = false,
   className,
   icon,
+  flush = false,
 }: StatCardProps) {
   return (
-    <Card className={cn("min-w-0 shadow-none dark:ring-0", className)}>
-      <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0">
-        <CardTitle className="font-normal text-muted-foreground text-xs">
+    <Card
+      className={cn(
+        "min-w-0 shadow-none dark:ring-0",
+        flush && panelCardClassName,
+        className
+      )}
+    >
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+        <CardTitle className="font-normal text-xs tracking-wide text-muted-foreground">
           {label}
         </CardTitle>
         {icon ? (
           <div className="text-muted-foreground [&_svg]:size-4">{icon}</div>
-        ) : null}
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        <p className="truncate font-semibold text-2xl tabular-nums">{value}</p>
-        <div className="flex min-w-0 flex-wrap items-center gap-1 text-xs">
-          {typeof delta === "number" ? (
+        ) : typeof delta === "number" ? (
+          <CardDescription className="flex items-center gap-1 text-xs tabular-nums">
             <Delta value={delta}>
               <DeltaIcon />
               <DeltaValue />
             </Delta>
-          ) : null}
-          {description ? (
-            <span className="truncate text-muted-foreground">{description}</span>
-          ) : null}
-        </div>
+          </CardDescription>
+        ) : null}
+      </CardHeader>
+      <CardContent className="flex flex-row items-center gap-2">
+        <p className="truncate font-medium text-xl tabular-nums">{value}</p>
+        {description && typeof delta !== "number" ? (
+          <span className="truncate text-xs text-muted-foreground">
+            {description}
+          </span>
+        ) : null}
       </CardContent>
     </Card>
   )

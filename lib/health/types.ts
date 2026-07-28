@@ -9,6 +9,8 @@ export type StationId = "nurse" | "physician" | "dentist"
 
 export type SpecialtyStationId = Exclude<StationId, "nurse">
 
+export type PatientType = "student" | "faculty"
+
 export type QueueVitals = {
   bpSystolic: number | null
   bpDiastolic: number | null
@@ -30,6 +32,7 @@ export type QueueTicketRow = {
   createdAt: string | null
   patientId: string | null
   patientName: string
+  patientType: PatientType | null
   studentId: string | null
   campusId: string | null
   consultationType: string | null

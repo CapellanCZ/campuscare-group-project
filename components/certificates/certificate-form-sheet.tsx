@@ -10,6 +10,7 @@ import {
   updateMedicalCertificateAction,
 } from "@/features/certificates/actions"
 import { certificateStatusLabel } from "@/features/certificates/lib/format"
+import { SelectWithOtherField } from "@/components/shared/select-with-other-field"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -43,6 +44,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
+import { CERTIFICATE_PURPOSE_OPTIONS } from "@/lib/health/form-options"
 import { cn } from "@/lib/utils"
 import {
   MEDICAL_CERTIFICATE_STATUSES,
@@ -425,17 +427,18 @@ function CertificateFormBody({
             </Select>
           </Field>
 
-          <Field>
-            <FieldLabel htmlFor="cert-purpose">Purpose</FieldLabel>
-            <Input
-              id="cert-purpose"
-              value={form.purpose}
-              onChange={(event) => updateField("purpose", event.target.value)}
-              placeholder="Reason for issuing this certificate"
-              required
-              disabled={pending}
-            />
-          </Field>
+          <SelectWithOtherField
+            key={certificate?.id ?? "cert-create"}
+            id="cert-purpose"
+            label="Purpose"
+            options={CERTIFICATE_PURPOSE_OPTIONS}
+            value={form.purpose}
+            onValueChange={(value) => updateField("purpose", value)}
+            placeholder="Select purpose"
+            otherPlaceholder="Reason for issuing this certificate"
+            required
+            disabled={pending}
+          />
 
           <Field>
             <FieldLabel htmlFor="cert-doctor">Doctor name</FieldLabel>

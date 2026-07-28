@@ -1,14 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty"
 import { relativeTimeFrom } from "@/lib/health/time"
 import type { ActivityItem } from "@/lib/health/types"
-import { IconActivity } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 
 export function ActivityFeed({
@@ -22,28 +14,20 @@ export function ActivityFeed({
 }) {
   return (
     <Card className={cn("min-w-0 shadow-none dark:ring-0", className)}>
-      <CardHeader className="border-b">
-        <CardTitle className="text-base">{title}</CardTitle>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
       </CardHeader>
-      <CardContent className="p-0">
+      <CardContent className="px-0 pb-2">
         {items.length === 0 ? (
-          <Empty className="py-10">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <IconActivity />
-              </EmptyMedia>
-              <EmptyTitle>No recent activity</EmptyTitle>
-              <EmptyDescription>
-                Queue updates will show up here as patients move through stations.
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
+          <p className="px-6 py-8 text-sm text-muted-foreground">
+            Queue updates will show here as patients move through stations.
+          </p>
         ) : (
-          <ul className="divide-y">
+          <ul className="divide-y border-t">
             {items.map((item) => (
               <li
                 key={item.id}
-                className="flex min-w-0 items-start justify-between gap-3 px-4 py-3"
+                className="flex min-w-0 items-start justify-between gap-3 px-6 py-3.5"
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{item.title}</p>

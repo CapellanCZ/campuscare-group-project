@@ -287,9 +287,60 @@
   .hero-orb-alt,
   .hero-orb-slow,
   .hero-dot,
-  .logo-float {
+  .logo-float,
+  .animate-wait-pulse-ok,
+  .animate-wait-pulse-warn,
+  .animate-wait-pulse-urgent {
     animation: none;
   }
+}
+
+@keyframes wait-pulse-ok {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+}
+
+@keyframes wait-pulse-warn {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--warning) 55%, transparent);
+  }
+  70% {
+    opacity: 0.75;
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--warning) 0%, transparent);
+  }
+}
+
+@keyframes wait-pulse-urgent {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--destructive) 60%, transparent);
+  }
+  70% {
+    opacity: 0.65;
+    box-shadow: 0 0 0 5px color-mix(in oklab, var(--destructive) 0%, transparent);
+  }
+}
+
+.animate-wait-pulse-ok {
+  animation: wait-pulse-ok 2.4s ease-in-out infinite;
+}
+
+.animate-wait-pulse-warn {
+  animation: wait-pulse-warn 1.5s ease-in-out infinite;
+}
+
+.animate-wait-pulse-urgent {
+  animation: wait-pulse-urgent 0.9s ease-in-out infinite;
 }
 
 @media print {

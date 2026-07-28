@@ -1,4 +1,5 @@
 import type {
+  PatientType,
   QueueTicketRow,
   QueueVitals,
   StationId,
@@ -102,6 +103,17 @@ export function formatPatientName(
   return `${parts[0]} ${parts[parts.length - 1]?.charAt(0) ?? ""}.`
 }
 
+function asPatientType(value: string | null | undefined): PatientType | null {
+  if (value === "student" || value === "faculty") return value
+  return null
+}
+
+export function patientTypeLabel(type: PatientType | null | undefined) {
+  if (type === "faculty") return "Faculty"
+  if (type === "student") return "Student"
+  return "—"
+}
+
 export function ticketLabel(queueNumber: number | null, ticketCode: string) {
   if (queueNumber != null) {
     return String(queueNumber).padStart(4, "0")
@@ -151,6 +163,7 @@ export function mapTicketRow(
     createdAt: raw.created_at,
     patientId: raw.patient_id ?? patient?.id ?? null,
     patientName,
+    patientType: asPatientType(patient?.patient_type),
     studentId: campusId,
     campusId,
     consultationType: raw.consultation_type ?? "Consultation",

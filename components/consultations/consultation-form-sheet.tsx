@@ -9,6 +9,7 @@ import {
   updateConsultationAction,
 } from "@/features/consultations/actions"
 import { listPatientOptionsAction } from "@/features/patients/actions"
+import { SelectWithOtherField } from "@/components/shared/select-with-other-field"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -42,6 +43,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
+import { CHIEF_COMPLAINT_OPTIONS } from "@/lib/health/form-options"
 import { cn } from "@/lib/utils"
 import {
   CONSULTATION_PRIORITIES,
@@ -302,14 +304,17 @@ export function ConsultationFormSheet({
               </Popover>
             </Field>
 
-            <Field>
-              <FieldLabel htmlFor="chiefComplaint">Chief complaint *</FieldLabel>
-              <Input
-                id="chiefComplaint"
-                value={form.chiefComplaint}
-                onChange={(e) => update("chiefComplaint", e.target.value)}
-              />
-            </Field>
+            <SelectWithOtherField
+              key={consultation?.id ?? "consult-create"}
+              id="chiefComplaint"
+              label="Chief complaint *"
+              options={CHIEF_COMPLAINT_OPTIONS}
+              value={form.chiefComplaint}
+              onValueChange={(value) => update("chiefComplaint", value)}
+              placeholder="Select complaint"
+              otherPlaceholder="Describe the complaint…"
+              required
+            />
             <Field>
               <FieldLabel htmlFor="symptoms">Symptoms</FieldLabel>
               <Textarea
