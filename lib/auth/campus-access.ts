@@ -17,8 +17,8 @@ export async function hasCampusAccess(
   if (role === "admin") {
     const { data } = await client
       .from("admin_accounts")
-      .select("profile_id")
-      .eq("profile_id", userId)
+      .select("user_id")
+      .eq("user_id", userId)
       .eq("is_active", true)
       .maybeSingle()
     return Boolean(data)
@@ -26,8 +26,8 @@ export async function hasCampusAccess(
 
   const { data } = await client
     .from("clinic_members")
-    .select("clinic_id")
-    .eq("profile_id", userId)
+    .select("user_id")
+    .eq("user_id", userId)
     .eq("is_active", true)
     .limit(1)
     .maybeSingle()

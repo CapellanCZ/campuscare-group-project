@@ -269,7 +269,7 @@ export async function upsertAvailabilitySlot(input: {
   const { data: membership } = await supabase
     .from("clinic_members")
     .select("clinic_id")
-    .eq("profile_id", access.userId)
+    .eq("user_id", access.userId)
     .eq("is_active", true)
     .limit(1)
     .maybeSingle()

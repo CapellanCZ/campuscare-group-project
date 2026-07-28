@@ -18,17 +18,17 @@ function buildOtpEmailHtml(token: string) {
 export async function sendLoginOtpEmail(email: string): Promise<void> {
   const admin = createAdminClient()
 
-  const { data: profile, error: profileError } = await admin
-    .from("profiles")
+  const { data: userRow, error: userError } = await admin
+    .from("users")
     .select("id, is_active, primary_role")
     .eq("email", email)
     .maybeSingle()
 
-  if (profileError) {
-    throw profileError
+  if (userError) {
+    throw userError
   }
 
-  if (!profile) {
+  if (!userRow) {
     const notRegistered = new Error(
       "This email is not registered as clinic staff. Ask an admin to import your account first."
     )
@@ -36,7 +36,7 @@ export async function sendLoginOtpEmail(email: string): Promise<void> {
     throw notRegistered
   }
 
-  if (profile.is_active === false) {
+  if (userRow.is_active === false) {
     const inactive = new Error(
       "This account is inactive. Ask an admin to restore access."
     )
@@ -44,12 +44,12 @@ export async function sendLoginOtpEmail(email: string): Promise<void> {
     throw inactive
   }
 
-  const role = String(profile.primary_role ?? "").toLowerCase()
+  const role = String(userRow.primary_role ?? "").toLowerCase()
   if (role === "admin") {
     const { data: adminRow } = await admin
       .from("admin_accounts")
-      .select("profile_id")
-      .eq("profile_id", profile.id)
+      .select("user_id")
+      .eq("user_id", userRow.id)
       .eq("is_active", true)
       .maybeSingle()
 
@@ -63,15 +63,15 @@ export async function sendLoginOtpEmail(email: string): Promise<void> {
   } else {
     const { data: membership } = await admin
       .from("clinic_members")
-      .select("clinic_id")
-      .eq("profile_id", profile.id)
+      .select("user_id")
+      .eq("user_id", userRow.id)
       .eq("is_active", true)
       .limit(1)
       .maybeSingle()
 
     if (!membership) {
       const pending = new Error(
-        "This account is not assigned to a clinic yet. Ask an admin to finish setup."
+        "This account is not assigned to the clinic yet. Ask an admin to finish setup."
       )
       ;(pending as Error & { status?: number }).status = 403
       throw pending

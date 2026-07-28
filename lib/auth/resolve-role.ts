@@ -8,7 +8,7 @@ const CLINIC_ROLES = [
   "queue_display",
 ] as const satisfies readonly ClinicDesignation[]
 
-/** Fields that exist on live `profiles` for RBAC gates. */
+/** Fields that exist on live `users` for RBAC gates. */
 export type ProfileRoleFields = {
   primary_role?: string | null
   is_active?: boolean | null
@@ -31,7 +31,7 @@ export function isClinicWebRole(value: string | null | undefined): value is WebR
 }
 
 /**
- * Resolve clinic RBAC role from profiles.
+ * Resolve clinic RBAC role from users.
  * Prefer `primary_role` (web_role). No silent default.
  */
 export function resolveClinicRole(

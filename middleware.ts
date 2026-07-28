@@ -32,7 +32,7 @@ export async function middleware(request: NextRequest) {
 
   if (user && (isStaffArea || isPending || isContinue)) {
     const { data: profile } = await supabase
-      .from("profiles")
+      .from("users")
       .select("primary_role, is_active")
       .eq("id", user.id)
       .maybeSingle()

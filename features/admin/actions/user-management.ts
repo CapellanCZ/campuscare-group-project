@@ -66,7 +66,7 @@ async function resolveClinicIdForMembership(
   const { data: existing } = await adminClient
     .from("clinic_members")
     .select("clinic_id")
-    .eq("profile_id", userId)
+    .eq("user_id", userId)
     .limit(1)
     .maybeSingle()
 
@@ -153,15 +153,15 @@ async function upsertAdminAccount(
   isActive = true
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   // Admins are never clinic_members — keep directories separate.
-  await adminClient.from("clinic_members").delete().eq("profile_id", userId)
+  await adminClient.from("clinic_members").delete().eq("user_id", userId)
 
   const { error } = await adminClient.from("admin_accounts").upsert(
     {
-      profile_id: userId,
+      user_id: userId,
       is_active: isActive,
       updated_at: new Date().toISOString(),
     },
-    { onConflict: "profile_id" }
+    { onConflict: "user_id" }
   )
 
   if (error) {
@@ -185,12 +185,12 @@ async function upsertClinicMembership(
   }
 
   // Staff never belong in admin_accounts.
-  await adminClient.from("admin_accounts").delete().eq("profile_id", userId)
+  await adminClient.from("admin_accounts").delete().eq("user_id", userId)
 
   const { data: existingRows, error: existingError } = await adminClient
     .from("clinic_members")
     .select("clinic_id")
-    .eq("profile_id", userId)
+    .eq("user_id", userId)
 
   if (existingError) {
     return {
@@ -203,7 +203,7 @@ async function upsertClinicMembership(
     const { error: updateError } = await adminClient
       .from("clinic_members")
       .update({ member_role: role, is_active: isActive })
-      .eq("profile_id", userId)
+      .eq("user_id", userId)
 
     if (updateError) {
       return {
@@ -220,18 +220,18 @@ async function upsertClinicMembership(
     return {
       ok: false,
       error:
-        "No campus clinic exists yet. Seed clinics before inviting staff.",
+        "Could not resolve campus clinic id for membership. Check patients or existing members.",
     }
   }
 
   const { error } = await adminClient.from("clinic_members").upsert(
     {
-      profile_id: userId,
+      user_id: userId,
       clinic_id: clinicId,
       member_role: role,
       is_active: isActive,
     },
-    { onConflict: "clinic_id,profile_id" }
+    { onConflict: "user_id" }
   )
 
   if (error) {
@@ -265,7 +265,7 @@ export async function listStaffUsers(
   const adminClient = adminClientResult.client
 
   const { data: profileRows, error: profileError } = await adminClient
-    .from("profiles")
+    .from("users")
     .select("id, full_name, email, primary_role, is_active, invite_pending")
     .in("primary_role", scopedRoles)
 
@@ -283,7 +283,7 @@ export async function listStaffUsers(
   if (listingAdmins) {
     const { data: adminRows, error: adminError } = await adminClient
       .from("admin_accounts")
-      .select("profile_id")
+      .select("user_id")
 
     if (adminError) {
       return {
@@ -293,13 +293,13 @@ export async function listStaffUsers(
     }
 
     const adminIds = new Set(
-      (adminRows ?? []).map((row) => row.profile_id as string)
+      (adminRows ?? []).map((row) => row.user_id as string)
     )
     rows = rows.filter((row) => adminIds.has(row.id))
   } else {
     const { data: memberRows, error: memberError } = await adminClient
       .from("clinic_members")
-      .select("profile_id, member_role")
+      .select("user_id, member_role")
       .in("member_role", scopedRoles)
 
     if (memberError) {
@@ -310,7 +310,7 @@ export async function listStaffUsers(
     }
 
     const memberIds = new Set(
-      (memberRows ?? []).map((row) => row.profile_id as string)
+      (memberRows ?? []).map((row) => row.user_id as string)
     )
     rows = rows.filter(
       (row) => memberIds.has(row.id) && row.primary_role !== "admin"
@@ -325,8 +325,8 @@ export async function listStaffUsers(
   } else if (userIds.length > 0) {
     const { data: membershipRows, error: membershipError } = await adminClient
       .from("clinic_members")
-      .select("profile_id")
-      .in("profile_id", userIds)
+      .select("user_id")
+      .in("user_id", userIds)
       .eq("is_active", true)
 
     if (membershipError) {
@@ -337,7 +337,7 @@ export async function listStaffUsers(
     }
 
     for (const row of membershipRows ?? []) {
-      if (row.profile_id) membershipSet.add(row.profile_id)
+      if (row.user_id) membershipSet.add(row.user_id)
     }
   }
 
@@ -476,7 +476,7 @@ export async function createStaffUser(
     }
   }
 
-  const { error: profileError } = await adminClient.from("profiles").upsert(
+  const { error: profileError } = await adminClient.from("users").upsert(
     {
       id: userId,
       email,
@@ -548,7 +548,7 @@ export async function setStaffUserActive(
   const adminClient = adminClientResult.client
 
   const { data: profile, error: profileLookupError } = await adminClient
-    .from("profiles")
+    .from("users")
     .select("id, primary_role")
     .eq("id", userId)
     .in("primary_role", MANAGED_ROLES)
@@ -559,7 +559,7 @@ export async function setStaffUserActive(
   }
 
   const { data, error } = await adminClient
-    .from("profiles")
+    .from("users")
     .update({
       is_active: input.isActive,
       // Deactivate clears a pending invite; Activate alone restores prior access
@@ -580,11 +580,11 @@ export async function setStaffUserActive(
       ? await adminClient
           .from("admin_accounts")
           .update({ is_active: input.isActive })
-          .eq("profile_id", userId)
+          .eq("user_id", userId)
       : await adminClient
           .from("clinic_members")
           .update({ is_active: input.isActive })
-          .eq("profile_id", userId)
+          .eq("user_id", userId)
 
   if (membershipError) {
     return {
@@ -639,7 +639,7 @@ export async function updateStaffUserRole(
   const adminClient = adminClientResult.client
 
   const { data, error } = await adminClient
-    .from("profiles")
+    .from("users")
     .update({ primary_role: input.role })
     .eq("id", userId)
     .in("primary_role", MANAGED_ROLES)
@@ -700,7 +700,7 @@ export async function assignClinicMembership(
   const adminClient = adminClientResult.client
 
   const { data: profile, error: profileError } = await adminClient
-    .from("profiles")
+    .from("users")
     .select("id, primary_role, is_active")
     .eq("id", userId)
     .in("primary_role", MANAGED_ROLES)
@@ -741,7 +741,7 @@ export async function resendStaffInvite(
   const adminClient = adminClientResult.client
 
   const { data: profile, error: profileError } = await adminClient
-    .from("profiles")
+    .from("users")
     .select("email, full_name, primary_role, is_active")
     .eq("id", userId)
     .in("primary_role", MANAGED_ROLES)
@@ -755,7 +755,7 @@ export async function resendStaffInvite(
 
   // Re-invite reopens access and resets lifecycle to Invited until they sign in.
   const { error: reopenError } = await adminClient
-    .from("profiles")
+    .from("users")
     .update({ is_active: true, invite_pending: true })
     .eq("id", userId)
 
@@ -839,7 +839,7 @@ export async function deleteStaffUser(
   const adminClient = adminClientResult.client
 
   const { data: profile, error: profileError } = await adminClient
-    .from("profiles")
+    .from("users")
     .select("id, email, primary_role")
     .eq("id", userId)
     .in("primary_role", MANAGED_ROLES)
@@ -849,7 +849,7 @@ export async function deleteStaffUser(
     return { ok: false, error: "User not found in the directory." }
   }
 
-  // Auth delete cascades to profiles + clinic_members.
+  // Auth delete cascades to users + clinic_members.
   const { error: deleteError } =
     await adminClient.auth.admin.deleteUser(userId)
 

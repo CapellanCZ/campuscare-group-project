@@ -29,7 +29,7 @@ export async function getStaffAccess(): Promise<StaffAccess | null> {
   if (!user) return null
 
   const { data: profile, error } = await supabase
-    .from("profiles")
+    .from("users")
     .select("id, email, full_name, avatar_url, primary_role, is_active")
     .eq("id", user.id)
     .maybeSingle()

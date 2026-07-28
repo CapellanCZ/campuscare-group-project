@@ -2,7 +2,7 @@ export const OTP_LENGTH = 6
 export const RESEND_COOLDOWN_SECONDS = 60
 
 /**
- * Clinic web RBAC role from `profiles.primary_role` (`web_role` enum).
+ * Clinic web RBAC role from `users.primary_role` (`web_role` enum).
  * Drives route trees: /admin, /nurse, /physician, /dentist, /queue-management.
  */
 export type WebRole =
@@ -21,9 +21,9 @@ export type StaffAccess = {
   userId: string
   email: string
   fullName: string
-  /** Optional profile photo from `profiles.avatar_url` */
+  /** Optional profile photo from `users.avatar_url` */
   avatarUrl: string | null
-  /** RBAC role from profiles.primary_role */
+  /** RBAC role from users.primary_role */
   primaryRole: WebRole
   /** Same as primaryRole — kept for permission/queue call sites */
   designation: ClinicDesignation

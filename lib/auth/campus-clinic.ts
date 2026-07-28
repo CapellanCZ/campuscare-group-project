@@ -2,6 +2,9 @@ import "server-only"
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 
+/** Fixed single-campus UUID (kept on operational rows; no clinics catalog). */
+export const CAMPUS_CLINIC_ID = "34ad8ef3-74c6-4ac5-b64b-0fe28e6f848b"
+
 /**
  * Single-campus clinic: resolve the one clinic_id from memberships/patients.
  * Do not invent a second clinic — CampusCare only has one.
@@ -13,20 +16,11 @@ export async function resolveCampusClinicId(
     .from("clinic_members")
     .select("clinic_id")
     .eq("is_active", true)
+    .not("clinic_id", "is", null)
     .limit(1)
     .maybeSingle()
 
   if (membership?.clinic_id) return membership.clinic_id as string
-
-  const { data: clinic } = await client
-    .from("clinics")
-    .select("id")
-    .eq("is_active", true)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle()
-
-  if (clinic?.id) return clinic.id as string
 
   const { data: patient } = await client
     .from("patients")
@@ -34,5 +28,7 @@ export async function resolveCampusClinicId(
     .limit(1)
     .maybeSingle()
 
-  return (patient?.clinic_id as string | undefined) ?? null
+  if (patient?.clinic_id) return patient.clinic_id as string
+
+  return CAMPUS_CLINIC_ID
 }
