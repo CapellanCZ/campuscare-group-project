@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { CampusCareLogo } from "@/components/campuscare-logo"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { formatClock, formatLongDate } from "@/lib/health/time"
@@ -26,10 +27,11 @@ export function DisplayHeader({
     <header className="border-b bg-card/80 backdrop-blur">
       <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-4 md:flex-row md:items-center md:justify-between md:px-6 md:py-5">
         <div className="flex min-w-0 items-center gap-3">
-          <img
-            src="/images/Heart.png"
+          <CampusCareLogo
             alt=""
             className="h-10 w-auto shrink-0"
+            width={64}
+            height={40}
           />
           <div className="min-w-0">
             <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">

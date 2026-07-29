@@ -21,6 +21,7 @@ export type StaffNavIcon =
   | "users"
   | "settings"
   | "help"
+  | "schedule"
 
 export type StaffNavItemDef = {
   id: string
@@ -173,7 +174,7 @@ function resolveItemPath(
 export function buildStaffNavGroups(
   designation: ClinicDesignation
 ): StaffNavGroupDef[] {
-  return staffNavGroupTemplates.map((group) => ({
+  const groups = staffNavGroupTemplates.map((group) => ({
     id: group.id,
     label: group.label,
     items: group.items.map((item) => {
@@ -191,22 +192,41 @@ export function buildStaffNavGroups(
       }
     }),
   }))
+
+  if (designation === "physician" || designation === "dentist") {
+    const clinical = groups.find((g) => g.id === "clinical")
+    const schedulePath = `${staffBasePath(designation)}/schedule`
+    clinical?.items.splice(1, 0, {
+      id: "schedule",
+      title: "Schedule",
+      path: schedulePath,
+      icon: "schedule",
+      module: undefined,
+      matchPrefixes: [schedulePath],
+    })
+    if (designation === "physician") {
+      const appointmentsPath = `${staffBasePath(designation)}/appointments`
+      clinical?.items.splice(0, 0, {
+        id: "appointments",
+        title: "Appointments",
+        path: appointmentsPath,
+        icon: "requests",
+        module: undefined,
+        matchPrefixes: [appointmentsPath],
+      })
+    }
+  }
+
+  return groups
 }
 
 /** @deprecated Prefer buildStaffNavGroups(designation) */
 export const staffNavGroups: StaffNavGroupDef[] = buildStaffNavGroups("admin")
 
 export function buildStaffFooterNav(
-  designation: ClinicDesignation
+  _designation: ClinicDesignation
 ): StaffNavItemDef[] {
-  return [
-    {
-      id: "help",
-      title: "Help Center",
-      path: staffBasePath(designation),
-      icon: "help",
-    },
-  ]
+  return []
 }
 
 /** @deprecated Prefer buildStaffFooterNav(designation) */

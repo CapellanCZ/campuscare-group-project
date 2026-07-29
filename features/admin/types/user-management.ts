@@ -94,6 +94,38 @@ export type UpdateStaffUserRoleInput = {
   allowedRoles?: ManagedRole[]
 }
 
+export type StaffScheduleSlotInput = {
+  dayOfWeek: number
+  startTime: string
+  endTime: string
+  isActive?: boolean
+}
+
+export type UpdateStaffUserInput = {
+  userId: string
+  fullName: string
+  email: string
+  role: ManagedRole
+  allowedRoles?: ManagedRole[]
+  /** When provided (clinic staff), replaces weekly office hours. */
+  scheduleSlots?: StaffScheduleSlotInput[]
+}
+
+export type StaffUserEditData = {
+  userId: string
+  fullName: string
+  email: string
+  role: ManagedRole
+  isActive: boolean
+  scheduleSlots: Array<{
+    id: string
+    dayOfWeek: number
+    startTime: string
+    endTime: string
+    isActive: boolean
+  }>
+}
+
 export type AssignClinicMembershipInput = {
   userId: string
 }

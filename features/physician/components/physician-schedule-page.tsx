@@ -18,9 +18,9 @@ import {
 } from "@/components/ui/select"
 import { PageHeader } from "@/features/common/components/page-header"
 import {
-  deleteAvailabilitySlot,
-  upsertAvailabilitySlot,
-} from "@/features/physician/actions/appointments"
+  deleteStaffWeeklySlot as deleteAvailabilitySlot,
+  upsertStaffWeeklySlot as upsertAvailabilitySlot,
+} from "@/features/availability/actions/availability"
 import type { PhysicianWorkspace } from "@/features/physician/data/queries"
 import { CLINIC_TIMEZONE, DAY_LABELS } from "@/features/physician/types"
 

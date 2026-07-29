@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useState } from "react"
 
+import { RoleDashboardSummaries } from "@/components/dashboard/role-dashboard-summaries"
 import { ActivityFeed } from "@/components/shared/activity-feed"
 import { RecentlyServedCard } from "@/components/shared/recently-served-card"
 import { StatCard } from "@/components/shared/stat-card"
@@ -35,6 +36,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { StaffAccess } from "@/lib/auth/types"
+import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
 import { designationLabel, stationLabel } from "@/lib/health/roles"
 import { patientTypeLabel, ticketLabel } from "@/lib/health/mappers"
 import { needsNurseIntake } from "@/lib/health/nurse-queue"
@@ -56,6 +58,7 @@ export function RoleDashboard({
   activity,
   recent,
   stats,
+  summary,
 }: {
   access: StaffAccess
   kpis: DashboardKpis
@@ -64,10 +67,12 @@ export function RoleDashboard({
   activity: ActivityItem[]
   recent: RecentlyServedItem[]
   stats: QueueStats
+  summary: RoleDashboardSummary
 }) {
   const isSpecialty =
     access.designation === "physician" || access.designation === "dentist"
   const isNurse = access.designation === "nurse"
+  const isAdmin = access.designation === "admin"
   const [intakeTicket, setIntakeTicket] = useState<QueueTicketRow | null>(null)
   const nowServing = tickets.find((t) => t.status === "called") ?? null
   const waiting = (
@@ -79,20 +84,7 @@ export function RoleDashboard({
         )
   ).slice(0, 8)
 
-  const nurseStats = [
-    {
-      label: "Need intake",
-      value: String(waiting.length),
-    },
-    {
-      label: "Walk-ins",
-      value: String(stats.walkIns),
-    },
-    {
-      label: "Completed today",
-      value: String(stats.completedToday),
-    },
-  ]
+  const kpiCards = kpis.cards.slice(0, isAdmin || isNurse || isSpecialty ? 6 : 3)
 
   const queueHref =
     access.designation === "queue_display"
@@ -103,7 +95,7 @@ export function RoleDashboard({
     <div className="flex flex-1 flex-col gap-6">
       <PageIntro
         title={`Welcome back, ${access.fullName.split(" ")[0]}`}
-        description={`${designationLabel(access.designation)} station · ${stats.totalWaiting} waiting · ${stats.currentlyServing} serving`}
+        description={`${designationLabel(access.designation)} overview · ${stats.totalWaiting} waiting · ${stats.currentlyServing} serving`}
         action={
           <Button
             size="sm"
@@ -117,17 +109,15 @@ export function RoleDashboard({
 
       <PanelFrame>
         <PanelGrid className="lg:grid-cols-3">
-          {(isNurse ? nurseStats : kpis.cards.slice(0, 3)).map((card) => (
-            <PanelCell key={"key" in card ? card.key : card.label}>
+          {kpiCards.map((card) => (
+            <PanelCell key={String(card.key)}>
               <StatCard
                 flush
                 label={card.label}
-                value={card.value}
-                description={"description" in card ? card.description : undefined}
-                delta={"delta" in card ? card.delta : undefined}
-                lowerIsBetter={
-                  "lowerIsBetter" in card ? card.lowerIsBetter : undefined
-                }
+                value={String(card.value)}
+                description={card.description}
+                delta={card.delta}
+                lowerIsBetter={card.lowerIsBetter}
               />
             </PanelCell>
           ))}
@@ -190,7 +180,9 @@ export function RoleDashboard({
                     <CardDescription>
                       {isNurse
                         ? "Patients waiting for vitals and specialty assignment."
-                        : "Active tickets at your station."}
+                        : isAdmin
+                          ? "Clinic-wide tickets (view only)."
+                          : "Active tickets at your station."}
                     </CardDescription>
                   </div>
                   <Badge variant="secondary" className="tabular-nums">
@@ -350,6 +342,8 @@ export function RoleDashboard({
               </CardContent>
             </Card>
           </PanelCell>
+
+          <RoleDashboardSummaries access={access} summary={summary} />
 
           {!isNurse ? (
             <PanelCell className="lg:col-span-2">

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import {
   IconCalendarEvent,
+  IconCalendarTime,
   IconCertificate,
   IconChecklist,
   IconClipboardHeart,
@@ -53,6 +54,7 @@ const navIcons: Record<StaffNavIcon, ReactNode> = {
   users: <IconUsers />,
   settings: <IconSettings />,
   help: <IconHelpCircle />,
+  schedule: <IconCalendarTime />,
 }
 
 function toSidebarItem(

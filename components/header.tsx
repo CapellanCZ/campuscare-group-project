@@ -1,6 +1,6 @@
 "use client";
 import { cn } from "@/lib/utils";
-import { Logo } from "@/components/logo";
+import { CampusCareLogo } from "@/components/campuscare-logo";
 import { useScroll } from "@/hooks/use-scroll";
 import { Button } from "@/components/ui/button";
 import { MobileNav } from "@/components/mobile-nav";
@@ -46,7 +46,7 @@ export function Header() {
 					className="rounded-md p-2 hover:bg-muted dark:hover:bg-muted/50"
 					href="#"
 				>
-					<Logo className="h-4" />
+					<CampusCareLogo className="h-4 w-auto" width={72} height={16} />
 				</a>
 				<div className="hidden items-center gap-2 md:flex">
 					<div>

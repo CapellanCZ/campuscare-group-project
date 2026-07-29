@@ -10,7 +10,7 @@ import {
 } from "@/lib/auth/resolve-role"
 import { updateSession } from "@/lib/supabase/middleware"
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { supabase, user, supabaseResponse } = await updateSession(request)
   const { pathname } = request.nextUrl
 

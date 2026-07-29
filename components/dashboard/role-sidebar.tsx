@@ -1,9 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import Image from "next/image"
 import { IconChevronRight, IconPlus } from "@tabler/icons-react"
 
+import { CampusCareLogo } from "@/components/campuscare-logo"
 import {
   Collapsible,
   CollapsibleContent,
@@ -190,7 +190,7 @@ export function RoleSidebar({ role }: RoleSidebarProps) {
             />
           }
         >
-          <Image src="/images/Heart.png" alt="CampusCare" width={28} height={28} />
+          <CampusCareLogo alt="CampusCare" width={28} height={28} className="size-7" />
           <span className="font-medium">CampusCare</span>
         </SidebarMenuButton>
       </SidebarHeader>

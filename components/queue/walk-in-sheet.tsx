@@ -114,13 +114,13 @@ export function WalkInSheet() {
           </Field>
           <Field>
             <FieldLabel htmlFor="walkin-campus">
-              Student / employee ID (optional)
+              Student ID Number (optional)
             </FieldLabel>
             <Input
               id="walkin-campus"
               value={campusId}
               onChange={(e) => setCampusId(e.target.value)}
-              placeholder="2023-000000 or FAC-12"
+              placeholder="2023-171863"
               disabled={pending}
               autoComplete="off"
             />
