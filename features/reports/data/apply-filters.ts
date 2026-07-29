@@ -1,12 +1,9 @@
 import { catalogFor } from "@/features/reports/role-catalog"
 import {
-  SEED_CERTS,
-  SEED_CONSULTS,
-  SEED_QUEUE_DAYS,
-  SEED_REQUESTS,
   filterConsults,
   inDateRange,
   toTableRowsFromConsults,
+  type ReportsDataset,
   type SeedCertRow,
   type SeedConsultRow,
   type SeedQueueDay,
@@ -25,6 +22,29 @@ import type {
 } from "@/features/reports/types"
 import { REPORT_KIND_LABELS } from "@/features/reports/types"
 import type { ClinicDesignation } from "@/lib/auth/types"
+
+export type ReportsLiveMetrics = {
+  completedToday: number
+  walkIns: number
+  avgWait: number
+  pendingRequests: number
+  certsToday: number
+}
+
+const EMPTY_DATASET: ReportsDataset = {
+  consults: [],
+  certs: [],
+  requests: [],
+  queueDays: [],
+}
+
+const EMPTY_LIVE: ReportsLiveMetrics = {
+  completedToday: 0,
+  walkIns: 0,
+  avgWait: 0,
+  pendingRequests: 0,
+  certsToday: 0,
+}
 
 function defaultDateRange(): { dateFrom: string; dateTo: string } {
   const to = new Date()
@@ -141,11 +161,17 @@ function buildKpis(
     certsToday: number
   }
 ): ReportKpi[] {
-  const completed = consults.filter((c) => c.status === "Completed")
+  const completed = consults.filter(
+    (c) => c.status.toLowerCase() === "completed"
+  )
   const medical = consults.filter((c) => c.consultationType === "medical")
   const dental = consults.filter((c) => c.consultationType === "dental")
-  const issuedCerts = certs.filter((c) => c.status === "Issued")
+  const issuedCerts = certs.filter((c) => {
+    const status = c.status.toLowerCase()
+    return status === "issued" || status === "printed"
+  })
   const dentalCerts = issuedCerts.filter((c) => c.consultationType === "dental")
+  const todayYmd = new Date().toISOString().slice(0, 10)
 
   const map: Record<ReportKpiKey, ReportKpi> = {
     total_consultations: {
@@ -164,53 +190,44 @@ function buildKpis(
       key: "certs_issued",
       label: "Medical certificates issued",
       value: String(
-        Math.max(
-          issuedCerts.filter((c) => c.consultationType === "medical").length,
-          live.certsToday
-        )
+        issuedCerts.filter((c) => c.consultationType === "medical").length
       ),
       description: "Issued in range",
     },
     avg_wait: {
       key: "avg_wait",
       label: "Average waiting time",
-      value: `${avg(consults.map((c) => c.waitMinutes)) || live.avgWait} min`,
+      value: `${avg(consults.map((c) => c.waitMinutes).filter((n) => n > 0)) || live.avgWait} min`,
       description: "Minutes",
     },
     patients_served_today: {
       key: "patients_served_today",
       label: "Patients served today",
       value: String(
-        Math.max(
-          completed.filter((c) => c.date === new Date().toISOString().slice(0, 10))
-            .length,
+        completed.filter((c) => c.date === todayYmd).length ||
           live.completedToday
-        )
       ),
     },
     pending_requests: {
       key: "pending_requests",
       label: "Pending consultation requests",
       value: String(
-        Math.max(
-          requests.filter((r) => r.status === "Pending").length,
+        requests.filter((r) => r.status.toLowerCase() === "pending").length ||
           live.pendingRequests
-        )
       ),
     },
     walk_ins: {
       key: "walk_ins",
       label: "Walk-in patients",
       value: String(
-        Math.max(consults.filter((c) => c.walkIn).length, live.walkIns)
+        consults.filter((c) => c.walkIn).length || live.walkIns
       ),
     },
     consultations_today: {
       key: "consultations_today",
       label: "Consultations today",
       value: String(
-        medical.filter((c) => c.date === new Date().toISOString().slice(0, 10))
-          .length || live.completedToday
+        medical.filter((c) => c.date === todayYmd).length || live.completedToday
       ),
     },
     patients_treated: {
@@ -221,10 +238,7 @@ function buildKpis(
     dental_consultations_today: {
       key: "dental_consultations_today",
       label: "Dental consultations today",
-      value: String(
-        dental.filter((c) => c.date === new Date().toISOString().slice(0, 10))
-          .length
-      ),
+      value: String(dental.filter((c) => c.date === todayYmd).length),
     },
     dental_certs_issued: {
       key: "dental_certs_issued",
@@ -526,14 +540,9 @@ function buildTable(
 export function applyReportsFilters(
   designation: ClinicDesignation,
   filters: ReportFilters,
-  live: {
-    completedToday: number
-    walkIns: number
-    avgWait: number
-    pendingRequests: number
-    certsToday: number
-  }
-): Omit<ReportsBundle, "generatedAt" | "source"> {
+  live: ReportsLiveMetrics = EMPTY_LIVE,
+  dataset: ReportsDataset = EMPTY_DATASET
+): Omit<ReportsBundle, "generatedAt" | "source" | "live" | "dataset" | "error"> {
   const catalog = catalogFor(designation)
   const effective: ReportFilters = {
     ...filters,
@@ -545,10 +554,10 @@ export function applyReportsFilters(
       : (catalog.reportKinds[0] ?? "daily_consultation"),
   }
 
-  const consults = filterConsults(SEED_CONSULTS, effective)
-  const certs = filterCerts(SEED_CERTS, effective)
-  const requests = filterRequests(SEED_REQUESTS, effective)
-  const queueDays = filterQueue(SEED_QUEUE_DAYS, effective)
+  const consults = filterConsults(dataset.consults, effective)
+  const certs = filterCerts(dataset.certs, effective)
+  const requests = filterRequests(dataset.requests, effective)
+  const queueDays = filterQueue(dataset.queueDays, effective)
 
   const tables = catalog.reportKinds.map((kind) => {
     let scopedConsults = consults
@@ -583,19 +592,23 @@ export function applyReportsFilters(
 
   const personnel = [
     ...new Set([
-      ...SEED_CONSULTS.map((c) => c.assignedPersonnel),
-      ...SEED_CERTS.map((c) => c.doctorName),
-      ...SEED_REQUESTS.map((r) => r.assignedPersonnel),
+      ...dataset.consults.map((c) => c.assignedPersonnel),
+      ...dataset.certs.map((c) => c.doctorName),
+      ...dataset.requests.map((r) => r.assignedPersonnel),
     ]),
-  ].sort()
+  ]
+    .filter(Boolean)
+    .sort()
 
   const statuses = [
     ...new Set([
-      ...SEED_CONSULTS.map((c) => c.status),
-      ...SEED_CERTS.map((c) => c.status),
-      ...SEED_REQUESTS.map((r) => r.status),
+      ...dataset.consults.map((c) => c.status),
+      ...dataset.certs.map((c) => c.status),
+      ...dataset.requests.map((r) => r.status),
     ]),
-  ].sort()
+  ]
+    .filter(Boolean)
+    .sort()
 
   return {
     designation,

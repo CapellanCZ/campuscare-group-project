@@ -7,10 +7,7 @@ import {
 } from "@/lib/availability/queries"
 import { DAY_LABELS } from "@/lib/availability/types"
 import type { ClinicDesignation } from "@/lib/auth/types"
-import {
-  demoAnnouncements,
-  demoConsultationRequests,
-} from "@/lib/demo/fixtures"
+import { demoConsultationRequests } from "@/lib/demo/fixtures"
 import {
   isAtSpecialtyAfterIntake,
   isNurseQueueException,
@@ -19,6 +16,7 @@ import {
 import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
 import type { QueueTicketRow } from "@/lib/health/types"
 import { getDirectoryPatientRecordStats } from "@/lib/students/directory"
+import { getAnnouncements } from "@/services/announcements"
 import { getConsultationStats } from "@/services/consultations"
 import { getMedicalCertificateStats } from "@/services/medicalCertificates"
 import type { ConsultationStats } from "@/types/consultation"
@@ -38,17 +36,30 @@ const emptyCertificateStats: MedicalCertificateStats = {
   pending: 0,
 }
 
-function buildAnnouncements() {
-  const published = demoAnnouncements.filter((a) => a.status === "published")
-  return {
-    publishedCount: published.length,
-    recent: published.slice(0, 4).map((a) => ({
-      id: a.id,
-      title: a.title,
-      audience: a.audience,
-      status: a.status,
-      publishedAt: a.publishedAt,
-    })),
+async function buildAnnouncements() {
+  try {
+    const list = await getAnnouncements({
+      status: "published",
+      page: 1,
+      pageSize: 4,
+      sortBy: "published_at",
+      sortDirection: "desc",
+    })
+    return {
+      publishedCount: list.total,
+      recent: list.items.map((a) => ({
+        id: a.id,
+        title: a.title,
+        audience: a.audience,
+        status: a.status,
+        publishedAt: a.publishedAt,
+      })),
+    }
+  } catch {
+    return {
+      publishedCount: 0,
+      recent: [],
+    }
   }
 }
 
@@ -139,7 +150,7 @@ export async function loadRoleDashboardSummary(input: {
   const isPhysician = designation === "physician"
   const isSpecialty = isPhysician || designation === "dentist"
 
-  const [consultationStats, certificateStats, patientStats, staffSummary, schedule, physicianWorkspace] =
+  const [consultationStats, certificateStats, patientStats, staffSummary, schedule, physicianWorkspace, announcements] =
     await Promise.all([
       getConsultationStats().catch(() => emptyConsultationStats),
       getMedicalCertificateStats().catch(() => emptyCertificateStats),
@@ -153,6 +164,7 @@ export async function loadRoleDashboardSummary(input: {
         : Promise.resolve(null),
       isSpecialty ? loadScheduleStrip(userId) : Promise.resolve(null),
       isPhysician ? loadPhysicianWorkspace() : Promise.resolve(null),
+      buildAnnouncements(),
     ])
 
   return {
@@ -160,7 +172,7 @@ export async function loadRoleDashboardSummary(input: {
     certificateStats,
     patientStats,
     staffSummary,
-    announcements: buildAnnouncements(),
+    announcements,
     requests: buildRequests(isNurse ? 6 : 4),
     nurseLanes: isNurse || isAdmin
       ? buildNurseLanes(allTickets, checkedIn)

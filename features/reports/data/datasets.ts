@@ -58,6 +58,13 @@ export type SeedQueueDay = {
   peakHour: string
 }
 
+export type ReportsDataset = {
+  consults: SeedConsultRow[]
+  certs: SeedCertRow[]
+  requests: SeedRequestRow[]
+  queueDays: SeedQueueDay[]
+}
+
 function d(offset: number): string {
   const date = new Date()
   date.setDate(date.getDate() - offset)

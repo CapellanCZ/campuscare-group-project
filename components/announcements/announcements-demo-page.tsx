@@ -62,6 +62,8 @@ import type {
 
 const PAGE_SIZE = 10
 const SEARCH_DEBOUNCE_MS = 300
+const STATUS_FILTERS = ["all", "published", "scheduled", "draft"] as const
+type StatusFilter = (typeof STATUS_FILTERS)[number]
 
 function statusVariant(
   status: AnnouncementStatus
@@ -128,6 +130,7 @@ export function AnnouncementsPage({
 }) {
   const [query, setQuery] = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
   const [page, setPage] = useState(1)
   const [list, setList] = useState(initialList)
   const [stats, setStats] = useState(initialStats)
@@ -162,50 +165,58 @@ export function AnnouncementsPage({
     return () => window.clearTimeout(timer)
   }, [query, debouncedQuery])
 
-  const loadPage = useCallback(async (nextQuery: string, nextPage: number) => {
-    setLoading(true)
-    try {
-      const [listResult, statsResult] = await Promise.all([
-        searchAnnouncementsAction(nextQuery, {
-          page: nextPage,
-          pageSize: PAGE_SIZE,
-          sortBy: "updated_at",
-          sortDirection: "desc",
-        }),
-        fetchAnnouncementStatsAction(),
-      ])
+  const loadPage = useCallback(
+    async (
+      nextQuery: string,
+      nextPage: number,
+      nextStatus: StatusFilter = statusFilter
+    ) => {
+      setLoading(true)
+      try {
+        const [listResult, statsResult] = await Promise.all([
+          searchAnnouncementsAction(nextQuery, {
+            page: nextPage,
+            pageSize: PAGE_SIZE,
+            sortBy: "updated_at",
+            sortDirection: "desc",
+            status: nextStatus === "all" ? "all" : nextStatus,
+          }),
+          fetchAnnouncementStatsAction(),
+        ])
 
-      if (!listResult.ok) {
-        toast.error(listResult.error)
-        return
-      }
-      if (!statsResult.ok) {
-        toast.error(statsResult.error)
-        return
-      }
+        if (!listResult.ok) {
+          toast.error(listResult.error)
+          return
+        }
+        if (!statsResult.ok) {
+          toast.error(statsResult.error)
+          return
+        }
 
-      setList(listResult.data)
-      setStats(statsResult.data)
-    } catch {
-      toast.error(
-        "Unable to reach the database. Check your connection and try again."
-      )
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+        setList(listResult.data)
+        setStats(statsResult.data)
+      } catch {
+        toast.error(
+          "Unable to reach the database. Check your connection and try again."
+        )
+      } finally {
+        setLoading(false)
+      }
+    },
+    [statusFilter]
+  )
 
   const refresh = useCallback(async () => {
-    await loadPage(debouncedQuery, page)
-  }, [debouncedQuery, page, loadPage])
+    await loadPage(debouncedQuery, page, statusFilter)
+  }, [debouncedQuery, page, statusFilter, loadPage])
 
   useEffect(() => {
     if (skipNextFetch.current) {
       skipNextFetch.current = false
       return
     }
-    void loadPage(debouncedQuery, page)
-  }, [debouncedQuery, page, loadPage])
+    void loadPage(debouncedQuery, page, statusFilter)
+  }, [debouncedQuery, page, statusFilter, loadPage])
 
   const statCards = useMemo(() => toStatCards(stats), [stats])
   const showSkeleton = loading || isPending
@@ -281,15 +292,37 @@ export function AnnouncementsPage({
         <DemoStatGrid stats={statCards} />
       ) : null}
 
+      {can(d, "announcements.table") ? (
       <Card className="min-w-0 shadow-none dark:ring-0">
         <CardHeader className="flex flex-col gap-3 border-b sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-base">Announcement table</CardTitle>
-          <Input
-            className="sm:w-72"
-            placeholder="Search title or audience"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            {canManage ? (
+              <div className="flex flex-wrap gap-1">
+                {STATUS_FILTERS.map((value) => (
+                  <Button
+                    key={value}
+                    size="xs"
+                    variant={statusFilter === value ? "default" : "outline"}
+                    onClick={() => {
+                      setStatusFilter(value)
+                      setPage(1)
+                    }}
+                  >
+                    {value === "all"
+                      ? "All"
+                      : announcementStatusLabel(value)}
+                  </Button>
+                ))}
+              </div>
+            ) : null}
+            <Input
+              className="sm:w-72"
+              placeholder="Search title or audience"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {showSkeleton ? (
@@ -428,6 +461,7 @@ export function AnnouncementsPage({
           )}
         </CardContent>
       </Card>
+      ) : null}
 
       <AnnouncementDetailSheet
         announcement={selected}

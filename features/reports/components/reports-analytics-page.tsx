@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useTransition } from "react"
+import { useEffect, useMemo, useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { ReportChartCard } from "@/features/reports/components/report-chart-card"
@@ -27,7 +27,11 @@ import {
   type ExportMeta,
 } from "@/features/reports/lib/export-letterhead"
 import { printClinicProgressReport } from "@/features/reports/lib/export-pdf"
-import type { ReportFilters, ReportKind, ReportsBundle } from "@/features/reports/types"
+import type {
+  ReportFilters,
+  ReportKind,
+  ReportsBundle,
+} from "@/features/reports/types"
 import { REPORT_KIND_LABELS } from "@/features/reports/types"
 import { can, getAccessLevel } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
@@ -46,36 +50,21 @@ export function ReportsAnalyticsPage({
   const [filters, setFilters] = useState<ReportFilters>(initialBundle.filters)
   const [pending, startTransition] = useTransition()
 
-  const liveSeed = useMemo(
-    () => ({
-      completedToday: Number(
-        initialBundle.kpis.find((k) => k.key.includes("today"))?.value ?? 0
-      ),
-      walkIns: Number(
-        initialBundle.kpis.find((k) => k.key === "walk_ins")?.value ?? 0
-      ),
-      avgWait: Number.parseInt(
-        initialBundle.kpis.find((k) => k.key === "avg_wait")?.value ?? "0",
-        10
-      ) || 0,
-      pendingRequests: Number(
-        initialBundle.kpis.find((k) => k.key === "pending_requests")?.value ?? 0
-      ),
-      certsToday: Number(
-        initialBundle.kpis.find((k) => k.key === "certs_issued")?.value ?? 0
-      ),
-    }),
-    [initialBundle.kpis]
-  )
+  useEffect(() => {
+    if (initialBundle.error) {
+      toast.error(initialBundle.error)
+    }
+  }, [initialBundle.error])
 
   const bundle = useMemo(
     () =>
-      applyReportsFilters(d, filters, liveSeed) as Omit<
-        ReportsBundle,
-        "generatedAt" | "source"
-      > &
-        Partial<Pick<ReportsBundle, "generatedAt" | "source">>,
-    [d, filters, liveSeed]
+      applyReportsFilters(
+        d,
+        filters,
+        initialBundle.live,
+        initialBundle.dataset
+      ),
+    [d, filters, initialBundle.live, initialBundle.dataset]
   )
 
   const activeTable =
@@ -96,7 +85,14 @@ export function ReportsAnalyticsPage({
       charts: bundle.charts,
       tables: bundle.tables,
     }
-  }, [bundle.kpis, bundle.charts, bundle.tables, filters.dateFrom, filters.dateTo, d])
+  }, [
+    bundle.kpis,
+    bundle.charts,
+    bundle.tables,
+    filters.dateFrom,
+    filters.dateTo,
+    d,
+  ])
 
   const cardsLevel = getAccessLevel(d, "reports.summary_cards")
   const chartsLevel = getAccessLevel(d, "reports.charts")
@@ -104,8 +100,8 @@ export function ReportsAnalyticsPage({
   const canExcel = can(d, "reports.export_excel")
   const canFilters = can(d, "reports.filters")
   const exportEmpty =
-    exportPack.kpis.length === 0 &&
-    exportPack.charts.length === 0 &&
+    exportPack.kpis.every((k) => k.value === "0" || k.value === "0 min") &&
+    exportPack.charts.every((c) => c.points.length === 0) &&
     exportPack.tables.every((t) => t.rows.length === 0)
 
   function updateFilters(next: Partial<ReportFilters>) {
@@ -148,7 +144,9 @@ export function ReportsAnalyticsPage({
         meta: exportMeta(),
         pack: exportPack,
       })
-      toast.success("Clinic progress Excel downloaded (overview, charts, tables).")
+      toast.success(
+        "Clinic progress Excel downloaded (overview, charts, tables)."
+      )
     } catch {
       toast.error("Could not export Excel.")
     }
@@ -236,12 +234,7 @@ export function ReportsAnalyticsPage({
 
           {chartsLevel !== "none"
             ? bundle.charts.map((series) => (
-                <PanelCell
-                  key={series.key}
-                  className={
-                    series.kind === "pie" ? undefined : "md:col-span-1 lg:col-span-1"
-                  }
-                >
+                <PanelCell key={series.key}>
                   <ReportChartCard series={series} />
                 </PanelCell>
               ))
@@ -253,9 +246,11 @@ export function ReportsAnalyticsPage({
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <CardTitle className="text-base">Reports</CardTitle>
                   <Badge variant="outline">
-                    {initialBundle.source === "live+seed"
-                      ? "Live + clinic dataset"
-                      : "Clinic dataset"}
+                    {initialBundle.source === "live"
+                      ? "Live clinic data"
+                      : initialBundle.source === "live+seed"
+                        ? "Live + clinic dataset"
+                        : "Clinic demo dataset"}
                   </Badge>
                 </div>
                 <div className="flex flex-wrap gap-2">

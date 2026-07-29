@@ -2,7 +2,9 @@ import "server-only"
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 
+import { getStaffAccess } from "@/lib/auth/access"
 import { CAMPUS_CLINIC_ID, resolveCampusClinicId } from "@/lib/auth/campus-clinic"
+import { canMutate } from "@/lib/auth/permissions"
 import { createClient } from "@/lib/supabase/server"
 import {
   ANNOUNCEMENT_STATUSES,
@@ -190,6 +192,21 @@ async function requireUserId(client: SupabaseClient): Promise<string> {
   return user.id
 }
 
+async function requireAnnouncementAdmin(): Promise<void> {
+  const access = await getStaffAccess()
+  if (!access || !canMutate(access.designation, "announcements.add")) {
+    throw new AnnouncementServiceError(
+      "permission",
+      "Only clinic admins can manage announcements."
+    )
+  }
+}
+
+async function viewerIsAdmin(): Promise<boolean> {
+  const access = await getStaffAccess()
+  return Boolean(access && canMutate(access.designation, "announcements.add"))
+}
+
 function validateTitle(title: string) {
   const trimmed = title.trim()
   if (!trimmed) {
@@ -260,7 +277,10 @@ export async function getAnnouncements(
 
   let request = supabase.from("announcements").select(SELECT_WITH_AUTHOR)
 
-  if (status !== "all") {
+  const isAdmin = await viewerIsAdmin()
+  if (!isAdmin) {
+    request = request.eq("status", "published")
+  } else if (status !== "all") {
     request = request.eq("status", status)
   }
 
@@ -325,14 +345,26 @@ export async function getAnnouncementById(
     throw new AnnouncementServiceError("not_found", "Announcement not found.")
   }
 
-  return mapAnnouncement(data as AnnouncementRow)
+  const announcement = mapAnnouncement(data as AnnouncementRow)
+  if (announcement.status !== "published" && !(await viewerIsAdmin())) {
+    throw new AnnouncementServiceError(
+      "permission",
+      "You do not have permission to view this announcement."
+    )
+  }
+
+  return announcement
 }
 
 export async function getAnnouncementStats(
   client?: SupabaseClient
 ): Promise<AnnouncementStats> {
   const supabase = await getClient(client)
-  const { data, error } = await supabase.from("announcements").select("status")
+  let request = supabase.from("announcements").select("status")
+  if (!(await viewerIsAdmin())) {
+    request = request.eq("status", "published")
+  }
+  const { data, error } = await request
 
   if (error) mapError(error)
 
@@ -359,6 +391,7 @@ export async function createAnnouncement(
   input: CreateAnnouncementInput,
   client?: SupabaseClient
 ): Promise<Announcement> {
+  await requireAnnouncementAdmin()
   const supabase = await getClient(client)
   const authorId = await requireUserId(supabase)
   const clinicId =
@@ -397,6 +430,7 @@ export async function updateAnnouncement(
   input: UpdateAnnouncementInput,
   client?: SupabaseClient
 ): Promise<Announcement> {
+  await requireAnnouncementAdmin()
   const supabase = await getClient(client)
 
   if (!input.id) {
@@ -471,6 +505,7 @@ export async function deleteAnnouncement(
   id: string,
   client?: SupabaseClient
 ): Promise<void> {
+  await requireAnnouncementAdmin()
   const supabase = await getClient(client)
   const { error, count } = await supabase
     .from("announcements")

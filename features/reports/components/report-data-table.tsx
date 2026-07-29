@@ -138,13 +138,13 @@ export function ReportDataTable({
                     </TableCell>
                   ))}
                   <TableCell className="text-right">
-                    <Button
-                      size="sm"
-                      variant="ghost"
+                    <button
+                      type="button"
+                      className="text-sm font-medium text-primary hover:underline"
                       onClick={() => setDetails(row)}
                     >
                       View details
-                    </Button>
+                    </button>
                   </TableCell>
                 </TableRow>
               ))

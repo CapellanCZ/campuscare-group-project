@@ -101,7 +101,16 @@ export type ReportsBundle = {
   tables: ReportTableBundle[]
   personnelOptions: string[]
   statusOptions: string[]
-  source: "live+seed" | "seed"
+  source: "live" | "live+seed" | "seed"
+  live: {
+    completedToday: number
+    walkIns: number
+    avgWait: number
+    pendingRequests: number
+    certsToday: number
+  }
+  dataset: import("@/features/reports/data/datasets").ReportsDataset
+  error?: string | null
 }
 
 export type RoleReportsCatalog = {
