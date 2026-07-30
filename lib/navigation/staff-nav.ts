@@ -193,28 +193,17 @@ export function buildStaffNavGroups(
     }),
   }))
 
-  if (designation === "physician" || designation === "dentist") {
+  if (designation === "physician") {
     const clinical = groups.find((g) => g.id === "clinical")
-    const schedulePath = `${staffBasePath(designation)}/schedule`
-    clinical?.items.splice(1, 0, {
-      id: "schedule",
-      title: "Schedule",
-      path: schedulePath,
-      icon: "schedule",
+    const appointmentsPath = `${staffBasePath(designation)}/appointments`
+    clinical?.items.splice(0, 0, {
+      id: "appointments",
+      title: "Appointments",
+      path: appointmentsPath,
+      icon: "requests",
       module: undefined,
-      matchPrefixes: [schedulePath],
+      matchPrefixes: [appointmentsPath],
     })
-    if (designation === "physician") {
-      const appointmentsPath = `${staffBasePath(designation)}/appointments`
-      clinical?.items.splice(0, 0, {
-        id: "appointments",
-        title: "Appointments",
-        path: appointmentsPath,
-        icon: "requests",
-        module: undefined,
-        matchPrefixes: [appointmentsPath],
-      })
-    }
   }
 
   return groups

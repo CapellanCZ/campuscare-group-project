@@ -14,7 +14,7 @@ const PHYSICIAN_PATHS = [
   "/physician/dashboard",
   "/physician/appointments",
   "/physician/patients",
-  "/physician/schedule",
+  "/physician/settings",
   "/physician/reports",
   "/physician/profile",
 ]

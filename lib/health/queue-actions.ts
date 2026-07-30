@@ -1,6 +1,7 @@
 import type { ClinicDesignation } from "@/lib/auth/types"
 import { assertCanAccommodate } from "@/lib/availability/queries"
 import {
+  canApproveConsultationRequest,
   canMutateQueue,
   canRegisterWalkIn,
   canTransferQueue,
@@ -497,6 +498,116 @@ export async function registerWalkIn(params: {
   return {
     ok: true,
     message: `Walk-in registered as ${ticketCode} in the ${station} queue.`,
+  }
+}
+
+function suggestedSpecialtyFromService(service: string): SpecialtyStationId {
+  const s = service.toLowerCase()
+  if (s.includes("dental") || s.includes("tooth") || s.includes("dentist")) {
+    return "dentist"
+  }
+  return "physician"
+}
+
+/**
+ * Nurse approves a consultation request → patient enters the nurse queue
+ * (auto queue number). After check-in + intake, nurse assigns physician/dentist
+ * so the case appears on that doctor's station list.
+ */
+export async function approveConsultationRequest(params: {
+  designation: ClinicDesignation
+  requestId: string
+  patientName: string
+  studentId?: string
+  service: string
+  reason?: string
+  staffName: string
+}): Promise<HealthActionResult & { ticketCode?: string; suggestedSpecialty?: SpecialtyStationId }> {
+  if (!canApproveConsultationRequest(params.designation)) {
+    return { ok: false, error: "Only nurses can approve consultation requests." }
+  }
+
+  const openCheck = await assertCanAccommodate({ at: new Date() })
+  if (!openCheck.ok) {
+    return { ok: false, error: openCheck.error }
+  }
+
+  const name = params.patientName.trim()
+  if (!name) return { ok: false, error: "Patient name is required." }
+
+  const supabase = await createClient()
+  const { ymd } = manilaDayBounds()
+  const campusId = params.studentId?.trim() || null
+  const suggestedSpecialty = suggestedSpecialtyFromService(params.service)
+
+  let patientId: string | null = null
+  let resolvedName = name
+  let resolvedCampusId = campusId
+
+  if (campusId) {
+    const enrolled = await lookupEnrolledStudentById(campusId)
+    if (enrolled) {
+      try {
+        const ensured = await ensurePatientFromEnrollment(enrolled)
+        patientId = ensured.operational.id
+        resolvedName = ensured.operational.fullName || name
+        resolvedCampusId = ensured.operational.studentId ?? campusId
+      } catch (error) {
+        return {
+          ok: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Could not sync enrolled student for this request.",
+        }
+      }
+    } else {
+      const { data: byEmployee } = await supabase
+        .from("patients")
+        .select("id, full_name, employee_id")
+        .eq("employee_id", campusId)
+        .limit(1)
+        .maybeSingle()
+
+      if (byEmployee) {
+        patientId = byEmployee.id
+        resolvedName = byEmployee.full_name
+        resolvedCampusId = byEmployee.employee_id
+      }
+      // Requests may use demo IDs — still allow queue ticket without patient FK.
+    }
+  }
+
+  const { nextPos, nextNum } = await nextQueueSlot(supabase)
+  const ticketCode = `CR-${String(nextNum).padStart(4, "0")}`
+  const now = new Date().toISOString()
+  const consultationType = `${params.service.trim() || "Consultation"} → ${suggestedSpecialty}`
+
+  const { error } = await supabase.from("health_queue_tickets").insert({
+    ticket_code: ticketCode,
+    queue_position: nextPos,
+    queue_number: nextNum,
+    estimated_wait_minutes: nextPos * 10,
+    status: "waiting",
+    station: "nurse",
+    checked_in_at: null,
+    expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    service_date: ymd,
+    patient_id: patientId,
+    patient_name: resolvedName,
+    campus_id: resolvedCampusId,
+    consultation_type: consultationType,
+    chief_complaint: params.reason?.trim() || null,
+    assigned_staff_name: params.staffName,
+    intake_notes: `Approved request ${params.requestId}. Suggested specialty: ${suggestedSpecialty}.`,
+  })
+
+  if (error) return { ok: false, error: error.message }
+  return {
+    ok: true,
+    ticketCode,
+    suggestedSpecialty,
+    message: `Request approved as ${ticketCode} (queue #${nextNum}). Complete check-in and intake, then assign ${suggestedSpecialty} so they appear on the doctor queue.`,
   }
 }
 

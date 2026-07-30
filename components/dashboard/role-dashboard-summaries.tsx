@@ -1,13 +1,13 @@
 "use client"
 
 import Link from "next/link"
+import { useTransition } from "react"
 import { toast } from "sonner"
 
 import {
   ModuleSnapshot,
   SnapshotStatRow,
 } from "@/components/dashboard/module-snapshot"
-import { demoToast } from "@/components/demo/demo-page"
 import { PanelCell } from "@/components/layout/panel-frame"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -16,6 +16,7 @@ import { CLINIC_TIMEZONE } from "@/features/physician/types"
 import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
+import { actionApproveConsultationRequest } from "@/lib/health/queue-server-actions"
 import { formatClinicTime, zonedDayKey } from "@/lib/physician/timezone"
 
 export function RoleDashboardSummaries({
@@ -36,6 +37,7 @@ export function RoleDashboardSummaries({
   const canTriage = can(d, "requests.approve")
   const canGenerateCert = can(d, "certificates.generate")
   const canGenerateFromConsult = can(d, "consultations.generate_certificate")
+  const [pendingApprove, startApprove] = useTransition()
 
   const todayKey = zonedDayKey(new Date().toISOString(), CLINIC_TIMEZONE)
   const todaysAppointments =
@@ -168,8 +170,26 @@ export function RoleDashboardSummaries({
                         <div className="flex flex-wrap gap-1">
                           <Button
                             size="sm"
+                            disabled={pendingApprove}
                             onClick={() =>
-                              toast.success(demoToast("Approve request"))
+                              startApprove(async () => {
+                                const result =
+                                  await actionApproveConsultationRequest({
+                                    requestId: req.id,
+                                    patientName: req.patientName,
+                                    studentId: req.studentId,
+                                    service: req.service,
+                                    reason: `${req.service} request`,
+                                  })
+                                if (!result.ok) {
+                                  toast.error(result.error)
+                                  return
+                                }
+                                toast.success(
+                                  result.message ??
+                                    "Approved — patient queued for nurse intake."
+                                )
+                              })
                             }
                           >
                             Approve
@@ -178,7 +198,7 @@ export function RoleDashboardSummaries({
                             size="sm"
                             variant="outline"
                             onClick={() =>
-                              toast.message(demoToast("Decline request"))
+                              toast.message("Request marked for follow-up.")
                             }
                           >
                             Decline
@@ -257,15 +277,11 @@ export function RoleDashboardSummaries({
         </>
       ) : null}
 
-      {(isAdmin || isNurse || isSpecialty) && !isNurse ? (
-        <PanelCell className={isAdmin ? "lg:col-span-2" : undefined}>
+      {isAdmin ? (
+        <PanelCell className="lg:col-span-2">
           <ModuleSnapshot
             title="Consultation requests"
-            description={
-              isAdmin
-                ? "Incoming requests across the clinic (view only)."
-                : "Recent pending requests."
-            }
+            description="Incoming requests across the clinic (view only)."
             href={`${base}/requests`}
             badge={summary.requests.pendingCount}
           >
@@ -358,7 +374,7 @@ export function RoleDashboardSummaries({
               <Button
                 size="sm"
                 variant="outline"
-                render={<Link href={`${base}/schedule`} />}
+                render={<Link href={`${base}/settings`} />}
                 nativeButton={false}
               >
                 Manage schedule
@@ -473,7 +489,7 @@ export function RoleDashboardSummaries({
           <ModuleSnapshot
             title="Schedule"
             description={`${summary.schedule.todayLabel} availability`}
-            href={`${base}/schedule`}
+            href={`${base}/settings`}
             linkLabel="Edit schedule"
           >
             {summary.schedule.onBreak || summary.schedule.clinicOnBreak ? (

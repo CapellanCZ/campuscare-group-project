@@ -18,6 +18,10 @@ export function canVerifyCheckIn(designation: ClinicDesignation) {
   return can(designation, "queue.verify_check_in")
 }
 
+export function canApproveConsultationRequest(designation: ClinicDesignation) {
+  return can(designation, "requests.approve")
+}
+
 export function canTransferQueue(designation: ClinicDesignation) {
   return designation === "nurse"
 }

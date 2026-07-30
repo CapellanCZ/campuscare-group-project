@@ -1,12 +1,12 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useTransition } from "react"
+import Link from "next/link"
 import { toast } from "sonner"
 
 import {
   DemoPageHeader,
   DemoStatGrid,
-  demoToast,
 } from "@/components/demo/demo-page"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -31,7 +31,11 @@ import {
   demoConsultationRequests,
   demoRequestStats,
 } from "@/lib/demo/fixtures"
-import type { ConsultationRequestStatus } from "@/lib/demo/types"
+import type {
+  ConsultationRequestStatus,
+  DemoConsultationRequest,
+} from "@/lib/demo/types"
+import { actionApproveConsultationRequest } from "@/lib/health/queue-server-actions"
 
 const statusVariant: Record<
   ConsultationRequestStatus,
@@ -46,13 +50,18 @@ const statusVariant: Record<
 export function RequestsDemoPage({ access }: { access: StaffAccess }) {
   const [query, setQuery] = useState("")
   const [status, setStatus] = useState<string>("all")
+  const [rowsState, setRowsState] = useState<DemoConsultationRequest[]>(
+    demoConsultationRequests
+  )
+  const [pending, startTransition] = useTransition()
   const canApprove = can(access.designation, "requests.approve")
   const canDecline = can(access.designation, "requests.decline")
   const canReschedule = can(access.designation, "requests.reschedule")
   const canViewDetails = can(access.designation, "requests.view_patient_details")
+  const queueHref = `/${access.designation}/queue`
 
   const rows = useMemo(() => {
-    return demoConsultationRequests.filter((row) => {
+    return rowsState.filter((row) => {
       const q = query.trim().toLowerCase()
       const matchesQuery =
         !q ||
@@ -62,14 +71,50 @@ export function RequestsDemoPage({ access }: { access: StaffAccess }) {
       const matchesStatus = status === "all" || row.status === status
       return matchesQuery && matchesStatus
     })
-  }, [query, status])
+  }, [query, status, rowsState])
+
+  function markLocalStatus(id: string, next: ConsultationRequestStatus) {
+    setRowsState((prev) =>
+      prev.map((row) => (row.id === id ? { ...row, status: next } : row))
+    )
+  }
+
+  function handleApprove(row: DemoConsultationRequest) {
+    startTransition(async () => {
+      const result = await actionApproveConsultationRequest({
+        requestId: row.id,
+        patientName: row.patientName,
+        studentId: row.studentId,
+        service: row.service,
+        reason: row.reason,
+      })
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      markLocalStatus(row.id, "approved")
+      toast.success(result.message ?? "Request approved and queued.")
+    })
+  }
 
   return (
     <div className="flex flex-col gap-4">
       <DemoPageHeader
         title="Consultation Requests"
-        description="Review and process incoming appointment requests"
+        description="Nurse triage only — approve to queue the patient for check-in and intake, then assign specialty for the doctor list."
         designation={access.designation}
+        actions={
+          canApprove ? (
+            <Button
+              variant="outline"
+              size="sm"
+              render={<Link href={queueHref} />}
+              nativeButton={false}
+            >
+              Open queue
+            </Button>
+          ) : null
+        }
       />
 
       {can(access.designation, "requests.summary_cards") ? (
@@ -118,15 +163,15 @@ export function RequestsDemoPage({ access }: { access: StaffAccess }) {
                 <TableRow key={row.id}>
                   <TableCell>
                     <div className="min-w-0">
-                      <p className="truncate font-medium">{row.patientName}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {row.studentId} · {row.reason}
+                      <p className="font-medium">{row.patientName}</p>
+                      <p className="text-xs text-muted-foreground tabular-nums">
+                        {row.studentId}
                       </p>
                     </div>
                   </TableCell>
                   <TableCell>{row.service}</TableCell>
-                  <TableCell className="whitespace-nowrap text-sm">
-                    {row.preferredDate} · {row.preferredTime}
+                  <TableCell className="text-sm">
+                    {row.preferredDate} {row.preferredTime}
                   </TableCell>
                   <TableCell>
                     <Badge variant={statusVariant[row.status]}>
@@ -138,9 +183,11 @@ export function RequestsDemoPage({ access }: { access: StaffAccess }) {
                       {canViewDetails ? (
                         <Button
                           size="xs"
-                          variant="outline"
+                          variant="ghost"
                           onClick={() =>
-                            toast.info(demoToast(`View details for ${row.patientName}`))
+                            toast.message(
+                              `${row.reason} · submitted ${row.submittedAt}`
+                            )
                           }
                         >
                           View
@@ -149,7 +196,8 @@ export function RequestsDemoPage({ access }: { access: StaffAccess }) {
                       {canApprove && row.status === "pending" ? (
                         <Button
                           size="xs"
-                          onClick={() => toast.success(demoToast("Approve request"))}
+                          disabled={pending}
+                          onClick={() => handleApprove(row)}
                         >
                           Approve
                         </Button>
@@ -158,7 +206,11 @@ export function RequestsDemoPage({ access }: { access: StaffAccess }) {
                         <Button
                           size="xs"
                           variant="outline"
-                          onClick={() => toast.message(demoToast("Reschedule request"))}
+                          disabled={pending}
+                          onClick={() => {
+                            markLocalStatus(row.id, "rescheduled")
+                            toast.message("Request marked rescheduled.")
+                          }}
                         >
                           Reschedule
                         </Button>
@@ -167,7 +219,11 @@ export function RequestsDemoPage({ access }: { access: StaffAccess }) {
                         <Button
                           size="xs"
                           variant="destructive"
-                          onClick={() => toast.error(demoToast("Decline request"))}
+                          disabled={pending}
+                          onClick={() => {
+                            markLocalStatus(row.id, "declined")
+                            toast.error("Request declined.")
+                          }}
                         >
                           Decline
                         </Button>

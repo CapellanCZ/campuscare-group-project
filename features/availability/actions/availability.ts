@@ -30,8 +30,8 @@ export type AvailabilityActionResult =
 
 const REVALIDATE = [
   "/admin/settings",
-  "/physician/schedule",
-  "/dentist/schedule",
+  "/physician/settings",
+  "/dentist/settings",
   "/nurse/dashboard",
   "/physician/dashboard",
   "/dentist/dashboard",

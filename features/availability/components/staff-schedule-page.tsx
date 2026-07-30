@@ -31,6 +31,8 @@ type StaffSchedulePageProps = {
   doctorName: string
   availability: StaffWeeklyHour[]
   clinicHours: ClinicOfficeHour[]
+  /** When true, copy reflects Account settings placement (not Clinical nav). */
+  embeddedInSettings?: boolean
 }
 
 export function StaffSchedulePage({
@@ -38,6 +40,7 @@ export function StaffSchedulePage({
   doctorName,
   availability,
   clinicHours,
+  embeddedInSettings = false,
 }: StaffSchedulePageProps) {
   const [dayOfWeek, setDayOfWeek] = useState("1")
   const [startTime, setStartTime] = useState("09:00")
@@ -88,9 +91,13 @@ export function StaffSchedulePage({
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <PageHeader
-          title="Schedule"
+          title={embeddedInSettings ? "My schedule" : "Schedule"}
           subtitle={doctorName}
-          description="Set your weekly office hours. Appointment times must fall inside both clinic hours and your schedule, and are blocked while you or the clinic are on break."
+          description={
+            embeddedInSettings
+              ? "Manage your weekly availability from account settings. Appointment times must fall inside clinic hours and your schedule, and are blocked while you or the clinic are on break."
+              : "Set your weekly office hours. Appointment times must fall inside both clinic hours and your schedule, and are blocked while you or the clinic are on break."
+          }
         />
         <OnBreakControl mode="staff" role={role} />
       </div>

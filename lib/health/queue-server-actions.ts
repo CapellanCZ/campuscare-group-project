@@ -6,6 +6,7 @@ import { getStaffAccess } from "@/lib/auth/access"
 import { STAFF_ROUTE_ROLES } from "@/lib/auth/home-path"
 import {
   assignQueueNumber,
+  approveConsultationRequest,
   callNextTicket,
   completeNurseIntakeAndAssign,
   completeTicket,
@@ -31,6 +32,9 @@ function revalidateQueueSurfaces() {
   revalidatePath("/queue-management")
   revalidatePath("/queue-management/display")
   revalidatePath("/display")
+  for (const role of STAFF_ROUTE_ROLES) {
+    revalidatePath(`/${role}/requests`)
+  }
 }
 
 async function withStaff<T extends HealthActionResult>(
@@ -169,6 +173,26 @@ export async function actionAssignQueueNumber(
       designation: access.designation,
       ticketId,
       queueNumber,
+    })
+  )
+}
+
+export async function actionApproveConsultationRequest(input: {
+  requestId: string
+  patientName: string
+  studentId?: string
+  service: string
+  reason?: string
+}) {
+  return withStaff((access) =>
+    approveConsultationRequest({
+      designation: access.designation,
+      requestId: input.requestId,
+      patientName: input.patientName,
+      studentId: input.studentId,
+      service: input.service,
+      reason: input.reason,
+      staffName: access.fullName,
     })
   )
 }

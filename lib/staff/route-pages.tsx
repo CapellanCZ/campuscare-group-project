@@ -348,5 +348,34 @@ export async function StaffSettingsPage() {
       />
     )
   }
+
+  if (
+    access.primaryRole === "physician" ||
+    access.primaryRole === "dentist"
+  ) {
+    const { getClinicHours, getStaffWeeklyHours } = await import(
+      "@/lib/availability/queries"
+    )
+    const { StaffSchedulePage } = await import(
+      "@/features/availability/components/staff-schedule-page"
+    )
+    const [availability, clinicHours] = await Promise.all([
+      getStaffWeeklyHours(access.userId),
+      getClinicHours(),
+    ])
+    return (
+      <div className="flex flex-1 flex-col gap-6">
+        <SettingsDemoPage access={access} />
+        <StaffSchedulePage
+          role={access.primaryRole}
+          doctorName={access.fullName}
+          availability={availability}
+          clinicHours={clinicHours}
+          embeddedInSettings
+        />
+      </div>
+    )
+  }
+
   return <SettingsDemoPage access={access} />
 }

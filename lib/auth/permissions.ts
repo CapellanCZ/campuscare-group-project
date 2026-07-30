@@ -119,16 +119,16 @@ function roles(
 const MATRIX: Record<Permission, RoleAccess> = {
   // Dashboard
   "dashboard.cards": roles(ALL, ALL, ALL, ALL),
-  "dashboard.recent_requests": roles(ALL, ALL, ALL, ALL),
+  "dashboard.recent_requests": roles(ALL, ALL, NONE, NONE),
   "dashboard.live_queue": roles(ALL, ALL, ALL, ALL),
   "dashboard.consultation_statistics": roles(ALL, VIEW, VIEW, VIEW),
   "dashboard.recent_activities": roles(ALL, ALL, ALL, ALL),
 
-  // Consultation Requests
-  "requests.summary_cards": roles(ALL, ALL, ALL, ALL),
-  "requests.search_filters": roles(ALL, ALL, ALL, ALL),
-  "requests.table": roles(ALL, ALL, ALL, ALL),
-  "requests.view_patient_details": roles(ALL, ALL, ALL, ALL),
+  // Consultation Requests — Nurse triage (+ Admin oversight). Not for Physician/Dentist.
+  "requests.summary_cards": roles(ALL, ALL, NONE, NONE),
+  "requests.search_filters": roles(ALL, ALL, NONE, NONE),
+  "requests.table": roles(ALL, ALL, NONE, NONE),
+  "requests.view_patient_details": roles(ALL, ALL, NONE, NONE),
   "requests.approve": roles(NONE, ALL, NONE, NONE),
   "requests.decline": roles(NONE, ALL, NONE, NONE),
   "requests.reschedule": roles(NONE, ALL, NONE, NONE),

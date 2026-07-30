@@ -79,7 +79,7 @@ export function PhysicianHome({ workspace }: PhysicianHomeProps) {
         </Button>
         <Button
           variant="outline"
-          render={<Link href="/physician/schedule" />}
+          render={<Link href="/physician/settings" />}
           nativeButton={false}
         >
           Manage schedule
