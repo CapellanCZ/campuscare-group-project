@@ -22,6 +22,22 @@ export type AnnouncementAuthor = {
   email: string | null
 }
 
+export type AnnouncementAttachmentKind = "image" | "document"
+
+export type AnnouncementAttachment = {
+  id: string
+  announcementId: string
+  fileName: string
+  filePath: string
+  fileSize: number
+  mimeType: string
+  kind: AnnouncementAttachmentKind
+  uploadedBy: string | null
+  createdAt: string
+  /** Signed URL for preview/download when hydrated. */
+  url?: string | null
+}
+
 export type Announcement = {
   id: string
   clinicId: string
@@ -35,6 +51,7 @@ export type Announcement = {
   scheduledAt: string | null
   createdAt: string
   updatedAt: string
+  attachments: AnnouncementAttachment[]
 }
 
 export type AnnouncementStats = {

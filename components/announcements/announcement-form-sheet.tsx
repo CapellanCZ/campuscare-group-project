@@ -4,9 +4,10 @@ import { useEffect, useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import {
-  createAnnouncementAction,
-  updateAnnouncementAction,
-} from "@/features/announcements/actions"
+  AnnouncementAttachmentPicker,
+  type PendingAttachment,
+} from "@/components/announcements/announcement-attachment-picker"
+import { saveAnnouncementWithAttachmentsAction } from "@/features/announcements/actions"
 import { announcementStatusLabel } from "@/features/announcements/lib/format"
 import { Button } from "@/components/ui/button"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -81,10 +82,14 @@ export function AnnouncementFormSheet({
   onSaved: (announcement: Announcement) => void
 }) {
   const [form, setForm] = useState<FormState>(emptyForm)
+  const [pendingFiles, setPendingFiles] = useState<PendingAttachment[]>([])
+  const [removedIds, setRemovedIds] = useState<string[]>([])
   const [pending, startTransition] = useTransition()
 
   useEffect(() => {
     if (!open) return
+    setPendingFiles([])
+    setRemovedIds([])
     if (mode === "edit" && announcement) {
       setForm({
         title: announcement.title,
@@ -105,6 +110,11 @@ export function AnnouncementFormSheet({
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
 
+    if (pendingFiles.some((item) => item.status === "error")) {
+      toast.error("Remove invalid attachments before saving.")
+      return
+    }
+
     startTransition(async () => {
       const scheduledAt = fromDatetimeLocalValue(form.scheduledAt)
       const payload = {
@@ -115,10 +125,26 @@ export function AnnouncementFormSheet({
         scheduledAt,
       }
 
+      const formData = new FormData()
+      for (const item of pendingFiles) {
+        formData.append("files", item.file)
+      }
+      for (const id of removedIds) {
+        formData.append("removeAttachmentIds", id)
+      }
+
       const result =
         mode === "edit" && announcement
-          ? await updateAnnouncementAction({ id: announcement.id, ...payload })
-          : await createAnnouncementAction(payload)
+          ? await saveAnnouncementWithAttachmentsAction(
+              { id: announcement.id, ...payload },
+              formData,
+              "edit"
+            )
+          : await saveAnnouncementWithAttachmentsAction(
+              payload,
+              formData,
+              "create"
+            )
 
       if (!result.ok) {
         toast.error(result.error)
@@ -135,8 +161,8 @@ export function AnnouncementFormSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-full flex-col sm:max-w-lg">
-        <SheetHeader>
+      <SheetContent className="flex w-full flex-col data-[side=right]:sm:max-w-2xl sm:max-w-2xl">
+        <SheetHeader className="gap-2">
           <SheetTitle>
             {mode === "edit" ? "Edit announcement" : "Add announcement"}
           </SheetTitle>
@@ -147,7 +173,7 @@ export function AnnouncementFormSheet({
 
         <form
           id="announcement-form"
-          className="flex flex-1 flex-col gap-4 overflow-y-auto px-1"
+          className="flex flex-1 flex-col gap-6 overflow-y-auto px-6 py-2"
           onSubmit={handleSubmit}
         >
           <FieldGroup>
@@ -245,10 +271,19 @@ export function AnnouncementFormSheet({
                 />
               </Field>
             ) : null}
+
+            <AnnouncementAttachmentPicker
+              existing={announcement?.attachments ?? []}
+              pending={pendingFiles}
+              onPendingChange={setPendingFiles}
+              removedIds={removedIds}
+              onRemovedIdsChange={setRemovedIds}
+              disabled={pending}
+            />
           </FieldGroup>
         </form>
 
-        <SheetFooter className="mt-auto px-0 sm:flex-row">
+        <SheetFooter className="mt-auto gap-3 sm:flex-row">
           <SheetClose
             render={
               <Button type="button" variant="outline" disabled={pending} />

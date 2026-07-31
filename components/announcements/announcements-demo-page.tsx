@@ -42,6 +42,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  fetchAnnouncementByIdAction,
   fetchAnnouncementStatsAction,
   publishAnnouncementAction,
   searchAnnouncementsAction,
@@ -226,6 +227,14 @@ export function AnnouncementsPage({
   function openAnnouncement(announcement: Announcement) {
     setSelected(announcement)
     setSheetOpen(true)
+    startTransition(async () => {
+      const result = await fetchAnnouncementByIdAction(announcement.id)
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      setSelected(result.data)
+    })
   }
 
   function openCreate() {
@@ -239,6 +248,14 @@ export function AnnouncementsPage({
     setFormMode("edit")
     setEditing(announcement)
     setFormOpen(true)
+    startTransition(async () => {
+      const result = await fetchAnnouncementByIdAction(announcement.id)
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      setEditing(result.data)
+    })
   }
 
   function openDelete(announcement: Announcement) {
@@ -318,7 +335,7 @@ export function AnnouncementsPage({
             ) : null}
             <Input
               className="sm:w-72"
-              placeholder="Search title or audience"
+              placeholder="Search title, body, audience, author, status"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
@@ -376,13 +393,19 @@ export function AnnouncementsPage({
                               Edit
                             </Button>
                           ) : null}
-                          {canPublish && row.status !== "published" ? (
-                            <Button
-                              size="xs"
-                              onClick={() => handlePublish(row)}
-                            >
-                              Publish
-                            </Button>
+                          {canPublish ? (
+                            row.status !== "published" ? (
+                              <Button
+                                size="xs"
+                                onClick={() => handlePublish(row)}
+                              >
+                                Publish
+                              </Button>
+                            ) : (
+                              <Button size="xs" disabled>
+                                Published
+                              </Button>
+                            )
                           ) : null}
                           {canDelete ? (
                             <Button

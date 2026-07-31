@@ -7,9 +7,16 @@ import { CAMPUS_CLINIC_ID, resolveCampusClinicId } from "@/lib/auth/campus-clini
 import { canMutate } from "@/lib/auth/permissions"
 import { createClient } from "@/lib/supabase/server"
 import {
+  deleteAllAnnouncementAttachments,
+  listAnnouncementAttachments,
+  listAnnouncementAttachmentsForIds,
+  signAnnouncementAttachmentUrls,
+} from "@/services/announcement-attachments"
+import {
   ANNOUNCEMENT_STATUSES,
   AnnouncementServiceError,
   type Announcement,
+  type AnnouncementAttachment,
   type AnnouncementListParams,
   type AnnouncementListResult,
   type AnnouncementSortField,
@@ -104,7 +111,10 @@ function authorJoin(value: AuthorJoin | AuthorJoin[] | null): AuthorJoin | null 
   return Array.isArray(value) ? (value[0] ?? null) : value
 }
 
-function mapAnnouncement(row: AnnouncementRow): Announcement {
+function mapAnnouncement(
+  row: AnnouncementRow,
+  attachments: AnnouncementAttachment[] = []
+): Announcement {
   if (!isStatus(row.status)) {
     throw new AnnouncementServiceError(
       "database",
@@ -131,7 +141,35 @@ function mapAnnouncement(row: AnnouncementRow): Announcement {
     scheduledAt: row.scheduled_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    attachments,
   }
+}
+
+async function hydrateAnnouncements(
+  rows: AnnouncementRow[],
+  client: SupabaseClient,
+  withSignedUrls = false
+): Promise<Announcement[]> {
+  const attachmentMap = await listAnnouncementAttachmentsForIds(
+    rows.map((row) => row.id),
+    client
+  )
+
+  const announcements = rows.map((row) =>
+    mapAnnouncement(row, attachmentMap.get(row.id) ?? [])
+  )
+
+  if (!withSignedUrls) return announcements
+
+  return Promise.all(
+    announcements.map(async (announcement) => ({
+      ...announcement,
+      attachments: await signAnnouncementAttachmentUrls(
+        announcement.attachments,
+        client
+      ),
+    }))
+  )
 }
 
 function matchesQuery(announcement: Announcement, query: string): boolean {
@@ -288,7 +326,10 @@ export async function getAnnouncements(
 
   if (error) mapError(error)
 
-  let items = ((data ?? []) as AnnouncementRow[]).map(mapAnnouncement)
+  let items = await hydrateAnnouncements(
+    (data ?? []) as AnnouncementRow[],
+    supabase
+  )
 
   if (query) {
     items = items.filter((item) => matchesQuery(item, query))
@@ -345,7 +386,11 @@ export async function getAnnouncementById(
     throw new AnnouncementServiceError("not_found", "Announcement not found.")
   }
 
-  const announcement = mapAnnouncement(data as AnnouncementRow)
+  const [announcement] = await hydrateAnnouncements(
+    [data as AnnouncementRow],
+    supabase,
+    true
+  )
   if (announcement.status !== "published" && !(await viewerIsAdmin())) {
     throw new AnnouncementServiceError(
       "permission",
@@ -423,7 +468,12 @@ export async function createAnnouncement(
     .single()
 
   if (error) mapError(error)
-  return mapAnnouncement(data as AnnouncementRow)
+  const [created] = await hydrateAnnouncements(
+    [data as AnnouncementRow],
+    supabase,
+    true
+  )
+  return created
 }
 
 export async function updateAnnouncement(
@@ -485,7 +535,12 @@ export async function updateAnnouncement(
     throw new AnnouncementServiceError("not_found", "Announcement not found.")
   }
 
-  return mapAnnouncement(data as AnnouncementRow)
+  const [updated] = await hydrateAnnouncements(
+    [data as AnnouncementRow],
+    supabase,
+    true
+  )
+  return updated
 }
 
 export async function publishAnnouncement(
@@ -507,6 +562,7 @@ export async function deleteAnnouncement(
 ): Promise<void> {
   await requireAnnouncementAdmin()
   const supabase = await getClient(client)
+  await deleteAllAnnouncementAttachments(id, supabase)
   const { error, count } = await supabase
     .from("announcements")
     .delete({ count: "exact" })
@@ -516,4 +572,13 @@ export async function deleteAnnouncement(
   if (!count) {
     throw new AnnouncementServiceError("not_found", "Announcement not found.")
   }
+}
+
+export async function getAnnouncementAttachmentsSigned(
+  announcementId: string,
+  client?: SupabaseClient
+): Promise<AnnouncementAttachment[]> {
+  const supabase = await getClient(client)
+  const attachments = await listAnnouncementAttachments(announcementId, supabase)
+  return signAnnouncementAttachmentUrls(attachments, supabase)
 }

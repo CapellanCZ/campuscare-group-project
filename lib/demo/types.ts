@@ -12,6 +12,8 @@ export type ConsultationRequestStatus =
   | "approved"
   | "declined"
   | "rescheduled"
+  | "completed"
+  | "cancelled"
 
 export type DemoConsultationRequest = {
   id: string

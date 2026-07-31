@@ -6,7 +6,7 @@ import { ConsultationsPage } from "@/components/consultations/consultations-demo
 import { RoleDashboard } from "@/components/dashboard/role-dashboard"
 import { PatientsPage } from "@/components/patients/patients-demo-page"
 import { QueuePage } from "@/components/queue/queue-page"
-import { RequestsDemoPage } from "@/components/requests/requests-demo-page"
+import { RequestsPage } from "@/components/requests/requests-demo-page"
 import { SettingsDemoPage } from "@/components/settings/settings-demo-page"
 import { ReportsAnalyticsPage } from "@/features/reports/components/reports-analytics-page"
 import { loadReportsBundle } from "@/features/reports/data/queries"
@@ -26,9 +26,18 @@ import {
   listDirectoryPatientRecords,
 } from "@/lib/students/directory"
 import {
+  getConsultationRequests,
+  getConsultationRequestStats,
+} from "@/services/consultation-requests"
+import {
   getMedicalCertificates,
   getMedicalCertificateStats,
 } from "@/services/medicalCertificates"
+import {
+  ConsultationRequestServiceError,
+  type ConsultationRequestListResult,
+  type ConsultationRequestStats,
+} from "@/types/consultationRequest"
 import {
   AnnouncementServiceError,
   type AnnouncementListResult,
@@ -122,7 +131,52 @@ export async function StaffQueuePage() {
 
 export async function StaffRequestsPage() {
   const access = await requireStaffModule("consultation_requests")
-  return <RequestsDemoPage access={access} />
+
+  const emptyList: ConsultationRequestListResult = {
+    items: [],
+    total: 0,
+    page: 1,
+    pageSize: 50,
+    totalPages: 1,
+  }
+  const emptyStats: ConsultationRequestStats = {
+    pending: 0,
+    approved: 0,
+    declined: 0,
+    rescheduled: 0,
+    completed: 0,
+    cancelled: 0,
+    total: 0,
+  }
+
+  let list = emptyList
+  let stats = emptyStats
+  let initialError: string | null = null
+
+  try {
+    const [nextList, nextStats] = await Promise.all([
+      getConsultationRequests({ page: 1, pageSize: 50, status: "all" }),
+      getConsultationRequestStats(),
+    ])
+    list = nextList
+    stats = nextStats
+  } catch (error) {
+    initialError =
+      error instanceof ConsultationRequestServiceError
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : "Unable to load consultation requests."
+  }
+
+  return (
+    <RequestsPage
+      access={access}
+      initialList={list}
+      initialStats={stats}
+      initialError={initialError}
+    />
+  )
 }
 
 export async function StaffPatientsPage() {

@@ -17,6 +17,7 @@ import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
 import type { QueueTicketRow } from "@/lib/health/types"
 import { getDirectoryPatientRecordStats } from "@/lib/students/directory"
 import { getAnnouncements } from "@/services/announcements"
+import { getConsultationRequests } from "@/services/consultation-requests"
 import { getConsultationStats } from "@/services/consultations"
 import { getMedicalCertificateStats } from "@/services/medicalCertificates"
 import type { ConsultationStats } from "@/types/consultation"
@@ -63,19 +64,41 @@ async function buildAnnouncements() {
   }
 }
 
-function buildRequests(limit = 5) {
-  const pending = demoConsultationRequests.filter((r) => r.status === "pending")
-  return {
-    pendingCount: pending.length,
-    recent: pending.slice(0, limit).map((r) => ({
-      id: r.id,
-      patientName: r.patientName,
-      studentId: r.studentId,
-      service: r.service,
-      preferredDate: r.preferredDate,
-      preferredTime: r.preferredTime,
-      status: r.status,
-    })),
+async function buildRequests(limit = 5) {
+  try {
+    const list = await getConsultationRequests({
+      status: "pending",
+      page: 1,
+      pageSize: limit,
+    })
+    return {
+      pendingCount: list.total,
+      recent: list.items.slice(0, limit).map((r) => ({
+        id: r.id,
+        patientName: r.patientName,
+        studentId: r.studentId ?? "",
+        service: r.service,
+        preferredDate: r.preferredDate ?? "",
+        preferredTime: r.preferredTime ?? "",
+        status: r.status,
+      })),
+    }
+  } catch {
+    const pending = demoConsultationRequests.filter(
+      (r) => r.status === "pending"
+    )
+    return {
+      pendingCount: pending.length,
+      recent: pending.slice(0, limit).map((r) => ({
+        id: r.id,
+        patientName: r.patientName,
+        studentId: r.studentId,
+        service: r.service,
+        preferredDate: r.preferredDate,
+        preferredTime: r.preferredTime,
+        status: r.status,
+      })),
+    }
   }
 }
 
@@ -150,7 +173,7 @@ export async function loadRoleDashboardSummary(input: {
   const isPhysician = designation === "physician"
   const isSpecialty = isPhysician || designation === "dentist"
 
-  const [consultationStats, certificateStats, patientStats, staffSummary, schedule, physicianWorkspace, announcements] =
+  const [consultationStats, certificateStats, patientStats, staffSummary, schedule, physicianWorkspace, announcements, requests] =
     await Promise.all([
       getConsultationStats().catch(() => emptyConsultationStats),
       getMedicalCertificateStats().catch(() => emptyCertificateStats),
@@ -165,6 +188,7 @@ export async function loadRoleDashboardSummary(input: {
       isSpecialty ? loadScheduleStrip(userId) : Promise.resolve(null),
       isPhysician ? loadPhysicianWorkspace() : Promise.resolve(null),
       buildAnnouncements(),
+      buildRequests(isNurse ? 6 : 4),
     ])
 
   return {
@@ -173,7 +197,7 @@ export async function loadRoleDashboardSummary(input: {
     patientStats,
     staffSummary,
     announcements,
-    requests: buildRequests(isNurse ? 6 : 4),
+    requests,
     nurseLanes: isNurse || isAdmin
       ? buildNurseLanes(allTickets, checkedIn)
       : null,

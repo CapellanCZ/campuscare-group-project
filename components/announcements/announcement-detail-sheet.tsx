@@ -1,5 +1,6 @@
 "use client"
 
+import { AnnouncementAttachmentsView } from "@/components/announcements/announcement-attachments-view"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -32,9 +33,9 @@ function DetailRow({
   value: React.ReactNode
 }) {
   return (
-    <div className="grid gap-1 border-b py-3 last:border-b-0 sm:grid-cols-[140px_1fr] sm:gap-4">
+    <div className="grid gap-1.5 border-b py-4 last:border-b-0 sm:grid-cols-[160px_1fr] sm:gap-6">
       <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="text-sm text-foreground">{value}</dd>
+      <dd className="text-sm leading-relaxed text-foreground">{value}</dd>
     </div>
   )
 }
@@ -64,16 +65,16 @@ export function AnnouncementDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-full flex-col sm:max-w-lg">
-        <SheetHeader>
+      <SheetContent className="flex w-full flex-col data-[side=right]:sm:max-w-2xl sm:max-w-2xl">
+        <SheetHeader className="gap-2">
           <SheetTitle className="pr-8">{announcement.title}</SheetTitle>
           <SheetDescription>
             Posted for {announcement.audience}
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto px-1">
-          <div className="mb-4">
+        <div className="flex-1 overflow-y-auto px-6 py-2">
+          <div className="mb-5">
             <Badge variant={statusVariant(announcement.status)}>
               {announcementStatusLabel(announcement.status)}
             </Badge>
@@ -83,6 +84,14 @@ export function AnnouncementDetailSheet({
             <DetailRow label="Author" value={announcement.author.fullName} />
             <DetailRow label="Audience" value={announcement.audience} />
             <DetailRow
+              label="Created"
+              value={formatAnnouncementDateTime(announcement.createdAt)}
+            />
+            <DetailRow
+              label="Updated"
+              value={formatAnnouncementDateTime(announcement.updatedAt)}
+            />
+            <DetailRow
               label="Published"
               value={formatAnnouncementDateTime(announcement.publishedAt)}
             />
@@ -90,21 +99,21 @@ export function AnnouncementDetailSheet({
               label="Scheduled"
               value={formatAnnouncementDateTime(announcement.scheduledAt)}
             />
-            <DetailRow
-              label="Updated"
-              value={formatAnnouncementDateTime(announcement.updatedAt)}
-            />
           </dl>
 
-          <div className="mt-4 space-y-2">
+          <div className="mt-6 space-y-3">
             <p className="text-sm font-medium">Body</p>
-            <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
               {announcement.body.trim() || "No body yet."}
             </p>
           </div>
+
+          <AnnouncementAttachmentsView
+            attachments={announcement.attachments ?? []}
+          />
         </div>
 
-        <SheetFooter className="mt-auto flex-wrap px-0 sm:flex-row">
+        <SheetFooter className="mt-auto flex-wrap gap-3 sm:flex-row">
           {canEdit ? (
             <Button
               type="button"
@@ -114,10 +123,16 @@ export function AnnouncementDetailSheet({
               Edit
             </Button>
           ) : null}
-          {canPublish && announcement.status !== "published" ? (
-            <Button type="button" onClick={() => onPublish(announcement)}>
-              Publish
-            </Button>
+          {canPublish ? (
+            announcement.status !== "published" ? (
+              <Button type="button" onClick={() => onPublish(announcement)}>
+                Publish
+              </Button>
+            ) : (
+              <Button type="button" disabled>
+                Published
+              </Button>
+            )
           ) : null}
           {canDelete ? (
             <Button

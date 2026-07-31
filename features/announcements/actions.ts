@@ -1,6 +1,10 @@
 "use server"
 
 import {
+  deleteAnnouncementAttachment,
+  uploadAnnouncementAttachments,
+} from "@/services/announcement-attachments"
+import {
   createAnnouncement,
   deleteAnnouncement,
   getAnnouncementById,
@@ -13,6 +17,7 @@ import {
 import {
   AnnouncementServiceError,
   type Announcement,
+  type AnnouncementAttachment,
   type AnnouncementListParams,
   type AnnouncementListResult,
   type AnnouncementStats,
@@ -135,6 +140,69 @@ export async function deleteAnnouncementAction(
   try {
     await deleteAnnouncement(id)
     return { ok: true, data: { id } }
+  } catch (error) {
+    return toErrorResult(error)
+  }
+}
+
+export async function uploadAnnouncementAttachmentsAction(
+  announcementId: string,
+  formData: FormData
+): Promise<AnnouncementActionResult<AnnouncementAttachment[]>> {
+  try {
+    const files = formData
+      .getAll("files")
+      .filter((value): value is File => value instanceof File && value.size > 0)
+    const data = await uploadAnnouncementAttachments(announcementId, files)
+    return { ok: true, data }
+  } catch (error) {
+    return toErrorResult(error)
+  }
+}
+
+export async function deleteAnnouncementAttachmentAction(
+  attachmentId: string
+): Promise<AnnouncementActionResult<{ id: string }>> {
+  try {
+    await deleteAnnouncementAttachment(attachmentId)
+    return { ok: true, data: { id: attachmentId } }
+  } catch (error) {
+    return toErrorResult(error)
+  }
+}
+
+export async function saveAnnouncementWithAttachmentsAction(
+  input: CreateAnnouncementInput | (UpdateAnnouncementInput & { id: string }),
+  formData: FormData,
+  mode: "create" | "edit"
+): Promise<AnnouncementActionResult<Announcement>> {
+  try {
+    const announcement =
+      mode === "edit"
+        ? await updateAnnouncement(input as UpdateAnnouncementInput & { id: string })
+        : await createAnnouncement(input as CreateAnnouncementInput)
+
+    const removeIds = formData
+      .getAll("removeAttachmentIds")
+      .filter(
+        (value): value is string =>
+          typeof value === "string" && value.length > 0
+      )
+
+    for (const attachmentId of removeIds) {
+      await deleteAnnouncementAttachment(attachmentId)
+    }
+
+    const files = formData
+      .getAll("files")
+      .filter((value): value is File => value instanceof File && value.size > 0)
+
+    if (files.length > 0) {
+      await uploadAnnouncementAttachments(announcement.id, files)
+    }
+
+    const data = await getAnnouncementById(announcement.id)
+    return { ok: true, data }
   } catch (error) {
     return toErrorResult(error)
   }

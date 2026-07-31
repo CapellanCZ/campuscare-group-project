@@ -1,6 +1,6 @@
 import type { StaffDirectorySummary } from "@/features/admin/types/user-management"
 import type { PhysicianWorkspace } from "@/features/physician/data/queries"
-import type { ConsultationRequestStatus } from "@/lib/demo/types"
+import type { ConsultationRequestStatus } from "@/types/consultationRequest"
 import type { ConsultationStats } from "@/types/consultation"
 import type { MedicalCertificateStats } from "@/types/medicalCertificate"
 import type { PatientRecordStats } from "@/types/patientRecord"
