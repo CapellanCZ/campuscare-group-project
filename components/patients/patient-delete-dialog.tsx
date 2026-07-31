@@ -56,7 +56,14 @@ export function PatientDeleteDialog({
             <span className="font-medium text-foreground">
               {patient ? patientFullName(patient) : "this patient"}
             </span>
-            {patient?.studentId ? ` (${patient.studentId})` : ""} and all linked
+            {patient
+              ? ` (${
+                  patient.patientType === "faculty"
+                    ? patient.employeeId
+                    : patient.studentId
+                })`
+              : ""}{" "}
+            and all linked
             consultations. This action cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>

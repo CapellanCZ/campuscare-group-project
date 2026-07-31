@@ -1,5 +1,5 @@
-import { RoleAnalyticsPage } from "@/features/dashboard/components/role-analytics-page"
+import { redirect } from "next/navigation"
 
 export default function PhysicianAnalyticsPage() {
-  return <RoleAnalyticsPage role="physician" />
+  redirect("/physician/reports")
 }

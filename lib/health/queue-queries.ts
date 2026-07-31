@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import { mapTicketRow, ticketLabel } from "@/lib/health/mappers"
+import { mapTicketRow, ticketLabel, type RawQueueTicket } from "@/lib/health/mappers"
 import { stationLabel } from "@/lib/health/roles"
 import { manilaDayBounds } from "@/lib/health/time"
 import type {
@@ -11,21 +11,54 @@ import type {
   StationId,
 } from "@/lib/health/types"
 
+const TICKET_SELECT = `
+  id,
+  ticket_code,
+  queue_position,
+  queue_number,
+  status,
+  estimated_wait_minutes,
+  checked_in_at,
+  updated_at,
+  created_at,
+  appointment_id,
+  health_appointment_id,
+  patient_id,
+  station,
+  call_count,
+  rejoin_count,
+  patient_name,
+  campus_id,
+  consultation_type,
+  assigned_staff_name,
+  chief_complaint,
+  vitals_bp_systolic,
+  vitals_bp_diastolic,
+  vitals_heart_rate,
+  vitals_temperature_c,
+  vitals_spo2,
+  intake_notes,
+  intake_completed_at,
+  patients (
+    id,
+    full_name,
+    student_id,
+    employee_id,
+    patient_type
+  )
+`
+
 async function fetchJoinedTickets(): Promise<QueueTicketRow[]> {
   const supabase = await createClient()
   const { startIso } = manilaDayBounds()
 
-  // Today’s tickets + any still-active waiting/called rows (demo data may be older).
   const { data: tickets, error } = await supabase
     .from("health_queue_tickets")
-    .select(
-      "id, ticket_code, queue_position, queue_number, status, estimated_wait_minutes, checked_in_at, updated_at, created_at, appointment_id, health_appointment_id"
-    )
-    .or(`created_at.gte.${startIso},status.in.(waiting,called)`)
+    .select(TICKET_SELECT)
+    .or(`created_at.gte.${startIso},status.in.(waiting,called,no_show)`)
     .order("queue_position", { ascending: true })
 
   if (error) {
-    // Queue tables may not be provisioned yet on this project.
     const msg = error.message.toLowerCase()
     if (
       msg.includes("schema cache") ||
@@ -37,83 +70,9 @@ async function fetchJoinedTickets(): Promise<QueueTicketRow[]> {
     throw new Error(error.message)
   }
 
-  const rows = tickets ?? []
-  const appointmentIds = [
-    ...new Set(
-      rows
-        .map((t) => t.health_appointment_id ?? t.appointment_id)
-        .filter(Boolean) as string[]
-    ),
-  ]
-
-  const appointmentsById = new Map<
-    string,
-    {
-      id: string
-      student_id: string | null
-      workflow_status: string | null
-      provider_queue: string | null
-      consultation_type: string | null
-      service: string | null
-      doctor: string | null
-      purpose: string | null
-      status: string | null
-      consultation_completed_at: string | null
-    }
-  >()
-
-  if (appointmentIds.length) {
-    const { data: appointments } = await supabase
-      .from("health_appointments")
-      .select(
-        "id, student_id, workflow_status, provider_queue, consultation_type, service, doctor, purpose, status, consultation_completed_at"
-      )
-      .in("id", appointmentIds)
-
-    for (const a of appointments ?? []) {
-      appointmentsById.set(a.id, a)
-    }
-  }
-
-  const studentIds = [
-    ...new Set(
-      [...appointmentsById.values()]
-        .map((a) => a.student_id)
-        .filter(Boolean) as string[]
-    ),
-  ]
-
-  const studentsById = new Map<
-    string,
-    { first_name: string | null; last_name: string | null; student_id: string }
-  >()
-
-  if (studentIds.length) {
-    const { data: students } = await supabase
-      .from("students")
-      .select("student_id, first_name, last_name")
-      .in("student_id", studentIds)
-
-    for (const s of students ?? []) {
-      studentsById.set(s.student_id, s)
-    }
-  }
-
-  return rows.map((t) => {
-    const appointmentId = t.health_appointment_id ?? t.appointment_id
-    const appointment = appointmentId
-      ? appointmentsById.get(appointmentId) ?? null
-      : null
-    const student = appointment?.student_id
-      ? studentsById.get(appointment.student_id) ?? null
-      : null
-
-    return mapTicketRow({
-      ...t,
-      appointment,
-      student,
-    })
-  })
+  return ((tickets ?? []) as unknown as RawQueueTicket[]).map((t) =>
+    mapTicketRow(t)
+  )
 }
 
 export async function getTodayQueueTickets(filter?: {
@@ -125,9 +84,6 @@ export async function getTodayQueueTickets(filter?: {
 }
 
 export function computeQueueStats(tickets: QueueTicketRow[]): QueueStats {
-  const active = tickets.filter(
-    (t) => t.status === "waiting" || t.status === "called"
-  )
   const waiting = tickets.filter((t) => t.status === "waiting")
   const serving = tickets.filter((t) => t.status === "called")
   const completed = tickets.filter((t) => t.status === "completed")
@@ -145,7 +101,7 @@ export function computeQueueStats(tickets: QueueTicketRow[]): QueueStats {
     currentlyServing: serving.length,
     completedToday: completed.length,
     checkedIn: checkedIn.length,
-    walkIns: walkIns.length || Math.max(0, active.length - checkedIn.length),
+    walkIns: walkIns.length,
     averageWaitMinutes:
       waits.length > 0
         ? Math.round(waits.reduce((a, b) => a + b, 0) / waits.length)
@@ -221,7 +177,7 @@ export async function getQueueActivity(
     .map((t) => ({
       id: t.ticketId,
       title: `${ticketLabel(t.queueNumber, t.ticketCode)} · ${t.status}`,
-      description: `${t.patientName} · ${stationLabel(t.station)}`,
+      description: `${t.campusId ?? t.patientName} · ${stationLabel(t.station)}`,
       at: t.updatedAt ?? t.createdAt ?? new Date().toISOString(),
     }))
 }
@@ -255,7 +211,7 @@ export async function getPublicQueueSnapshot() {
     assigned_personnel: string | null
     provider_queue: string | null
     workflow_status: string | null
-    consultation_completed_at: string | null
+    consultation_type: string | null
   }
 
   const rows = (data ?? []) as ViewRow[]
@@ -273,22 +229,22 @@ export async function getPublicQueueSnapshot() {
         created_at: r.ticket_updated_at,
         appointment_id: null,
         health_appointment_id: null,
-        appointment: {
-          id: "",
-          student_id: null,
-          workflow_status: r.workflow_status,
-          provider_queue: r.provider_queue ?? r.station,
-          consultation_type: null,
-          service: null,
-          doctor: r.assigned_personnel,
-          purpose: null,
-          status: null,
-        },
-        student: {
-          first_name: r.patient_display_name,
-          last_name: null,
-          student_id: null,
-        },
+        patient_id: null,
+        station: r.station,
+        call_count: 0,
+        rejoin_count: 0,
+        patient_name: null,
+        campus_id: r.patient_display_name,
+        consultation_type: r.consultation_type,
+        assigned_staff_name: r.assigned_personnel,
+        chief_complaint: null,
+        vitals_bp_systolic: null,
+        vitals_bp_diastolic: null,
+        vitals_heart_rate: null,
+        vitals_temperature_c: null,
+        vitals_spo2: null,
+        intake_notes: null,
+        intake_completed_at: null,
       },
       { publicMode: true }
     )

@@ -32,11 +32,15 @@ type AppointmentRow = {
     | {
         full_name: string
         student_id: string | null
+        employee_id: string | null
+        patient_type: string | null
         timezone: string
       }
     | {
         full_name: string
         student_id: string | null
+        employee_id: string | null
+        patient_type: string | null
         timezone: string
       }[]
     | null
@@ -51,13 +55,17 @@ function patientJoin<T extends { full_name: string }>(
 
 function mapAppointment(row: AppointmentRow): PhysicianAppointment {
   const patient = patientJoin(row.patients)
+  const campusId =
+    patient?.patient_type === "faculty"
+      ? (patient.employee_id ?? patient.student_id)
+      : (patient?.student_id ?? null)
   return {
     id: row.id,
     clinicId: row.clinic_id,
     doctorId: row.doctor_id,
     patientId: row.patient_id,
     patientName: patient?.full_name ?? "Unknown patient",
-    patientStudentId: patient?.student_id ?? null,
+    patientStudentId: campusId,
     startsAt: row.starts_at,
     endsAt: row.ends_at,
     status: row.status,
@@ -120,6 +128,8 @@ export async function loadPhysicianWorkspace(): Promise<PhysicianWorkspace> {
       patients (
         full_name,
         student_id,
+        employee_id,
+        patient_type,
         timezone
       )
     `
@@ -139,7 +149,7 @@ export async function loadPhysicianWorkspace(): Promise<PhysicianWorkspace> {
   const { data: patientRows } = await supabase
     .from("patients")
     .select(
-      "id, full_name, email, student_id, phone, date_of_birth, sex, medical_notes, timezone"
+      "id, full_name, email, student_id, employee_id, patient_type, phone, date_of_birth, sex, medical_notes, timezone"
     )
     .order("full_name", { ascending: true })
 
@@ -148,7 +158,10 @@ export async function loadPhysicianWorkspace(): Promise<PhysicianWorkspace> {
       id: p.id,
       fullName: p.full_name,
       email: p.email,
-      studentId: p.student_id,
+      studentId:
+        p.patient_type === "faculty"
+          ? (p.employee_id ?? p.student_id)
+          : p.student_id,
       phone: p.phone,
       dateOfBirth: p.date_of_birth,
       sex: p.sex,

@@ -1,18 +1,6 @@
-import { Suspense } from "react"
+import { redirect } from "next/navigation"
 
-import { StateBlock } from "@/features/common/components/state-block"
-import { PhysicianSchedulePage } from "@/features/physician/components/physician-schedule-page"
-import { loadPhysicianWorkspace } from "@/features/physician/data/queries"
-
-async function Content() {
-  const workspace = await loadPhysicianWorkspace()
-  return <PhysicianSchedulePage workspace={workspace} />
-}
-
-export default function Page() {
-  return (
-    <Suspense fallback={<StateBlock state="loading" />}>
-      <Content />
-    </Suspense>
-  )
+/** Schedule lives under Account settings for physicians. */
+export default function PhysicianScheduleRedirectPage() {
+  redirect("/physician/settings")
 }

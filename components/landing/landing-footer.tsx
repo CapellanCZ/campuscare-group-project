@@ -7,6 +7,7 @@ import {
   IconMapPin,
 } from "@tabler/icons-react"
 
+import { CampusCareLogo } from "@/components/campuscare-logo"
 import { Reveal, ScrollFadeSection } from "@/components/landing/motion"
 import {
   footerBlurb,
@@ -29,10 +30,12 @@ export function LandingFooter() {
             href="#home"
             className="inline-flex items-center gap-2 font-semibold tracking-tight transition-opacity hover:opacity-90"
           >
-            <img
-              src="/images/logo.png"
+            <CampusCareLogo
+              variant="white"
               alt=""
-              className="h-8 w-auto brightness-0 invert"
+              className="h-8 w-auto"
+              width={48}
+              height={32}
             />
             <span>CampusCare</span>
           </Link>

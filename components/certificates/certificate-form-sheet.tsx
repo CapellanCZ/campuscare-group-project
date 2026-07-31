@@ -6,10 +6,16 @@ import { IconCheck, IconChevronDown } from "@tabler/icons-react"
 
 import {
   createMedicalCertificateAction,
-  listCertificatePatientsAction,
   updateMedicalCertificateAction,
 } from "@/features/certificates/actions"
+import {
+  ensureCertificatePatientByStudentIdAction,
+  listEnrolledCertificatePatientsAction,
+} from "@/features/patients/actions"
 import { certificateStatusLabel } from "@/features/certificates/lib/format"
+import { isEnrolledVirtualId } from "@/lib/students/virtual-id"
+import { NO_STUDENT_FOUND } from "@/lib/students/types"
+import { SelectWithOtherField } from "@/components/shared/select-with-other-field"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -43,6 +49,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
+import { CERTIFICATE_PURPOSE_OPTIONS } from "@/lib/health/form-options"
 import { cn } from "@/lib/utils"
 import {
   MEDICAL_CERTIFICATE_STATUSES,
@@ -158,13 +165,53 @@ function PatientSearchSelect({
   value: string
   disabled?: boolean
   loading?: boolean
-  onChange: (patientId: string) => void
+  onChange: (patient: MedicalCertificatePatient) => void
 }) {
   const [open, setOpen] = useState(false)
-  const selected = useMemo(
-    () => patients.find((patient) => patient.id === value) ?? null,
-    [patients, value]
+  const [query, setQuery] = useState("")
+  const [resolving, setResolving] = useState(false)
+  const [resolved, setResolved] = useState<MedicalCertificatePatient | null>(
+    null
   )
+  const selected = useMemo(
+    () =>
+      patients.find((patient) => patient.id === value) ??
+      (resolved?.id === value ? resolved : null),
+    [patients, resolved, value]
+  )
+
+  const filtered = useMemo(() => {
+    const q = query.trim()
+    if (!q) return patients
+    return patients.filter((patient) => patient.studentId?.trim() === q)
+  }, [patients, query])
+
+  async function selectPatient(patient: MedicalCertificatePatient) {
+    if (!isEnrolledVirtualId(patient.id)) {
+      setResolved(patient)
+      onChange(patient)
+      setOpen(false)
+      return
+    }
+    const studentId = patient.studentId?.trim()
+    if (!studentId) {
+      toast.error(NO_STUDENT_FOUND)
+      return
+    }
+    setResolving(true)
+    try {
+      const result = await ensureCertificatePatientByStudentIdAction(studentId)
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      setResolved(result.data)
+      onChange(result.data)
+      setOpen(false)
+    } finally {
+      setResolving(false)
+    }
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -175,39 +222,46 @@ function PatientSearchSelect({
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            disabled={disabled || loading}
+            disabled={disabled || loading || resolving}
             className="w-full justify-between font-normal"
           >
             <span className="truncate">
-              {loading
-                ? "Loading patients…"
+              {loading || resolving
+                ? resolving
+                  ? "Syncing student…"
+                  : "Loading patients…"
                 : selected
                   ? `${selected.fullName}${
                       selected.studentId ? ` · ${selected.studentId}` : ""
                     }`
-                  : "Search patient or student number"}
+                  : "Search by Student ID Number"}
             </span>
             <IconChevronDown className="ml-2 size-4 shrink-0 opacity-50" />
           </Button>
         }
       />
       <PopoverContent className="w-[var(--anchor-width)] p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Search by name or student number…" />
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="Search by Student ID Number"
+            value={query}
+            onValueChange={setQuery}
+          />
           <CommandList>
-            <CommandEmpty>No patients found.</CommandEmpty>
+            <CommandEmpty>
+              {query.trim() ? NO_STUDENT_FOUND : "No enrolled students."}
+            </CommandEmpty>
             <CommandGroup>
-              {patients.map((patient) => {
+              {filtered.map((patient) => {
                 const label = `${patient.fullName}${
                   patient.studentId ? ` · ${patient.studentId}` : ""
                 }`
                 return (
                   <CommandItem
                     key={patient.id}
-                    value={`${patient.fullName} ${patient.studentId ?? ""} ${patient.email ?? ""}`}
+                    value={patient.id}
                     onSelect={() => {
-                      onChange(patient.id)
-                      setOpen(false)
+                      void selectPatient(patient)
                     }}
                   >
                     <IconCheck
@@ -251,7 +305,7 @@ function CertificateFormBody({
     if (mode !== "create") return
 
     let cancelled = false
-    void listCertificatePatientsAction().then((result) => {
+    void listEnrolledCertificatePatientsAction().then((result) => {
       if (cancelled) return
       setLoadingPatients(false)
       if (!result.ok) {
@@ -373,7 +427,14 @@ function CertificateFormBody({
                 value={form.patientId}
                 loading={loadingPatients}
                 disabled={pending}
-                onChange={(patientId) => updateField("patientId", patientId)}
+                onChange={(patient) => {
+                  setPatients((prev) =>
+                    prev.some((item) => item.id === patient.id)
+                      ? prev
+                      : [patient, ...prev]
+                  )
+                  updateField("patientId", patient.id)
+                }}
               />
             </Field>
           ) : (
@@ -425,17 +486,18 @@ function CertificateFormBody({
             </Select>
           </Field>
 
-          <Field>
-            <FieldLabel htmlFor="cert-purpose">Purpose</FieldLabel>
-            <Input
-              id="cert-purpose"
-              value={form.purpose}
-              onChange={(event) => updateField("purpose", event.target.value)}
-              placeholder="Reason for issuing this certificate"
-              required
-              disabled={pending}
-            />
-          </Field>
+          <SelectWithOtherField
+            key={certificate?.id ?? "cert-create"}
+            id="cert-purpose"
+            label="Purpose"
+            options={CERTIFICATE_PURPOSE_OPTIONS}
+            value={form.purpose}
+            onValueChange={(value) => updateField("purpose", value)}
+            placeholder="Select purpose"
+            otherPlaceholder="Reason for issuing this certificate"
+            required
+            disabled={pending}
+          />
 
           <Field>
             <FieldLabel htmlFor="cert-doctor">Doctor name</FieldLabel>

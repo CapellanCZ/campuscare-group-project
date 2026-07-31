@@ -7,9 +7,11 @@ import {
   getStationBoards,
   getTodayQueueTickets,
 } from "@/lib/health/queue-queries"
+import { needsNurseIntake } from "@/lib/health/nurse-queue"
 import { manilaDayBounds } from "@/lib/health/time"
 import type { DashboardKpis, QueueTicketRow } from "@/lib/health/types"
 import { stationForDesignation } from "@/lib/health/roles"
+import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
 
 export async function getDashboardBundle(designation: ClinicDesignation) {
   const stationFilter = stationForDesignation(designation)
@@ -34,6 +36,72 @@ export async function getDashboardBundle(designation: ClinicDesignation) {
     recent,
     kpis,
   }
+}
+
+/** Enrich KPI cards with summary module counts after loadRoleDashboardSummary. */
+export function enrichDashboardKpis(
+  designation: ClinicDesignation,
+  kpis: DashboardKpis,
+  summary: RoleDashboardSummary,
+  allTickets: QueueTicketRow[]
+): DashboardKpis {
+  if (designation === "admin") {
+    const byKey = new Map(kpis.cards.map((c) => [c.key, c]))
+    const ordered = ["requests", "patients", "queue", "completed", "certs"]
+      .map((key) => byKey.get(key))
+      .filter((c): c is NonNullable<typeof c> => Boolean(c))
+    return {
+      cards: [
+        ...ordered,
+        {
+          key: "staff",
+          label: "Active staff",
+          value: String(summary.staffSummary?.active ?? 0),
+          description: `${summary.staffSummary?.total ?? 0} total accounts`,
+        },
+      ],
+    }
+  }
+
+  if (designation === "nurse") {
+    const needIntake = allTickets.filter(needsNurseIntake).length
+    return {
+      cards: [
+        {
+          key: "intake",
+          label: "Need intake",
+          value: String(needIntake),
+          description: "Waiting for vitals",
+          lowerIsBetter: true,
+        },
+        {
+          key: "pending",
+          label: "Pending requests",
+          value: String(summary.requests.pendingCount),
+          description: "Awaiting triage",
+          lowerIsBetter: true,
+        },
+        ...kpis.cards.filter((c) => c.key !== "pending"),
+      ],
+    }
+  }
+
+  if (designation === "physician" && summary.physicianWorkspace) {
+    const stats = summary.physicianWorkspace.stats
+    return {
+      cards: [
+        {
+          key: "appts",
+          label: "Appointments today",
+          value: String(stats.todayCount),
+          description: `${stats.confirmedCount} confirmed · ${stats.inProgressCount} in progress`,
+        },
+        ...kpis.cards,
+      ],
+    }
+  }
+
+  return kpis
 }
 
 async function buildKpis(

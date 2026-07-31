@@ -1,5 +1,6 @@
 import Link from "next/link"
 
+import { CampusCareLogo } from "@/components/campuscare-logo"
 import { Button } from "@/components/ui/button"
 import type { LegalDocument } from "@/lib/legal/content"
 
@@ -12,10 +13,11 @@ export function LegalDocumentPage({ document }: { document: LegalDocument }) {
             href="/landing"
             className="flex items-center gap-2 font-semibold tracking-tight"
           >
-            <img
-              src="/images/logo.png"
+            <CampusCareLogo
               alt="CampusCare"
               className="h-8 w-auto"
+              width={48}
+              height={32}
             />
             <span>CampusCare</span>
           </Link>

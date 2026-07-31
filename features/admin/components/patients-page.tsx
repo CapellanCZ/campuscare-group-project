@@ -44,22 +44,20 @@ function firstValue(value: SearchParamValue): string {
   return value ?? ""
 }
 
-function normalizeAffiliationFilter(
-  value: string
-): PatientAffiliation | "all" {
+function normalizeTypeFilter(value: string): PatientAffiliation | "all" {
   return value === "student" || value === "faculty" ? value : "all"
 }
 
 function buildHref(parts: {
   query: string
-  affiliation: string
+  patientType: string
   notice?: string
   warning?: string
   error?: string
 }) {
   const params = new URLSearchParams()
   if (parts.query) params.set("q", parts.query)
-  if (parts.affiliation !== "all") params.set("affiliation", parts.affiliation)
+  if (parts.patientType !== "all") params.set("type", parts.patientType)
   if (parts.notice) params.set("notice", parts.notice)
   if (parts.warning) params.set("warning", parts.warning)
   if (parts.error) params.set("error", parts.error)
@@ -67,35 +65,42 @@ function buildHref(parts: {
   return qs ? `${BASE}?${qs}` : BASE
 }
 
+function campusIdLabel(patientType: PatientAffiliation | "all" | string) {
+  if (patientType === "faculty") return "Employee ID"
+  return "Student ID"
+}
+
 export async function PatientsPage({ searchParams = {} }: PatientsPageProps) {
   const query = firstValue(searchParams.q).trim()
-  const affiliation = normalizeAffiliationFilter(
-    firstValue(searchParams.affiliation)
+  const patientType = normalizeTypeFilter(
+    firstValue(searchParams.type) || firstValue(searchParams.affiliation)
   )
   const notice = firstValue(searchParams.notice)
   const warning = firstValue(searchParams.warning)
   const error = firstValue(searchParams.error)
 
-  const result = await listPatients({ query, affiliation })
+  const result = await listPatients({ query, patientType })
 
   async function createAction(formData: FormData) {
     "use server"
     const q = String(formData.get("currentQuery") ?? "")
-    const a = String(formData.get("currentAffiliation") ?? "all")
+    const t = String(formData.get("currentType") ?? "all")
+    const type = String(formData.get("patientType") ?? "")
     const outcome = await createPatient({
       fullName: String(formData.get("fullName") ?? ""),
       email: String(formData.get("email") ?? ""),
       studentId: String(formData.get("studentId") ?? ""),
+      employeeId: String(formData.get("employeeId") ?? ""),
       phone: String(formData.get("phone") ?? ""),
       dateOfBirth: String(formData.get("dateOfBirth") ?? ""),
       sex: String(formData.get("sex") ?? ""),
-      affiliation: String(formData.get("affiliation") ?? ""),
+      patientType: type,
     })
     revalidatePath(BASE)
     redirect(
       buildHref({
         query: q,
-        affiliation: a,
+        patientType: t,
         notice: outcome.ok ? outcome.message : undefined,
         error: outcome.ok ? undefined : outcome.error,
       })
@@ -105,22 +110,23 @@ export async function PatientsPage({ searchParams = {} }: PatientsPageProps) {
   async function updateAction(formData: FormData) {
     "use server"
     const q = String(formData.get("currentQuery") ?? "")
-    const a = String(formData.get("currentAffiliation") ?? "all")
+    const t = String(formData.get("currentType") ?? "all")
     const outcome = await updatePatient({
       patientId: String(formData.get("patientId") ?? ""),
       fullName: String(formData.get("fullName") ?? ""),
       email: String(formData.get("email") ?? ""),
       studentId: String(formData.get("studentId") ?? ""),
+      employeeId: String(formData.get("employeeId") ?? ""),
       phone: String(formData.get("phone") ?? ""),
       dateOfBirth: String(formData.get("dateOfBirth") ?? ""),
       sex: String(formData.get("sex") ?? ""),
-      affiliation: String(formData.get("affiliation") ?? ""),
+      patientType: String(formData.get("patientType") ?? ""),
     })
     revalidatePath(BASE)
     redirect(
       buildHref({
         query: q,
-        affiliation: a,
+        patientType: t,
         notice: outcome.ok ? outcome.message : undefined,
         error: outcome.ok ? undefined : outcome.error,
       })
@@ -130,7 +136,7 @@ export async function PatientsPage({ searchParams = {} }: PatientsPageProps) {
   async function deleteAction(formData: FormData) {
     "use server"
     const q = String(formData.get("currentQuery") ?? "")
-    const a = String(formData.get("currentAffiliation") ?? "all")
+    const t = String(formData.get("currentType") ?? "all")
     const outcome = await deletePatient({
       patientId: String(formData.get("patientId") ?? ""),
     })
@@ -138,7 +144,7 @@ export async function PatientsPage({ searchParams = {} }: PatientsPageProps) {
     redirect(
       buildHref({
         query: q,
-        affiliation: a,
+        patientType: t,
         notice: outcome.ok ? outcome.message : undefined,
         error: outcome.ok ? undefined : outcome.error,
       })
@@ -152,7 +158,7 @@ export async function PatientsPage({ searchParams = {} }: PatientsPageProps) {
     redirect(
       buildHref({
         query,
-        affiliation,
+        patientType,
         notice: outcome.ok ? outcome.message : undefined,
         warning: outcome.ok ? outcome.warning : undefined,
         error: outcome.ok ? undefined : outcome.error,
@@ -161,11 +167,11 @@ export async function PatientsPage({ searchParams = {} }: PatientsPageProps) {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-6 p-4 md:p-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-6">
       <PageHeader
         title="Patients"
         subtitle="Students and faculty"
-        description="Manage campus patients (students and faculty). Bulk import from Excel when onboarding rosters."
+        description="Register campus patients with the correct campus ID. Students use student ID; faculty use employee ID."
       />
 
       {(notice || warning || error) && (
@@ -199,20 +205,16 @@ export async function PatientsPage({ searchParams = {} }: PatientsPageProps) {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <IconPlus className="size-4" aria-hidden />
-                  Add patient
+                  Register patient
                 </CardTitle>
                 <CardDescription>
-                  Students and faculty of the campus clinic.
+                  Pick student or faculty first — the required campus ID follows.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <form action={createAction} className="grid gap-3 sm:grid-cols-2">
                   <input type="hidden" name="currentQuery" value={query} />
-                  <input
-                    type="hidden"
-                    name="currentAffiliation"
-                    value={affiliation}
-                  />
+                  <input type="hidden" name="currentType" value={patientType} />
                   <Input
                     name="fullName"
                     placeholder="Full name"
@@ -220,17 +222,26 @@ export async function PatientsPage({ searchParams = {} }: PatientsPageProps) {
                     className="sm:col-span-2"
                   />
                   <select
-                    name="affiliation"
+                    name="patientType"
                     required
                     defaultValue="student"
                     className="h-9 rounded-4xl border border-border bg-background px-3 text-sm sm:col-span-2"
-                    aria-label="Affiliation"
+                    aria-label="Patient type"
                   >
                     <option value="student">Student</option>
                     <option value="faculty">Faculty</option>
                   </select>
                   <Input name="email" type="email" placeholder="Email" />
-                  <Input name="studentId" placeholder="ID number" />
+                  <Input
+                    name="studentId"
+                    placeholder="Student ID (students)"
+                    aria-label="Student ID"
+                  />
+                  <Input
+                    name="employeeId"
+                    placeholder="Employee ID (faculty)"
+                    aria-label="Employee ID"
+                  />
                   <Input name="phone" placeholder="Phone" />
                   <Input name="dateOfBirth" type="date" aria-label="Date of birth" />
                   <Input name="sex" placeholder="Sex" className="sm:col-span-2" />
@@ -251,22 +262,24 @@ export async function PatientsPage({ searchParams = {} }: PatientsPageProps) {
               <CardContent>
                 <BulkExcelImportCard
                   title="Import patients"
-                  description="Columns: full_name, email, student_id, phone, date_of_birth, sex, affiliation (student|faculty)"
+                  description="Columns: full_name, email, student_id, employee_id, phone, date_of_birth, sex, patient_type (student|faculty)"
                   templateFilename="patients-import-template.xlsx"
                   templateHeaders={[
                     "full_name",
                     "email",
                     "student_id",
+                    "employee_id",
                     "phone",
                     "date_of_birth",
                     "sex",
-                    "affiliation",
+                    "patient_type",
                   ]}
                   templateSampleRows={[
                     [
                       "Juan Dela Cruz",
                       "juan@example.com",
                       "2024-001",
+                      "",
                       "09171234567",
                       "2004-05-12",
                       "male",
@@ -275,6 +288,7 @@ export async function PatientsPage({ searchParams = {} }: PatientsPageProps) {
                     [
                       "Maria Santos",
                       "maria.santos@example.com",
+                      "",
                       "FAC-12",
                       "09179876543",
                       "1988-02-01",
@@ -301,14 +315,14 @@ export async function PatientsPage({ searchParams = {} }: PatientsPageProps) {
                 <Input
                   name="q"
                   defaultValue={query}
-                  placeholder="Search patients"
+                  placeholder="Search name or campus ID"
                   className="w-48"
                 />
                 <select
-                  name="affiliation"
-                  defaultValue={affiliation}
+                  name="type"
+                  defaultValue={patientType}
                   className="h-9 rounded-4xl border border-border bg-background px-3 text-sm"
-                  aria-label="Filter by affiliation"
+                  aria-label="Filter by patient type"
                 >
                   <option value="all">All</option>
                   <option value="student">Students</option>
@@ -337,98 +351,121 @@ export async function PatientsPage({ searchParams = {} }: PatientsPageProps) {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    result.patients.map((patient) => (
-                      <TableRow key={patient.id}>
-                        <TableCell className="min-w-56 align-top">
-                          <form action={updateAction} className="grid gap-2">
-                            <input
-                              type="hidden"
-                              name="patientId"
-                              value={patient.id}
-                            />
-                            <input type="hidden" name="currentQuery" value={query} />
-                            <input
-                              type="hidden"
-                              name="currentAffiliation"
-                              value={affiliation}
-                            />
-                            <Input
-                              name="fullName"
-                              defaultValue={patient.fullName}
-                              required
-                            />
-                            <select
-                              name="affiliation"
-                              defaultValue={patient.affiliation ?? "student"}
-                              className="h-9 rounded-4xl border border-border bg-background px-3 text-sm"
-                              aria-label="Affiliation"
-                            >
-                              <option value="student">Student</option>
-                              <option value="faculty">Faculty</option>
-                            </select>
-                            <Input
-                              name="studentId"
-                              defaultValue={patient.studentId ?? ""}
-                              placeholder="ID number"
-                            />
-                            <Input
-                              name="dateOfBirth"
-                              type="date"
-                              defaultValue={patient.dateOfBirth ?? ""}
-                            />
-                            <Input
-                              name="sex"
-                              defaultValue={patient.sex ?? ""}
-                              placeholder="Sex"
-                            />
-                            <Input
-                              name="email"
-                              type="email"
-                              defaultValue={patient.email ?? ""}
-                              placeholder="Email"
-                            />
-                            <Input
-                              name="phone"
-                              defaultValue={patient.phone ?? ""}
-                              placeholder="Phone"
-                            />
-                            <Button type="submit" size="sm" variant="outline">
-                              Save
-                            </Button>
-                          </form>
-                        </TableCell>
-                        <TableCell className="align-top">
-                          <Badge variant="outline" className="capitalize">
-                            {patient.affiliation ?? "student"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="align-top text-sm text-muted-foreground">
-                          <div className="space-y-1">
-                            <p>{patient.email ?? "No email"}</p>
-                            <p>{patient.phone ?? "No phone"}</p>
-                            <p>{patient.studentId ?? "No ID"}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="align-top text-right">
-                          <form action={deleteAction}>
-                            <input
-                              type="hidden"
-                              name="patientId"
-                              value={patient.id}
-                            />
-                            <input type="hidden" name="currentQuery" value={query} />
-                            <input
-                              type="hidden"
-                              name="currentAffiliation"
-                              value={affiliation}
-                            />
-                            <Button type="submit" size="sm" variant="ghost">
-                              Delete
-                            </Button>
-                          </form>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    result.patients.map((patient) => {
+                      const type = patient.patientType ?? "student"
+                      return (
+                        <TableRow key={patient.id}>
+                          <TableCell className="min-w-56 align-top">
+                            <form action={updateAction} className="grid gap-2">
+                              <input
+                                type="hidden"
+                                name="patientId"
+                                value={patient.id}
+                              />
+                              <input
+                                type="hidden"
+                                name="currentQuery"
+                                value={query}
+                              />
+                              <input
+                                type="hidden"
+                                name="currentType"
+                                value={patientType}
+                              />
+                              <Input
+                                name="fullName"
+                                defaultValue={patient.fullName}
+                                required
+                              />
+                              <select
+                                name="patientType"
+                                defaultValue={type}
+                                className="h-9 rounded-4xl border border-border bg-background px-3 text-sm"
+                                aria-label="Patient type"
+                              >
+                                <option value="student">Student</option>
+                                <option value="faculty">Faculty</option>
+                              </select>
+                              <Input
+                                name="studentId"
+                                defaultValue={patient.studentId ?? ""}
+                                placeholder="Student ID"
+                                aria-label="Student ID"
+                              />
+                              <Input
+                                name="employeeId"
+                                defaultValue={patient.employeeId ?? ""}
+                                placeholder="Employee ID"
+                                aria-label="Employee ID"
+                              />
+                              <Input
+                                name="dateOfBirth"
+                                type="date"
+                                defaultValue={patient.dateOfBirth ?? ""}
+                              />
+                              <Input
+                                name="sex"
+                                defaultValue={patient.sex ?? ""}
+                                placeholder="Sex"
+                              />
+                              <Input
+                                name="email"
+                                type="email"
+                                defaultValue={patient.email ?? ""}
+                                placeholder="Email"
+                              />
+                              <Input
+                                name="phone"
+                                defaultValue={patient.phone ?? ""}
+                                placeholder="Phone"
+                              />
+                              <Button type="submit" size="sm" variant="outline">
+                                Save
+                              </Button>
+                            </form>
+                          </TableCell>
+                          <TableCell className="align-top">
+                            <Badge variant="outline" className="capitalize">
+                              {type}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="align-top text-sm text-muted-foreground">
+                            <div className="space-y-1">
+                              <p>{patient.email ?? "No email"}</p>
+                              <p>{patient.phone ?? "No phone"}</p>
+                              <p>
+                                {campusIdLabel(type)}:{" "}
+                                {type === "faculty"
+                                  ? (patient.employeeId ?? "—")
+                                  : (patient.studentId ?? "—")}
+                              </p>
+                            </div>
+                          </TableCell>
+                          <TableCell className="align-top text-right">
+                            <form action={deleteAction}>
+                              <input
+                                type="hidden"
+                                name="patientId"
+                                value={patient.id}
+                              />
+                              <input
+                                type="hidden"
+                                name="currentQuery"
+                                value={query}
+                              />
+                              <input
+                                type="hidden"
+                                name="currentType"
+                                value={patientType}
+                              />
+                              <Button type="submit" size="sm" variant="ghost">
+                                Delete
+                              </Button>
+                            </form>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
                   )}
                 </TableBody>
               </Table>

@@ -141,7 +141,7 @@ const roleGroupsByRole: Record<WebRole, RoleNavGroup[]> = {
         },
         {
           title: "Schedule",
-          href: "/physician/schedule",
+          href: "/physician/settings",
           icon: IconCalendarTime,
         },
       ],
@@ -165,6 +165,11 @@ const roleGroupsByRole: Record<WebRole, RoleNavGroup[]> = {
           title: "Consultations",
           href: "/dentist/dashboard?module=consultations",
           icon: IconStethoscope,
+        },
+        {
+          title: "Schedule",
+          href: "/dentist/settings",
+          icon: IconCalendarTime,
         },
       ],
     },

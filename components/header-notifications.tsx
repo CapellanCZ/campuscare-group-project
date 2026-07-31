@@ -74,7 +74,7 @@ function HeaderNotificationsInbox({
             }
             size="icon-sm"
             variant="outline"
-            className="relative shrink-0 rounded-full"
+            className="relative shrink-0"
           />
         }
       >

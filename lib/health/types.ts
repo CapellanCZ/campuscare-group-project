@@ -1,6 +1,23 @@
-export type TicketStatus = "waiting" | "called" | "completed" | "expired"
+export type TicketStatus =
+  | "waiting"
+  | "called"
+  | "completed"
+  | "expired"
+  | "no_show"
 
 export type StationId = "nurse" | "physician" | "dentist"
+
+export type SpecialtyStationId = Exclude<StationId, "nurse">
+
+export type PatientType = "student" | "faculty"
+
+export type QueueVitals = {
+  bpSystolic: number | null
+  bpDiastolic: number | null
+  heartRate: number | null
+  temperatureC: number | null
+  spo2: number | null
+}
 
 export type QueueTicketRow = {
   ticketId: string
@@ -13,14 +30,24 @@ export type QueueTicketRow = {
   checkedInAt: string | null
   updatedAt: string | null
   createdAt: string | null
+  patientId: string | null
   patientName: string
+  patientType: PatientType | null
   studentId: string | null
+  campusId: string | null
   consultationType: string | null
   service: string | null
   providerQueue: StationId | null
   workflowStatus: string | null
   assignedPersonnel: string | null
   station: StationId
+  callCount: number
+  rejoinCount: number
+  canRejoin: boolean
+  intakeCompletedAt: string | null
+  chiefComplaint: string | null
+  vitals: QueueVitals
+  intakeNotes: string | null
   priority: "normal" | "urgent"
 }
 
@@ -73,3 +100,14 @@ export type DashboardKpis = {
 export type HealthActionResult =
   | { ok: true; message?: string }
   | { ok: false; error: string }
+
+export type NurseIntakeInput = {
+  chiefComplaint?: string
+  bpSystolic?: number | null
+  bpDiastolic?: number | null
+  heartRate?: number | null
+  temperatureC?: number | null
+  spo2?: number | null
+  intakeNotes?: string
+  toStation: SpecialtyStationId
+}

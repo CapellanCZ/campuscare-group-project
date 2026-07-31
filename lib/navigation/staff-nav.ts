@@ -21,6 +21,7 @@ export type StaffNavIcon =
   | "users"
   | "settings"
   | "help"
+  | "schedule"
 
 export type StaffNavItemDef = {
   id: string
@@ -64,7 +65,8 @@ type NavGroupTemplate = {
  */
 const staffNavGroupTemplates: NavGroupTemplate[] = [
   {
-    id: "home",
+    id: "products",
+    label: "Products",
     items: [
       {
         id: "dashboard",
@@ -72,6 +74,20 @@ const staffNavGroupTemplates: NavGroupTemplate[] = [
         suffix: "",
         icon: "dashboard",
         module: "dashboard",
+      },
+      {
+        id: "reports",
+        title: "Reports",
+        suffix: "/reports",
+        icon: "reports",
+        module: "reports",
+      },
+      {
+        id: "announcements",
+        title: "Announcements",
+        suffix: "/announcements",
+        icon: "announcements",
+        module: "announcements",
       },
     ],
   },
@@ -130,26 +146,6 @@ const staffNavGroupTemplates: NavGroupTemplate[] = [
     ],
   },
   {
-    id: "insights",
-    label: "Insights",
-    items: [
-      {
-        id: "reports",
-        title: "Reports",
-        suffix: "/reports",
-        icon: "reports",
-        module: "reports",
-      },
-      {
-        id: "announcements",
-        title: "Announcements",
-        suffix: "/announcements",
-        icon: "announcements",
-        module: "announcements",
-      },
-    ],
-  },
-  {
     id: "admin",
     label: "Administration",
     items: [
@@ -178,7 +174,7 @@ function resolveItemPath(
 export function buildStaffNavGroups(
   designation: ClinicDesignation
 ): StaffNavGroupDef[] {
-  return staffNavGroupTemplates.map((group) => ({
+  const groups = staffNavGroupTemplates.map((group) => ({
     id: group.id,
     label: group.label,
     items: group.items.map((item) => {
@@ -196,22 +192,30 @@ export function buildStaffNavGroups(
       }
     }),
   }))
+
+  if (designation === "physician") {
+    const clinical = groups.find((g) => g.id === "clinical")
+    const appointmentsPath = `${staffBasePath(designation)}/appointments`
+    clinical?.items.splice(0, 0, {
+      id: "appointments",
+      title: "Appointments",
+      path: appointmentsPath,
+      icon: "requests",
+      module: undefined,
+      matchPrefixes: [appointmentsPath],
+    })
+  }
+
+  return groups
 }
 
 /** @deprecated Prefer buildStaffNavGroups(designation) */
 export const staffNavGroups: StaffNavGroupDef[] = buildStaffNavGroups("admin")
 
 export function buildStaffFooterNav(
-  designation: ClinicDesignation
+  _designation: ClinicDesignation
 ): StaffNavItemDef[] {
-  return [
-    {
-      id: "help",
-      title: "Help Center",
-      path: staffBasePath(designation),
-      icon: "help",
-    },
-  ]
+  return []
 }
 
 /** @deprecated Prefer buildStaffFooterNav(designation) */

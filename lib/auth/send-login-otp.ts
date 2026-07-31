@@ -92,6 +92,21 @@ export async function sendLoginOtpEmail(email: string): Promise<void> {
     throw new Error("Could not generate a verification code. Please try again.")
   }
 
+  const resendApiKey = process.env.RESEND_API_KEY?.trim()
+  if (!resendApiKey) {
+    // Local/dev without Resend: print the OTP so sign-in still works.
+    if (process.env.NODE_ENV === "development") {
+      console.info(
+        `\n[CampusCare dev] OTP for ${email}: ${token}\n` +
+          `Add RESEND_API_KEY to .env.local to send real emails.\n`
+      )
+      return
+    }
+    throw new Error(
+      "Missing required environment variable: RESEND_API_KEY. Add it to .env.local from https://resend.com/api-keys."
+    )
+  }
+
   await sendResendEmail({
     to: email,
     subject: "Your CampusCare sign-in code",

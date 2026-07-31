@@ -4,17 +4,10 @@ import { useState, useTransition } from "react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 
-import { actionRegisterWalkIn } from "@/lib/health/queue-server-actions"
+import { SelectWithOtherField } from "@/components/shared/select-with-other-field"
 import { Button } from "@/components/ui/button"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   Sheet,
   SheetContent,
@@ -24,18 +17,29 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
-import type { StationId } from "@/lib/health/types"
+import { CONSULTATION_TYPE_OPTIONS } from "@/lib/health/form-options"
+import { actionRegisterWalkIn } from "@/lib/health/queue-server-actions"
 import { IconUserPlus } from "@tabler/icons-react"
+
+const DEFAULT_CONSULTATION = "Walk-in consultation"
 
 export function WalkInSheet() {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [patientName, setPatientName] = useState("")
-  const [studentId, setStudentId] = useState("")
-  const [consultationType, setConsultationType] = useState("Walk-in consultation")
-  const [providerQueue, setProviderQueue] = useState<StationId>("nurse")
+  const [campusId, setCampusId] = useState("")
+  const [consultationType, setConsultationType] = useState(DEFAULT_CONSULTATION)
   const [error, setError] = useState<string | null>(null)
+  const [formKey, setFormKey] = useState(0)
+
+  function resetForm() {
+    setPatientName("")
+    setCampusId("")
+    setConsultationType(DEFAULT_CONSULTATION)
+    setError(null)
+    setFormKey((key) => key + 1)
+  }
 
   function onSubmit(event: React.FormEvent) {
     event.preventDefault()
@@ -45,13 +49,17 @@ export function WalkInSheet() {
       setError("Enter the patient name.")
       return
     }
+    if (!consultationType.trim()) {
+      setError("Choose a consultation type, or specify Other.")
+      return
+    }
 
     startTransition(async () => {
       const result = await actionRegisterWalkIn({
         patientName,
-        studentId: studentId || undefined,
-        consultationType,
-        providerQueue,
+        studentId: campusId || undefined,
+        consultationType: consultationType.trim(),
+        providerQueue: "nurse",
       })
 
       if (!result.ok) {
@@ -62,28 +70,36 @@ export function WalkInSheet() {
 
       toast.success(result.message ?? "Walk-in registered")
       setOpen(false)
-      setPatientName("")
-      setStudentId("")
-      setConsultationType("Walk-in consultation")
-      setProviderQueue("nurse")
+      resetForm()
       router.refresh()
     })
   }
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) resetForm()
+      }}
+    >
       <SheetTrigger render={<Button variant="outline" />}>
-        <IconUserPlus data-icon="inline-start" />
+        <IconUserPlus data-icon="inline-start" aria-hidden />
         Register walk-in
       </SheetTrigger>
-      <SheetContent className="flex flex-col gap-0 sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle>Register walk-in patient</SheetTitle>
-          <SheetDescription>
-            Creates a confirmed visit and assigns a waiting queue ticket.
+      <SheetContent className="flex flex-col gap-0 p-0 sm:max-w-md">
+        <SheetHeader className="gap-1 border-b px-4 py-3 text-left">
+          <SheetTitle>Register walk-in</SheetTitle>
+          <SheetDescription className="text-xs">
+            Check-in starts at the nurse station for vitals and specialty
+            assignment.
           </SheetDescription>
         </SheetHeader>
-        <form className="flex flex-1 flex-col gap-4 px-4 py-4" onSubmit={onSubmit}>
+        <form
+          key={formKey}
+          className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-4"
+          onSubmit={onSubmit}
+        >
           <Field data-invalid={error ? true : undefined}>
             <FieldLabel htmlFor="walkin-name">Patient name</FieldLabel>
             <Input
@@ -93,45 +109,33 @@ export function WalkInSheet() {
               placeholder="Full name"
               required
               disabled={pending}
+              autoComplete="name"
             />
           </Field>
           <Field>
-            <FieldLabel htmlFor="walkin-student">Student ID (optional)</FieldLabel>
+            <FieldLabel htmlFor="walkin-campus">
+              Student ID Number (optional)
+            </FieldLabel>
             <Input
-              id="walkin-student"
-              value={studentId}
-              onChange={(e) => setStudentId(e.target.value)}
-              placeholder="2023-000000"
+              id="walkin-campus"
+              value={campusId}
+              onChange={(e) => setCampusId(e.target.value)}
+              placeholder="2023-171863"
               disabled={pending}
+              autoComplete="off"
             />
           </Field>
-          <Field>
-            <FieldLabel htmlFor="walkin-type">Consultation type</FieldLabel>
-            <Input
-              id="walkin-type"
-              value={consultationType}
-              onChange={(e) => setConsultationType(e.target.value)}
-              disabled={pending}
-            />
-          </Field>
-          <Field>
-            <FieldLabel>Assign station</FieldLabel>
-            <Select
-              value={providerQueue}
-              onValueChange={(value) =>
-                setProviderQueue((value as StationId) ?? "nurse")
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="nurse">Nurse</SelectItem>
-                <SelectItem value="physician">Physician</SelectItem>
-                <SelectItem value="dentist">Dentist</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
+          <SelectWithOtherField
+            id="walkin-type"
+            label="Consultation type"
+            options={CONSULTATION_TYPE_OPTIONS}
+            value={consultationType}
+            onValueChange={setConsultationType}
+            placeholder="Select consultation type"
+            otherPlaceholder="e.g. Vaccination, counseling…"
+            disabled={pending}
+            required
+          />
           {error ? (
             <p role="alert" className="text-sm text-destructive">
               {error}
@@ -139,7 +143,7 @@ export function WalkInSheet() {
           ) : null}
           <SheetFooter className="mt-auto px-0">
             <Button type="submit" disabled={pending} className="w-full">
-              {pending ? "Registering..." : "Register and queue"}
+              {pending ? "Registering…" : "Register to nurse queue"}
             </Button>
           </SheetFooter>
         </form>

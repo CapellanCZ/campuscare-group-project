@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { toast } from "sonner"
@@ -174,7 +174,7 @@ export function ReportsPage({
   const showSkeleton = loading || pending
 
   return (
-    <div className="flex flex-col gap-4 p-4 md:p-6 print:p-0">
+    <div className="flex flex-col gap-4 print:p-0">
       <div className="print:hidden">
         <DemoPageHeader
           title="Reports"
@@ -201,7 +201,7 @@ export function ReportsPage({
       <div className="hidden print:block print:mb-4">
         <h1 className="text-2xl font-semibold">CampusCare Reports</h1>
         <p className="text-sm text-muted-foreground">
-          {reportRangeLabel(report.range)} · generated{" "}
+          {reportRangeLabel(report.range)} ┬╖ generated{" "}
           {new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" })}
         </p>
       </div>

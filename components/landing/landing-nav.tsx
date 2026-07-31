@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { IconMenu2, IconX } from "@tabler/icons-react"
 
+import { CampusCareLogo } from "@/components/campuscare-logo"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
@@ -42,10 +43,11 @@ export function LandingNav() {
           href="#home"
           className="flex min-w-0 items-center gap-2 font-semibold tracking-tight text-foreground"
         >
-          <img
-            src="/images/logo.png"
+          <CampusCareLogo
             alt="CampusCare"
             className="h-8 w-auto"
+            width={48}
+            height={32}
           />
           <span className="truncate">CampusCare</span>
         </Link>

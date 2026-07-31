@@ -49,7 +49,7 @@ export const DIRECTORY_CONFIG = {
       ["Pat Physician", "pat.physician@example.com", "physician"],
       ["Dana Dentist", "dana.dentist@example.com", "dentist"],
     ] as string[][],
-    directoryTitle: "Clinic staff directory",
+    directoryTitle: "Clinic Members Directory",
     roles: STAFF_DIRECTORY_ROLES,
     defaultCreateRole: "nurse" as ManagedRole,
     showRoleFilter: true,

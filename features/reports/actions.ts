@@ -1,6 +1,9 @@
 "use server"
 
+import { loadReportsBundle } from "@/features/reports/data/queries"
 import { getClinicReport } from "@/services/reports"
+import type { ClinicDesignation } from "@/lib/auth/types"
+import type { ReportFilters, ReportsBundle } from "@/features/reports/types"
 import {
   ReportServiceError,
   type ClinicReportBundle,
@@ -35,6 +38,21 @@ function toErrorResult(error: unknown): ReportActionResult<never> {
     ok: false,
     error: "Something went wrong while loading reports.",
     code: "unknown",
+  }
+}
+
+export async function fetchReportsBundleAction(
+  designation: ClinicDesignation,
+  filters?: Partial<ReportFilters>
+): Promise<ReportActionResult<ReportsBundle>> {
+  try {
+    const data = await loadReportsBundle(designation, filters)
+    if (data.error) {
+      return { ok: false, error: data.error, code: "database" }
+    }
+    return { ok: true, data }
+  } catch (error) {
+    return toErrorResult(error)
   }
 }
 

@@ -49,13 +49,15 @@ export function HeaderSearch({ className }: { className?: string }) {
         aria-label="Search"
         onClick={() => setOpen(true)}
         className={cn(
-          "hidden h-9 w-40 shrink-0 justify-start gap-2 rounded-full px-3 font-normal text-muted-foreground sm:inline-flex md:w-48",
+          "hidden h-8 w-56 shrink-0 justify-start gap-2 px-2.5 font-normal text-muted-foreground sm:inline-flex md:w-64",
           className
         )}
       >
-        <IconSearch className="size-4 shrink-0 opacity-60" aria-hidden="true" />
-        <span className="min-w-0 flex-1 truncate text-left">Search...</span>
-        <KbdGroup className="pointer-events-none hidden md:inline-flex">
+        <IconSearch className="size-4 shrink-0 opacity-70" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate text-left text-sm">
+          Search...
+        </span>
+        <KbdGroup className="pointer-events-none ml-auto">
           <Kbd>⌘</Kbd>
           <Kbd>K</Kbd>
         </KbdGroup>

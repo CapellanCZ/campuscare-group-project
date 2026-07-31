@@ -8,7 +8,13 @@ import {
   createConsultationAction,
   updateConsultationAction,
 } from "@/features/consultations/actions"
-import { listPatientOptionsAction } from "@/features/patients/actions"
+import {
+  ensurePatientRecordAction,
+  listPatientOptionsAction,
+} from "@/features/patients/actions"
+import { isEnrolledVirtualId } from "@/lib/students/virtual-id"
+import { NO_STUDENT_FOUND } from "@/lib/students/types"
+import { SelectWithOtherField } from "@/components/shared/select-with-other-field"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -42,6 +48,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
+import { CHIEF_COMPLAINT_OPTIONS } from "@/lib/health/form-options"
 import { cn } from "@/lib/utils"
 import {
   CONSULTATION_PRIORITIES,
@@ -53,6 +60,7 @@ import {
   type CreateConsultationInput,
 } from "@/types/consultation"
 import {
+  patientCampusId,
   patientFullName,
   type PatientRecord,
 } from "@/types/patientRecord"
@@ -184,6 +192,11 @@ export function ConsultationFormSheet({
     void listPatientOptionsAction(patientQuery).then((result) => {
       if (cancelled) return
       if (!result.ok) {
+        if (result.error === NO_STUDENT_FOUND) {
+          setPatients([])
+          toast.error(NO_STUDENT_FOUND)
+          return
+        }
         toast.error(result.error)
         return
       }
@@ -198,6 +211,30 @@ export function ConsultationFormSheet({
     () => patients.find((patient) => patient.id === form.patientId) ?? null,
     [patients, form.patientId]
   )
+
+  async function selectPatient(patient: PatientRecord) {
+    if (!isEnrolledVirtualId(patient.id)) {
+      update("patientId", patient.id)
+      setPatientOpen(false)
+      return
+    }
+    const result = await ensurePatientRecordAction(patient)
+    if (!result.ok) {
+      toast.error(result.error)
+      return
+    }
+    setPatients((prev) => {
+      const withoutVirtual = prev.filter((item) => item.id !== patient.id)
+      if (withoutVirtual.some((item) => item.id === result.data.id)) {
+        return withoutVirtual.map((item) =>
+          item.id === result.data.id ? result.data : item
+        )
+      }
+      return [result.data, ...withoutVirtual]
+    })
+    update("patientId", result.data.id)
+    setPatientOpen(false)
+  }
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -252,7 +289,7 @@ export function ConsultationFormSheet({
                     >
                       <span className="truncate">
                         {selectedPatient
-                          ? `${patientFullName(selectedPatient)} · ${selectedPatient.studentId}`
+                          ? `${patientFullName(selectedPatient)} · ${patientCampusId(selectedPatient) ?? "No ID"}`
                           : consultation?.patient.fullName
                             ? `${consultation.patient.fullName} · ${consultation.patient.studentId}`
                             : "Search patient records"}
@@ -264,20 +301,23 @@ export function ConsultationFormSheet({
                 <PopoverContent className="w-[var(--anchor-width)] p-0" align="start">
                   <Command shouldFilter={false}>
                     <CommandInput
-                      placeholder="Search name or student ID"
+                      placeholder="Search by Student ID Number"
                       value={patientQuery}
                       onValueChange={setPatientQuery}
                     />
                     <CommandList>
-                      <CommandEmpty>No patients found.</CommandEmpty>
+                      <CommandEmpty>
+                        {patientQuery.trim()
+                          ? NO_STUDENT_FOUND
+                          : "No enrolled students."}
+                      </CommandEmpty>
                       <CommandGroup>
                         {patients.map((patient) => (
                           <CommandItem
                             key={patient.id}
                             value={patient.id}
                             onSelect={() => {
-                              update("patientId", patient.id)
-                              setPatientOpen(false)
+                              void selectPatient(patient)
                             }}
                           >
                             <IconCheck
@@ -289,7 +329,8 @@ export function ConsultationFormSheet({
                               )}
                             />
                             <span className="truncate">
-                              {patientFullName(patient)} · {patient.studentId}
+                              {patientFullName(patient)} ·{" "}
+                              {patientCampusId(patient) ?? "No ID"}
                             </span>
                           </CommandItem>
                         ))}
@@ -300,14 +341,17 @@ export function ConsultationFormSheet({
               </Popover>
             </Field>
 
-            <Field>
-              <FieldLabel htmlFor="chiefComplaint">Chief complaint *</FieldLabel>
-              <Input
-                id="chiefComplaint"
-                value={form.chiefComplaint}
-                onChange={(e) => update("chiefComplaint", e.target.value)}
-              />
-            </Field>
+            <SelectWithOtherField
+              key={consultation?.id ?? "consult-create"}
+              id="chiefComplaint"
+              label="Chief complaint *"
+              options={CHIEF_COMPLAINT_OPTIONS}
+              value={form.chiefComplaint}
+              onValueChange={(value) => update("chiefComplaint", value)}
+              placeholder="Select complaint"
+              otherPlaceholder="Describe the complaint…"
+              required
+            />
             <Field>
               <FieldLabel htmlFor="symptoms">Symptoms</FieldLabel>
               <Textarea

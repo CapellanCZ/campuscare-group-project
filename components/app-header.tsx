@@ -7,10 +7,12 @@ import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
 import { AppBreadcrumbs } from "@/components/app-breadcrumbs"
 import { CustomSidebarTrigger } from "@/components/custom-sidebar-trigger"
+import { DecorIcon } from "@/components/decor-icon"
 import { resolveActiveNav } from "@/components/app-shared"
 import { HeaderNotifications } from "@/components/header-notifications"
 import { HeaderSearch } from "@/components/header-search"
 import { NavUser } from "@/components/nav-user"
+import { OnBreakControl } from "@/components/availability/on-break-control"
 import { useOptionalStaffAccess } from "@/components/staff-access-provider"
 import { stripStaffBasePath } from "@/lib/auth/home-path"
 
@@ -22,16 +24,23 @@ export function AppHeader() {
   const page =
     activeItem ??
     (relative === "/settings" || relative.startsWith("/settings/")
-      ? { title: "Settings", icon: <IconSettings /> }
+      ? { title: "Settings", icon: <IconSettings className="size-3.5" /> }
       : undefined)
+
+  const role = access?.primaryRole
+  const showClinicBreak = role === "nurse" || role === "admin"
+  const showStaffBreak =
+    role === "physician" || role === "dentist" || role === "nurse"
 
   return (
     <header
       className={cn(
-        "sticky top-0 z-50 flex h-14 shrink-0 items-center justify-between gap-3 border-b bg-background/95 px-5 backdrop-blur md:gap-4 md:px-8"
+        "sticky top-0 z-50 flex h-14 shrink-0 items-center justify-between gap-2 border-b px-4 md:px-6",
+        "bg-background/95 backdrop-blur-sm supports-backdrop-filter:bg-background/50"
       )}
     >
-      <div className="flex min-w-0 items-center gap-3">
+      <DecorIcon className="hidden md:block" position="bottom-left" />
+      <div className="flex items-center gap-3">
         <CustomSidebarTrigger />
         <Separator
           className="mr-2 h-4 data-[orientation=vertical]:self-center"
@@ -39,16 +48,20 @@ export function AppHeader() {
         />
         <AppBreadcrumbs page={page} />
       </div>
-      <div className="flex shrink-0 items-center gap-2.5 sm:gap-3">
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        {showClinicBreak ? (
+          <OnBreakControl mode="clinic" role={role} />
+        ) : null}
+        {showStaffBreak ? (
+          <OnBreakControl mode="staff" role={role} />
+        ) : null}
         <HeaderSearch />
         <HeaderNotifications />
         <Separator
-          className="hidden h-4 shrink-0 data-[orientation=vertical]:self-center sm:block"
+          className="h-4 data-[orientation=vertical]:self-center"
           orientation="vertical"
         />
-        <div className="shrink-0 pl-0.5">
-          <NavUser />
-        </div>
+        <NavUser />
       </div>
     </header>
   )

@@ -23,6 +23,10 @@ const analyticsCopy: Record<WebRole, { subtitle: string; description: string }> 
     description:
       "Review consultation volume, procedure trends, and patient follow-ups.",
   },
+  queue_display: {
+    subtitle: "Public queue display",
+    description: "Live queue board metrics for the waiting area display.",
+  },
 }
 
 type RoleAnalyticsPageProps = {

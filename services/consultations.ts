@@ -39,9 +39,11 @@ const SELECT_WITH_PATIENT = `
   updated_at,
   patient_records (
     id,
+    patient_type,
     first_name,
     last_name,
-    student_id
+    student_id,
+    employee_id
   )
 `
 

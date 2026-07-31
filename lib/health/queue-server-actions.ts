@@ -6,15 +6,23 @@ import { getStaffAccess } from "@/lib/auth/access"
 import { STAFF_ROUTE_ROLES } from "@/lib/auth/home-path"
 import {
   assignQueueNumber,
+  approveConsultationRequest,
   callNextTicket,
+  completeNurseIntakeAndAssign,
   completeTicket,
+  recallTicket,
   registerWalkIn,
+  rejoinQueue,
   skipOrNoShow,
   startConsultation,
   transferTicket,
   verifyCheckIn,
 } from "@/lib/health/queue-actions"
-import type { HealthActionResult, StationId } from "@/lib/health/types"
+import type {
+  HealthActionResult,
+  NurseIntakeInput,
+  StationId,
+} from "@/lib/health/types"
 
 function revalidateQueueSurfaces() {
   for (const role of STAFF_ROUTE_ROLES) {
@@ -24,6 +32,9 @@ function revalidateQueueSurfaces() {
   revalidatePath("/queue-management")
   revalidatePath("/queue-management/display")
   revalidatePath("/display")
+  for (const role of STAFF_ROUTE_ROLES) {
+    revalidatePath(`/${role}/requests`)
+  }
 }
 
 async function withStaff<T extends HealthActionResult>(
@@ -45,6 +56,16 @@ export async function actionCallNext(station?: StationId) {
     callNextTicket({
       designation: access.designation,
       station,
+      staffName: access.fullName,
+    })
+  )
+}
+
+export async function actionRecallTicket(ticketId: string) {
+  return withStaff((access) =>
+    recallTicket({
+      designation: access.designation,
+      ticketId,
       staffName: access.fullName,
     })
   )
@@ -86,6 +107,12 @@ export async function actionNoShowTicket(ticketId: string) {
   )
 }
 
+export async function actionRejoinQueue(ticketId: string) {
+  return withStaff((access) =>
+    rejoinQueue({ designation: access.designation, ticketId })
+  )
+}
+
 export async function actionVerifyCheckIn(ticketId: string) {
   return withStaff((access) =>
     verifyCheckIn({ designation: access.designation, ticketId })
@@ -101,6 +128,20 @@ export async function actionTransferTicket(
       designation: access.designation,
       ticketId,
       toStation,
+    })
+  )
+}
+
+export async function actionCompleteNurseIntake(
+  ticketId: string,
+  intake: NurseIntakeInput
+) {
+  return withStaff((access) =>
+    completeNurseIntakeAndAssign({
+      designation: access.designation,
+      ticketId,
+      staffName: access.fullName,
+      intake,
     })
   )
 }
@@ -132,6 +173,26 @@ export async function actionAssignQueueNumber(
       designation: access.designation,
       ticketId,
       queueNumber,
+    })
+  )
+}
+
+export async function actionApproveConsultationRequest(input: {
+  requestId: string
+  patientName: string
+  studentId?: string
+  service: string
+  reason?: string
+}) {
+  return withStaff((access) =>
+    approveConsultationRequest({
+      designation: access.designation,
+      requestId: input.requestId,
+      patientName: input.patientName,
+      studentId: input.studentId,
+      service: input.service,
+      reason: input.reason,
+      staffName: access.fullName,
     })
   )
 }

@@ -246,8 +246,8 @@ export const demoSettingsSections: DemoSettingsSection[] = [
     description: "Operating hours, service catalog, and campus location.",
     permission: "clinic",
     values: [
-      { label: "Weekday hours", value: "8:00 AM – 5:00 PM" },
-      { label: "Saturday hours", value: "8:00 AM – 12:00 PM" },
+      { label: "Weekday hours", value: "7:00 AM – 9:00 PM" },
+      { label: "Saturday hours", value: "7:00 AM – 7:00 PM" },
       { label: "Default station", value: "Nurse triage" },
     ],
   },

@@ -1,15 +1,29 @@
 "use client"
 
 import Link from "next/link"
+import { useState } from "react"
 
+import { RoleDashboardSummaries } from "@/components/dashboard/role-dashboard-summaries"
 import { ActivityFeed } from "@/components/shared/activity-feed"
 import { RecentlyServedCard } from "@/components/shared/recently-served-card"
 import { StatCard } from "@/components/shared/stat-card"
+import { NurseIntakeSheet } from "@/components/queue/nurse-intake-sheet"
+import { NurseWorkbench } from "@/components/queue/nurse-workbench"
+import { VitalsStrip } from "@/components/queue/vitals-strip"
+import { WaitStatusBadge } from "@/components/queue/wait-status-badge"
+import {
+  PageIntro,
+  PanelCell,
+  PanelFrame,
+  PanelGrid,
+  panelCardClassName,
+} from "@/components/layout/panel-frame"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -21,16 +35,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty"
 import type { StaffAccess } from "@/lib/auth/types"
+import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
 import { designationLabel, stationLabel } from "@/lib/health/roles"
-import { ticketLabel } from "@/lib/health/mappers"
+import { patientTypeLabel, ticketLabel } from "@/lib/health/mappers"
+import { needsNurseIntake } from "@/lib/health/nurse-queue"
 import type {
   ActivityItem,
   DashboardKpis,
@@ -39,7 +48,7 @@ import type {
   RecentlyServedItem,
   StationBoard,
 } from "@/lib/health/types"
-import { IconChecklist, IconUsers } from "@tabler/icons-react"
+import { cn } from "@/lib/utils"
 
 export function RoleDashboard({
   access,
@@ -49,6 +58,7 @@ export function RoleDashboard({
   activity,
   recent,
   stats,
+  summary,
 }: {
   access: StaffAccess
   kpis: DashboardKpis
@@ -57,161 +67,325 @@ export function RoleDashboard({
   activity: ActivityItem[]
   recent: RecentlyServedItem[]
   stats: QueueStats
+  summary: RoleDashboardSummary
 }) {
-  const waiting = tickets.filter((t) => t.status === "waiting").slice(0, 6)
+  const isSpecialty =
+    access.designation === "physician" || access.designation === "dentist"
+  const isNurse = access.designation === "nurse"
+  const isAdmin = access.designation === "admin"
+  const [intakeTicket, setIntakeTicket] = useState<QueueTicketRow | null>(null)
+  const nowServing = tickets.find((t) => t.status === "called") ?? null
+  const waiting = (
+    isNurse
+      ? tickets.filter((t) => needsNurseIntake(t))
+      : tickets.filter(
+          (t) =>
+            t.status === "waiting" || (isSpecialty && t.status === "called")
+        )
+  ).slice(0, 8)
+
+  const kpiCards = kpis.cards.slice(0, isAdmin || isNurse || isSpecialty ? 6 : 3)
+
+  const queueHref =
+    access.designation === "queue_display"
+      ? "/queue-management/display"
+      : `/${access.designation}/queue`
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0 space-y-1">
-          <h1 className="truncate text-2xl font-semibold tracking-tight">
-            Good day, {access.fullName.split(" ")[0]}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {designationLabel(access.designation)} overview ·{" "}
-            {stats.totalWaiting} waiting · {stats.currentlyServing} serving
-          </p>
-        </div>
-        <Button
-          render={
-            <Link
-              href={
-                access.designation === "queue_display"
-                  ? "/queue-management/display"
-                  : `/${access.designation}/queue`
-              }
-            />
-          }
-          nativeButton={false}
-        >
-          Open queue
-        </Button>
-      </div>
+    <div className="flex flex-1 flex-col gap-6">
+      <PageIntro
+        title={`Welcome back, ${access.fullName.split(" ")[0]}`}
+        description={`${designationLabel(access.designation)} overview · ${stats.totalWaiting} waiting · ${stats.currentlyServing} serving`}
+        action={
+          <Button
+            size="sm"
+            render={<Link href={queueHref} />}
+            nativeButton={false}
+          >
+            Open queue
+          </Button>
+        }
+      />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        {kpis.cards.map((card) => (
-          <StatCard
-            key={card.key}
-            label={card.label}
-            value={card.value}
-            description={card.description}
-            delta={card.delta}
-            lowerIsBetter={card.lowerIsBetter}
-            className="xl:col-span-1 sm:col-span-1"
-          />
-        ))}
-      </div>
+      <PanelFrame>
+        <PanelGrid className="lg:grid-cols-3">
+          {kpiCards.map((card) => (
+            <PanelCell key={String(card.key)}>
+              <StatCard
+                flush
+                label={card.label}
+                value={String(card.value)}
+                description={card.description}
+                delta={card.delta}
+                lowerIsBetter={card.lowerIsBetter}
+              />
+            </PanelCell>
+          ))}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="min-w-0 shadow-none dark:ring-0 lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 border-b">
-            <CardTitle className="text-base">
-              {access.designation === "admin"
-                ? "Live queue overview"
-                : access.designation === "nurse"
-                  ? "Today's queue"
-                  : "Waiting patients"}
-            </CardTitle>
-            <Badge variant="outline">{waiting.length} waiting</Badge>
-          </CardHeader>
-          <CardContent className="p-0">
-            {waiting.length === 0 ? (
-              <Empty className="py-12">
-                <EmptyHeader>
-                  <EmptyMedia variant="icon">
-                    <IconUsers />
-                  </EmptyMedia>
-                  <EmptyTitle>Queue is clear</EmptyTitle>
-                  <EmptyDescription>
-                    New check-ins and walk-ins will appear here.
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Ticket</TableHead>
-                    <TableHead>Patient</TableHead>
-                    <TableHead className="hidden sm:table-cell">Station</TableHead>
-                    <TableHead className="hidden md:table-cell">Type</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {waiting.map((row) => (
-                    <TableRow key={row.ticketId}>
-                      <TableCell className="font-medium tabular-nums">
-                        {ticketLabel(row.queueNumber, row.ticketCode)}
-                      </TableCell>
-                      <TableCell className="max-w-[10rem] truncate">
-                        {row.patientName}
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell">
-                        {stationLabel(row.station)}
-                      </TableCell>
-                      <TableCell className="hidden max-w-[10rem] truncate md:table-cell">
-                        {row.consultationType}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{row.status}</Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+          {isNurse ? (
+            <PanelCell className="lg:col-span-3">
+              <NurseWorkbench
+                tickets={tickets}
+                onStartIntake={setIntakeTicket}
+                variant="panel"
+              />
+            </PanelCell>
+          ) : null}
 
-        <Card className="min-w-0 shadow-none dark:ring-0">
-          <CardHeader className="border-b">
-            <CardTitle className="text-base">Stations</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 pt-(--card-spacing)">
-            {boards.map((board) => (
-              <div
-                key={board.station}
-                className="flex items-center justify-between gap-3 rounded-xl bg-muted/50 px-3 py-3"
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{board.label}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {board.waitingCount} waiting · now{" "}
-                    {board.nowServing ?? "—"}
+          {isSpecialty && nowServing ? (
+            <PanelCell className="lg:col-span-3">
+              <Card className={cn(panelCardClassName)}>
+                <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+                  <div className="min-w-0 space-y-1">
+                    <CardTitle className="text-base">Now serving</CardTitle>
+                    <CardDescription>
+                      {nowServing.patientName}
+                      {nowServing.campusId
+                        ? ` · ${nowServing.campusId}`
+                        : ""}
+                    </CardDescription>
+                  </div>
+                  <Badge className="tabular-nums">
+                    {ticketLabel(
+                      nowServing.queueNumber,
+                      nowServing.ticketCode
+                    )}
+                  </Badge>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                    Nurse vitals
                   </p>
-                </div>
-                <Badge
-                  variant={board.status === "active" ? "default" : "outline"}
-                >
-                  {board.status}
-                </Badge>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
+                  <VitalsStrip
+                    vitals={nowServing.vitals}
+                    chiefComplaint={nowServing.chiefComplaint}
+                  />
+                </CardContent>
+              </Card>
+            </PanelCell>
+          ) : null}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <ActivityFeed className="lg:col-span-2" items={activity} />
-        <Card className="min-w-0 shadow-none dark:ring-0">
-          <CardHeader className="border-b">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <IconChecklist className="size-4" />
-              Recently served
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 pt-(--card-spacing)">
-            {recent.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No completions yet today.</p>
-            ) : (
-              recent.map((item) => (
-                <RecentlyServedCard key={item.ticketId} item={item} />
-              ))
-            )}
-          </CardContent>
-        </Card>
-      </div>
+          <PanelCell className="lg:col-span-2">
+            <Card className={cn(panelCardClassName, "gap-0 py-0")}>
+              <CardHeader className="border-b">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 space-y-1">
+                    <CardTitle>
+                      {isNurse
+                        ? "Needs intake"
+                        : isSpecialty
+                          ? "Station queue"
+                          : "Live queue"}
+                    </CardTitle>
+                    <CardDescription>
+                      {isNurse
+                        ? "Patients waiting for vitals and specialty assignment."
+                        : isAdmin
+                          ? "Clinic-wide tickets (view only)."
+                          : "Active tickets at your station."}
+                    </CardDescription>
+                  </div>
+                  <Badge variant="secondary" className="tabular-nums">
+                    {waiting.length}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="px-0 pb-2">
+                {waiting.length === 0 ? (
+                  <p className="px-6 py-10 text-sm text-muted-foreground">
+                    {isSpecialty
+                      ? "Patients appear after nurse intake."
+                      : isNurse
+                        ? "No patients waiting for intake."
+                        : "Queue is clear."}
+                  </p>
+                ) : (
+                  <Table className="border-t">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="pl-6">#</TableHead>
+                        <TableHead>Patient</TableHead>
+                        {isNurse ? (
+                          <>
+                            <TableHead className="hidden md:table-cell">
+                              ID
+                            </TableHead>
+                            <TableHead>Type</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="pr-6 text-right">
+                              Actions
+                            </TableHead>
+                          </>
+                        ) : isSpecialty ? (
+                          <>
+                            <TableHead className="hidden md:table-cell">
+                              Vitals
+                            </TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="pr-6" />
+                          </>
+                        ) : (
+                          <>
+                            <TableHead className="hidden sm:table-cell">
+                              Station
+                            </TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="pr-6" />
+                          </>
+                        )}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {waiting.map((row) => (
+                        <TableRow className="h-14" key={row.ticketId}>
+                          <TableCell className="pl-6 font-medium tabular-nums">
+                            {ticketLabel(row.queueNumber, row.ticketCode)}
+                          </TableCell>
+                          <TableCell className="max-w-40 truncate font-medium">
+                            {row.patientName}
+                          </TableCell>
+                          {isNurse ? (
+                            <>
+                              <TableCell className="hidden max-w-[9rem] truncate text-muted-foreground md:table-cell tabular-nums">
+                                {row.campusId ?? "—"}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline">
+                                  {patientTypeLabel(row.patientType)}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <WaitStatusBadge
+                                  status={row.status}
+                                  waitMinutes={row.estimatedWaitMinutes}
+                                />
+                              </TableCell>
+                              <TableCell className="pr-6 text-right">
+                                <Button
+                                  size="sm"
+                                  onClick={() => setIntakeTicket(row)}
+                                >
+                                  Intake
+                                </Button>
+                              </TableCell>
+                            </>
+                          ) : isSpecialty ? (
+                            <>
+                              <TableCell className="hidden min-w-40 md:table-cell">
+                                <VitalsStrip
+                                  vitals={row.vitals}
+                                  chiefComplaint={row.chiefComplaint}
+                                  dense
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <WaitStatusBadge
+                                  status={row.status}
+                                  waitMinutes={row.estimatedWaitMinutes}
+                                />
+                              </TableCell>
+                              <TableCell className="pr-6" />
+                            </>
+                          ) : (
+                            <>
+                              <TableCell className="hidden text-muted-foreground sm:table-cell">
+                                {stationLabel(row.station)}
+                              </TableCell>
+                              <TableCell>
+                                <WaitStatusBadge
+                                  status={row.status}
+                                  waitMinutes={row.estimatedWaitMinutes}
+                                />
+                              </TableCell>
+                              <TableCell className="pr-6" />
+                            </>
+                          )}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </PanelCell>
+
+          <PanelCell>
+            <Card className={cn(panelCardClassName)}>
+              <CardHeader>
+                <CardTitle>Stations</CardTitle>
+                <CardDescription>Live load across clinic lanes.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {boards.map((board) => (
+                  <div
+                    key={board.station}
+                    className="flex items-center justify-between gap-3 border-b border-border/60 py-2 last:border-0 last:pb-0"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">
+                        {board.label}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {board.waitingCount} waiting ·{" "}
+                        {board.nowServing ?? "idle"}
+                      </p>
+                    </div>
+                    <Badge
+                      variant={
+                        board.status === "active" ? "secondary" : "outline"
+                      }
+                    >
+                      {board.status}
+                    </Badge>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </PanelCell>
+
+          <RoleDashboardSummaries access={access} summary={summary} />
+
+          {!isNurse ? (
+            <PanelCell className="lg:col-span-2">
+              <ActivityFeed
+                className={panelCardClassName}
+                items={activity}
+                title="Activity"
+              />
+            </PanelCell>
+          ) : null}
+
+          <PanelCell className={isNurse ? "lg:col-span-3" : undefined}>
+            <Card className={cn(panelCardClassName)}>
+              <CardHeader>
+                <CardTitle>Recently served</CardTitle>
+                <CardDescription>Completions from this shift.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {recent.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No completions yet today.
+                  </p>
+                ) : (
+                  recent.slice(0, isNurse ? 6 : 4).map((item) => (
+                    <RecentlyServedCard key={item.ticketId} item={item} />
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </PanelCell>
+        </PanelGrid>
+      </PanelFrame>
+
+      {isNurse ? (
+        <NurseIntakeSheet
+          ticket={intakeTicket}
+          open={Boolean(intakeTicket)}
+          onOpenChange={(open) => {
+            if (!open) setIntakeTicket(null)
+          }}
+        />
+      ) : null}
     </div>
   )
 }

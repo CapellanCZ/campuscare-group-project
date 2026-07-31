@@ -1,7 +1,10 @@
 "use server"
 
 import { getStaffAccess } from "@/lib/auth/access"
+import { CAMPUS_CLINIC_ID } from "@/lib/auth/campus-clinic"
 import { sendStaffInviteEmail } from "@/lib/auth/send-staff-invite"
+import { normalizeTimeHm } from "@/lib/availability/rules"
+import { seedDefaultStaffHours } from "@/lib/availability/seed-defaults"
 import { createAdminClient } from "@/lib/supabase/admin"
 import {
   MANAGED_ROLES,
@@ -17,6 +20,8 @@ import {
   type ResendStaffInviteInput,
   type SetStaffUserActiveInput,
   type StaffDirectorySummary,
+  type StaffUserEditData,
+  type UpdateStaffUserInput,
   type UpdateStaffUserRoleInput,
   type UserStatusFilter,
 } from "@/features/admin/types/user-management"
@@ -508,6 +513,10 @@ export async function createStaffUser(
     }
   }
 
+  if (input.role !== "admin") {
+    await seedDefaultStaffHours(adminClient, userId, input.role)
+  }
+
   try {
     await sendStaffInviteEmail({
       email,
@@ -679,6 +688,208 @@ export async function updateStaffUserRole(
   return {
     ok: true,
     message: `Role updated to ${input.role}.`,
+  }
+}
+
+export async function getStaffUserForEdit(
+  userId: string
+): Promise<
+  { ok: true; data: StaffUserEditData } | { ok: false; error: string }
+> {
+  const authz = await requireAdmin()
+  if (!authz.ok) return authz
+
+  const id = userId.trim()
+  if (!id) return { ok: false, error: "Missing user identifier." }
+
+  const adminClientResult = getAdminClientSafe()
+  if (!adminClientResult.ok) {
+    return { ok: false, error: adminClientResult.error }
+  }
+  const adminClient = adminClientResult.client
+
+  const { data: profile, error } = await adminClient
+    .from("users")
+    .select("id, full_name, email, primary_role, is_active")
+    .eq("id", id)
+    .in("primary_role", MANAGED_ROLES)
+    .maybeSingle()
+
+  if (error || !profile) {
+    return { ok: false, error: "Could not load this user." }
+  }
+
+  const { data: slots } = await adminClient
+    .from("doctor_availability")
+    .select("id, day_of_week, start_time, end_time, is_active")
+    .eq("doctor_id", id)
+    .order("day_of_week", { ascending: true })
+    .order("start_time", { ascending: true })
+
+  return {
+    ok: true,
+    data: {
+      userId: profile.id,
+      fullName: profile.full_name?.trim() || profile.email,
+      email: profile.email,
+      role: profile.primary_role as ManagedRole,
+      isActive: profile.is_active !== false,
+      scheduleSlots: (slots ?? []).map((slot) => ({
+        id: slot.id,
+        dayOfWeek: slot.day_of_week,
+        startTime: String(slot.start_time).slice(0, 5),
+        endTime: String(slot.end_time).slice(0, 5),
+        isActive: slot.is_active !== false,
+      })),
+    },
+  }
+}
+
+export async function updateStaffUser(
+  input: UpdateStaffUserInput
+): Promise<ManageUserResult> {
+  const authz = await requireAdmin()
+  if (!authz.ok) return authz
+
+  const userId = input.userId.trim()
+  const fullName = input.fullName.trim()
+  const email = input.email.trim().toLowerCase()
+
+  if (!userId) return { ok: false, error: "Missing user identifier." }
+  if (!fullName) return { ok: false, error: "Enter a full name." }
+  if (!email || !email.includes("@")) {
+    return { ok: false, error: "Enter a valid email address." }
+  }
+
+  const allowedRoles = resolveScopedRoles(input.allowedRoles)
+  if (!allowedRoles.includes(input.role)) {
+    return { ok: false, error: "Choose a valid role for this directory." }
+  }
+
+  if (input.scheduleSlots) {
+    for (const slot of input.scheduleSlots) {
+      if (
+        normalizeTimeHm(slot.endTime) <= normalizeTimeHm(slot.startTime) ||
+        slot.dayOfWeek < 0 ||
+        slot.dayOfWeek > 6
+      ) {
+        return {
+          ok: false,
+          error: "Each schedule slot needs a valid day and end time after start.",
+        }
+      }
+    }
+  }
+
+  const adminClientResult = getAdminClientSafe()
+  if (!adminClientResult.ok) {
+    return { ok: false, error: adminClientResult.error }
+  }
+  const adminClient = adminClientResult.client
+
+  const { data: existing, error: lookupError } = await adminClient
+    .from("users")
+    .select("id, email, primary_role, is_active")
+    .eq("id", userId)
+    .in("primary_role", MANAGED_ROLES)
+    .maybeSingle()
+
+  if (lookupError || !existing) {
+    return { ok: false, error: "Could not find this user." }
+  }
+
+  if (email !== existing.email.trim().toLowerCase()) {
+    const { data: emailTaken } = await adminClient
+      .from("users")
+      .select("id")
+      .eq("email", email)
+      .neq("id", userId)
+      .maybeSingle()
+
+    if (emailTaken) {
+      return { ok: false, error: "Another account already uses that email." }
+    }
+  }
+
+  const { error: authError } = await adminClient.auth.admin.updateUserById(
+    userId,
+    {
+      email,
+      email_confirm: true,
+      app_metadata: { primary_role: input.role },
+      user_metadata: {
+        primary_role: input.role,
+        full_name: fullName,
+      },
+    }
+  )
+
+  if (authError) {
+    return {
+      ok: false,
+      error: `Could not update auth account. ${authError.message}`,
+    }
+  }
+
+  const { error: profileError } = await adminClient
+    .from("users")
+    .update({
+      full_name: fullName,
+      email,
+      primary_role: input.role,
+    })
+    .eq("id", userId)
+
+  if (profileError) {
+    return {
+      ok: false,
+      error: `Auth updated, but profile save failed. ${profileError.message}`,
+    }
+  }
+
+  const membership = await upsertClinicMembership(
+    adminClient,
+    userId,
+    input.role,
+    existing.is_active !== false
+  )
+  if (!membership.ok) {
+    return { ok: false, error: membership.error }
+  }
+
+  if (input.role === "admin") {
+    await adminClient.from("doctor_availability").delete().eq("doctor_id", userId)
+  } else if (input.scheduleSlots) {
+    await adminClient.from("doctor_availability").delete().eq("doctor_id", userId)
+    if (input.scheduleSlots.length > 0) {
+      const { error: scheduleError } = await adminClient
+        .from("doctor_availability")
+        .insert(
+          input.scheduleSlots.map((slot) => ({
+            clinic_id: CAMPUS_CLINIC_ID,
+            doctor_id: userId,
+            day_of_week: slot.dayOfWeek,
+            start_time: normalizeTimeHm(slot.startTime),
+            end_time: normalizeTimeHm(slot.endTime),
+            timezone: "Asia/Manila",
+            is_active: slot.isActive ?? true,
+          }))
+        )
+      if (scheduleError) {
+        return {
+          ok: false,
+          error: `Profile saved, but schedule could not be updated. ${scheduleError.message}`,
+        }
+      }
+    }
+  } else if (existing.primary_role !== input.role) {
+    await adminClient.from("doctor_availability").delete().eq("doctor_id", userId)
+    await seedDefaultStaffHours(adminClient, userId, input.role)
+  }
+
+  return {
+    ok: true,
+    message: "Staff details updated.",
   }
 }
 
