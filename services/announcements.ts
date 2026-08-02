@@ -7,12 +7,18 @@ import { CAMPUS_CLINIC_ID, resolveCampusClinicId } from "@/lib/auth/campus-clini
 import { canMutate } from "@/lib/auth/permissions"
 import { createClient } from "@/lib/supabase/server"
 import {
+  canViewAnnouncementAudience,
+  isAnnouncementAudience,
+  visibleAudiencesForRole,
+} from "@/features/announcements/lib/display"
+import {
   deleteAllAnnouncementAttachments,
   listAnnouncementAttachments,
   listAnnouncementAttachmentsForIds,
   signAnnouncementAttachmentUrls,
 } from "@/services/announcement-attachments"
 import {
+  ANNOUNCEMENT_AUDIENCES,
   ANNOUNCEMENT_STATUSES,
   AnnouncementServiceError,
   type Announcement,
@@ -230,19 +236,35 @@ async function requireUserId(client: SupabaseClient): Promise<string> {
   return user.id
 }
 
-async function requireAnnouncementAdmin(): Promise<void> {
+async function requireAnnouncementPublisher(): Promise<void> {
   const access = await getStaffAccess()
   if (!access || !canMutate(access.designation, "announcements.add")) {
     throw new AnnouncementServiceError(
       "permission",
-      "Only clinic admins can manage announcements."
+      "Only clinic admins and nurses can manage announcements."
     )
   }
 }
 
-async function viewerIsAdmin(): Promise<boolean> {
+async function viewerCanPublish(): Promise<boolean> {
   const access = await getStaffAccess()
   return Boolean(access && canMutate(access.designation, "announcements.add"))
+}
+
+async function promoteDueScheduledAnnouncements(
+  client: SupabaseClient
+): Promise<void> {
+  const { error } = await client.rpc("promote_due_announcements")
+  if (error) {
+    // Older DBs may lack the RPC; ignore so lists still load.
+    if (
+      error.message?.toLowerCase().includes("function") &&
+      error.message?.toLowerCase().includes("does not exist")
+    ) {
+      return
+    }
+    // Non-fatal: listing should still work if promote fails.
+  }
 }
 
 function validateTitle(title: string) {
@@ -260,11 +282,11 @@ function validateTitle(title: string) {
 }
 
 function validateAudience(audience: string) {
-  const trimmed = audience.trim() || "All students"
-  if (trimmed.length > 120) {
+  const trimmed = audience.trim() || "All"
+  if (!isAnnouncementAudience(trimmed)) {
     throw new AnnouncementServiceError(
       "validation",
-      "Audience must be 120 characters or fewer."
+      `Audience must be one of: ${ANNOUNCEMENT_AUDIENCES.join(", ")}.`
     )
   }
   return trimmed
@@ -306,18 +328,27 @@ export async function getAnnouncements(
   client?: SupabaseClient
 ): Promise<AnnouncementListResult> {
   const supabase = await getClient(client)
+  await promoteDueScheduledAnnouncements(supabase)
+
   const page = Math.max(1, params.page ?? 1)
   const pageSize = Math.min(50, Math.max(1, params.pageSize ?? DEFAULT_PAGE_SIZE))
   const sortBy = params.sortBy ?? "updated_at"
   const sortDirection = params.sortDirection ?? "desc"
   const query = params.query?.trim() ?? ""
   const status = params.status ?? "all"
+  const feed = Boolean(params.feed)
+
+  const access = await getStaffAccess()
+  const canPublish = await viewerCanPublish()
 
   let request = supabase.from("announcements").select(SELECT_WITH_AUTHOR)
 
-  const isAdmin = await viewerIsAdmin()
-  if (!isAdmin) {
+  if (!canPublish || feed) {
     request = request.eq("status", "published")
+    const audiences = visibleAudiencesForRole(access?.designation)
+    if (audiences) {
+      request = request.in("audience", audiences)
+    }
   } else if (status !== "all") {
     request = request.eq("status", status)
   }
@@ -328,7 +359,8 @@ export async function getAnnouncements(
 
   let items = await hydrateAnnouncements(
     (data ?? []) as AnnouncementRow[],
-    supabase
+    supabase,
+    true
   )
 
   if (query) {
@@ -375,6 +407,8 @@ export async function getAnnouncementById(
   client?: SupabaseClient
 ): Promise<Announcement> {
   const supabase = await getClient(client)
+  await promoteDueScheduledAnnouncements(supabase)
+
   const { data, error } = await supabase
     .from("announcements")
     .select(SELECT_WITH_AUTHOR)
@@ -391,11 +425,25 @@ export async function getAnnouncementById(
     supabase,
     true
   )
-  if (announcement.status !== "published" && !(await viewerIsAdmin())) {
+
+  const canPublish = await viewerCanPublish()
+  if (announcement.status !== "published" && !canPublish) {
     throw new AnnouncementServiceError(
       "permission",
       "You do not have permission to view this announcement."
     )
+  }
+
+  if (announcement.status === "published" && !canPublish) {
+    const access = await getStaffAccess()
+    if (
+      !canViewAnnouncementAudience(access?.designation, announcement.audience)
+    ) {
+      throw new AnnouncementServiceError(
+        "permission",
+        "You do not have permission to view this announcement."
+      )
+    }
   }
 
   return announcement
@@ -405,9 +453,17 @@ export async function getAnnouncementStats(
   client?: SupabaseClient
 ): Promise<AnnouncementStats> {
   const supabase = await getClient(client)
-  let request = supabase.from("announcements").select("status")
-  if (!(await viewerIsAdmin())) {
+  await promoteDueScheduledAnnouncements(supabase)
+
+  let request = supabase.from("announcements").select("status, audience")
+  const canPublish = await viewerCanPublish()
+  if (!canPublish) {
     request = request.eq("status", "published")
+    const access = await getStaffAccess()
+    const audiences = visibleAudiencesForRole(access?.designation)
+    if (audiences) {
+      request = request.in("audience", audiences)
+    }
   }
   const { data, error } = await request
 
@@ -436,7 +492,7 @@ export async function createAnnouncement(
   input: CreateAnnouncementInput,
   client?: SupabaseClient
 ): Promise<Announcement> {
-  await requireAnnouncementAdmin()
+  await requireAnnouncementPublisher()
   const supabase = await getClient(client)
   const authorId = await requireUserId(supabase)
   const clinicId =
@@ -444,7 +500,7 @@ export async function createAnnouncement(
 
   const title = validateTitle(input.title)
   const body = (input.body ?? "").trim()
-  const audience = validateAudience(input.audience ?? "All students")
+  const audience = validateAudience(input.audience ?? "All")
   const status = input.status ?? "draft"
   if (!isStatus(status)) {
     throw new AnnouncementServiceError("validation", "Invalid status.")
@@ -480,7 +536,7 @@ export async function updateAnnouncement(
   input: UpdateAnnouncementInput,
   client?: SupabaseClient
 ): Promise<Announcement> {
-  await requireAnnouncementAdmin()
+  await requireAnnouncementPublisher()
   const supabase = await getClient(client)
 
   if (!input.id) {
@@ -560,7 +616,7 @@ export async function deleteAnnouncement(
   id: string,
   client?: SupabaseClient
 ): Promise<void> {
-  await requireAnnouncementAdmin()
+  await requireAnnouncementPublisher()
   const supabase = await getClient(client)
   await deleteAllAnnouncementAttachments(id, supabase)
   const { error, count } = await supabase

@@ -59,6 +59,7 @@ import {
   type PatientRecordStats,
 } from "@/types/patientRecord"
 import { getStaffAccess } from "@/lib/auth/access"
+import { canMutate } from "@/lib/auth/permissions"
 import { requireStaffModule } from "@/lib/auth/require-module"
 import {
   enrichDashboardKpis,
@@ -249,7 +250,16 @@ export async function StaffConsultationsPage() {
 
   try {
     const [nextList, nextStats, options] = await Promise.all([
-      getConsultations({ page: 1, pageSize: 20 }),
+      getConsultations({
+        page: 1,
+        pageSize: 20,
+        station:
+          access.designation === "dentist"
+            ? "dentist"
+            : access.designation === "physician"
+              ? "physician"
+              : "all",
+      }),
       getConsultationStats(),
       listConsultationFilterOptions(),
     ])
@@ -334,6 +344,7 @@ export async function StaffReportsPage() {
 
 export async function StaffAnnouncementsPage() {
   const access = await requireStaffModule("announcements")
+  const canManage = canMutate(access.designation, "announcements.add")
 
   const emptyList: AnnouncementListResult = {
     items: [],
@@ -349,20 +360,31 @@ export async function StaffAnnouncementsPage() {
     total: 0,
   }
 
+  let feed = emptyList
   let list = emptyList
   let stats = emptyStats
   let initialError: string | null = null
 
   try {
-    const [nextList, nextStats] = await Promise.all([
+    const [nextFeed, nextList, nextStats] = await Promise.all([
       getAnnouncements({
         page: 1,
-        pageSize: 10,
-        sortBy: "updated_at",
+        pageSize: 12,
+        sortBy: "published_at",
         sortDirection: "desc",
+        feed: true,
       }),
+      canManage
+        ? getAnnouncements({
+            page: 1,
+            pageSize: 10,
+            sortBy: "updated_at",
+            sortDirection: "desc",
+          })
+        : Promise.resolve(emptyList),
       getAnnouncementStats(),
     ])
+    feed = nextFeed
     list = nextList
     stats = nextStats
   } catch (error) {
@@ -375,6 +397,7 @@ export async function StaffAnnouncementsPage() {
   return (
     <AnnouncementsPage
       access={access}
+      initialFeed={feed}
       initialList={list}
       initialStats={stats}
       initialError={initialError}

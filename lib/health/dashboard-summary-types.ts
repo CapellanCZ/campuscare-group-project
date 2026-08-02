@@ -21,6 +21,8 @@ export type DashboardAnnouncementPreview = {
   audience: string
   status: "draft" | "scheduled" | "published"
   publishedAt: string | null
+  excerpt: string
+  coverUrl: string | null
 }
 
 export type DashboardScheduleStrip = {
@@ -40,6 +42,16 @@ export type DashboardNurseLanes = {
   completedIntakes: number
 }
 
+export type DashboardRecentConsultation = {
+  id: string
+  patientName: string
+  diagnosis: string | null
+  treatment: string | null
+  status: string
+  consultationDate: string
+  providerName: string | null
+}
+
 export type RoleDashboardSummary = {
   consultationStats: ConsultationStats
   certificateStats: MedicalCertificateStats
@@ -56,4 +68,7 @@ export type RoleDashboardSummary = {
   nurseLanes: DashboardNurseLanes | null
   schedule: DashboardScheduleStrip | null
   physicianWorkspace: PhysicianWorkspace | null
+  /** Recent completed consultations (station-scoped for specialty roles). */
+  recentConsultations: DashboardRecentConsultation[]
+  dentalReferralsToday: number
 }

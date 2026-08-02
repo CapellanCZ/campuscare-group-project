@@ -49,7 +49,17 @@ import {
 } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
 import { CHIEF_COMPLAINT_OPTIONS } from "@/lib/health/form-options"
+import {
+  DENTAL_CHIEF_COMPLAINT_OPTIONS,
+  DENTAL_DIAGNOSIS_OPTIONS,
+  DENTAL_TREATMENT_OPTIONS,
+  formatDentalAssessment,
+  formatDentalPrescription,
+  parseDentalAssessment,
+  parseDentalPrescription,
+} from "@/lib/health/dental-form-options"
 import { cn } from "@/lib/utils"
+import type { StaffAccess } from "@/lib/auth/types"
 import {
   CONSULTATION_PRIORITIES,
   CONSULTATION_STATIONS,
@@ -81,6 +91,15 @@ type FormState = {
   consultationDate: string
   followUpDate: string
   notes: string
+  oralFindings: string
+  teethCondition: string
+  gumCondition: string
+  softTissue: string
+  rxMedication: string
+  rxDosage: string
+  rxFrequency: string
+  rxDuration: string
+  followUpRequired: "yes" | "no"
 }
 
 const emptyForm: FormState = {
@@ -99,6 +118,15 @@ const emptyForm: FormState = {
   consultationDate: "",
   followUpDate: "",
   notes: "",
+  oralFindings: "",
+  teethCondition: "",
+  gumCondition: "",
+  softTissue: "",
+  rxMedication: "",
+  rxDosage: "",
+  rxFrequency: "",
+  rxDuration: "",
+  followUpRequired: "no",
 }
 
 function toDatetimeLocalValue(iso: string | null | undefined): string {
@@ -117,13 +145,25 @@ function fromDatetimeLocalValue(value: string): string | null {
   return date.toISOString()
 }
 
-function toForm(consultation: Consultation | null): FormState {
+function toForm(
+  consultation: Consultation | null,
+  defaults?: { station?: string; providerName?: string; providerRole?: string }
+): FormState {
   if (!consultation) {
     return {
       ...emptyForm,
       consultationDate: toDatetimeLocalValue(new Date().toISOString()),
+      station: defaults?.station ?? "nurse",
+      providerName: defaults?.providerName ?? "",
+      providerRole: defaults?.providerRole ?? "",
+      status:
+        defaults?.station === "dentist" || defaults?.station === "physician"
+          ? "In Progress"
+          : "Awaiting Assessment",
     }
   }
+  const exam = parseDentalAssessment(consultation.assessment)
+  const rx = parseDentalPrescription(consultation.prescription)
   return {
     patientId: consultation.patientId,
     chiefComplaint: consultation.chiefComplaint ?? "",
@@ -140,25 +180,51 @@ function toForm(consultation: Consultation | null): FormState {
     consultationDate: toDatetimeLocalValue(consultation.consultationDate),
     followUpDate: consultation.followUpDate ?? "",
     notes: consultation.notes ?? "",
+    oralFindings: exam.oralFindings,
+    teethCondition: exam.teethCondition,
+    gumCondition: exam.gumCondition,
+    softTissue: exam.softTissue,
+    rxMedication: rx.medication,
+    rxDosage: rx.dosage,
+    rxFrequency: rx.frequency,
+    rxDuration: rx.duration,
+    followUpRequired: consultation.followUpDate ? "yes" : "no",
   }
 }
 
-function toInput(form: FormState): CreateConsultationInput {
+function toInput(form: FormState, dentalMode: boolean): CreateConsultationInput {
+  const assessment = dentalMode
+    ? formatDentalAssessment({
+        oralFindings: form.oralFindings,
+        teethCondition: form.teethCondition,
+        gumCondition: form.gumCondition,
+        softTissue: form.softTissue,
+      })
+    : form.assessment
+  const prescription = dentalMode
+    ? formatDentalPrescription({
+        medication: form.rxMedication,
+        dosage: form.rxDosage,
+        frequency: form.rxFrequency,
+        duration: form.rxDuration,
+      })
+    : form.prescription
   return {
     patientId: form.patientId,
     chiefComplaint: form.chiefComplaint,
     symptoms: form.symptoms,
-    assessment: form.assessment,
+    assessment,
     diagnosis: form.diagnosis,
     treatment: form.treatment,
-    prescription: form.prescription,
+    prescription,
     providerName: form.providerName,
     providerRole: form.providerRole,
     station: form.station,
     status: form.status,
     priority: form.priority,
     consultationDate: fromDatetimeLocalValue(form.consultationDate),
-    followUpDate: form.followUpDate,
+    followUpDate:
+      dentalMode && form.followUpRequired === "no" ? "" : form.followUpDate,
     notes: form.notes,
   }
 }
@@ -169,13 +235,19 @@ export function ConsultationFormSheet({
   mode,
   consultation,
   onSaved,
+  access,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   mode: "create" | "edit"
   consultation: Consultation | null
   onSaved: (consultation: Consultation) => void
+  access?: StaffAccess
 }) {
+  const dentalMode =
+    access?.designation === "dentist" ||
+    consultation?.station === "dentist" ||
+    false
   const [form, setForm] = useState<FormState>(emptyForm)
   const [patients, setPatients] = useState<PatientRecord[]>([])
   const [patientOpen, setPatientOpen] = useState(false)
@@ -183,8 +255,20 @@ export function ConsultationFormSheet({
   const [pending, startTransition] = useTransition()
 
   useEffect(() => {
-    if (open) setForm(toForm(mode === "edit" ? consultation : null))
-  }, [open, mode, consultation])
+    if (!open) return
+    setForm(
+      toForm(mode === "edit" ? consultation : null, {
+        station:
+          access?.designation === "dentist"
+            ? "dentist"
+            : access?.designation === "physician"
+              ? "physician"
+              : "nurse",
+        providerName: access?.fullName ?? "",
+        providerRole: access?.designation ?? "",
+      })
+    )
+  }, [open, mode, consultation, access])
 
   useEffect(() => {
     if (!open) return
@@ -240,8 +324,19 @@ export function ConsultationFormSheet({
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
-  function handleSubmit() {
-    const input = toInput(form)
+  function handleSubmit(complete = false) {
+    const nextForm = complete
+      ? { ...form, status: "Completed" as ConsultationStatus }
+      : form
+    const input = toInput(nextForm, dentalMode)
+    if (!input.patientId.trim()) {
+      toast.error("Patient is required.")
+      return
+    }
+    if (!input.chiefComplaint?.trim()) {
+      toast.error("Chief complaint is required.")
+      return
+    }
     startTransition(async () => {
       const result =
         mode === "edit" && consultation
@@ -254,7 +349,11 @@ export function ConsultationFormSheet({
       }
 
       toast.success(
-        mode === "edit" ? "Consultation updated." : "Consultation created."
+        complete
+          ? "Consultation completed."
+          : mode === "edit"
+            ? "Consultation updated."
+            : "Consultation saved."
       )
       onOpenChange(false)
       onSaved(result.data)
@@ -266,11 +365,18 @@ export function ConsultationFormSheet({
       <SheetContent className="flex w-full flex-col sm:max-w-xl">
         <SheetHeader>
           <SheetTitle>
-            {mode === "edit" ? "Edit consultation" : "Create consultation"}
+            {dentalMode
+              ? mode === "edit"
+                ? "Edit dental consultation"
+                : "Dental consultation"
+              : mode === "edit"
+                ? "Edit consultation"
+                : "Create consultation"}
           </SheetTitle>
           <SheetDescription>
-            Patient selection comes from patient records. Only patient_id is
-            stored on the consultation.
+            {dentalMode
+              ? "Record oral examination, diagnosis, treatment, and follow-up for dental patients."
+              : "Patient selection comes from patient records. Only patient_id is stored on the consultation."}
           </SheetDescription>
         </SheetHeader>
 
@@ -342,56 +448,192 @@ export function ConsultationFormSheet({
             </Field>
 
             <SelectWithOtherField
-              key={consultation?.id ?? "consult-create"}
+              key={`${consultation?.id ?? "consult-create"}-complaint`}
               id="chiefComplaint"
               label="Chief complaint *"
-              options={CHIEF_COMPLAINT_OPTIONS}
+              options={
+                dentalMode
+                  ? DENTAL_CHIEF_COMPLAINT_OPTIONS
+                  : CHIEF_COMPLAINT_OPTIONS
+              }
               value={form.chiefComplaint}
               onValueChange={(value) => update("chiefComplaint", value)}
               placeholder="Select complaint"
               otherPlaceholder="Describe the complaint…"
               required
             />
-            <Field>
-              <FieldLabel htmlFor="symptoms">Symptoms</FieldLabel>
-              <Textarea
-                id="symptoms"
-                value={form.symptoms}
-                onChange={(e) => update("symptoms", e.target.value)}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="assessment">Assessment</FieldLabel>
-              <Textarea
-                id="assessment"
-                value={form.assessment}
-                onChange={(e) => update("assessment", e.target.value)}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="diagnosis">Diagnosis</FieldLabel>
-              <Textarea
-                id="diagnosis"
-                value={form.diagnosis}
-                onChange={(e) => update("diagnosis", e.target.value)}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="treatment">Treatment</FieldLabel>
-              <Textarea
-                id="treatment"
-                value={form.treatment}
-                onChange={(e) => update("treatment", e.target.value)}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="prescription">Prescription</FieldLabel>
-              <Textarea
-                id="prescription"
-                value={form.prescription}
-                onChange={(e) => update("prescription", e.target.value)}
-              />
-            </Field>
+
+            {dentalMode ? (
+              <>
+                <p className="text-sm font-medium">Dental examination</p>
+                <Field>
+                  <FieldLabel htmlFor="oralFindings">
+                    Oral examination findings
+                  </FieldLabel>
+                  <Textarea
+                    id="oralFindings"
+                    value={form.oralFindings}
+                    onChange={(e) => update("oralFindings", e.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="teethCondition">Teeth condition</FieldLabel>
+                  <Textarea
+                    id="teethCondition"
+                    value={form.teethCondition}
+                    onChange={(e) => update("teethCondition", e.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="gumCondition">Gum condition</FieldLabel>
+                  <Textarea
+                    id="gumCondition"
+                    value={form.gumCondition}
+                    onChange={(e) => update("gumCondition", e.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="softTissue">
+                    Oral soft tissue findings
+                  </FieldLabel>
+                  <Textarea
+                    id="softTissue"
+                    value={form.softTissue}
+                    onChange={(e) => update("softTissue", e.target.value)}
+                  />
+                </Field>
+                <SelectWithOtherField
+                  key={`${consultation?.id ?? "consult-create"}-dx`}
+                  id="diagnosis"
+                  label="Diagnosis"
+                  options={DENTAL_DIAGNOSIS_OPTIONS}
+                  value={form.diagnosis}
+                  onValueChange={(value) => update("diagnosis", value)}
+                  placeholder="Select diagnosis"
+                  otherPlaceholder="Custom diagnosis…"
+                />
+                <SelectWithOtherField
+                  key={`${consultation?.id ?? "consult-create"}-tx`}
+                  id="treatment"
+                  label="Treatment provided"
+                  options={DENTAL_TREATMENT_OPTIONS}
+                  value={form.treatment}
+                  onValueChange={(value) => update("treatment", value)}
+                  placeholder="Select treatment"
+                  otherPlaceholder="Custom treatment…"
+                />
+                <p className="text-sm font-medium">Prescription</p>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field>
+                    <FieldLabel htmlFor="rxMedication">Medication</FieldLabel>
+                    <Input
+                      id="rxMedication"
+                      value={form.rxMedication}
+                      onChange={(e) => update("rxMedication", e.target.value)}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="rxDosage">Dosage</FieldLabel>
+                    <Input
+                      id="rxDosage"
+                      value={form.rxDosage}
+                      onChange={(e) => update("rxDosage", e.target.value)}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="rxFrequency">Frequency</FieldLabel>
+                    <Input
+                      id="rxFrequency"
+                      value={form.rxFrequency}
+                      onChange={(e) => update("rxFrequency", e.target.value)}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="rxDuration">Duration</FieldLabel>
+                    <Input
+                      id="rxDuration"
+                      value={form.rxDuration}
+                      onChange={(e) => update("rxDuration", e.target.value)}
+                    />
+                  </Field>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field>
+                    <FieldLabel>Follow-up required</FieldLabel>
+                    <Select
+                      value={form.followUpRequired}
+                      onValueChange={(value) => {
+                        if (value === "yes" || value === "no") {
+                          update("followUpRequired", value)
+                          if (value === "no") update("followUpDate", "")
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="no">No</SelectItem>
+                        <SelectItem value="yes">Yes</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="followUpDate">Follow-up date</FieldLabel>
+                    <Input
+                      id="followUpDate"
+                      type="date"
+                      disabled={form.followUpRequired !== "yes"}
+                      value={form.followUpDate}
+                      onChange={(e) => update("followUpDate", e.target.value)}
+                    />
+                  </Field>
+                </div>
+              </>
+            ) : (
+              <>
+                <Field>
+                  <FieldLabel htmlFor="symptoms">Symptoms</FieldLabel>
+                  <Textarea
+                    id="symptoms"
+                    value={form.symptoms}
+                    onChange={(e) => update("symptoms", e.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="assessment">Assessment</FieldLabel>
+                  <Textarea
+                    id="assessment"
+                    value={form.assessment}
+                    onChange={(e) => update("assessment", e.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="diagnosis">Diagnosis</FieldLabel>
+                  <Textarea
+                    id="diagnosis"
+                    value={form.diagnosis}
+                    onChange={(e) => update("diagnosis", e.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="treatment">Treatment</FieldLabel>
+                  <Textarea
+                    id="treatment"
+                    value={form.treatment}
+                    onChange={(e) => update("treatment", e.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="prescription">Prescription</FieldLabel>
+                  <Textarea
+                    id="prescription"
+                    value={form.prescription}
+                    onChange={(e) => update("prescription", e.target.value)}
+                  />
+                </Field>
+              </>
+            )}
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>
@@ -490,17 +732,21 @@ export function ConsultationFormSheet({
               </Field>
             </div>
 
+            {dentalMode ? null : (
+              <Field>
+                <FieldLabel htmlFor="followUpDate">Follow-up date</FieldLabel>
+                <Input
+                  id="followUpDate"
+                  type="date"
+                  value={form.followUpDate}
+                  onChange={(e) => update("followUpDate", e.target.value)}
+                />
+              </Field>
+            )}
             <Field>
-              <FieldLabel htmlFor="followUpDate">Follow-up date</FieldLabel>
-              <Input
-                id="followUpDate"
-                type="date"
-                value={form.followUpDate}
-                onChange={(e) => update("followUpDate", e.target.value)}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="notes">Notes</FieldLabel>
+              <FieldLabel htmlFor="notes">
+                {dentalMode ? "Consultation notes / additional instructions" : "Notes"}
+              </FieldLabel>
               <Textarea
                 id="notes"
                 value={form.notes}
@@ -510,7 +756,7 @@ export function ConsultationFormSheet({
           </FieldGroup>
         </div>
 
-        <SheetFooter>
+        <SheetFooter className="flex-col gap-2 sm:flex-row">
           <SheetClose
             render={
               <Button type="button" variant="outline" disabled={pending} />
@@ -518,15 +764,27 @@ export function ConsultationFormSheet({
           >
             Cancel
           </SheetClose>
-          <Button type="button" disabled={pending} onClick={handleSubmit}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            onClick={() => handleSubmit(false)}
+          >
             {pending
-              ? mode === "edit"
-                ? "Saving…"
-                : "Creating…"
+              ? "Saving…"
               : mode === "edit"
-                ? "Save changes"
-                : "Create consultation"}
+                ? "Update consultation"
+                : "Save consultation"}
           </Button>
+          {dentalMode ? (
+            <Button
+              type="button"
+              disabled={pending}
+              onClick={() => handleSubmit(true)}
+            >
+              {pending ? "Completing…" : "Complete consultation"}
+            </Button>
+          ) : null}
         </SheetFooter>
       </SheetContent>
     </Sheet>

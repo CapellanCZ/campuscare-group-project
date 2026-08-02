@@ -173,16 +173,20 @@ export function RoleDashboard({
                     <CardTitle>
                       {isNurse
                         ? "Needs intake"
-                        : isSpecialty
-                          ? "Station queue"
-                          : "Live queue"}
+                        : access.designation === "dentist"
+                          ? "Today's dental queue"
+                          : isSpecialty
+                            ? "Station queue"
+                            : "Live queue"}
                     </CardTitle>
                     <CardDescription>
                       {isNurse
                         ? "Patients waiting for vitals and specialty assignment."
                         : isAdmin
                           ? "Clinic-wide tickets (view only)."
-                          : "Active tickets at your station."}
+                          : access.designation === "dentist"
+                            ? "Patients assigned for dental consultation."
+                            : "Active tickets at your station."}
                     </CardDescription>
                   </div>
                   <Badge variant="secondary" className="tabular-nums">
@@ -218,11 +222,16 @@ export function RoleDashboard({
                           </>
                         ) : isSpecialty ? (
                           <>
+                            <TableHead className="hidden sm:table-cell">
+                              Type
+                            </TableHead>
                             <TableHead className="hidden md:table-cell">
-                              Vitals
+                              Complaint
                             </TableHead>
                             <TableHead>Status</TableHead>
-                            <TableHead className="pr-6" />
+                            <TableHead className="hidden lg:table-cell pr-6">
+                              Wait
+                            </TableHead>
                           </>
                         ) : (
                           <>
@@ -271,12 +280,13 @@ export function RoleDashboard({
                             </>
                           ) : isSpecialty ? (
                             <>
-                              <TableCell className="hidden min-w-40 md:table-cell">
-                                <VitalsStrip
-                                  vitals={row.vitals}
-                                  chiefComplaint={row.chiefComplaint}
-                                  dense
-                                />
+                              <TableCell className="hidden sm:table-cell">
+                                <Badge variant="outline">
+                                  {patientTypeLabel(row.patientType)}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="hidden max-w-[10rem] truncate text-muted-foreground md:table-cell">
+                                {row.chiefComplaint || "—"}
                               </TableCell>
                               <TableCell>
                                 <WaitStatusBadge
@@ -284,7 +294,11 @@ export function RoleDashboard({
                                   waitMinutes={row.estimatedWaitMinutes}
                                 />
                               </TableCell>
-                              <TableCell className="pr-6" />
+                              <TableCell className="hidden pr-6 text-muted-foreground tabular-nums lg:table-cell">
+                                {row.estimatedWaitMinutes != null
+                                  ? `${row.estimatedWaitMinutes}m`
+                                  : "—"}
+                              </TableCell>
                             </>
                           ) : (
                             <>

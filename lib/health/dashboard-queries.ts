@@ -101,6 +101,44 @@ export function enrichDashboardKpis(
     }
   }
 
+  if (designation === "dentist") {
+    const byKey = new Map(kpis.cards.map((c) => [c.key, c]))
+    const patients = byKey.get("patients")
+    const waiting = byKey.get("waiting")
+    const completed = byKey.get("completed")
+    return {
+      cards: [
+        patients ?? {
+          key: "patients",
+          label: "Dental patients today",
+          value: "0",
+          description: "Dental visits",
+        },
+        waiting
+          ? { ...waiting, label: "Waiting dental patients" }
+          : {
+              key: "waiting",
+              label: "Waiting dental patients",
+              value: "0",
+              description: "In your queue",
+              lowerIsBetter: true,
+            },
+        completed ?? {
+          key: "completed",
+          label: "Completed dental consultations",
+          value: "0",
+          description: "Finished today",
+        },
+        {
+          key: "referrals",
+          label: "Dental referrals",
+          value: String(summary.dentalReferralsToday),
+          description: "External referrals today",
+        },
+      ],
+    }
+  }
+
   return kpis
 }
 

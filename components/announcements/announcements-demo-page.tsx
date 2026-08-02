@@ -11,9 +11,11 @@ import {
 import { toast } from "sonner"
 import { IconSpeakerphone } from "@tabler/icons-react"
 
+import { AnnouncementArticleDialog } from "@/components/announcements/announcement-article-dialog"
 import { AnnouncementDeleteDialog } from "@/components/announcements/announcement-delete-dialog"
 import { AnnouncementDetailSheet } from "@/components/announcements/announcement-detail-sheet"
 import { AnnouncementFormSheet } from "@/components/announcements/announcement-form-sheet"
+import { AnnouncementNewsCard } from "@/components/announcements/announcement-news-card"
 import { DemoPageHeader, DemoStatGrid } from "@/components/demo/demo-page"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -62,6 +64,7 @@ import type {
 } from "@/types/announcement"
 
 const PAGE_SIZE = 10
+const FEED_PAGE_SIZE = 12
 const SEARCH_DEBOUNCE_MS = 300
 const STATUS_FILTERS = ["all", "published", "scheduled", "draft"] as const
 type StatusFilter = (typeof STATUS_FILTERS)[number]
@@ -118,13 +121,25 @@ function AnnouncementsTableSkeleton() {
   )
 }
 
+function NewsFeedSkeleton() {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {Array.from({ length: 3 }).map((_, index) => (
+        <Skeleton key={index} className="aspect-[4/3] w-full rounded-xl" />
+      ))}
+    </div>
+  )
+}
+
 export function AnnouncementsPage({
   access,
+  initialFeed,
   initialList,
   initialStats,
   initialError,
 }: {
   access: StaffAccess
+  initialFeed: AnnouncementListResult
   initialList: AnnouncementListResult
   initialStats: AnnouncementStats
   initialError?: string | null
@@ -133,11 +148,13 @@ export function AnnouncementsPage({
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
   const [page, setPage] = useState(1)
+  const [feed, setFeed] = useState(initialFeed)
   const [list, setList] = useState(initialList)
   const [stats, setStats] = useState(initialStats)
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<Announcement | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [articleOpen, setArticleOpen] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [formMode, setFormMode] = useState<"create" | "edit">("create")
   const [editing, setEditing] = useState<Announcement | null>(null)
@@ -174,17 +191,41 @@ export function AnnouncementsPage({
     ) => {
       setLoading(true)
       try {
-        const [listResult, statsResult] = await Promise.all([
-          searchAnnouncementsAction(nextQuery, {
-            page: nextPage,
-            pageSize: PAGE_SIZE,
-            sortBy: "updated_at",
-            sortDirection: "desc",
-            status: nextStatus === "all" ? "all" : nextStatus,
-          }),
+        const feedPromise = searchAnnouncementsAction(nextQuery, {
+          page: 1,
+          pageSize: FEED_PAGE_SIZE,
+          sortBy: "published_at",
+          sortDirection: "desc",
+          feed: true,
+        })
+        const managePromise = canManage
+          ? searchAnnouncementsAction(nextQuery, {
+              page: nextPage,
+              pageSize: PAGE_SIZE,
+              sortBy: "updated_at",
+              sortDirection: "desc",
+              status: nextStatus === "all" ? "all" : nextStatus,
+            })
+          : Promise.resolve({
+              ok: true as const,
+              data: {
+                items: [] as Announcement[],
+                total: 0,
+                page: 1,
+                pageSize: PAGE_SIZE,
+                totalPages: 1,
+              },
+            })
+        const [feedResult, listResult, statsResult] = await Promise.all([
+          feedPromise,
+          managePromise,
           fetchAnnouncementStatsAction(),
         ])
 
+        if (!feedResult.ok) {
+          toast.error(feedResult.error)
+          return
+        }
         if (!listResult.ok) {
           toast.error(listResult.error)
           return
@@ -194,7 +235,8 @@ export function AnnouncementsPage({
           return
         }
 
-        setList(listResult.data)
+        setFeed(feedResult.data)
+        if (canManage) setList(listResult.data)
         setStats(statsResult.data)
       } catch {
         toast.error(
@@ -204,7 +246,7 @@ export function AnnouncementsPage({
         setLoading(false)
       }
     },
-    [statusFilter]
+    [statusFilter, canManage]
   )
 
   const refresh = useCallback(async () => {
@@ -223,10 +265,17 @@ export function AnnouncementsPage({
   const showSkeleton = loading || isPending
   const rows = list.items
   const hasRows = rows.length > 0
+  const hasFeed = feed.items.length > 0
 
   function openAnnouncement(announcement: Announcement) {
     setSelected(announcement)
-    setSheetOpen(true)
+    if (announcement.status === "published") {
+      setSheetOpen(false)
+      setArticleOpen(true)
+    } else {
+      setArticleOpen(false)
+      setSheetOpen(true)
+    }
     startTransition(async () => {
       const result = await fetchAnnouncementByIdAction(announcement.id)
       if (!result.ok) {
@@ -245,6 +294,7 @@ export function AnnouncementsPage({
 
   function openEdit(announcement: Announcement) {
     setSheetOpen(false)
+    setArticleOpen(false)
     setFormMode("edit")
     setEditing(announcement)
     setFormOpen(true)
@@ -260,6 +310,7 @@ export function AnnouncementsPage({
 
   function openDelete(announcement: Announcement) {
     setSheetOpen(false)
+    setArticleOpen(false)
     setDeleting(announcement)
     setDeleteOpen(true)
   }
@@ -286,6 +337,7 @@ export function AnnouncementsPage({
     if (selected?.id === id) {
       setSelected(null)
       setSheetOpen(false)
+      setArticleOpen(false)
     }
     setDeleting(null)
     await refresh()
@@ -305,16 +357,69 @@ export function AnnouncementsPage({
         }
       />
 
-      {can(d, "announcements.cards") ? (
+      {canManage && can(d, "announcements.cards") ? (
         <DemoStatGrid stats={statCards} />
       ) : null}
 
-      {can(d, "announcements.table") ? (
-      <Card className="min-w-0 shadow-none dark:ring-0">
-        <CardHeader className="flex flex-col gap-3 border-b sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle className="text-base">Announcement table</CardTitle>
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+      <section className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold tracking-tight">
+              Latest news
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Published notices for your role
+            </p>
+          </div>
+          {!canManage ? (
+            <Input
+              className="sm:w-72"
+              placeholder="Search announcements"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          ) : null}
+        </div>
+
+        {showSkeleton && !hasFeed ? (
+          <NewsFeedSkeleton />
+        ) : hasFeed ? (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {feed.items.map((item) => (
+              <AnnouncementNewsCard
+                key={item.id}
+                announcement={item}
+                onClick={() => openAnnouncement(item)}
+              />
+            ))}
+          </div>
+        ) : (
+          <Empty className="border border-dashed py-12">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <IconSpeakerphone />
+              </EmptyMedia>
+              <EmptyTitle>No published announcements</EmptyTitle>
+              <EmptyDescription>
+                {canManage
+                  ? "Publish a notice to show it in the news feed."
+                  : "Published notices will appear here when available."}
+              </EmptyDescription>
+            </EmptyHeader>
             {canManage ? (
+              <EmptyContent>
+                <Button onClick={openCreate}>Add announcement</Button>
+              </EmptyContent>
+            ) : null}
+          </Empty>
+        )}
+      </section>
+
+      {canManage && can(d, "announcements.table") ? (
+        <Card className="min-w-0 shadow-none dark:ring-0">
+          <CardHeader className="flex flex-col gap-3 border-b sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-base">Manage announcements</CardTitle>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
               <div className="flex flex-wrap gap-1">
                 {STATUS_FILTERS.map((value) => (
                   <Button
@@ -332,159 +437,157 @@ export function AnnouncementsPage({
                   </Button>
                 ))}
               </div>
-            ) : null}
-            <Input
-              className="sm:w-72"
-              placeholder="Search title, body, audience, author, status"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {showSkeleton ? (
-            <AnnouncementsTableSkeleton />
-          ) : hasRows ? (
-            <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Title</TableHead>
-                    <TableHead>Audience</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Updated</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell>
-                        <button
-                          type="button"
-                          className="text-left"
-                          onClick={() => openAnnouncement(row)}
-                        >
-                          <p className="font-medium">{row.title}</p>
-                          <p className="text-xs text-muted-foreground">
-                            by {row.author.fullName}
-                          </p>
-                        </button>
-                      </TableCell>
-                      <TableCell>{row.audience}</TableCell>
-                      <TableCell>
-                        <Badge variant={statusVariant(row.status)}>
-                          {announcementStatusLabel(row.status)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {formatAnnouncementDateTime(
-                          row.publishedAt ?? row.updatedAt
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap justify-end gap-1">
-                          {canEdit ? (
-                            <Button
-                              size="xs"
-                              variant="outline"
-                              onClick={() => openEdit(row)}
-                            >
-                              Edit
-                            </Button>
-                          ) : null}
-                          {canPublish ? (
-                            row.status !== "published" ? (
+              <Input
+                className="sm:w-72"
+                placeholder="Search title, body, audience, author, status"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            {showSkeleton ? (
+              <AnnouncementsTableSkeleton />
+            ) : hasRows ? (
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Title</TableHead>
+                      <TableHead>Audience</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Updated</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell>
+                          <button
+                            type="button"
+                            className="text-left"
+                            onClick={() => openAnnouncement(row)}
+                          >
+                            <p className="font-medium">{row.title}</p>
+                            <p className="text-xs text-muted-foreground">
+                              by {row.author.fullName}
+                            </p>
+                          </button>
+                        </TableCell>
+                        <TableCell>{row.audience}</TableCell>
+                        <TableCell>
+                          <Badge variant={statusVariant(row.status)}>
+                            {announcementStatusLabel(row.status)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {formatAnnouncementDateTime(
+                            row.publishedAt ?? row.updatedAt
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap justify-end gap-1">
+                            {canEdit ? (
                               <Button
                                 size="xs"
-                                onClick={() => handlePublish(row)}
+                                variant="outline"
+                                onClick={() => openEdit(row)}
                               >
-                                Publish
+                                Edit
                               </Button>
-                            ) : (
-                              <Button size="xs" disabled>
-                                Published
+                            ) : null}
+                            {canPublish ? (
+                              row.status !== "published" ? (
+                                <Button
+                                  size="xs"
+                                  onClick={() => handlePublish(row)}
+                                >
+                                  Publish
+                                </Button>
+                              ) : (
+                                <Button size="xs" disabled>
+                                  Published
+                                </Button>
+                              )
+                            ) : null}
+                            {canDelete ? (
+                              <Button
+                                size="xs"
+                                variant="destructive"
+                                onClick={() => openDelete(row)}
+                              >
+                                Delete
                               </Button>
-                            )
-                          ) : null}
-                          {canDelete ? (
-                            <Button
-                              size="xs"
-                              variant="destructive"
-                              onClick={() => openDelete(row)}
-                            >
-                              Delete
-                            </Button>
-                          ) : null}
-                          {!canManage ? (
-                            <Button
-                              size="xs"
-                              variant="outline"
-                              onClick={() => openAnnouncement(row)}
-                            >
-                              View
-                            </Button>
-                          ) : null}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                            ) : null}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
 
-              {list.totalPages > 1 ? (
-                <div className="flex items-center justify-between gap-3 border-t px-4 py-3">
-                  <p className="text-sm text-muted-foreground">
-                    Page {list.page} of {list.totalPages}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={list.page <= 1 || loading}
-                      onClick={() => setPage((current) => Math.max(1, current - 1))}
-                    >
-                      Previous
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={list.page >= list.totalPages || loading}
-                      onClick={() =>
-                        setPage((current) =>
-                          Math.min(list.totalPages, current + 1)
-                        )
-                      }
-                    >
-                      Next
-                    </Button>
+                {list.totalPages > 1 ? (
+                  <div className="flex items-center justify-between gap-3 border-t px-4 py-3">
+                    <p className="text-sm text-muted-foreground">
+                      Page {list.page} of {list.totalPages}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={list.page <= 1 || loading}
+                        onClick={() =>
+                          setPage((current) => Math.max(1, current - 1))
+                        }
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={list.page >= list.totalPages || loading}
+                        onClick={() =>
+                          setPage((current) =>
+                            Math.min(list.totalPages, current + 1)
+                          )
+                        }
+                      >
+                        Next
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ) : null}
-            </>
-          ) : (
-            <Empty className="border-0 py-12">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <IconSpeakerphone />
-                </EmptyMedia>
-                <EmptyTitle>No announcements yet</EmptyTitle>
-                <EmptyDescription>
-                  {canManage
-                    ? "Create the first clinic notice for students and staff."
-                    : "Published notices will appear here when available."}
-                </EmptyDescription>
-              </EmptyHeader>
-              {canManage ? (
+                ) : null}
+              </>
+            ) : (
+              <Empty className="border-0 py-12">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <IconSpeakerphone />
+                  </EmptyMedia>
+                  <EmptyTitle>No announcements yet</EmptyTitle>
+                  <EmptyDescription>
+                    Create the first clinic notice for students and staff.
+                  </EmptyDescription>
+                </EmptyHeader>
                 <EmptyContent>
                   <Button onClick={openCreate}>Add announcement</Button>
                 </EmptyContent>
-              ) : null}
-            </Empty>
-          )}
-        </CardContent>
-      </Card>
+              </Empty>
+            )}
+          </CardContent>
+        </Card>
       ) : null}
+
+      <AnnouncementArticleDialog
+        announcement={selected}
+        open={articleOpen}
+        onOpenChange={setArticleOpen}
+        canEdit={canEdit}
+        canDelete={canDelete}
+        onEdit={openEdit}
+        onDelete={openDelete}
+      />
 
       <AnnouncementDetailSheet
         announcement={selected}

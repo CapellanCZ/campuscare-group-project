@@ -2,6 +2,8 @@ import "server-only"
 
 import { Resend } from "resend"
 
+import { getCampusCareLogoAttachment } from "@/lib/auth/email-layout"
+
 function requiredEnv(name: string) {
   const value = process.env[name]?.trim()
   if (!value) {
@@ -25,14 +27,29 @@ export async function sendResendEmail(input: {
   subject: string
   html: string
   text: string
+  /** When true (default), inline CampusCare logo via CID for reliable display. */
+  includeLogo?: boolean
 }) {
   const resend = new Resend(requiredEnv("RESEND_API_KEY"))
+  const includeLogo = input.includeLogo !== false
+  const logo = includeLogo ? getCampusCareLogoAttachment() : null
+
   const { error } = await resend.emails.send({
     from: resendFromAddress(),
     to: input.to,
     subject: input.subject,
     html: input.html,
     text: input.text,
+    attachments: logo
+      ? [
+          {
+            filename: logo.filename,
+            content: logo.content,
+            contentId: logo.contentId,
+            contentType: logo.contentType,
+          },
+        ]
+      : undefined,
   })
 
   if (error) {

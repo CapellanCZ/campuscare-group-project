@@ -28,6 +28,7 @@ export type ReportKpiKey =
   | "patients_treated"
   | "dental_consultations_today"
   | "dental_certs_issued"
+  | "follow_up_cases"
 
 export type ReportChartKey =
   | "monthly_consult_trend"

@@ -384,6 +384,46 @@ export function RoleDashboardSummaries({
         </PanelCell>
       ) : null}
 
+      {isDentist ? (
+        <PanelCell className="lg:col-span-2">
+          <ModuleSnapshot
+            title="Recent dental consultations"
+            description="Latest completed dental charts."
+            href={`${base}/consultations`}
+            linkLabel="Open consultations"
+            badge={summary.recentConsultations.length}
+          >
+            {summary.recentConsultations.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No completed dental consultations yet today.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {summary.recentConsultations.map((row) => (
+                  <li
+                    key={row.id}
+                    className="flex flex-col gap-1 rounded-xl border border-border/60 p-3 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">
+                        {row.patientName}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {row.diagnosis || "No diagnosis"}
+                        {row.treatment ? ` · ${row.treatment}` : ""}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="shrink-0">
+                      {row.consultationDate.slice(0, 10)}
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </ModuleSnapshot>
+        </PanelCell>
+      ) : null}
+
       <PanelCell className={isSpecialty ? undefined : "lg:col-span-2"}>
         <ModuleSnapshot
           title={isDentist ? "Dental consultations" : "Consultations"}
@@ -526,34 +566,57 @@ export function RoleDashboardSummaries({
         </PanelCell>
       ) : null}
 
-      <PanelCell className={isAdmin ? "lg:col-span-2" : undefined}>
+      <PanelCell className={isAdmin || isNurse ? "lg:col-span-2" : undefined}>
         <ModuleSnapshot
           title="Announcements"
           description={
-            isAdmin
+            isAdmin || isNurse
               ? "Published clinic notices."
               : "Latest clinic notices."
           }
           href={`${base}/announcements`}
           badge={summary.announcements.publishedCount}
-          linkLabel={isAdmin ? "Manage" : "View all"}
+          linkLabel={isAdmin || isNurse ? "Manage" : "View all"}
         >
           {summary.announcements.recent.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No published announcements.
             </p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {summary.announcements.recent.map((ann) => (
-                <li
-                  key={ann.id}
-                  className="border-b border-border/60 py-2 last:border-0 last:pb-0"
-                >
-                  <p className="text-sm font-medium">{ann.title}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {ann.audience}
-                    {ann.publishedAt ? ` · ${ann.publishedAt}` : ""}
-                  </p>
+                <li key={ann.id}>
+                  <Link
+                    href={`${base}/announcements`}
+                    className="group flex gap-3 rounded-lg border border-border/60 p-2 transition-colors hover:border-border hover:bg-muted/40"
+                  >
+                    <div className="relative h-14 w-20 shrink-0 overflow-hidden rounded-md bg-muted">
+                      {ann.coverUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={ann.coverUrl}
+                          alt=""
+                          className="size-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex size-full items-center justify-center bg-gradient-to-br from-primary/15 to-muted" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-1 text-sm font-medium group-hover:text-primary">
+                        {ann.title}
+                      </p>
+                      {ann.excerpt ? (
+                        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                          {ann.excerpt}
+                        </p>
+                      ) : null}
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        {ann.audience}
+                        {ann.publishedAt ? ` · ${ann.publishedAt}` : ""}
+                      </p>
+                    </div>
+                  </Link>
                 </li>
               ))}
             </ul>

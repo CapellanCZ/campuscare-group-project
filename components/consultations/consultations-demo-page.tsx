@@ -125,7 +125,13 @@ export function ConsultationsPage({
     "all"
   )
   const [providerFilter, setProviderFilter] = useState("all")
-  const [stationFilter, setStationFilter] = useState("all")
+  const [stationFilter, setStationFilter] = useState(
+    access.designation === "dentist"
+      ? "dentist"
+      : access.designation === "physician"
+        ? "physician"
+        : "all"
+  )
   const [dateFilter, setDateFilter] = useState("")
   const [providers, setProviders] = useState(initialProviders)
   const [stations, setStations] = useState(initialStations)
@@ -282,8 +288,12 @@ export function ConsultationsPage({
   return (
     <div className="flex flex-col gap-4">
       <DemoPageHeader
-        title="Consultations"
-        description="Triage assessments and clinical charting"
+        title={d === "dentist" ? "Dental consultations" : "Consultations"}
+        description={
+          d === "dentist"
+            ? "Dental examination, diagnosis, treatment, and follow-up charting"
+            : "Triage assessments and clinical charting"
+        }
         designation={d}
         showDemoBanner={false}
         actions={
@@ -558,6 +568,7 @@ export function ConsultationsPage({
         mode={formMode}
         consultation={editing}
         onSaved={() => refresh()}
+        access={access}
       />
       <ConsultationDeleteDialog
         consultation={deleting}

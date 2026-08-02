@@ -155,6 +155,8 @@ export function QueuePage({
   const canMutate = canMutateQueue(access.designation)
   const myStation = stationForDesignation(access.designation)
   const isNurse = access.designation === "nurse"
+  const isSpecialtyStation =
+    access.designation === "physician" || access.designation === "dentist"
 
   function setColumnSort(column: QueueSortColumn, direction: ColumnSortDirection) {
     setSortColumn(column)
@@ -313,13 +315,21 @@ export function QueuePage({
   return (
     <div className="flex flex-1 flex-col gap-6">
       <PageIntro
-        title={isNurse ? "Nurse queue" : "Queue management"}
+        title={
+          isNurse
+            ? "Nurse queue"
+            : access.designation === "dentist"
+              ? "Dental queue"
+              : "Queue management"
+        }
         description={`${designationLabel(access.designation)}${
           readOnly
             ? " · monitoring only"
             : isNurse
               ? " · vitals & specialty handoff"
-              : " · live controls"
+              : access.designation === "dentist"
+                ? " · dental patients only"
+                : " · live controls"
         }`}
         action={
           <>
@@ -588,6 +598,71 @@ export function QueuePage({
                               />
                             </TableHead>
                           </>
+                        ) : isSpecialtyStation ? (
+                          <>
+                            <TableHead className="hidden h-12 sm:table-cell">
+                              <DirectoryColumnHeader
+                                title="Type"
+                                sortDirection={sortDirectionFor("type")}
+                                onSortAsc={() => setColumnSort("type", "asc")}
+                                onSortDesc={() => setColumnSort("type", "desc")}
+                                onClearSort={() => {
+                                  setColumnSort("ticket", "asc")
+                                  setPatientTypeFilter("all")
+                                  setPage(0)
+                                }}
+                              />
+                            </TableHead>
+                            <TableHead className="hidden h-12 md:table-cell">
+                              <DirectoryColumnLabel title="Chief complaint" />
+                            </TableHead>
+                            <TableHead className="h-12">
+                              <DirectoryColumnHeader
+                                title="Status"
+                                sortDirection={sortDirectionFor("status")}
+                                onSortAsc={() => setColumnSort("status", "asc")}
+                                onSortDesc={() =>
+                                  setColumnSort("status", "desc")
+                                }
+                                onClearSort={() => {
+                                  setColumnSort("ticket", "asc")
+                                  setStatusFilter("all")
+                                  setPage(0)
+                                }}
+                                filterLabel="Status"
+                                filterItems={
+                                  <>
+                                    {STATUS_OPTIONS.map((option) => (
+                                      <DropdownMenuItem
+                                        key={option.value}
+                                        onClick={() => {
+                                          setStatusFilter(option.value)
+                                          setPage(0)
+                                        }}
+                                        className={cn(
+                                          statusFilter === option.value &&
+                                            "bg-accent"
+                                        )}
+                                      >
+                                        {option.label}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </>
+                                }
+                              />
+                            </TableHead>
+                            <TableHead className="hidden h-12 sm:table-cell">
+                              <DirectoryColumnHeader
+                                title="Wait"
+                                sortDirection={sortDirectionFor("wait")}
+                                onSortAsc={() => setColumnSort("wait", "asc")}
+                                onSortDesc={() => setColumnSort("wait", "desc")}
+                                onClearSort={() =>
+                                  setColumnSort("ticket", "asc")
+                                }
+                              />
+                            </TableHead>
+                          </>
                         ) : (
                           <>
                             <TableHead className="hidden h-12 md:table-cell">
@@ -783,6 +858,30 @@ export function QueuePage({
                                     status={row.status}
                                     waitMinutes={row.estimatedWaitMinutes}
                                   />
+                                </TableCell>
+                              </>
+                            ) : isSpecialtyStation ? (
+                              <>
+                                <TableCell className="hidden sm:table-cell">
+                                  <Badge variant="outline">
+                                    {patientTypeLabel(row.patientType)}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="hidden max-w-[12rem] truncate md:table-cell">
+                                  {row.chiefComplaint ||
+                                    row.consultationType ||
+                                    "—"}
+                                </TableCell>
+                                <TableCell>
+                                  <WaitStatusBadge
+                                    status={row.status}
+                                    waitMinutes={row.estimatedWaitMinutes}
+                                  />
+                                </TableCell>
+                                <TableCell className="hidden tabular-nums sm:table-cell">
+                                  {row.estimatedWaitMinutes != null
+                                    ? `${row.estimatedWaitMinutes}m`
+                                    : "—"}
                                 </TableCell>
                               </>
                             ) : (

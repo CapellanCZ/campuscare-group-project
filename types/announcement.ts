@@ -7,11 +7,11 @@ export const ANNOUNCEMENT_STATUSES = [
 export type AnnouncementStatus = (typeof ANNOUNCEMENT_STATUSES)[number]
 
 export const ANNOUNCEMENT_AUDIENCES = [
-  "All students",
-  "All campus",
-  "Clinic staff",
-  "Dental queue",
-  "Physician queue",
+  "All",
+  "Dentist",
+  "Physician",
+  "Nurse",
+  "Faculty",
 ] as const
 
 export type AnnouncementAudience = (typeof ANNOUNCEMENT_AUDIENCES)[number]
@@ -77,6 +77,11 @@ export type AnnouncementListParams = {
   sortBy?: AnnouncementSortField
   sortDirection?: AnnouncementSortDirection
   status?: AnnouncementStatus | "all"
+  /**
+   * Published feed: apply role-based audience visibility.
+   * Management lists omit this so publishers can see every audience.
+   */
+  feed?: boolean
 }
 
 export type AnnouncementListResult = {

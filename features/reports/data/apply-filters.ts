@@ -245,6 +245,13 @@ function buildKpis(
       label: "Dental certificates issued",
       value: String(dentalCerts.length),
     },
+    follow_up_cases: {
+      key: "follow_up_cases",
+      label: "Follow-up cases",
+      value: String(
+        consults.filter((c) => Boolean(c.followUpDate?.trim())).length
+      ),
+    },
   }
 
   return keys.map((key) => map[key])

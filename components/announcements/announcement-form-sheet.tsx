@@ -47,7 +47,7 @@ type FormState = {
 const emptyForm: FormState = {
   title: "",
   body: "",
-  audience: "All students",
+  audience: "All",
   status: "draft",
   scheduledAt: "",
 }
@@ -206,7 +206,7 @@ export function AnnouncementFormSheet({
               <Select
                 value={form.audience}
                 onValueChange={(value) =>
-                  updateField("audience", value ?? "All students")
+                  updateField("audience", value ?? "All")
                 }
                 disabled={pending}
               >

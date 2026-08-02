@@ -140,7 +140,7 @@ export const demoAnnouncements: DemoAnnouncement[] = [
   {
     id: "ann-1",
     title: "Clinic hours extended during finals week",
-    audience: "All students",
+    audience: "All",
     status: "published",
     author: "Clinic Admin",
     publishedAt: "2026-07-20 09:00",
@@ -149,7 +149,7 @@ export const demoAnnouncements: DemoAnnouncement[] = [
   {
     id: "ann-2",
     title: "Dental unit maintenance on Friday",
-    audience: "Dental queue",
+    audience: "Dentist",
     status: "published",
     author: "Clinic Admin",
     publishedAt: "2026-07-22 15:30",
@@ -158,7 +158,7 @@ export const demoAnnouncements: DemoAnnouncement[] = [
   {
     id: "ann-3",
     title: "Flu vaccine drive — next Monday",
-    audience: "All campus",
+    audience: "All",
     status: "scheduled",
     author: "Clinic Admin",
     publishedAt: null,
@@ -167,7 +167,7 @@ export const demoAnnouncements: DemoAnnouncement[] = [
   {
     id: "ann-4",
     title: "Updated walk-in guidelines",
-    audience: "Clinic staff",
+    audience: "Nurse",
     status: "draft",
     author: "Clinic Admin",
     publishedAt: null,

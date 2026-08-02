@@ -21,6 +21,7 @@ export type SeedConsultRow = {
   status: string
   waitMinutes: number
   walkIn: boolean
+  followUpDate?: string | null
 }
 
 export type SeedCertRow = {

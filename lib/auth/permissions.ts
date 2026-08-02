@@ -147,8 +147,8 @@ const MATRIX: Record<Permission, RoleAccess> = {
   "patients.search": roles(ALL, ALL, ALL, ALL),
   "patients.table": roles(ALL, ALL, ALL, ALL),
   "patients.view_profile": roles(ALL, ALL, ALL, ALL),
-  "patients.edit_information": roles(ALL, ALL, ALL, ALL),
-  "patients.update_medical": roles(ALL, ALL, ALL, ALL),
+  "patients.edit_information": roles(ALL, ALL, ALL, NONE),
+  "patients.update_medical": roles(ALL, ALL, ALL, NONE),
   "patients.view_consultation_history": roles(ALL, ALL, ALL, ALL),
   "patients.view_medical_documents": roles(ALL, ALL, ALL, ALL),
 
@@ -185,10 +185,10 @@ const MATRIX: Record<Permission, RoleAccess> = {
   // Announcements
   "announcements.cards": roles(ALL, ALL, ALL, ALL),
   "announcements.table": roles(ALL, ALL, ALL, ALL),
-  "announcements.add": roles(ALL, NONE, NONE, NONE),
-  "announcements.edit": roles(ALL, NONE, NONE, NONE),
-  "announcements.delete": roles(ALL, NONE, NONE, NONE),
-  "announcements.publish": roles(ALL, NONE, NONE, NONE),
+  "announcements.add": roles(ALL, ALL, NONE, NONE),
+  "announcements.edit": roles(ALL, ALL, NONE, NONE),
+  "announcements.delete": roles(ALL, ALL, NONE, NONE),
+  "announcements.publish": roles(ALL, ALL, NONE, NONE),
 
   // User Management
   "users.summary_cards": roles(ALL, NONE, NONE, NONE),

@@ -135,6 +135,7 @@ export async function loadLiveReportsDataset(): Promise<{
         station,
         status,
         consultation_date,
+        follow_up_date,
         notes,
         patient_records (
           patient_type,
@@ -389,6 +390,7 @@ export async function loadLiveReportsDataset(): Promise<{
         status: titleStatus((row.status as string) || "Unknown"),
         waitMinutes: 0,
         walkIn: notes.includes("walk"),
+        followUpDate: (row.follow_up_date as string | null) ?? null,
       }
     }
   )

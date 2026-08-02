@@ -58,6 +58,7 @@ export const ROLE_REPORTS_CATALOG: Record<
     kpiKeys: [
       "dental_consultations_today",
       "patients_treated",
+      "follow_up_cases",
       "dental_certs_issued",
     ],
     chartKeys: ["dental_consult_trend", "common_dental_cases"],

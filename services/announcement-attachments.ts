@@ -55,7 +55,7 @@ async function requireAdminUserId(client: SupabaseClient): Promise<string> {
   if (!access || !canMutate(access.designation, "announcements.add")) {
     throw new AnnouncementServiceError(
       "permission",
-      "Only clinic admins can manage announcement attachments."
+      "Only clinic admins and nurses can manage announcement attachments."
     )
   }
   const {

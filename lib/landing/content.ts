@@ -198,17 +198,23 @@ export const faqs: FaqItem[] = [
 ]
 
 export const footerContact = {
-  location: "NU Dasmariñas, 4th Floor",
+  location: "Health Services Office · NU Dasmariñas",
   mapsUrl:
     "https://www.google.com/maps/search/?api=1&query=National+University+Dasmarinas",
   hours: "Mon–Fri 7:00 AM – 9:00 PM · Sat 7:00 AM – 7:00 PM",
   email: "clinic@nu-dasma.edu.ph",
 }
 
+export const footerQuickLinks = [
+  { label: "Features", href: "#features" },
+  { label: "FAQ", href: "#faq" },
+  { label: "Staff login", href: "/login" },
+] as const
+
 export const footerLegalLinks = [
-  { label: "Terms of Service", href: "/terms" },
-  { label: "Privacy Policy", href: "/privacy" },
+  { label: "Terms", href: "/terms" },
+  { label: "Privacy", href: "/privacy" },
 ] as const
 
 export const footerBlurb =
-  "CampusCare connects the NU Dasmariñas Health Services Office with a clearer digital clinic experience—from request to consultation completion."
+  "Digital clinic tools for the NU Dasmariñas Health Services Office—consultations, queues, and records in one place."

@@ -16,10 +16,18 @@ import {
 import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
 import type { QueueTicketRow } from "@/lib/health/types"
 import { getDirectoryPatientRecordStats } from "@/lib/students/directory"
+import {
+  announcementCoverUrl,
+  announcementExcerpt,
+} from "@/features/announcements/lib/display"
 import { getAnnouncements } from "@/services/announcements"
 import { getConsultationRequests } from "@/services/consultation-requests"
-import { getConsultationStats } from "@/services/consultations"
+import {
+  getConsultationStats,
+  getConsultations,
+} from "@/services/consultations"
 import { getMedicalCertificateStats } from "@/services/medicalCertificates"
+import { isDentalReferralTreatment } from "@/lib/health/dental-form-options"
 import type { ConsultationStats } from "@/types/consultation"
 import type { MedicalCertificateStats } from "@/types/medicalCertificate"
 
@@ -45,6 +53,7 @@ async function buildAnnouncements() {
       pageSize: 4,
       sortBy: "published_at",
       sortDirection: "desc",
+      feed: true,
     })
     return {
       publishedCount: list.total,
@@ -54,6 +63,8 @@ async function buildAnnouncements() {
         audience: a.audience,
         status: a.status,
         publishedAt: a.publishedAt,
+        excerpt: announcementExcerpt(a.body, 90),
+        coverUrl: announcementCoverUrl(a),
       })),
     }
   } catch {
@@ -161,6 +172,51 @@ async function loadScheduleStrip(
   }
 }
 
+async function loadRecentConsultations(
+  station: "dentist" | "physician" | null,
+  limit = 5
+): Promise<RoleDashboardSummary["recentConsultations"]> {
+  try {
+    const list = await getConsultations({
+      page: 1,
+      pageSize: 20,
+      station: station ?? "all",
+      status: "Completed",
+    })
+    return list.items.slice(0, limit).map((c) => ({
+      id: c.id,
+      patientName: c.patient.fullName,
+      diagnosis: c.diagnosis,
+      treatment: c.treatment,
+      status: c.status,
+      consultationDate: c.consultationDate,
+      providerName: c.providerName,
+    }))
+  } catch {
+    return []
+  }
+}
+
+async function countDentalReferralsToday(): Promise<number> {
+  try {
+    const list = await getConsultations({
+      page: 1,
+      pageSize: 50,
+      station: "dentist",
+      consultationDate: new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Manila",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date()),
+    })
+    return list.items.filter((c) => isDentalReferralTreatment(c.treatment))
+      .length
+  } catch {
+    return 0
+  }
+}
+
 export async function loadRoleDashboardSummary(input: {
   designation: ClinicDesignation
   userId: string
@@ -171,25 +227,40 @@ export async function loadRoleDashboardSummary(input: {
   const isAdmin = designation === "admin"
   const isNurse = designation === "nurse"
   const isPhysician = designation === "physician"
-  const isSpecialty = isPhysician || designation === "dentist"
+  const isDentist = designation === "dentist"
+  const isSpecialty = isPhysician || isDentist
 
-  const [consultationStats, certificateStats, patientStats, staffSummary, schedule, physicianWorkspace, announcements, requests] =
-    await Promise.all([
-      getConsultationStats().catch(() => emptyConsultationStats),
-      getMedicalCertificateStats().catch(() => emptyCertificateStats),
-      isAdmin || isSpecialty || isNurse
-        ? getDirectoryPatientRecordStats().catch(() => null)
-        : Promise.resolve(null),
-      isAdmin
-        ? listStaffUsers({ status: "all" }).then((res) =>
-            res.ok ? res.summary : null
-          )
-        : Promise.resolve(null),
-      isSpecialty ? loadScheduleStrip(userId) : Promise.resolve(null),
-      isPhysician ? loadPhysicianWorkspace() : Promise.resolve(null),
-      buildAnnouncements(),
-      buildRequests(isNurse ? 6 : 4),
-    ])
+  const [
+    consultationStats,
+    certificateStats,
+    patientStats,
+    staffSummary,
+    schedule,
+    physicianWorkspace,
+    announcements,
+    requests,
+    recentConsultations,
+    dentalReferralsToday,
+  ] = await Promise.all([
+    getConsultationStats().catch(() => emptyConsultationStats),
+    getMedicalCertificateStats().catch(() => emptyCertificateStats),
+    isAdmin || isSpecialty || isNurse
+      ? getDirectoryPatientRecordStats().catch(() => null)
+      : Promise.resolve(null),
+    isAdmin
+      ? listStaffUsers({ status: "all" }).then((res) =>
+          res.ok ? res.summary : null
+        )
+      : Promise.resolve(null),
+    isSpecialty ? loadScheduleStrip(userId) : Promise.resolve(null),
+    isPhysician ? loadPhysicianWorkspace() : Promise.resolve(null),
+    buildAnnouncements(),
+    buildRequests(isNurse ? 6 : 4),
+    isSpecialty
+      ? loadRecentConsultations(isDentist ? "dentist" : "physician")
+      : Promise.resolve([]),
+    isDentist ? countDentalReferralsToday() : Promise.resolve(0),
+  ])
 
   return {
     consultationStats,
@@ -198,10 +269,13 @@ export async function loadRoleDashboardSummary(input: {
     staffSummary,
     announcements,
     requests,
-    nurseLanes: isNurse || isAdmin
-      ? buildNurseLanes(allTickets, checkedIn)
-      : null,
+    nurseLanes:
+      isNurse || isAdmin
+        ? buildNurseLanes(allTickets, checkedIn)
+        : null,
     schedule,
     physicianWorkspace,
+    recentConsultations,
+    dentalReferralsToday,
   }
 }

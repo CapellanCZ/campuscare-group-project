@@ -528,6 +528,9 @@ export function PatientsPage({
         onOpenChange={(open) => {
           if (!open) setHistoryPatient(null)
         }}
+        stationFilter={
+          access.designation === "dentist" ? "dentist" : "all"
+        }
       />
     </div>
   )
