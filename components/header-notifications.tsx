@@ -16,13 +16,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useOptionalStaffAccess } from "@/components/staff-access-provider"
 import {
   fetchNotificationsAction,
   fetchPreferencesAction,
   markAllNotificationsReadAction,
   markNotificationReadAction,
 } from "@/features/settings/actions"
-import type { StaffNotification } from "@/services/notifications"
+import {
+  buildFallbackNotifications,
+  filterNotificationsByPrefs,
+  type HeaderStaffNotification,
+} from "@/lib/notifications/header-notifications"
 import { cn } from "@/lib/utils"
 
 function relativeTime(iso: string) {
@@ -42,10 +47,14 @@ function relativeTime(iso: string) {
   })
 }
 
-function initialsFor(type: StaffNotification["type"]) {
+function initialsFor(type: HeaderStaffNotification["type"]) {
   if (type === "consultation_request") return "CR"
   if (type === "queue") return "Q"
   return "A"
+}
+
+function isFallbackId(id: string) {
+  return id.startsWith("fallback-")
 }
 
 export function HeaderNotifications() {
@@ -54,7 +63,10 @@ export function HeaderNotifications() {
 
 function HeaderNotificationsInbox() {
   const router = useRouter()
-  const [items, setItems] = useState<StaffNotification[]>([])
+  const access = useOptionalStaffAccess()
+  const designation = access?.primaryRole ?? "physician"
+  const [items, setItems] = useState<HeaderStaffNotification[]>([])
+  const [usingFallback, setUsingFallback] = useState(false)
   const [pending, startTransition] = useTransition()
 
   const load = useCallback(() => {
@@ -63,32 +75,45 @@ function HeaderNotificationsInbox() {
         fetchNotificationsAction(),
         fetchPreferencesAction(),
       ])
-      if (!notificationsResult.ok) return
-      const preferences = preferencesResult.ok ? preferencesResult.data : null
-      setItems(
-        notificationsResult.data.filter((notification) => {
-          if (notification.type === "consultation_request") {
-            return preferences?.notifyConsultationRequests ?? true
+
+      const preferences = preferencesResult.ok
+        ? preferencesResult.data
+        : {
+            notifyConsultationRequests: true,
+            notifyQueue: true,
+            notifyAnnouncements: true,
           }
-          if (notification.type === "queue") return preferences?.notifyQueue ?? true
-          return preferences?.notifyAnnouncements ?? true
-        })
+
+      const live =
+        notificationsResult.ok && notificationsResult.data.length > 0
+          ? notificationsResult.data
+          : buildFallbackNotifications(designation)
+
+      setUsingFallback(
+        !(notificationsResult.ok && notificationsResult.data.length > 0)
       )
+      setItems(filterNotificationsByPrefs(live, preferences))
     })
-  }, [])
+  }, [designation])
 
   useEffect(() => {
     load()
     const id = window.setInterval(load, 60_000)
-    return () => window.clearInterval(id)
+    window.addEventListener("campuscare:notification-prefs", load)
+    return () => {
+      window.clearInterval(id)
+      window.removeEventListener("campuscare:notification-prefs", load)
+    }
   }, [load])
 
   const unreadCount = items.filter((item) => item.unread).length
 
   function markAllRead() {
     startTransition(async () => {
-      const result = await markAllNotificationsReadAction()
-      if (!result.ok) return
+      if (!usingFallback) {
+        const result = await markAllNotificationsReadAction()
+        if (!result.ok) return
+      }
       setItems((current) =>
         current.map((item) =>
           item.unread ? { ...item, unread: false } : item
@@ -97,10 +122,12 @@ function HeaderNotificationsInbox() {
     })
   }
 
-  function openItem(notification: StaffNotification) {
+  function openItem(notification: HeaderStaffNotification) {
     startTransition(async () => {
       if (notification.unread) {
-        await markNotificationReadAction(notification.id)
+        if (!isFallbackId(notification.id) && !usingFallback) {
+          await markNotificationReadAction(notification.id)
+        }
         setItems((current) =>
           current.map((item) =>
             item.id === notification.id ? { ...item, unread: false } : item
@@ -168,7 +195,8 @@ function HeaderNotificationsInbox() {
               className="px-2 py-8 text-center text-sm text-muted-foreground"
               role="status"
             >
-              No notifications yet.
+              No notifications yet. Turn notification types on in Profile and
+              Settings.
             </div>
           ) : (
             <DropdownMenuGroup>
@@ -178,7 +206,7 @@ function HeaderNotificationsInbox() {
                   className="flex items-start gap-2 py-2"
                   onClick={() => openItem(notification)}
                 >
-                  <Avatar className="mt-0.5 size-6 shrink-0">
+                  <Avatar className="mt-2 size-6 shrink-0">
                     <AvatarFallback className="text-[10px]">
                       {initialsFor(notification.type)}
                     </AvatarFallback>

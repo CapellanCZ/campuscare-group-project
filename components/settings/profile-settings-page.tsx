@@ -1,12 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, useTransition } from "react"
-import {
-  IconAsterisk,
-  IconEye,
-  IconEyeOff,
-  IconUpload,
-} from "@tabler/icons-react"
+import { IconEye, IconEyeOff, IconUpload } from "@tabler/icons-react"
 import { toast } from "sonner"
 
 import { DemoPageHeader } from "@/components/demo/demo-page"
@@ -20,13 +15,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import {
   savePreferencesAction,
   updateAvatarAction,
-  updateLicenseNumberAction,
 } from "@/features/settings/actions"
 import { designationLabel } from "@/lib/health/roles"
 import { createClient } from "@/lib/supabase/client"
@@ -50,11 +43,9 @@ function maskLicense(value: string, visible: boolean) {
 function ProfileField({
   label,
   value,
-  trailing,
 }: {
   label: string
   value: React.ReactNode
-  trailing?: React.ReactNode
 }) {
   return (
     <div className="flex min-w-0 items-start justify-between gap-3 border-b border-border/60 py-3 last:border-0 last:pb-0 first:pt-0">
@@ -62,7 +53,6 @@ function ProfileField({
         <dt className="text-sm text-muted-foreground">{label}</dt>
         <dd className="text-sm font-medium text-foreground">{value || "—"}</dd>
       </div>
-      {trailing ? <div className="shrink-0">{trailing}</div> : null}
     </div>
   )
 }
@@ -79,30 +69,11 @@ export function ProfileSettingsPage({
   const [profile, setProfile] = useState(initialProfile)
   const [preferences, setPreferences] = useState(initialPreferences)
   const [licenseVisible, setLicenseVisible] = useState(false)
-  const [licenseEditing, setLicenseEditing] = useState(false)
-  const [licenseDraft, setLicenseDraft] = useState(
-    initialProfile.licenseNumber ?? ""
-  )
   const [pending, startTransition] = useTransition()
 
   useEffect(() => {
     setTheme(preferences.theme)
   }, [preferences.theme, setTheme])
-
-  function saveLicense() {
-    startTransition(async () => {
-      const result = await updateLicenseNumberAction(licenseDraft)
-      if (!result.ok) {
-        toast.error(result.error)
-        return
-      }
-      setProfile(result.data)
-      setLicenseDraft(result.data.licenseNumber ?? "")
-      setLicenseEditing(false)
-      setLicenseVisible(true)
-      toast.success("License number updated.")
-    })
-  }
 
   function savePrefs(
     patch: Partial<{
@@ -121,6 +92,7 @@ export function ProfileSettingsPage({
       setPreferences(result.data)
       if (patch.theme) setTheme(patch.theme)
       toast.success("Preferences saved.")
+      window.dispatchEvent(new Event("campuscare:notification-prefs"))
     })
   }
 
@@ -158,62 +130,41 @@ export function ProfileSettingsPage({
         description="Your staff profile, notifications, and display preferences"
         designation={profile.role}
         showDemoBanner={false}
+        showRoleSuffix={false}
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <Card className="min-w-0 shadow-none dark:ring-0">
-          <CardHeader className="gap-4 border-b px-6 py-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <CardTitle className="text-base">Personal Information</CardTitle>
-                <CardDescription>
-                  Profile details from campus records. Only your photo is
-                  editable here.
-                </CardDescription>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={pending}
-                  onClick={() => fileRef.current?.click()}
-                >
-                  <IconUpload className="size-4" aria-hidden />
-                  Upload / Change Profile Picture
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  disabled
-                  title="Protected fields are managed by administrators"
-                >
-                  Edit Profile
-                </Button>
-              </div>
-            </div>
+          <CardHeader className="border-b px-6 py-5">
+            <CardTitle className="text-base">Personal Information</CardTitle>
+            <CardDescription>
+              Profile details from campus records. Only your photo is editable
+              here.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 px-6 py-6">
-            <div className="flex items-center gap-4">
-              <Avatar className="size-20">
-                {profile.avatarUrl ? (
-                  <AvatarImage
-                    src={profile.avatarUrl}
-                    alt={profile.fullName}
-                  />
-                ) : null}
-                <AvatarFallback className="text-lg font-medium">
-                  {initials(profile.fullName)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <p className="truncate text-lg font-semibold tracking-tight">
-                  {profile.fullName}
-                </p>
-                <p className="truncate text-sm text-muted-foreground">
-                  {designationLabel(profile.role)} · {profile.department}
-                </p>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Profile Picture</p>
+              <div className="flex items-center gap-4">
+                <Avatar className="size-20">
+                  {profile.avatarUrl ? (
+                    <AvatarImage
+                      src={profile.avatarUrl}
+                      alt={profile.fullName}
+                    />
+                  ) : null}
+                  <AvatarFallback className="text-lg font-medium">
+                    {initials(profile.fullName)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <p className="truncate text-lg font-semibold tracking-tight">
+                    {profile.fullName}
+                  </p>
+                  <p className="truncate text-sm text-muted-foreground">
+                    {designationLabel(profile.role)} · {profile.department}
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -239,108 +190,72 @@ export function ProfileSettingsPage({
                 label="Role"
                 value={designationLabel(profile.role)}
               />
-              <div className="group/license flex min-w-0 items-start justify-between gap-3 border-b border-border/60 py-3">
+              <div className="flex min-w-0 items-start justify-between gap-3 border-b border-border/60 py-3">
                 <div className="min-w-0 flex-1 space-y-1">
                   <dt className="text-sm text-muted-foreground">
                     Professional License Number
                   </dt>
                   <dd className="text-sm font-medium text-foreground">
-                    {licenseEditing ? (
-                      <Input
-                        className="mt-1 max-w-xs"
-                        value={licenseDraft}
-                        onChange={(e) => setLicenseDraft(e.target.value)}
-                        placeholder="Enter license number"
-                        disabled={pending}
-                        autoFocus
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault()
-                            saveLicense()
-                          }
-                          if (e.key === "Escape") {
-                            setLicenseDraft(profile.licenseNumber ?? "")
-                            setLicenseEditing(false)
-                          }
-                        }}
-                      />
-                    ) : (
-                      maskLicense(profile.licenseNumber ?? "", licenseVisible)
-                    )}
+                    {maskLicense(profile.licenseNumber ?? "", licenseVisible)}
                   </dd>
                 </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  {licenseEditing ? (
-                    <>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={pending}
-                        onClick={() => {
-                          setLicenseDraft(profile.licenseNumber ?? "")
-                          setLicenseEditing(false)
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={pending}
-                        onClick={saveLicense}
-                      >
-                        Save
-                      </Button>
-                    </>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label={
+                    licenseVisible
+                      ? "Hide license number"
+                      : "Show license number"
+                  }
+                  onClick={() => setLicenseVisible((v) => !v)}
+                >
+                  {licenseVisible ? (
+                    <IconEyeOff className="size-4" aria-hidden />
                   ) : (
-                    <>
-                      {profile.licenseNumber ? (
-                        <Button
-                          type="button"
-                          size="icon-sm"
-                          variant="ghost"
-                          className="opacity-0 transition-opacity group-hover/license:opacity-100 focus-visible:opacity-100"
-                          aria-label={
-                            licenseVisible
-                              ? "Hide license number"
-                              : "Show license number"
-                          }
-                          onClick={() => setLicenseVisible((v) => !v)}
-                        >
-                          {licenseVisible ? (
-                            <IconEyeOff className="size-4" aria-hidden />
-                          ) : (
-                            <IconEye className="size-4" aria-hidden />
-                          )}
-                        </Button>
-                      ) : null}
-                      <Button
-                        type="button"
-                        size="icon-sm"
-                        variant="ghost"
-                        className="opacity-0 transition-opacity group-hover/license:opacity-100 focus-visible:opacity-100"
-                        aria-label="Edit professional license number"
-                        disabled={pending}
-                        onClick={() => {
-                          setLicenseDraft(profile.licenseNumber ?? "")
-                          setLicenseEditing(true)
-                          setLicenseVisible(true)
-                        }}
-                      >
-                        <IconAsterisk className="size-4" aria-hidden />
-                      </Button>
-                    </>
+                    <IconEye className="size-4" aria-hidden />
                   )}
-                </div>
+                </Button>
               </div>
-              <ProfileField label="Department" value={profile.department} />
+              <ProfileField
+                label="Department"
+                value={profile.department || "Health Services Office"}
+              />
               <ProfileField label="Email Address" value={profile.email} />
             </dl>
           </CardContent>
         </Card>
 
         <div className="flex min-w-0 flex-col gap-6">
+          <Card className="min-w-0 shadow-none dark:ring-0">
+            <CardHeader className="border-b px-6 py-5">
+              <CardTitle className="text-base">Actions</CardTitle>
+              <CardDescription>
+                Profile fields stay view-only except your photo.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2 px-6 py-5">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled
+                title="Protected fields are managed by administrators"
+              >
+                Edit Profile
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={pending}
+                onClick={() => fileRef.current?.click()}
+              >
+                <IconUpload className="size-4" aria-hidden />
+                Upload / Change Profile Picture
+              </Button>
+            </CardContent>
+          </Card>
+
           <Card className="min-w-0 shadow-none dark:ring-0">
             <CardHeader className="border-b px-6 py-5">
               <CardTitle className="text-base">Notification Settings</CardTitle>

@@ -187,6 +187,12 @@ export function buildStaffNavGroups(
   }))
 
   if (designation === "physician") {
+    const products = groups.find((g) => g.id === "products")
+    const reportsItem = products?.items.find((item) => item.id === "reports")
+    if (reportsItem) {
+      reportsItem.title = "Reports and Analytics"
+    }
+
     const clinical = groups.find((g) => g.id === "clinical")
     const appointmentsPath = `${staffBasePath(designation)}/appointments`
     clinical?.items.splice(0, 0, {

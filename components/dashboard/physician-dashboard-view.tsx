@@ -1,23 +1,20 @@
 "use client"
 
 import Link from "next/link"
-import type { ComponentType } from "react"
+import { useMemo, type ComponentType } from "react"
 import {
-  IconBellRinging,
-  IconCertificate,
+  IconCalendarEvent,
   IconClipboardList,
-  IconHeartbeat,
   IconListCheck,
   IconStethoscope,
   IconUserHeart,
-  IconUsers,
 } from "@tabler/icons-react"
 
+import {
+  ClinicDateTime,
+} from "@/components/dashboard/clinic-datetime"
 import { DashboardQuickNav } from "@/components/dashboard/dashboard-quick-nav"
-import { NurseDashboardView } from "@/components/dashboard/nurse-dashboard-view"
-import { PhysicianDashboardView } from "@/components/dashboard/physician-dashboard-view"
 import { RoleDashboardSummaries } from "@/components/dashboard/role-dashboard-summaries"
-import { ActivityFeed } from "@/components/shared/activity-feed"
 import { RecentlyServedCard } from "@/components/shared/recently-served-card"
 import { StatCard } from "@/components/shared/stat-card"
 import { VitalsStrip } from "@/components/queue/vitals-strip"
@@ -55,15 +52,12 @@ import {
 } from "@/components/ui/table"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
-import { designationLabel, stationLabel } from "@/lib/health/roles"
 import { patientTypeLabel, ticketLabel } from "@/lib/health/mappers"
 import type {
-  ActivityItem,
   DashboardKpis,
   QueueStats,
   QueueTicketRow,
   RecentlyServedItem,
-  StationBoard,
 } from "@/lib/health/types"
 import { cn } from "@/lib/utils"
 
@@ -71,18 +65,12 @@ const KPI_ICONS: Record<
   string,
   ComponentType<{ className?: string; "aria-hidden"?: boolean }>
 > = {
-  intake: IconHeartbeat,
-  pending: IconClipboardList,
-  queue: IconListCheck,
   waiting: IconListCheck,
   serving: IconStethoscope,
   completed: IconUserHeart,
-  patients: IconUsers,
+  appointments: IconCalendarEvent,
   requests: IconClipboardList,
-  certs: IconCertificate,
-  staff: IconUsers,
-  announcements: IconBellRinging,
-  appointments: IconListCheck,
+  queue: IconListCheck,
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -93,12 +81,27 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
-export function RoleDashboard({
+function physicianKpiHref(key: string): string | undefined {
+  switch (key) {
+    case "waiting":
+    case "serving":
+    case "queue":
+      return "/physician/queue"
+    case "appointments":
+      return "/physician/appointments"
+    case "completed":
+      return "/physician/consultations"
+    case "requests":
+      return "/physician/requests"
+    default:
+      return undefined
+  }
+}
+
+export function PhysicianDashboardView({
   access,
   kpis,
   tickets,
-  boards,
-  activity,
   recent,
   stats,
   summary,
@@ -106,82 +109,35 @@ export function RoleDashboard({
   access: StaffAccess
   kpis: DashboardKpis
   tickets: QueueTicketRow[]
-  boards: StationBoard[]
-  activity: ActivityItem[]
   recent: RecentlyServedItem[]
   stats: QueueStats
   summary: RoleDashboardSummary
 }) {
-  if (access.designation === "nurse") {
-    return (
-      <NurseDashboardView
-        access={access}
-        kpis={kpis}
-        tickets={tickets}
-        activity={activity}
-        recent={recent}
-        stats={stats}
-        summary={summary}
-      />
-    )
-  }
-
-  if (access.designation === "physician") {
-    return (
-      <PhysicianDashboardView
-        access={access}
-        kpis={kpis}
-        tickets={tickets}
-        recent={recent}
-        stats={stats}
-        summary={summary}
-      />
-    )
-  }
-
-  const isSpecialty = access.designation === "dentist"
-  const isAdmin = access.designation === "admin"
+  const firstName = access.fullName.split(" ")[0] || access.fullName
   const nowServing = tickets.find((t) => t.status === "called") ?? null
   const waiting = tickets
-    .filter(
-      (t) =>
-        t.status === "waiting" || (isSpecialty && t.status === "called")
-    )
+    .filter((t) => t.status === "waiting" || t.status === "called")
     .slice(0, 8)
 
-  const kpiCards = kpis.cards.slice(0, isAdmin || isSpecialty ? 6 : 3)
-
-  const queueHref =
-    access.designation === "queue_display"
-      ? "/queue-management/display"
-      : `/${access.designation}/queue`
-
-  const firstName = access.fullName.split(" ")[0] || access.fullName
-  const queueTitle =
-    access.designation === "dentist"
-      ? "Today's dental queue"
-      : isSpecialty
-        ? "Station queue"
-        : "Live queue"
-  const queueDescription = isAdmin
-    ? "Clinic-wide tickets (view only)."
-    : access.designation === "dentist"
-      ? "Patients assigned for dental consultation."
-      : "Active tickets at your station."
-  const emptyQueueCopy = isSpecialty
-    ? "Patients appear after nurse intake."
-    : "Queue is clear."
+  const kpiCards = useMemo(() => kpis.cards.slice(0, 4), [kpis.cards])
 
   return (
-    <div className="flex flex-1 flex-col gap-6">
+    <div className="flex flex-1 flex-col gap-8">
       <div className="flex flex-col gap-4">
         <PageIntro
           title={`Welcome back, ${firstName}`}
-          description={`${designationLabel(access.designation)} overview · ${stats.totalWaiting} waiting · ${stats.currentlyServing} serving`}
+          description={
+            <>
+              Your physician station · {stats.totalWaiting} waiting ·{" "}
+              {stats.currentlyServing} serving
+              {" · "}
+              <ClinicDateTime />
+            </>
+          }
           action={
             <Button
               size="sm"
-              render={<Link href={queueHref} />}
+              render={<Link href="/physician/queue" />}
               nativeButton={false}
             >
               Open queue
@@ -192,18 +148,11 @@ export function RoleDashboard({
       </div>
 
       <div className="flex flex-col gap-2">
-        <SectionLabel>Today at a glance</SectionLabel>
+        <SectionLabel>At a glance</SectionLabel>
         <PanelFrame>
-          <PanelGrid
-            className={cn(
-              "sm:grid-cols-2",
-              kpiCards.length >= 3 && "lg:grid-cols-3",
-              kpiCards.length >= 4 && "xl:grid-cols-4",
-              kpiCards.length >= 5 && "xl:grid-cols-3 2xl:grid-cols-6"
-            )}
-          >
+          <PanelGrid className="sm:grid-cols-2 lg:grid-cols-4">
             {kpiCards.map((card) => {
-              const Icon = KPI_ICONS[card.key]
+              const Icon = KPI_ICONS[String(card.key)]
               return (
                 <PanelCell key={String(card.key)}>
                   <StatCard
@@ -214,6 +163,7 @@ export function RoleDashboard({
                     delta={card.delta}
                     lowerIsBetter={card.lowerIsBetter}
                     icon={Icon ? <Icon /> : undefined}
+                    href={physicianKpiHref(String(card.key))}
                   />
                 </PanelCell>
               )
@@ -225,9 +175,9 @@ export function RoleDashboard({
       <div className="flex flex-col gap-2">
         <SectionLabel>Work now</SectionLabel>
         <PanelFrame>
-          <PanelGrid className="lg:grid-cols-3">
-            {isSpecialty && nowServing ? (
-              <PanelCell className="lg:col-span-3">
+          <PanelGrid className="lg:grid-cols-1">
+            {nowServing ? (
+              <PanelCell>
                 <Card className={cn(panelCardClassName)}>
                   <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
                     <div className="min-w-0 space-y-1">
@@ -254,18 +204,28 @@ export function RoleDashboard({
                       vitals={nowServing.vitals}
                       chiefComplaint={nowServing.chiefComplaint}
                     />
+                    <Button
+                      size="sm"
+                      render={<Link href="/physician/queue" />}
+                      nativeButton={false}
+                    >
+                      Continue in queue
+                    </Button>
                   </CardContent>
                 </Card>
               </PanelCell>
             ) : null}
 
-            <PanelCell className="lg:col-span-2">
+            <PanelCell>
               <Card className={cn(panelCardClassName, "gap-0 py-0")}>
                 <CardHeader className="border-b">
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0 space-y-1">
-                      <CardTitle>{queueTitle}</CardTitle>
-                      <CardDescription>{queueDescription}</CardDescription>
+                      <CardTitle>Your station queue</CardTitle>
+                      <CardDescription>
+                        Patients waiting at the physician station after nurse
+                        intake.
+                      </CardDescription>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <Badge variant="secondary" className="tabular-nums">
@@ -275,7 +235,7 @@ export function RoleDashboard({
                         size="sm"
                         variant="ghost"
                         className="hidden sm:inline-flex"
-                        render={<Link href={queueHref} />}
+                        render={<Link href="/physician/queue" />}
                         nativeButton={false}
                       >
                         Open
@@ -291,7 +251,9 @@ export function RoleDashboard({
                           <IconListCheck aria-hidden />
                         </EmptyMedia>
                         <EmptyTitle>Nothing in queue</EmptyTitle>
-                        <EmptyDescription>{emptyQueueCopy}</EmptyDescription>
+                        <EmptyDescription>
+                          Patients appear after nurse intake.
+                        </EmptyDescription>
                       </EmptyHeader>
                     </Empty>
                   ) : (
@@ -301,28 +263,16 @@ export function RoleDashboard({
                           <TableRow>
                             <TableHead className="pl-6">#</TableHead>
                             <TableHead>Patient</TableHead>
-                            {isSpecialty ? (
-                              <>
-                                <TableHead className="hidden sm:table-cell">
-                                  Type
-                                </TableHead>
-                                <TableHead className="hidden md:table-cell">
-                                  Complaint
-                                </TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="hidden pr-6 lg:table-cell">
-                                  Wait
-                                </TableHead>
-                              </>
-                            ) : (
-                              <>
-                                <TableHead className="hidden sm:table-cell">
-                                  Station
-                                </TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="pr-6" />
-                              </>
-                            )}
+                            <TableHead className="hidden sm:table-cell">
+                              Type
+                            </TableHead>
+                            <TableHead className="hidden md:table-cell">
+                              Complaint
+                            </TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="hidden pr-6 lg:table-cell">
+                              Wait
+                            </TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -334,42 +284,25 @@ export function RoleDashboard({
                               <TableCell className="max-w-40 truncate font-medium">
                                 {row.patientName}
                               </TableCell>
-                              {isSpecialty ? (
-                                <>
-                                  <TableCell className="hidden sm:table-cell">
-                                    <Badge variant="outline">
-                                      {patientTypeLabel(row.patientType)}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell className="hidden max-w-[10rem] truncate text-muted-foreground md:table-cell">
-                                    {row.chiefComplaint || "—"}
-                                  </TableCell>
-                                  <TableCell>
-                                    <WaitStatusBadge
-                                      status={row.status}
-                                      waitMinutes={row.estimatedWaitMinutes}
-                                    />
-                                  </TableCell>
-                                  <TableCell className="hidden pr-6 text-muted-foreground tabular-nums lg:table-cell">
-                                    {row.estimatedWaitMinutes != null
-                                      ? `${row.estimatedWaitMinutes}m`
-                                      : "—"}
-                                  </TableCell>
-                                </>
-                              ) : (
-                                <>
-                                  <TableCell className="hidden text-muted-foreground sm:table-cell">
-                                    {stationLabel(row.station)}
-                                  </TableCell>
-                                  <TableCell>
-                                    <WaitStatusBadge
-                                      status={row.status}
-                                      waitMinutes={row.estimatedWaitMinutes}
-                                    />
-                                  </TableCell>
-                                  <TableCell className="pr-6" />
-                                </>
-                              )}
+                              <TableCell className="hidden sm:table-cell">
+                                <Badge variant="outline">
+                                  {patientTypeLabel(row.patientType)}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="hidden max-w-[10rem] truncate text-muted-foreground md:table-cell">
+                                {row.chiefComplaint || "—"}
+                              </TableCell>
+                              <TableCell>
+                                <WaitStatusBadge
+                                  status={row.status}
+                                  waitMinutes={row.estimatedWaitMinutes}
+                                />
+                              </TableCell>
+                              <TableCell className="hidden pr-6 text-muted-foreground tabular-nums lg:table-cell">
+                                {row.estimatedWaitMinutes != null
+                                  ? `${row.estimatedWaitMinutes}m`
+                                  : "—"}
+                              </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -379,72 +312,29 @@ export function RoleDashboard({
                 </CardContent>
               </Card>
             </PanelCell>
-
-            <PanelCell>
-              <Card className={cn(panelCardClassName, "h-full")}>
-                <CardHeader>
-                  <CardTitle>Stations</CardTitle>
-                  <CardDescription>
-                    Live load across clinic lanes.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-1">
-                  {boards.length === 0 ? (
-                    <p className="text-sm text-muted-foreground" role="status">
-                      No station data yet.
-                    </p>
-                  ) : (
-                    boards.map((board) => (
-                      <div
-                        key={board.station}
-                        className="flex items-center justify-between gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-muted/50"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">
-                            {board.label}
-                          </p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {board.waitingCount} waiting ·{" "}
-                            {board.nowServing ?? "idle"}
-                          </p>
-                        </div>
-                        <Badge
-                          variant={
-                            board.status === "active" ? "secondary" : "outline"
-                          }
-                        >
-                          {board.status}
-                        </Badge>
-                      </div>
-                    ))
-                  )}
-                </CardContent>
-              </Card>
-            </PanelCell>
           </PanelGrid>
         </PanelFrame>
       </div>
 
       <div className="flex flex-col gap-2">
-        <SectionLabel>Modules</SectionLabel>
+        <SectionLabel>Clinic today</SectionLabel>
         <PanelFrame>
           <PanelGrid className="lg:grid-cols-3">
             <RoleDashboardSummaries access={access} summary={summary} />
+          </PanelGrid>
+        </PanelFrame>
+      </div>
 
-            <PanelCell className="lg:col-span-2">
-              <ActivityFeed
-                className={panelCardClassName}
-                items={activity}
-                title="Activity"
-              />
-            </PanelCell>
-
+      <div className="flex flex-col gap-2">
+        <SectionLabel>Recently served</SectionLabel>
+        <PanelFrame>
+          <PanelGrid>
             <PanelCell>
               <Card className={cn(panelCardClassName, "h-full")}>
                 <CardHeader>
                   <CardTitle>Recently served</CardTitle>
                   <CardDescription>
-                    Completions from this shift.
+                    Completions from this shift at your station.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
@@ -458,7 +348,7 @@ export function RoleDashboard({
                       </EmptyHeader>
                     </Empty>
                   ) : (
-                    recent.slice(0, 4).map((item) => (
+                    recent.slice(0, 6).map((item) => (
                       <RecentlyServedCard key={item.ticketId} item={item} />
                     ))
                   )}

@@ -173,8 +173,12 @@ export function ReportsAnalyticsPage({
   return (
     <div className="flex flex-1 flex-col gap-8 pt-2">
       <PageIntro
-        title="Reports & Analytics"
-        description={`${designationLabel(d)} clinic reports · quarterly HSO progress exports include narrative, KPIs, charts, and all tables`}
+        title="Reports and Analytics"
+        description={
+          isPhysician
+            ? undefined
+            : `${designationLabel(d)} clinic reports · quarterly HSO progress exports include narrative, KPIs, charts, and all tables`
+        }
         action={
           <div className="flex flex-wrap gap-2">
             {pdfLevel !== "none" ? (
@@ -206,7 +210,8 @@ export function ReportsAnalyticsPage({
         }
       />
 
-      <section className="flex flex-col gap-4">
+      {!isPhysician ? (
+        <section className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-base font-semibold tracking-tight">
               Latest Announcements
@@ -239,6 +244,7 @@ export function ReportsAnalyticsPage({
             </p>
           )}
         </section>
+      ) : null}
 
       <PanelFrame>
         <PanelGrid className="lg:grid-cols-3">

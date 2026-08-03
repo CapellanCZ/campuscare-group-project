@@ -216,7 +216,7 @@ const footerByRole: Record<WebRole, RoleNavItem[]> = {
     { title: "Profile", href: "/nurse/profile", icon: IconSettings },
   ],
   physician: [
-    { title: "Reports", href: "/physician/reports", icon: IconChartBar },
+    { title: "Reports and Analytics", href: "/physician/reports", icon: IconChartBar },
     { title: "Profile", href: "/physician/profile", icon: IconSettings },
   ],
   dentist: [

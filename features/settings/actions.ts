@@ -64,7 +64,8 @@ export async function updateLicenseNumberAction(
 export async function fetchPreferencesAction(): Promise<
   ActionResult<UserPreferences>
 > {
-  const access = await requireStaffModule("settings")
+  const access = await requireSignedIn()
+  if (!access) return { ok: false, error: "Not signed in." }
   return { ok: true, data: await getUserPreferences(access.userId) }
 }
 
