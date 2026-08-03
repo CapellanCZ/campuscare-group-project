@@ -7,7 +7,6 @@ import { RoleDashboard } from "@/components/dashboard/role-dashboard"
 import { PatientsPage } from "@/components/patients/patients-demo-page"
 import { QueuePage } from "@/components/queue/queue-page"
 import { RequestsPage } from "@/components/requests/requests-demo-page"
-import { SettingsDemoPage } from "@/components/settings/settings-demo-page"
 import { ReportsAnalyticsPage } from "@/features/reports/components/reports-analytics-page"
 import { loadReportsBundle } from "@/features/reports/data/queries"
 import { loadOfficeHoursBundle } from "@/features/availability/actions/availability"
@@ -339,7 +338,31 @@ export async function StaffCertificatesPage() {
 export async function StaffReportsPage() {
   const access = await requireStaffModule("reports")
   const bundle = await loadReportsBundle(access.designation)
-  return <ReportsAnalyticsPage access={access} initialBundle={bundle} />
+  let announcements: Awaited<ReturnType<typeof getAnnouncements>> = {
+    items: [],
+    total: 0,
+    page: 1,
+    pageSize: 6,
+    totalPages: 1,
+  }
+  try {
+    announcements = await getAnnouncements({
+      page: 1,
+      pageSize: 6,
+      sortBy: "updated_at",
+      sortDirection: "desc",
+      feed: true,
+    })
+  } catch {
+    // Reports still render without the announcements strip.
+  }
+  return (
+    <ReportsAnalyticsPage
+      access={access}
+      initialBundle={bundle}
+      initialAnnouncements={announcements}
+    />
+  )
 }
 
 export async function StaffAnnouncementsPage() {
@@ -369,8 +392,8 @@ export async function StaffAnnouncementsPage() {
     const [nextFeed, nextList, nextStats] = await Promise.all([
       getAnnouncements({
         page: 1,
-        pageSize: 12,
-        sortBy: "published_at",
+        pageSize: 6,
+        sortBy: "updated_at",
         sortDirection: "desc",
         feed: true,
       }),
@@ -415,14 +438,40 @@ export async function StaffUsersPage() {
 
 export async function StaffSettingsPage() {
   const access = await requireStaffModule("settings")
+  const { getStaffProfile, getUserPreferences } = await import(
+    "@/services/staff-profile"
+  )
+  const { ProfileSettingsPage } = await import(
+    "@/components/settings/profile-settings-page"
+  )
+  const [profile, preferences] = await Promise.all([
+    getStaffProfile(access.userId),
+    getUserPreferences(access.userId),
+  ])
+
+  if (!profile) {
+    return (
+      <div className="rounded-xl border border-dashed p-8 text-sm text-muted-foreground">
+        Unable to load your profile.
+      </div>
+    )
+  }
+
+  const profilePage = (
+    <ProfileSettingsPage profile={profile} preferences={preferences} />
+  )
+
   if (access.primaryRole === "admin") {
     const bundle = await loadOfficeHoursBundle()
     return (
-      <OfficeHoursSettings
-        access={access}
-        clinicHours={bundle.clinicHours}
-        staff={bundle.staff}
-      />
+      <div className="flex flex-1 flex-col gap-8">
+        {profilePage}
+        <OfficeHoursSettings
+          access={access}
+          clinicHours={bundle.clinicHours}
+          staff={bundle.staff}
+        />
+      </div>
     )
   }
 
@@ -441,8 +490,8 @@ export async function StaffSettingsPage() {
       getClinicHours(),
     ])
     return (
-      <div className="flex flex-1 flex-col gap-6">
-        <SettingsDemoPage access={access} />
+      <div className="flex flex-1 flex-col gap-8">
+        {profilePage}
         <StaffSchedulePage
           role={access.primaryRole}
           doctorName={access.fullName}
@@ -454,5 +503,5 @@ export async function StaffSettingsPage() {
     )
   }
 
-  return <SettingsDemoPage access={access} />
+  return profilePage
 }

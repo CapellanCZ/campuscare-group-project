@@ -106,16 +106,16 @@ export function HeaderSearch({ className }: { className?: string }) {
                 </CommandGroup>
               ))}
               {canOpenSettings ? (
-                <CommandGroup heading="Account">
+                <CommandGroup heading="Profile">
                   <CommandItem
-                    value="Settings Account"
+                    value="Profile Settings"
                     onSelect={() => {
                       setOpen(false)
                       router.push(settingsHref)
                     }}
                   >
                     <IconSettings aria-hidden="true" />
-                    <span>Settings</span>
+                    <span>Profile and Settings</span>
                   </CommandItem>
                 </CommandGroup>
               ) : null}

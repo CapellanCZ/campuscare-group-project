@@ -1,8 +1,10 @@
 "use client"
 
 import { useEffect, useMemo, useState, useTransition } from "react"
+import Link from "next/link"
 import { toast } from "sonner"
 
+import { AnnouncementNewsCard } from "@/components/announcements/announcement-news-card"
 import { ReportChartCard } from "@/features/reports/components/report-chart-card"
 import { ReportDataTable } from "@/features/reports/components/report-data-table"
 import { ReportsFilterBar } from "@/features/reports/components/reports-filter-bar"
@@ -34,16 +36,20 @@ import type {
 } from "@/features/reports/types"
 import { REPORT_KIND_LABELS } from "@/features/reports/types"
 import { can, getAccessLevel } from "@/lib/auth/permissions"
+import { staffBasePath } from "@/lib/auth/home-path"
 import type { StaffAccess } from "@/lib/auth/types"
 import { designationLabel } from "@/lib/health/roles"
 import { cn } from "@/lib/utils"
+import type { AnnouncementListResult } from "@/types/announcement"
 
 export function ReportsAnalyticsPage({
   access,
   initialBundle,
+  initialAnnouncements,
 }: {
   access: StaffAccess
   initialBundle: ReportsBundle
+  initialAnnouncements?: AnnouncementListResult
 }) {
   const d = access.designation
   const catalog = catalogFor(d)
@@ -157,8 +163,11 @@ export function ReportsAnalyticsPage({
     return can(d, "reports.consultation")
   })
 
+  const announcementsHref = `${staffBasePath(d)}/announcements`
+  const announcementItems = initialAnnouncements?.items.slice(0, 6) ?? []
+
   return (
-    <div className="flex flex-1 flex-col gap-6">
+    <div className="flex flex-1 flex-col gap-8 pt-2">
       <PageIntro
         title="Reports & Analytics"
         description={`${designationLabel(d)} clinic reports · quarterly HSO progress exports include narrative, KPIs, charts, and all tables`}
@@ -192,6 +201,40 @@ export function ReportsAnalyticsPage({
           </div>
         }
       />
+
+      <section className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-base font-semibold tracking-tight">
+              Latest Announcements
+            </h2>
+            <Button
+              size="sm"
+              variant="outline"
+              render={<Link href={announcementsHref} />}
+              nativeButton={false}
+            >
+              View All
+            </Button>
+          </div>
+          {announcementItems.length > 0 ? (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {announcementItems.map((item) => (
+                <AnnouncementNewsCard
+                  key={item.id}
+                  announcement={item}
+                  compact
+                  onClick={() => {
+                    window.location.assign(announcementsHref)
+                  }}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No announcements yet.
+            </p>
+          )}
+        </section>
 
       <PanelFrame>
         <PanelGrid className="lg:grid-cols-3">

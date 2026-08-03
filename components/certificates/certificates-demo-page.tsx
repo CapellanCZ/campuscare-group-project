@@ -296,7 +296,7 @@ export function CertificatesPage({
       ) : null}
 
       <Card className="min-w-0 shadow-none print:hidden dark:ring-0">
-        <CardHeader className="flex flex-col gap-3 border-b sm:flex-row sm:items-center sm:justify-between">
+        <CardHeader className="gap-4 border-b px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-base">
             Certificate history
             {cardsLevel === "view" ? (
@@ -309,9 +309,10 @@ export function CertificatesPage({
             {can(d, "certificates.search_patient") ? (
               <Input
                 className="sm:w-72"
-                placeholder="Search patient or certificate type"
+                placeholder="Search by Student ID"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                aria-label="Search by Student ID"
               />
             ) : null}
             {canManage ? (

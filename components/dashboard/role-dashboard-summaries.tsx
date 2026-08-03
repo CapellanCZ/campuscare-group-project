@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useTransition } from "react"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import {
@@ -10,11 +10,11 @@ import {
   SnapshotStatRow,
 } from "@/components/dashboard/module-snapshot"
 import { PanelCell } from "@/components/layout/panel-frame"
+import { DeclineRequestDialog } from "@/components/requests/decline-request-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { AppointmentStatusBadge } from "@/features/physician/components/appointment-status-badge"
 import { CLINIC_TIMEZONE } from "@/features/physician/types"
-import { declineConsultationRequestAction } from "@/features/requests/actions"
 import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
@@ -45,7 +45,10 @@ export function RoleDashboardSummaries({
   const canGenerateCert = can(d, "certificates.generate")
   const canGenerateFromConsult = can(d, "consultations.generate_certificate")
   const [pendingApprove, startApprove] = useTransition()
-  const [pendingDecline, startDecline] = useTransition()
+  const [declineTarget, setDeclineTarget] = useState<{
+    id: string
+    patientName: string
+  } | null>(null)
 
   const todayKey = zonedDayKey(new Date().toISOString(), CLINIC_TIMEZONE)
   const todaysAppointments =
@@ -195,7 +198,7 @@ export function RoleDashboardSummaries({
                         {canTriage ? (
                           <Button
                             size="sm"
-                            disabled={pendingApprove || pendingDecline}
+                            disabled={pendingApprove || Boolean(declineTarget)}
                             onClick={() =>
                               startApprove(async () => {
                                 const result =
@@ -225,21 +228,11 @@ export function RoleDashboardSummaries({
                           <Button
                             size="sm"
                             variant="outline"
-                            disabled={pendingApprove || pendingDecline}
+                            disabled={pendingApprove || Boolean(declineTarget)}
                             onClick={() =>
-                              startDecline(async () => {
-                                const result =
-                                  await declineConsultationRequestAction({
-                                    id: req.id,
-                                    reason:
-                                      "Declined during nurse dashboard triage.",
-                                  })
-                                if (!result.ok) {
-                                  toast.error(result.error)
-                                  return
-                                }
-                                toast.success("Request declined.")
-                                router.refresh()
+                              setDeclineTarget({
+                                id: req.id,
+                                patientName: req.patientName,
                               })
                             }
                           >
@@ -634,6 +627,19 @@ export function RoleDashboardSummaries({
           )}
         </ModuleSnapshot>
       </PanelCell>
+
+      <DeclineRequestDialog
+        open={Boolean(declineTarget)}
+        onOpenChange={(open) => {
+          if (!open) setDeclineTarget(null)
+        }}
+        requestId={declineTarget?.id ?? null}
+        patientName={declineTarget?.patientName}
+        onDeclined={() => {
+          setDeclineTarget(null)
+          router.refresh()
+        }}
+      />
     </>
   )
 }

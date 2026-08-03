@@ -24,13 +24,17 @@ export function AppHeader() {
   const page =
     activeItem ??
     (relative === "/settings" || relative.startsWith("/settings/")
-      ? { title: "Settings", icon: <IconSettings className="size-3.5" /> }
+      ? { title: "Profile and Settings", icon: <IconSettings className="size-3.5" /> }
       : undefined)
 
   const role = access?.primaryRole
-  const showClinicBreak = role === "nurse" || role === "admin"
-  const showStaffBreak =
-    role === "physician" || role === "dentist" || role === "nurse"
+  // One On Break control only: clinic-wide for nurse/admin, personal for clinicians.
+  const breakMode =
+    role === "nurse" || role === "admin"
+      ? ("clinic" as const)
+      : role === "physician" || role === "dentist"
+        ? ("staff" as const)
+        : null
 
   return (
     <header
@@ -49,11 +53,8 @@ export function AppHeader() {
         <AppBreadcrumbs page={page} />
       </div>
       <div className="flex flex-wrap items-center justify-end gap-3">
-        {showClinicBreak ? (
-          <OnBreakControl mode="clinic" role={role} />
-        ) : null}
-        {showStaffBreak ? (
-          <OnBreakControl mode="staff" role={role} />
+        {breakMode && role ? (
+          <OnBreakControl mode={breakMode} role={role} />
         ) : null}
         <HeaderSearch />
         <HeaderNotifications />

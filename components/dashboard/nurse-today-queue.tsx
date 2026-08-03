@@ -144,15 +144,15 @@ export function NurseTodayQueue({
         onStartIntake={onStartIntake}
         variant="embedded"
       />
-      <CardHeader className="border-b">
+      <CardHeader className="gap-4 border-b px-6 py-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 space-y-1">
+          <div className="min-w-0 space-y-1.5">
             <CardTitle>Today&apos;s queue</CardTitle>
             <CardDescription>
               Call, verify, intake, or skip from one board.
             </CardDescription>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 sm:pt-0.5">
             <Badge variant="secondary" className="tabular-nums">
               {filtered.length}
             </Badge>
@@ -170,7 +170,7 @@ export function NurseTodayQueue({
             ) : null}
             <Button
               size="sm"
-              variant="ghost"
+              variant="outline"
               render={<Link href="/nurse/queue-management" />}
               nativeButton={false}
             >
@@ -178,7 +178,7 @@ export function NurseTodayQueue({
             </Button>
           </div>
         </div>
-        <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <div className="relative min-w-0 flex-1">
             <IconSearch
               className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"

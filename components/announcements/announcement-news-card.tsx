@@ -5,7 +5,7 @@ import {
   announcementExcerpt,
 } from "@/features/announcements/lib/display"
 import { announcementImages } from "@/components/announcements/announcement-image-gallery"
-import { formatAnnouncementDateTime } from "@/features/announcements/lib/format"
+import { formatAnnouncementDate } from "@/features/announcements/lib/format"
 import { cn } from "@/lib/utils"
 import type { Announcement } from "@/types/announcement"
 
@@ -22,7 +22,7 @@ export function AnnouncementNewsCard({
 }) {
   const cover = announcementCoverUrl(announcement)
   const imageCount = announcementImages(announcement.attachments).length
-  const dateLabel = formatAnnouncementDateTime(
+  const dateLabel = formatAnnouncementDate(
     announcement.publishedAt ?? announcement.updatedAt
   )
   const excerpt = announcementExcerpt(

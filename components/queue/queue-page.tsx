@@ -313,7 +313,7 @@ export function QueuePage({
         ]
 
   return (
-    <div className="flex flex-1 flex-col gap-6">
+    <div className="flex flex-1 flex-col gap-8 pt-2">
       <PageIntro
         title={
           isNurse
@@ -387,8 +387,8 @@ export function QueuePage({
 
           <PanelCell className="lg:col-span-3">
             <Card className={cn(panelCardClassName, "gap-0 py-0")}>
-              <div className="flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                <div className="min-w-0">
+              <div className="flex flex-col gap-4 border-b px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0 space-y-1">
                   <CardTitle className="text-base">
                     {isNurse
                       ? nurseLane === "needs_intake"
@@ -399,8 +399,8 @@ export function QueuePage({
                       : "Live queue"}
                   </CardTitle>
                 </div>
-                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
-                  <InputGroup className="h-8 sm:w-56">
+                <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
+                  <InputGroup className="h-9 sm:w-56">
                     <InputGroupAddon align="inline-start">
                       <IconSearch className="size-4 opacity-60" aria-hidden />
                     </InputGroupAddon>

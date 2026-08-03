@@ -121,16 +121,8 @@ function validateCreate(input: CreateConsultationInput) {
 function matchesQuery(row: Consultation, query: string): boolean {
   const q = query.trim().toLowerCase()
   if (!q) return true
-  const haystack = [
-    row.patient.fullName,
-    row.patient.studentId,
-    row.chiefComplaint ?? "",
-    row.providerName ?? "",
-    row.status,
-  ]
-    .join(" ")
-    .toLowerCase()
-  return haystack.includes(q)
+  const studentId = (row.patient.studentId ?? "").toLowerCase()
+  return studentId.includes(q)
 }
 
 function matchesFilters(

@@ -177,7 +177,7 @@ export function ConsultationRequestDetailSheet({
         </SheetHeader>
 
         <div className="flex-1 space-y-7 overflow-y-auto px-6 py-2 pb-6">
-          <div className="pt-1">
+          <div className="space-y-3 pt-1">
             <Badge
               variant={
                 request.status === "declined" || request.status === "cancelled"
@@ -190,6 +190,18 @@ export function ConsultationRequestDetailSheet({
             >
               {consultationRequestStatusLabel(request.status)}
             </Badge>
+            {request.status === "declined" ? (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3">
+                <p className="text-sm font-medium text-destructive">
+                  Status: Declined
+                </p>
+                <p className="mt-1 text-sm text-foreground">
+                  <span className="font-medium">Reason:</span>{" "}
+                  {request.declineReason?.trim() ||
+                    "No reason was provided."}
+                </p>
+              </div>
+            ) : null}
           </div>
 
           <dl>
@@ -227,7 +239,7 @@ export function ConsultationRequestDetailSheet({
               label="Consultation Room"
               value={request.consultationRoom}
             />
-            {request.declineReason ? (
+            {request.status !== "declined" && request.declineReason ? (
               <DetailRow label="Decline Reason" value={request.declineReason} />
             ) : null}
             {request.rescheduleReason ? (

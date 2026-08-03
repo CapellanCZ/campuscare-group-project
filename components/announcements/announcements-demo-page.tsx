@@ -64,7 +64,8 @@ import type {
 } from "@/types/announcement"
 
 const PAGE_SIZE = 10
-const FEED_PAGE_SIZE = 12
+const FEED_PAGE_SIZE = 6
+const FEED_PREVIEW_LIMIT = 6
 const SEARCH_DEBOUNCE_MS = 300
 const STATUS_FILTERS = ["all", "published", "scheduled", "draft"] as const
 type StatusFilter = (typeof STATUS_FILTERS)[number]
@@ -161,6 +162,7 @@ export function AnnouncementsPage({
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState<Announcement | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [showAllFeed, setShowAllFeed] = useState(false)
   const skipNextFetch = useRef(true)
 
   const d = access.designation
@@ -193,8 +195,8 @@ export function AnnouncementsPage({
       try {
         const feedPromise = searchAnnouncementsAction(nextQuery, {
           page: 1,
-          pageSize: FEED_PAGE_SIZE,
-          sortBy: "published_at",
+          pageSize: showAllFeed ? 48 : FEED_PAGE_SIZE,
+          sortBy: "updated_at",
           sortDirection: "desc",
           feed: true,
         })
@@ -246,7 +248,7 @@ export function AnnouncementsPage({
         setLoading(false)
       }
     },
-    [statusFilter, canManage]
+    [statusFilter, canManage, showAllFeed]
   )
 
   const refresh = useCallback(async () => {
@@ -361,16 +363,11 @@ export function AnnouncementsPage({
         <DemoStatGrid stats={statCards} />
       ) : null}
 
-      <section className="flex flex-col gap-3">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="text-base font-semibold tracking-tight">
-              Latest news
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Published notices for your role
-            </p>
-          </div>
+      <section className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-base font-semibold tracking-tight">
+            Latest Announcements
+          </h2>
           {!canManage ? (
             <Input
               className="sm:w-72"
@@ -384,15 +381,45 @@ export function AnnouncementsPage({
         {showSkeleton && !hasFeed ? (
           <NewsFeedSkeleton />
         ) : hasFeed ? (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {feed.items.map((item) => (
-              <AnnouncementNewsCard
-                key={item.id}
-                announcement={item}
-                onClick={() => openAnnouncement(item)}
-              />
-            ))}
-          </div>
+          <>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {(showAllFeed
+                ? feed.items
+                : feed.items.slice(0, FEED_PREVIEW_LIMIT)
+              ).map((item) => (
+                <AnnouncementNewsCard
+                  key={item.id}
+                  announcement={item}
+                  onClick={() => openAnnouncement(item)}
+                />
+              ))}
+            </div>
+            {!showAllFeed &&
+            (feed.total > FEED_PREVIEW_LIMIT || canManage) ? (
+              <div className="flex justify-center pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const manage = document.getElementById(
+                      "announcements-manage"
+                    )
+                    if (manage) {
+                      manage.scrollIntoView({
+                        behavior: "smooth",
+                        block: "start",
+                      })
+                      return
+                    }
+                    setShowAllFeed(true)
+                  }}
+                >
+                  View All
+                </Button>
+              </div>
+            ) : null}
+          </>
         ) : (
           <Empty className="border border-dashed py-12">
             <EmptyHeader>
@@ -416,7 +443,10 @@ export function AnnouncementsPage({
       </section>
 
       {canManage && can(d, "announcements.table") ? (
-        <Card className="min-w-0 shadow-none dark:ring-0">
+        <Card
+          id="announcements-manage"
+          className="min-w-0 scroll-mt-20 shadow-none dark:ring-0"
+        >
           <CardHeader className="flex flex-col gap-3 border-b sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base">Manage announcements</CardTitle>
             <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">

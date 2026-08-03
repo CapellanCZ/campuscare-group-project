@@ -58,6 +58,8 @@ import {
 import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { DemoStat } from "@/lib/demo/types"
+import { formatStudentIdInput } from "@/lib/students/student-id-input"
+import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
 import {
   CONSULTATION_STATUSES,
@@ -67,7 +69,6 @@ import {
   type ConsultationStatus,
 } from "@/types/consultation"
 import { IconStethoscope } from "@tabler/icons-react"
-import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 300
@@ -299,7 +300,7 @@ export function ConsultationsPage({
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8 pt-2">
       <DemoPageHeader
         title={d === "dentist" ? "Dental consultations" : "Consultations"}
         description={
@@ -337,14 +338,30 @@ export function ConsultationsPage({
 
       <PanelFrame>
       <Card className={cn(panelCardClassName, "gap-0 py-0")}>
-        <CardHeader className="flex flex-col gap-3 border-b">
+        <CardHeader className="gap-4 border-b px-6 py-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base">Today&apos;s consultations</CardTitle>
             <Input
-              className="sm:w-72"
-              placeholder="Search patient or complaint"
+              className="sm:ml-auto sm:w-72"
+              placeholder="e.g. 2023-172065"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={11}
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => setQuery(formatStudentIdInput(e.target.value))}
+              onKeyDown={(e) => {
+                // Block letter keys; allow control/navigation and digits
+                if (
+                  e.key.length === 1 &&
+                  /[a-zA-Z]/.test(e.key) &&
+                  !e.ctrlKey &&
+                  !e.metaKey &&
+                  !e.altKey
+                ) {
+                  e.preventDefault()
+                }
+              }}
+              aria-label="Search by Student ID"
             />
           </div>
           <div className="flex flex-wrap gap-2">

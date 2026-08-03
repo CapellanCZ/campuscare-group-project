@@ -8,7 +8,6 @@ import {
   useState,
   useTransition,
 } from "react"
-import Link from "next/link"
 import { toast } from "sonner"
 
 import { ConsultationRequestDetailSheet } from "@/components/requests/consultation-request-detail-sheet"
@@ -136,10 +135,6 @@ export function RequestsPage({
   const canDecline = can(access.designation, "requests.decline")
   const canReschedule = can(access.designation, "requests.reschedule")
   const canViewDetails = can(access.designation, "requests.view_patient_details")
-  const queueHref =
-    access.designation === "nurse"
-      ? "/nurse/queue-management"
-      : `/${access.designation}/queue`
 
   useEffect(() => {
     if (initialError) toast.error(initialError)
@@ -225,24 +220,12 @@ export function RequestsPage({
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8 pt-2">
       <DemoPageHeader
         title="Consultation Requests"
         description="Nurse triage only — approve to queue the patient for check-in and intake, then assign specialty for the doctor list."
         designation={access.designation}
         showDemoBanner={false}
-        actions={
-          canApprove ? (
-            <Button
-              variant="outline"
-              size="sm"
-              render={<Link href={queueHref} />}
-              nativeButton={false}
-            >
-              Open queue
-            </Button>
-          ) : null
-        }
       />
 
       {can(access.designation, "requests.summary_cards") ? (
@@ -251,10 +234,10 @@ export function RequestsPage({
 
       <PanelFrame>
       <Card className={cn(panelCardClassName, "gap-0 py-0")}>
-        <CardHeader className="flex flex-col gap-3 border-b sm:flex-row sm:items-center sm:justify-between">
+        <CardHeader className="gap-4 border-b px-6 py-5">
           <CardTitle className="text-base">Request queue</CardTitle>
           {can(access.designation, "requests.search_filters") ? (
-            <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
+            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
               <Input
                 className="sm:w-72"
                 placeholder="Search patient, ID, email, service, doctor, nurse, status"

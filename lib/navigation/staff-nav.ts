@@ -109,13 +109,6 @@ const staffNavGroupTemplates: NavGroupTemplate[] = [
         icon: "queue",
         module: "queue_management",
       },
-      {
-        id: "display",
-        title: "Public Display",
-        suffix: "/queue-management/display",
-        icon: "display",
-        module: "queue_management",
-      },
     ],
   },
   {

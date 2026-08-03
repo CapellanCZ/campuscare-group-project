@@ -343,7 +343,17 @@ export async function getAnnouncements(
 
   let request = supabase.from("announcements").select(SELECT_WITH_AUTHOR)
 
-  if (!canPublish || feed) {
+  if (feed) {
+    // Latest Announcements strip: managers see newest across all statuses/audiences
+    // so the preview can fill up to 6. Readers only see published notices for their role.
+    if (!canPublish) {
+      request = request.eq("status", "published")
+      const audiences = visibleAudiencesForRole(access?.designation)
+      if (audiences) {
+        request = request.in("audience", audiences)
+      }
+    }
+  } else if (!canPublish) {
     request = request.eq("status", "published")
     const audiences = visibleAudiencesForRole(access?.designation)
     if (audiences) {

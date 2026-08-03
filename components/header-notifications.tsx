@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useEffect, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { IconBell } from "@tabler/icons-react"
 
@@ -16,53 +16,89 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useOptionalStaffAccess } from "@/components/staff-access-provider"
-import type { ClinicDesignation } from "@/lib/auth/types"
 import {
-  buildHeaderNotifications,
-  type HeaderNotification,
-} from "@/lib/notifications/header-notifications"
+  fetchNotificationsAction,
+  markAllNotificationsReadAction,
+  markNotificationReadAction,
+} from "@/features/settings/actions"
+import type { StaffNotification } from "@/services/notifications"
 import { cn } from "@/lib/utils"
 
-export function HeaderNotifications() {
-  const access = useOptionalStaffAccess()
-  const designation = access?.primaryRole ?? "admin"
-
-  return (
-    <HeaderNotificationsInbox key={designation} designation={designation} />
-  )
+function relativeTime(iso: string) {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ""
+  const diffMs = Date.now() - date.getTime()
+  const minutes = Math.floor(diffMs / 60000)
+  if (minutes < 1) return "Just now"
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days}d ago`
+  return date.toLocaleDateString("en-PH", {
+    month: "short",
+    day: "numeric",
+  })
 }
 
-function HeaderNotificationsInbox({
-  designation,
-}: {
-  designation: ClinicDesignation
-}) {
+function initialsFor(type: StaffNotification["type"]) {
+  if (type === "consultation_request") return "CR"
+  if (type === "queue") return "Q"
+  return "A"
+}
+
+export function HeaderNotifications() {
+  return <HeaderNotificationsInbox />
+}
+
+function HeaderNotificationsInbox() {
   const router = useRouter()
-  const [items, setItems] = useState<HeaderNotification[]>(() =>
-    buildHeaderNotifications(designation)
-  )
+  const [items, setItems] = useState<StaffNotification[]>([])
+  const [pending, startTransition] = useTransition()
+
+  const load = useCallback(() => {
+    startTransition(async () => {
+      const result = await fetchNotificationsAction()
+      if (result.ok) setItems(result.data)
+    })
+  }, [])
+
+  useEffect(() => {
+    load()
+    const id = window.setInterval(load, 60_000)
+    return () => window.clearInterval(id)
+  }, [load])
 
   const unreadCount = items.filter((item) => item.unread).length
 
   function markAllRead() {
-    setItems((current) =>
-      current.map((item) => (item.unread ? { ...item, unread: false } : item))
-    )
+    startTransition(async () => {
+      const result = await markAllNotificationsReadAction()
+      if (!result.ok) return
+      setItems((current) =>
+        current.map((item) =>
+          item.unread ? { ...item, unread: false } : item
+        )
+      )
+    })
   }
 
-  function openItem(notification: HeaderNotification) {
-    setItems((current) =>
-      current.map((item) =>
-        item.id === notification.id ? { ...item, unread: false } : item
-      )
-    )
-    router.push(notification.href)
+  function openItem(notification: StaffNotification) {
+    startTransition(async () => {
+      if (notification.unread) {
+        await markNotificationReadAction(notification.id)
+        setItems((current) =>
+          current.map((item) =>
+            item.id === notification.id ? { ...item, unread: false } : item
+          )
+        )
+      }
+      if (notification.href) router.push(notification.href)
+    })
   }
 
   return (
     <DropdownMenu>
-      {/* c-dropdown-menu-11: children on Trigger, empty Button in `render` */}
       <DropdownMenuTrigger
         render={
           <Button
@@ -97,7 +133,8 @@ function HeaderNotificationsInbox({
             {unreadCount > 0 ? (
               <button
                 type="button"
-                className="text-xs font-normal text-foreground underline-offset-2 hover:underline"
+                className="text-xs font-normal text-foreground underline-offset-2 hover:underline disabled:opacity-50"
+                disabled={pending}
                 onClick={(event) => {
                   event.preventDefault()
                   markAllRead()
@@ -129,7 +166,7 @@ function HeaderNotificationsInbox({
                 >
                   <Avatar className="mt-0.5 size-6 shrink-0">
                     <AvatarFallback className="text-[10px]">
-                      {notification.initials}
+                      {initialsFor(notification.type)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex min-w-0 flex-1 flex-col gap-px">
@@ -137,10 +174,10 @@ function HeaderNotificationsInbox({
                       <span className="font-medium">{notification.title}</span>
                     </p>
                     <p className="truncate text-muted-foreground">
-                      {notification.detail}
+                      {notification.body}
                     </p>
                     <span className="text-muted-foreground">
-                      {notification.time}
+                      {relativeTime(notification.createdAt)}
                     </span>
                   </div>
                   <span

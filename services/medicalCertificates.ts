@@ -141,19 +141,8 @@ function matchesQuery(certificate: MedicalCertificate, query: string): boolean {
   const q = query.trim().toLowerCase()
   if (!q) return true
 
-  const haystack = [
-    certificate.patient.fullName,
-    certificate.patient.studentId ?? "",
-    certificate.certificateType,
-    certificate.doctorName ?? "",
-    certificate.certificateNumber,
-    certificate.status,
-    certificate.purpose ?? "",
-  ]
-    .join(" ")
-    .toLowerCase()
-
-  return haystack.includes(q)
+  const studentId = (certificate.patient.studentId ?? "").toLowerCase()
+  return studentId.includes(q)
 }
 
 function manilaDateParts(date = new Date()) {

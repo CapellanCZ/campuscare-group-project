@@ -202,7 +202,7 @@ const MATRIX: Record<Permission, RoleAccess> = {
   // Settings
   "settings.clinic": roles(ALL, NONE, NONE, NONE),
   "settings.queue": roles(ALL, NONE, NONE, NONE),
-  "settings.notification": roles(ALL, NONE, NONE, NONE),
+  "settings.notification": roles(ALL, ALL, ALL, ALL),
   "settings.security": roles(ALL, NONE, NONE, NONE),
   "settings.system": roles(ALL, NONE, NONE, NONE),
   "settings.profile": roles(ALL, VIEW, VIEW, VIEW),
