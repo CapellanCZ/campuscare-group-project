@@ -54,8 +54,8 @@ function ShellContent({
         <div
           className={
             isPending
-              ? "flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto p-4 opacity-70 transition-opacity duration-150 md:p-6"
-              : "flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto p-4 opacity-100 transition-opacity duration-150 md:p-6"
+              ? "flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto bg-muted/30 p-4 opacity-70 transition-opacity duration-150 md:p-6"
+              : "flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto bg-muted/30 p-4 opacity-100 transition-opacity duration-150 md:p-6"
           }
           aria-busy={isPending || undefined}
         >

@@ -28,24 +28,26 @@ export function RoleHeader({ role }: RoleHeaderProps) {
 
   return (
     <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between gap-3 border-b bg-background/95 px-4 backdrop-blur-md md:px-6">
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem className="gap-2">
-            {PageIcon ? (
-              <PageIcon className="size-4 text-foreground/70" aria-hidden />
-            ) : null}
-            <BreadcrumbPage className="text-sm font-medium">
-              {currentPage.title}
-            </BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+      <div className="flex min-w-0 items-center gap-3">
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem className="gap-2">
+              {PageIcon ? (
+                <PageIcon className="size-4 text-foreground/70" aria-hidden />
+              ) : null}
+              <BreadcrumbPage className="truncate text-sm font-medium">
+                {currentPage.title}
+              </BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+      </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-3">
         <HeaderNotifications />
         <Separator
           orientation="vertical"
-          className="h-4 data-[orientation=vertical]:self-center"
+          className="hidden h-4 data-[orientation=vertical]:self-center sm:block"
         />
         <NavUser />
       </div>

@@ -2,10 +2,7 @@
 
 import { toast } from "sonner"
 
-import {
-  DemoPageHeader,
-  demoToast,
-} from "@/components/demo/demo-page"
+import { DemoPageHeader } from "@/components/demo/demo-page"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -16,57 +13,101 @@ import {
 } from "@/components/ui/card"
 import { can, getAccessLevel } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
-import { demoSettingsSections } from "@/lib/demo/fixtures"
+
+type SettingsSection = {
+  id: string
+  title: string
+  description: string
+  permission:
+    | "settings.profile"
+    | "settings.clinic"
+    | "settings.queue"
+    | "settings.notification"
+    | "settings.security"
+    | "settings.system"
+  values: { label: string; value: string }[]
+}
+
+function buildSections(access: StaffAccess): SettingsSection[] {
+  return [
+    {
+      id: "profile",
+      title: "Profile settings",
+      description: "Your display name, contact email, and designation.",
+      permission: "settings.profile",
+      values: [
+        { label: "Display name", value: access.fullName },
+        { label: "Email", value: access.email || "—" },
+        { label: "Designation", value: access.designation },
+      ],
+    },
+    {
+      id: "clinic",
+      title: "Clinic settings",
+      description: "Operating hours and campus location are managed by admins.",
+      permission: "settings.clinic",
+      values: [
+        { label: "Status", value: "Configured in clinic administration" },
+      ],
+    },
+    {
+      id: "queue",
+      title: "Queue settings",
+      description: "Walk-in rules and display preferences.",
+      permission: "settings.queue",
+      values: [
+        { label: "Status", value: "Configured in queue management" },
+      ],
+    },
+    {
+      id: "notification",
+      title: "Notification settings",
+      description: "Staff alerts for requests, queue, and certificates.",
+      permission: "settings.notification",
+      values: [{ label: "Inbox", value: "Header notifications (live signals)" }],
+    },
+    {
+      id: "security",
+      title: "Security settings",
+      description: "Session and sign-in policies for staff login.",
+      permission: "settings.security",
+      values: [{ label: "Status", value: "Managed by your clinic administrator" }],
+    },
+    {
+      id: "system",
+      title: "System settings",
+      description: "Environment and maintenance controls.",
+      permission: "settings.system",
+      values: [{ label: "Status", value: "Managed by your clinic administrator" }],
+    },
+  ]
+}
 
 export function SettingsDemoPage({ access }: { access: StaffAccess }) {
   const d = access.designation
 
-  const sections = demoSettingsSections
+  const sections = buildSections(access)
     .map((section) => {
-      const permission =
-        section.permission === "profile"
-          ? ("settings.profile" as const)
-          : section.permission === "clinic"
-            ? ("settings.clinic" as const)
-            : section.permission === "queue"
-              ? ("settings.queue" as const)
-              : section.permission === "notification"
-                ? ("settings.notification" as const)
-                : section.permission === "security"
-                  ? ("settings.security" as const)
-                  : ("settings.system" as const)
-
-      const level = getAccessLevel(d, permission)
+      const level = getAccessLevel(d, section.permission)
       if (level === "none") return null
-
-      const values =
-        section.id === "profile"
-          ? [
-              { label: "Display name", value: access.fullName },
-              { label: "Email", value: access.email || "—" },
-              {
-                label: "Preferred station",
-                value: "Auto from designation",
-              },
-            ]
-          : section.values
-
-      return { ...section, level, values, permission }
+      return { ...section, level }
     })
     .filter(Boolean)
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <DemoPageHeader
         title="Settings"
         description="Clinic configuration and your profile"
         designation={d}
+        showDemoBanner={false}
       />
 
       <div className="grid gap-4 lg:grid-cols-2">
         {sections.map((section) => {
           if (!section) return null
-          const editable = section.level === "full"
+          const editable =
+            section.level === "full" && section.id === "profile"
 
           return (
             <Card
@@ -105,10 +146,12 @@ export function SettingsDemoPage({ access }: { access: StaffAccess }) {
                     size="sm"
                     variant="outline"
                     onClick={() =>
-                      toast.message(demoToast(`Edit ${section.title}`))
+                      toast.message(
+                        "Profile editing will be available when account settings are connected."
+                      )
                     }
                   >
-                    Edit section
+                    Edit profile
                   </Button>
                 ) : can(d, "settings.profile") && section.id === "profile" ? (
                   <p className="text-xs text-muted-foreground">

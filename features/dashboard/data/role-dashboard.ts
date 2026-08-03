@@ -17,96 +17,48 @@ export type RoleDashboardSeed = {
   }>
 }
 
-const baseRows = [
-  {
-    module: "Consultation Requests",
-    status: "In review",
-    owner: "HSO Team",
-    updatedAt: "5 minutes ago",
-  },
-  {
-    module: "Queue Management",
-    status: "Live",
-    owner: "Front Desk",
-    updatedAt: "2 minutes ago",
-  },
-  {
-    module: "Patient Records",
-    status: "Updated",
-    owner: "Records Unit",
-    updatedAt: "1 hour ago",
-  },
+const emptyMetrics: RoleSummaryMetric[] = [
+  { title: "Activity", value: "0", hint: "Use the live role dashboard" },
+  { title: "Queue", value: "0", hint: "Use the live role dashboard" },
+  { title: "Requests", value: "0", hint: "Use the live role dashboard" },
+  { title: "Reports", value: "0", hint: "Use the live role dashboard" },
 ]
 
+/** Legacy seed chrome only — live role homes use StaffHomePage / RoleDashboard. */
 export const roleDashboardSeed: Record<WebRole, RoleDashboardSeed> = {
   admin: {
-    metrics: [
-      { title: "Active Staff", value: "28", hint: "Across all role groups" },
-      { title: "Open Requests", value: "34", hint: "Awaiting assignment" },
-      { title: "Published Announcements", value: "8", hint: "This month" },
-      { title: "Reports Generated", value: "42", hint: "Last 30 days" },
-    ],
-    quickModules: [
-      "Reports",
-      "Announcements",
-      "User Management",
-      "Settings",
-    ],
-    rows: baseRows,
+    metrics: emptyMetrics,
+    quickModules: ["Reports", "Announcements", "User Management", "Settings"],
+    rows: [],
   },
   nurse: {
-    metrics: [
-      { title: "Queue Today", value: "21", hint: "Patients checked in" },
-      { title: "Initial Assessments", value: "14", hint: "Completed today" },
-      { title: "Walk-Ins", value: "6", hint: "Registered this shift" },
-      { title: "Pending Requests", value: "9", hint: "Need triage action" },
-    ],
+    metrics: emptyMetrics,
     quickModules: [
       "Consultation Requests",
       "Queue Management",
       "Patient Records",
-      "Initial Assessment",
+      "Announcements",
     ],
-    rows: baseRows,
+    rows: [],
   },
   physician: {
-    metrics: [
-      { title: "Consultations", value: "16", hint: "Completed this week" },
-      { title: "Certificates Issued", value: "11", hint: "Medical certificates" },
-      { title: "Follow-Ups", value: "7", hint: "Scheduled visits" },
-      { title: "Pending Cases", value: "5", hint: "Awaiting review" },
-    ],
+    metrics: emptyMetrics,
     quickModules: [
+      "Appointments",
       "Consultations",
-      "Medical Certificates",
-      "Patient Records",
-      "Reports",
+      "Patients",
+      "Certificates",
     ],
-    rows: baseRows,
+    rows: [],
   },
   dentist: {
-    metrics: [
-      { title: "Dental Consultations", value: "13", hint: "Completed this week" },
-      { title: "Dental Certificates", value: "7", hint: "Generated this week" },
-      { title: "Procedure Notes", value: "10", hint: "Recorded today" },
-      { title: "Pending Cases", value: "4", hint: "For follow-up" },
-    ],
-    quickModules: [
-      "Consultations",
-      "Dental Certificates",
-      "Patient Records",
-      "Reports",
-    ],
-    rows: baseRows,
+    metrics: emptyMetrics,
+    quickModules: ["Queue", "Consultations", "Patients", "Announcements"],
+    rows: [],
   },
   queue_display: {
-    metrics: [
-      { title: "Now Serving", value: "—", hint: "Public display" },
-      { title: "Waiting", value: "—", hint: "Live queue" },
-      { title: "Called", value: "—", hint: "Today" },
-      { title: "Completed", value: "—", hint: "Today" },
-    ],
-    quickModules: ["Queue Display"],
-    rows: baseRows,
+    metrics: emptyMetrics,
+    quickModules: ["Queue display"],
+    rows: [],
   },
 }

@@ -245,13 +245,7 @@ export function ReportsAnalyticsPage({
               <CardHeader className="space-y-3">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <CardTitle className="text-base">Reports</CardTitle>
-                  <Badge variant="outline">
-                    {initialBundle.source === "live"
-                      ? "Live clinic data"
-                      : initialBundle.source === "live+seed"
-                        ? "Live + clinic dataset"
-                        : "Clinic demo dataset"}
-                  </Badge>
+                  <Badge variant="outline">Live clinic data</Badge>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {visibleKinds.map((kind) => (

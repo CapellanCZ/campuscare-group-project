@@ -23,9 +23,19 @@ import { IconUserPlus } from "@tabler/icons-react"
 
 const DEFAULT_CONSULTATION = "Walk-in consultation"
 
-export function WalkInSheet() {
+export function WalkInSheet({
+  open: controlledOpen,
+  onOpenChange,
+  hideTrigger = false,
+}: {
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  hideTrigger?: boolean
+} = {}) {
   const router = useRouter()
-  const [open, setOpen] = useState(false)
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
+  const open = controlledOpen ?? uncontrolledOpen
+  const setOpen = onOpenChange ?? setUncontrolledOpen
   const [pending, startTransition] = useTransition()
   const [patientName, setPatientName] = useState("")
   const [campusId, setCampusId] = useState("")
@@ -83,10 +93,12 @@ export function WalkInSheet() {
         if (!next) resetForm()
       }}
     >
-      <SheetTrigger render={<Button variant="outline" />}>
-        <IconUserPlus data-icon="inline-start" aria-hidden />
-        Register walk-in
-      </SheetTrigger>
+      {hideTrigger ? null : (
+        <SheetTrigger render={<Button variant="outline" />}>
+          <IconUserPlus data-icon="inline-start" aria-hidden />
+          Register walk-in
+        </SheetTrigger>
+      )}
       <SheetContent className="flex flex-col gap-0 p-0 sm:max-w-md">
         <SheetHeader className="gap-1 border-b px-4 py-3 text-left">
           <SheetTitle>Register walk-in</SheetTitle>

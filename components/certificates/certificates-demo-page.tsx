@@ -279,7 +279,7 @@ export function CertificatesPage({
   }
 
   return (
-    <div className="flex flex-col gap-4 print:p-0">
+    <div className="flex flex-col gap-6 print:p-0">
       <div className="print:hidden">
         <DemoPageHeader
           title="Medical Certificates"

@@ -1,6 +1,10 @@
 "use client"
 
 import { AnnouncementAttachmentsView } from "@/components/announcements/announcement-attachments-view"
+import {
+  AnnouncementImageGallery,
+  announcementImages,
+} from "@/components/announcements/announcement-image-gallery"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -108,8 +112,19 @@ export function AnnouncementDetailSheet({
             </p>
           </div>
 
+          {announcementImages(announcement.attachments).length > 0 ? (
+            <div className="mt-6">
+              <AnnouncementImageGallery
+                images={announcementImages(announcement.attachments)}
+                aspectClassName="aspect-[4/3]"
+              />
+            </div>
+          ) : null}
+
           <AnnouncementAttachmentsView
-            attachments={announcement.attachments ?? []}
+            attachments={(announcement.attachments ?? []).filter(
+              (item) => item.kind !== "image"
+            )}
           />
         </div>
 

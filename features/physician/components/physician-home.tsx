@@ -6,7 +6,6 @@ import {
 } from "@tabler/icons-react"
 import Link from "next/link"
 
-import { Badge } from "@/components/reui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { PageHeader } from "@/features/common/components/page-header"
@@ -39,12 +38,6 @@ export function PhysicianHome({ workspace }: PhysicianHomeProps) {
         subtitle={`Welcome, ${workspace.doctorName}`}
         description="Today's clinic board — appointments, quick stats, and consultation entry points."
       />
-
-      {workspace.source === "demo" ? (
-        <Badge variant="warning-light" size="sm">
-          Showing demo clinical data until a physician account has live rows
-        </Badge>
-      ) : null}
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard

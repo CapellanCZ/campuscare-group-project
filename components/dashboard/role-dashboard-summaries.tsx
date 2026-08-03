@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useTransition } from "react"
 import { toast } from "sonner"
 
@@ -13,6 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { AppointmentStatusBadge } from "@/features/physician/components/appointment-status-badge"
 import { CLINIC_TIMEZONE } from "@/features/physician/types"
+import { declineConsultationRequestAction } from "@/features/requests/actions"
 import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
@@ -26,6 +28,7 @@ export function RoleDashboardSummaries({
   access: StaffAccess
   summary: RoleDashboardSummary
 }) {
+  const router = useRouter()
   const d = access.designation
   const base = `/${d}`
   const isAdmin = d === "admin"
@@ -34,10 +37,15 @@ export function RoleDashboardSummaries({
   const isDentist = d === "dentist"
   const isSpecialty = isPhysician || isDentist
 
+  const nurseQueueHref = "/nurse/queue-management"
+  const nurseRequestsHref = "/nurse/consultation-requests"
+
   const canTriage = can(d, "requests.approve")
+  const canDecline = can(d, "requests.decline")
   const canGenerateCert = can(d, "certificates.generate")
   const canGenerateFromConsult = can(d, "consultations.generate_certificate")
   const [pendingApprove, startApprove] = useTransition()
+  const [pendingDecline, startDecline] = useTransition()
 
   const todayKey = zonedDayKey(new Date().toISOString(), CLINIC_TIMEZONE)
   const todaysAppointments =
@@ -145,7 +153,8 @@ export function RoleDashboardSummaries({
             <ModuleSnapshot
               title="Consultation requests"
               description="Pending requests waiting for triage."
-              href={`${base}/requests`}
+              href={nurseRequestsHref}
+              linkLabel="View all"
               badge={summary.requests.pendingCount}
             >
               {summary.requests.recent.length === 0 ? (
@@ -162,15 +171,31 @@ export function RoleDashboardSummaries({
                       <div className="min-w-0">
                         <p className="truncate font-medium">{req.patientName}</p>
                         <p className="text-xs text-muted-foreground">
-                          {req.studentId} · {req.service} · {req.preferredDate}{" "}
+                          {req.service} · {req.preferredDate}{" "}
                           {req.preferredTime}
+                          {req.studentId ? ` · ${req.studentId}` : ""}
                         </p>
+                        <Badge variant="secondary" className="mt-1">
+                          {req.status}
+                        </Badge>
                       </div>
-                      {canTriage ? (
-                        <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          render={
+                            <Link
+                              href={`${nurseRequestsHref}?id=${encodeURIComponent(req.id)}`}
+                            />
+                          }
+                          nativeButton={false}
+                        >
+                          View
+                        </Button>
+                        {canTriage ? (
                           <Button
                             size="sm"
-                            disabled={pendingApprove}
+                            disabled={pendingApprove || pendingDecline}
                             onClick={() =>
                               startApprove(async () => {
                                 const result =
@@ -189,22 +214,39 @@ export function RoleDashboardSummaries({
                                   result.message ??
                                     "Approved — patient queued for nurse intake."
                                 )
+                                router.refresh()
                               })
                             }
                           >
                             Approve
                           </Button>
+                        ) : null}
+                        {canDecline ? (
                           <Button
                             size="sm"
                             variant="outline"
+                            disabled={pendingApprove || pendingDecline}
                             onClick={() =>
-                              toast.message("Request marked for follow-up.")
+                              startDecline(async () => {
+                                const result =
+                                  await declineConsultationRequestAction({
+                                    id: req.id,
+                                    reason:
+                                      "Declined during nurse dashboard triage.",
+                                  })
+                                if (!result.ok) {
+                                  toast.error(result.error)
+                                  return
+                                }
+                                toast.success("Request declined.")
+                                router.refresh()
+                              })
                             }
                           >
                             Decline
                           </Button>
-                        </div>
-                      ) : null}
+                        ) : null}
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -214,47 +256,9 @@ export function RoleDashboardSummaries({
 
           <PanelCell>
             <ModuleSnapshot
-              title="Queue shortcuts"
-              description="Front-desk intake actions."
-              href={`${base}/queue`}
-            >
-              <SnapshotStatRow
-                items={[
-                  {
-                    label: "Checked in",
-                    value: summary.nurseLanes?.checkedIn ?? 0,
-                  },
-                  {
-                    label: "Exceptions",
-                    value: summary.nurseLanes?.exceptions ?? 0,
-                  },
-                ]}
-              />
-              <div className="flex flex-col gap-2">
-                <Button
-                  size="sm"
-                  render={<Link href={`${base}/queue`} />}
-                  nativeButton={false}
-                >
-                  Register walk-in
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  render={<Link href={`${base}/queue`} />}
-                  nativeButton={false}
-                >
-                  Verify check-in
-                </Button>
-              </div>
-            </ModuleSnapshot>
-          </PanelCell>
-
-          <PanelCell className="lg:col-span-3">
-            <ModuleSnapshot
               title="Stations handoff"
               description="Patients after nurse intake."
-              href={`${base}/queue`}
+              href={nurseQueueHref}
             >
               <SnapshotStatRow
                 items={[
@@ -265,6 +269,10 @@ export function RoleDashboardSummaries({
                   {
                     label: "At dentist",
                     value: summary.nurseLanes?.atDentist ?? 0,
+                  },
+                  {
+                    label: "Checked in",
+                    value: summary.nurseLanes?.checkedIn ?? 0,
                   },
                   {
                     label: "Intakes done",
@@ -321,9 +329,6 @@ export function RoleDashboardSummaries({
             href={`${base}/appointments`}
             badge={summary.physicianWorkspace?.stats.todayCount ?? 0}
           >
-            {summary.physicianWorkspace?.source === "demo" ? (
-              <Badge variant="outline">Demo appointments until live rows exist</Badge>
-            ) : null}
             {todaysAppointments.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No appointments today. Check upcoming days or update
@@ -497,7 +502,7 @@ export function RoleDashboardSummaries({
           <ModuleSnapshot
             title="Patient records"
             description="Enrolled student directory."
-            href={`${base}/patients`}
+            href={isNurse ? "/nurse/patient-records" : `${base}/patients`}
             linkLabel="Open records"
           >
             <SnapshotStatRow
@@ -515,7 +520,13 @@ export function RoleDashboardSummaries({
             <Button
               size="sm"
               variant="outline"
-              render={<Link href={`${base}/patients`} />}
+              render={
+                <Link
+                  href={
+                    isNurse ? "/nurse/patient-records" : `${base}/patients`
+                  }
+                />
+              }
               nativeButton={false}
             >
               Search patients

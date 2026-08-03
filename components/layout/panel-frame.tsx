@@ -15,16 +15,16 @@ export function PageIntro({
   return (
     <div
       className={cn(
-        "flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between",
+        "flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between",
         className
       )}
     >
-      <div className="flex min-w-0 flex-col gap-1">
-        <h1 className="font-semibold text-xl leading-tight text-balance">
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <h1 className="font-semibold text-2xl leading-tight tracking-tight text-balance">
           {title}
         </h1>
         {description ? (
-          <p className="text-base text-pretty text-muted-foreground">
+          <p className="max-w-2xl text-sm text-pretty text-muted-foreground sm:text-base">
             {description}
           </p>
         ) : null}

@@ -163,8 +163,13 @@ const roleGroupsByRole: Record<WebRole, RoleNavGroup[]> = {
       items: [
         {
           title: "Consultations",
-          href: "/dentist/dashboard?module=consultations",
+          href: "/dentist/consultations",
           icon: IconStethoscope,
+        },
+        {
+          title: "Patients",
+          href: "/dentist/patients",
+          icon: IconUsers,
         },
         {
           title: "Schedule",
@@ -217,12 +222,12 @@ const footerByRole: Record<WebRole, RoleNavItem[]> = {
   dentist: [
     {
       title: "Reports",
-      href: "/dentist/dashboard?module=reports",
+      href: "/dentist/reports",
       icon: IconChartBar,
     },
     {
       title: "Profile",
-      href: "/dentist/dashboard?module=profile",
+      href: "/dentist/settings",
       icon: IconSettings,
     },
   ],
@@ -233,7 +238,7 @@ const quickActionByRole: Record<WebRole, { label: string; href: string }> = {
   admin: { label: "Create Announcement", href: "/admin/announcements" },
   nurse: { label: "Register Walk-In", href: "/nurse/consultation-requests" },
   physician: { label: "Start Consultation", href: "/physician/appointments" },
-  dentist: { label: "Start Dental Consultation", href: "/dentist/dashboard" },
+  dentist: { label: "Start Dental Consultation", href: "/dentist/queue" },
   queue_display: {
     label: "Open Display",
     href: "/queue-management/display",

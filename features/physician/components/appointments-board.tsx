@@ -44,7 +44,6 @@ import { cn } from "@/lib/utils"
 type AppointmentsBoardProps = {
   initialAppointments: PhysicianAppointment[]
   doctorId: string
-  source: "live" | "demo"
 }
 
 function applyFilters(
@@ -87,11 +86,9 @@ function applyFilters(
 export function AppointmentsBoard({
   initialAppointments,
   doctorId,
-  source,
 }: AppointmentsBoardProps) {
   const router = useRouter()
-  const [localAppointments, setLocalAppointments] = useState(initialAppointments)
-  const appointments = source === "demo" ? localAppointments : initialAppointments
+  const appointments = initialAppointments
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [filters, setFilters] = useState<Filter[]>([
     createFilter("status", "is_any_of", [
@@ -108,8 +105,6 @@ export function AppointmentsBoard({
   const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
-    if (source !== "live") return
-
     const supabase = createClient()
     const channel = supabase
       .channel(`physician-appointments-${doctorId}`)
@@ -130,7 +125,7 @@ export function AppointmentsBoard({
     return () => {
       void supabase.removeChannel(channel)
     }
-  }, [doctorId, router, source])
+  }, [doctorId, router])
 
   const fields: FilterFieldConfig[] = useMemo(
     () => [
@@ -174,33 +169,13 @@ export function AppointmentsBoard({
     return map
   }, [appointments])
 
-  function patchLocal(
-    appointmentId: string,
-    patch: Partial<PhysicianAppointment>
-  ) {
-    setLocalAppointments((prev) =>
-      prev.map((row) => (row.id === appointmentId ? { ...row, ...patch } : row))
-    )
-  }
-
   function runAction(
     appointmentId: string,
-    action: () => Promise<{ ok: boolean; error?: string }>,
-    demoPatch?: Partial<PhysicianAppointment>
+    action: () => Promise<{ ok: boolean; error?: string }>
   ) {
     setPendingId(appointmentId)
     setMessage(null)
     startTransition(async () => {
-      if (source === "demo") {
-        if (demoPatch) patchLocal(appointmentId, demoPatch)
-        setMessage({
-          type: "success",
-          text: "Updated in demo mode (sign in as physician to persist).",
-        })
-        setPendingId(null)
-        return
-      }
-
       const result = await action()
       if (!result.ok) {
         setMessage({ type: "error", text: result.error ?? "Action failed." })
@@ -273,9 +248,7 @@ export function AppointmentsBoard({
               onConfirm={(id) =>
                 runAction(
                   id,
-                  () => updateAppointmentStatus(id, "confirmed"),
-                  { status: "confirmed" }
-                )
+                  () => updateAppointmentStatus(id, "confirmed"))
               }
               onCancel={(id) =>
                 runAction(
@@ -285,19 +258,12 @@ export function AppointmentsBoard({
                       id,
                       "cancelled",
                       "Cancelled by physician"
-                    ),
-                  {
-                    status: "cancelled",
-                    cancellationReason: "Cancelled by physician",
-                  }
-                )
+                    ))
               }
               onNoShow={(id) =>
                 runAction(
                   id,
-                  () => updateAppointmentStatus(id, "no_show"),
-                  { status: "no_show" }
-                )
+                  () => updateAppointmentStatus(id, "no_show"))
               }
               onReschedule={(id, row) => {
                 const nextStart = new Date(row.startsAt)
@@ -311,13 +277,7 @@ export function AppointmentsBoard({
                       id,
                       nextStart.toISOString(),
                       nextEnd.toISOString()
-                    ),
-                  {
-                    status: "rescheduled",
-                    startsAt: nextStart.toISOString(),
-                    endsAt: nextEnd.toISOString(),
-                  }
-                )
+                    ))
               }}
               onStart={(id) => {
                 runAction(
@@ -328,12 +288,7 @@ export function AppointmentsBoard({
                       router.push(`/physician/consultation/${id}`)
                     }
                     return result
-                  },
-                  { status: "in_progress" }
-                )
-                if (source === "demo") {
-                  router.push(`/physician/consultation/${id}`)
-                }
+                  })
               }}
             />
           </div>
@@ -348,9 +303,7 @@ export function AppointmentsBoard({
             onConfirm={(id) =>
               runAction(
                 id,
-                () => updateAppointmentStatus(id, "confirmed"),
-                { status: "confirmed" }
-              )
+                () => updateAppointmentStatus(id, "confirmed"))
             }
             onCancel={(id) =>
               runAction(
@@ -360,19 +313,12 @@ export function AppointmentsBoard({
                     id,
                     "cancelled",
                     "Cancelled by physician"
-                  ),
-                {
-                  status: "cancelled",
-                  cancellationReason: "Cancelled by physician",
-                }
-              )
+                  ))
             }
             onNoShow={(id) =>
               runAction(
                 id,
-                () => updateAppointmentStatus(id, "no_show"),
-                { status: "no_show" }
-              )
+                () => updateAppointmentStatus(id, "no_show"))
             }
             onReschedule={(id, row) => {
               const nextStart = new Date(row.startsAt)
@@ -386,13 +332,7 @@ export function AppointmentsBoard({
                     id,
                     nextStart.toISOString(),
                     nextEnd.toISOString()
-                  ),
-                {
-                  status: "rescheduled",
-                  startsAt: nextStart.toISOString(),
-                  endsAt: nextEnd.toISOString(),
-                }
-              )
+                  ))
             }}
             onStart={(id) => {
               runAction(
@@ -403,12 +343,7 @@ export function AppointmentsBoard({
                     router.push(`/physician/consultation/${id}`)
                   }
                   return result
-                },
-                { status: "in_progress" }
-              )
-              if (source === "demo") {
-                router.push(`/physician/consultation/${id}`)
-              }
+                })
             }}
           />
         </TabsContent>

@@ -344,7 +344,7 @@ export function AnnouncementsPage({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <DemoPageHeader
         title="Announcements"
         description="Clinic notices for students and staff"

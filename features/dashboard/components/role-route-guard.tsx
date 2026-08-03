@@ -8,7 +8,6 @@ import {
 } from "@/lib/auth/redirects"
 import type { WebRole } from "@/lib/auth/types"
 import { RoleShell } from "@/components/dashboard/role-shell"
-import { DEMO_DOCTOR } from "@/features/physician/data/demo-data"
 
 type RoleRouteGuardProps = {
   expectedRole: WebRole
@@ -26,14 +25,8 @@ export async function RoleRouteGuard({
       return (
         <RoleShell
           role={expectedRole}
-          staffName={
-            expectedRole === "physician" ? DEMO_DOCTOR.fullName : "Dev Staff"
-          }
-          staffEmail={
-            expectedRole === "physician"
-              ? DEMO_DOCTOR.email
-              : "dev@campuscare.local"
-          }
+          staffName="Dev Staff"
+          staffEmail="dev@campuscare.local"
         >
           {children}
         </RoleShell>

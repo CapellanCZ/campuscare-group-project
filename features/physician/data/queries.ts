@@ -1,13 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { getStaffAccess } from "@/lib/auth/access"
-import {
-  computeDashboardStats,
-  DEMO_DOCTOR,
-  demoAppointments,
-  demoAvailability,
-  demoConsultations,
-  demoPatients,
-} from "@/features/physician/data/demo-data"
+import { computeDashboardStats } from "@/features/physician/data/stats"
 import type {
   DoctorAvailabilitySlot,
   PhysicianAppointment,
@@ -77,7 +70,7 @@ function mapAppointment(row: AppointmentRow): PhysicianAppointment {
 }
 
 export type PhysicianWorkspace = {
-  source: "live" | "demo"
+  source: "live"
   doctorName: string
   doctorEmail: string
   doctorId: string
@@ -88,17 +81,21 @@ export type PhysicianWorkspace = {
   stats: PhysicianDashboardStats
 }
 
-function demoWorkspace(doctorName?: string, doctorEmail?: string): PhysicianWorkspace {
+function emptyWorkspace(
+  doctorName: string,
+  doctorEmail: string,
+  doctorId: string
+): PhysicianWorkspace {
   return {
-    source: "demo",
-    doctorName: doctorName ?? DEMO_DOCTOR.fullName,
-    doctorEmail: doctorEmail ?? DEMO_DOCTOR.email,
-    doctorId: DEMO_DOCTOR.id,
-    appointments: demoAppointments,
-    patients: demoPatients,
-    consultations: demoConsultations,
-    availability: demoAvailability,
-    stats: computeDashboardStats(demoAppointments),
+    source: "live",
+    doctorName,
+    doctorEmail,
+    doctorId,
+    appointments: [],
+    patients: [],
+    consultations: [],
+    availability: [],
+    stats: computeDashboardStats([]),
   }
 }
 
@@ -106,7 +103,11 @@ export async function loadPhysicianWorkspace(): Promise<PhysicianWorkspace> {
   const access = await getStaffAccess()
 
   if (!access || access.primaryRole !== "physician") {
-    return demoWorkspace(access?.fullName, access?.email)
+    return emptyWorkspace(
+      access?.fullName ?? "Physician",
+      access?.email ?? "",
+      access?.userId ?? ""
+    )
   }
 
   const supabase = await createClient()
@@ -139,7 +140,7 @@ export async function loadPhysicianWorkspace(): Promise<PhysicianWorkspace> {
 
   if (appointmentError) {
     console.error("physician appointments load failed", appointmentError.message)
-    return demoWorkspace(access.fullName, access.email)
+    return emptyWorkspace(access.fullName, access.email, access.userId)
   }
 
   const appointments =
@@ -223,17 +224,6 @@ export async function loadPhysicianWorkspace(): Promise<PhysicianWorkspace> {
       timezone: slot.timezone,
       isActive: slot.is_active,
     })) ?? []
-
-  // Prefer live data; fall back to demo only when the doctor has no rows yet
-  // so the UI still demonstrates empty-state handling when intentional.
-  if (appointments.length === 0 && patients.length === 0) {
-    return {
-      ...demoWorkspace(access.fullName, access.email),
-      doctorId: access.userId,
-      doctorName: access.fullName,
-      doctorEmail: access.email,
-    }
-  }
 
   return {
     source: "live",

@@ -4,6 +4,7 @@ import {
   announcementCoverUrl,
   announcementExcerpt,
 } from "@/features/announcements/lib/display"
+import { announcementImages } from "@/components/announcements/announcement-image-gallery"
 import { formatAnnouncementDateTime } from "@/features/announcements/lib/format"
 import { cn } from "@/lib/utils"
 import type { Announcement } from "@/types/announcement"
@@ -20,6 +21,7 @@ export function AnnouncementNewsCard({
   compact?: boolean
 }) {
   const cover = announcementCoverUrl(announcement)
+  const imageCount = announcementImages(announcement.attachments).length
   const dateLabel = formatAnnouncementDateTime(
     announcement.publishedAt ?? announcement.updatedAt
   )
@@ -60,8 +62,18 @@ export function AnnouncementNewsCard({
             </span>
           </div>
         )}
+        {imageCount > 1 ? (
+          <span className="absolute right-2 bottom-2 rounded-md bg-background/90 px-1.5 py-0.5 text-[10px] font-medium text-foreground shadow-sm backdrop-blur">
+            {imageCount} photos
+          </span>
+        ) : null}
       </div>
-      <div className={cn("flex min-w-0 flex-1 flex-col gap-1 p-3", compact && "sm:py-2.5")}>
+      <div
+        className={cn(
+          "flex min-w-0 flex-1 flex-col gap-1 p-3",
+          compact && "sm:py-2.5"
+        )}
+      >
         <p className="text-[11px] text-muted-foreground">{dateLabel}</p>
         <h3
           className={cn(

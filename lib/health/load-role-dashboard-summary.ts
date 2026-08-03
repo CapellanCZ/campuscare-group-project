@@ -7,7 +7,6 @@ import {
 } from "@/lib/availability/queries"
 import { DAY_LABELS } from "@/lib/availability/types"
 import type { ClinicDesignation } from "@/lib/auth/types"
-import { demoConsultationRequests } from "@/lib/demo/fixtures"
 import {
   isAtSpecialtyAfterIntake,
   isNurseQueueException,
@@ -95,20 +94,9 @@ async function buildRequests(limit = 5) {
       })),
     }
   } catch {
-    const pending = demoConsultationRequests.filter(
-      (r) => r.status === "pending"
-    )
     return {
-      pendingCount: pending.length,
-      recent: pending.slice(0, limit).map((r) => ({
-        id: r.id,
-        patientName: r.patientName,
-        studentId: r.studentId,
-        service: r.service,
-        preferredDate: r.preferredDate,
-        preferredTime: r.preferredTime,
-        status: r.status,
-      })),
+      pendingCount: 0,
+      recent: [],
     }
   }
 }

@@ -1,5 +1,1 @@
-import { NurseModulePage } from "@/features/nurse/components/nurse-module-page"
-
-export default function NurseDashboardPage() {
-  return <NurseModulePage module="dashboard" />
-}
+export { StaffHomePage as default } from "@/lib/staff/route-pages"

@@ -102,7 +102,7 @@ export type ReportsBundle = {
   tables: ReportTableBundle[]
   personnelOptions: string[]
   statusOptions: string[]
-  source: "live" | "live+seed" | "seed"
+  source: "live"
   live: {
     completedToday: number
     walkIns: number

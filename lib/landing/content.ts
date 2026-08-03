@@ -198,23 +198,40 @@ export const faqs: FaqItem[] = [
 ]
 
 export const footerContact = {
-  location: "Health Services Office · NU Dasmariñas",
+  location: "National University Dasmariñas",
+  locationDetail: "Health Services Office",
   mapsUrl:
     "https://www.google.com/maps/search/?api=1&query=National+University+Dasmarinas",
   hours: "Mon–Fri 7:00 AM – 9:00 PM · Sat 7:00 AM – 7:00 PM",
   email: "clinic@nu-dasma.edu.ph",
+  phone: "local 3515",
+  phoneTel: "0939-919-9980",
 }
 
+export const footerOverviewLinks = [
+  { label: "About CampusCare", href: "#about" },
+  { label: "Features", href: "#features" },
+  { label: "How it works", href: "#how-it-works" },
+] as const
+
+export const footerLegalLinks = [
+  { label: "About HSO", href: "#about" },
+  { label: "Terms of Service", href: "/terms" },
+  { label: "Privacy Policy", href: "/privacy" },
+] as const
+
+export const footerSupportLinks = [
+  { label: "Getting started", href: "#how-it-works" },
+  { label: "FAQ", href: "#faq" },
+  { label: "Staff login", href: "/login" },
+] as const
+
+/** @deprecated Prefer footerOverviewLinks / footerSupportLinks */
 export const footerQuickLinks = [
   { label: "Features", href: "#features" },
   { label: "FAQ", href: "#faq" },
   { label: "Staff login", href: "/login" },
 ] as const
 
-export const footerLegalLinks = [
-  { label: "Terms", href: "/terms" },
-  { label: "Privacy", href: "/privacy" },
-] as const
-
 export const footerBlurb =
-  "Digital clinic tools for the NU Dasmariñas Health Services Office—consultations, queues, and records in one place."
+  "A unified workspace for the NU Dasmariñas Health Services Office to manage consultations, queues, records, and campus health notices."

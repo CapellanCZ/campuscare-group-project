@@ -16,6 +16,10 @@ import {
   DemoPageHeader,
   DemoStatGrid,
 } from "@/components/demo/demo-page"
+import {
+  PanelFrame,
+  panelCardClassName,
+} from "@/components/layout/panel-frame"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -24,6 +28,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -53,6 +64,8 @@ import {
   type ConsultationRequestStats,
   type ConsultationRequestStatus,
 } from "@/types/consultationRequest"
+import { IconClipboardList } from "@tabler/icons-react"
+import { cn } from "@/lib/utils"
 
 const SEARCH_DEBOUNCE_MS = 300
 
@@ -123,7 +136,10 @@ export function RequestsPage({
   const canDecline = can(access.designation, "requests.decline")
   const canReschedule = can(access.designation, "requests.reschedule")
   const canViewDetails = can(access.designation, "requests.view_patient_details")
-  const queueHref = `/${access.designation}/queue`
+  const queueHref =
+    access.designation === "nurse"
+      ? "/nurse/queue-management"
+      : `/${access.designation}/queue`
 
   useEffect(() => {
     if (initialError) toast.error(initialError)
@@ -209,7 +225,7 @@ export function RequestsPage({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <DemoPageHeader
         title="Consultation Requests"
         description="Nurse triage only — approve to queue the patient for check-in and intake, then assign specialty for the doctor list."
@@ -233,7 +249,8 @@ export function RequestsPage({
         <DemoStatGrid stats={statCards} />
       ) : null}
 
-      <Card className="min-w-0 shadow-none dark:ring-0">
+      <PanelFrame>
+      <Card className={cn(panelCardClassName, "gap-0 py-0")}>
         <CardHeader className="flex flex-col gap-3 border-b sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-base">Request queue</CardTitle>
           {can(access.designation, "requests.search_filters") ? (
@@ -260,36 +277,39 @@ export function RequestsPage({
             </div>
           ) : null}
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="min-w-0 p-0">
           {loading || pending ? (
-            <div className="space-y-3 p-4">
+            <div className="space-y-3 p-4" role="status" aria-label="Loading requests">
               {Array.from({ length: 5 }).map((_, index) => (
                 <Skeleton key={index} className="h-10 w-full" />
               ))}
             </div>
+          ) : rows.length === 0 ? (
+            <Empty className="border-0 py-12">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <IconClipboardList aria-hidden />
+                </EmptyMedia>
+                <EmptyTitle>No consultation requests</EmptyTitle>
+                <EmptyDescription>
+                  New requests will appear here for nurse triage.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           ) : (
+            <div className="min-w-0 overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Patient</TableHead>
-                  <TableHead>Service</TableHead>
-                  <TableHead>Preferred</TableHead>
+                  <TableHead className="hidden sm:table-cell">Service</TableHead>
+                  <TableHead className="hidden md:table-cell">Preferred</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={5}
-                      className="py-10 text-center text-sm text-muted-foreground"
-                    >
-                      No consultation requests found.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  rows.map((row) => (
+                {rows.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell>
                         <div className="min-w-0">
@@ -299,8 +319,10 @@ export function RequestsPage({
                           </p>
                         </div>
                       </TableCell>
-                      <TableCell>{row.service}</TableCell>
-                      <TableCell className="text-sm">
+                      <TableCell className="hidden sm:table-cell">
+                        {row.service}
+                      </TableCell>
+                      <TableCell className="hidden text-sm md:table-cell">
                         {formatRequestDate(row.preferredDate)}{" "}
                         {row.preferredTime || ""}
                       </TableCell>
@@ -313,6 +335,7 @@ export function RequestsPage({
                         <div className="flex flex-wrap justify-end gap-1">
                           {canViewDetails ? (
                             <Button
+                              type="button"
                               size="xs"
                               variant="ghost"
                               onClick={() => openRequest(row)}
@@ -322,6 +345,7 @@ export function RequestsPage({
                           ) : null}
                           {canApprove && row.status === "pending" ? (
                             <Button
+                              type="button"
                               size="xs"
                               onClick={() => openRequest(row)}
                             >
@@ -330,6 +354,7 @@ export function RequestsPage({
                           ) : null}
                           {canReschedule && row.status === "pending" ? (
                             <Button
+                              type="button"
                               size="xs"
                               variant="outline"
                               onClick={() => openRequest(row)}
@@ -339,6 +364,7 @@ export function RequestsPage({
                           ) : null}
                           {canDecline && row.status === "pending" ? (
                             <Button
+                              type="button"
                               size="xs"
                               variant="destructive"
                               onClick={() => openRequest(row)}
@@ -349,13 +375,14 @@ export function RequestsPage({
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
+                  ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
+      </PanelFrame>
 
       <ConsultationRequestDetailSheet
         request={selected}

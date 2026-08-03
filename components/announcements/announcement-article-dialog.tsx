@@ -4,6 +4,10 @@ import { IconArrowUp, IconX } from "@tabler/icons-react"
 import { useEffect, useRef } from "react"
 
 import { AnnouncementAttachmentsView } from "@/components/announcements/announcement-attachments-view"
+import {
+  AnnouncementImageGallery,
+  announcementImages,
+} from "@/components/announcements/announcement-image-gallery"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -49,6 +53,7 @@ export function AnnouncementArticleDialog({
   if (!announcement) return null
 
   const cover = announcementCoverUrl(announcement)
+  const images = announcementImages(announcement.attachments)
   const paragraphs = bodyParagraphs(announcement.body)
   const documentAttachments = (announcement.attachments ?? []).filter(
     (item) => item.kind !== "image"
@@ -131,15 +136,10 @@ export function AnnouncementArticleDialog({
           </header>
 
           <article className="bg-background px-6 py-8 sm:px-10 sm:py-10">
-            {cover ? (
-              <figure className="mx-auto mb-8 max-w-3xl overflow-hidden rounded-sm border border-border/60 bg-muted shadow-sm">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={cover}
-                  alt=""
-                  className="mx-auto block max-h-[520px] w-full object-contain"
-                />
-              </figure>
+            {images.length > 0 ? (
+              <div className="mb-8">
+                <AnnouncementImageGallery images={images} />
+              </div>
             ) : null}
 
             <div className="mx-auto max-w-2xl space-y-5">

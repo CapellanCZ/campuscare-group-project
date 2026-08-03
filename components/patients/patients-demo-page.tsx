@@ -15,6 +15,10 @@ import { PatientMedicalSheet } from "@/components/patients/patient-medical-sheet
 import { PatientProfileSheet } from "@/components/patients/patient-profile-sheet"
 import { DemoPageHeader, DemoStatGrid } from "@/components/demo/demo-page"
 import {
+  PanelFrame,
+  panelCardClassName,
+} from "@/components/layout/panel-frame"
+import {
   DirectoryColumnHeader,
   DirectoryColumnLabel,
   type ColumnSortDirection,
@@ -27,6 +31,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -56,7 +67,8 @@ import {
   type PatientRecordSortColumn,
   type PatientRecordStats,
 } from "@/types/patientRecord"
-import { IconSearch } from "@tabler/icons-react"
+import { IconSearch, IconUsers } from "@tabler/icons-react"
+import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 300
@@ -319,7 +331,7 @@ export function PatientsPage({
     : "No enrolled students found. Check the Student Dataset file in Storage."
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <DemoPageHeader
         title="Patient Records"
         description="Enrolled student medical records. Search by Student ID; update medical history and physical exam here."
@@ -331,7 +343,8 @@ export function PatientsPage({
         <DemoStatGrid stats={statCards} />
       ) : null}
 
-      <Card className="min-w-0 gap-0 py-0 shadow-none dark:ring-0">
+      <PanelFrame>
+        <Card className={cn(panelCardClassName, "gap-0 py-0")}>
         <CardHeader className="flex flex-col gap-3 border-b pt-(--card-spacing) sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-base">Student directory</CardTitle>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
@@ -352,10 +365,21 @@ export function PatientsPage({
             ) : null}
           </div>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="min-w-0 p-0">
           {showSkeleton ? (
             <PatientsTableSkeleton />
+          ) : rows.length === 0 ? (
+            <Empty className="border-0 py-12">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <IconUsers aria-hidden />
+                </EmptyMedia>
+                <EmptyTitle>No patients found</EmptyTitle>
+                <EmptyDescription>{emptyMessage}</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           ) : (
+            <div className="min-w-0 overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
@@ -368,7 +392,7 @@ export function PatientsPage({
                       onClearSort={() => setColumnSort("patient", "asc")}
                     />
                   </TableHead>
-                  <TableHead className="h-12 px-4">
+                  <TableHead className="hidden h-12 px-4 md:table-cell">
                     <DirectoryColumnHeader
                       title="Program"
                       sortDirection={sortDirectionFor("program")}
@@ -377,10 +401,10 @@ export function PatientsPage({
                       onClearSort={() => setColumnSort("patient", "asc")}
                     />
                   </TableHead>
-                  <TableHead className="h-12 px-4">
+                  <TableHead className="hidden h-12 px-4 lg:table-cell">
                     <DirectoryColumnLabel title="Allergies / flags" />
                   </TableHead>
-                  <TableHead className="h-12 px-4">
+                  <TableHead className="hidden h-12 px-4 sm:table-cell">
                     <DirectoryColumnHeader
                       title="Last edited"
                       sortDirection={sortDirectionFor("lastVisit")}
@@ -398,17 +422,7 @@ export function PatientsPage({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={5}
-                      className="py-10 text-center text-sm text-muted-foreground"
-                    >
-                      {emptyMessage}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  rows.map((row) => (
+                {rows.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell className="px-4">
                         <div className="flex items-center gap-2">
@@ -420,8 +434,10 @@ export function PatientsPage({
                           {row.yearLevel ? ` · ${row.yearLevel}` : ""}
                         </p>
                       </TableCell>
-                      <TableCell className="px-4">{row.course || "—"}</TableCell>
-                      <TableCell className="px-4">
+                      <TableCell className="hidden px-4 md:table-cell">
+                        {row.course || "—"}
+                      </TableCell>
+                      <TableCell className="hidden px-4 lg:table-cell">
                         <p className="text-sm">
                           {row.allergies ||
                             (row.medicalHistory?.allergy
@@ -429,7 +445,7 @@ export function PatientsPage({
                               : "None")}
                         </p>
                       </TableCell>
-                      <TableCell className="px-4">
+                      <TableCell className="hidden px-4 sm:table-cell">
                         <p>
                           {row.lastEditedAt
                             ? new Date(row.lastEditedAt).toLocaleString(
@@ -499,13 +515,14 @@ export function PatientsPage({
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
+                  ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
+      </PanelFrame>
 
       <PatientMedicalSheet
         patient={medicalPatient}

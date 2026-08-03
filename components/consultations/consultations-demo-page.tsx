@@ -13,6 +13,10 @@ import { toast } from "sonner"
 import { ConsultationDeleteDialog } from "@/components/consultations/consultation-delete-dialog"
 import { ConsultationFormSheet } from "@/components/consultations/consultation-form-sheet"
 import { DemoPageHeader, DemoStatGrid } from "@/components/demo/demo-page"
+import {
+  PanelFrame,
+  panelCardClassName,
+} from "@/components/layout/panel-frame"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -21,6 +25,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -55,6 +66,8 @@ import {
   type ConsultationStats,
   type ConsultationStatus,
 } from "@/types/consultation"
+import { IconStethoscope } from "@tabler/icons-react"
+import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 300
@@ -286,7 +299,7 @@ export function ConsultationsPage({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <DemoPageHeader
         title={d === "dentist" ? "Dental consultations" : "Consultations"}
         description={
@@ -298,7 +311,7 @@ export function ConsultationsPage({
         showDemoBanner={false}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={refresh}>
+            <Button type="button" size="sm" variant="outline" onClick={refresh}>
               Refresh
             </Button>
             {can(d, "consultations.create_record") ||
@@ -322,7 +335,8 @@ export function ConsultationsPage({
         <DemoStatGrid stats={statCards} />
       ) : null}
 
-      <Card className="min-w-0 shadow-none dark:ring-0">
+      <PanelFrame>
+      <Card className={cn(panelCardClassName, "gap-0 py-0")}>
         <CardHeader className="flex flex-col gap-3 border-b">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base">Today&apos;s consultations</CardTitle>
@@ -392,32 +406,35 @@ export function ConsultationsPage({
             />
           </div>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="min-w-0 p-0">
           {showSkeleton ? (
             <ConsultationsTableSkeleton />
+          ) : rows.length === 0 ? (
+            <Empty className="border-0 py-12">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <IconStethoscope aria-hidden />
+                </EmptyMedia>
+                <EmptyTitle>No consultations found</EmptyTitle>
+                <EmptyDescription>
+                  Adjust filters or create a consultation to get started.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           ) : (
+            <div className="min-w-0 overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Patient</TableHead>
-                  <TableHead>Station</TableHead>
+                  <TableHead className="hidden sm:table-cell">Station</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Provider</TableHead>
+                  <TableHead className="hidden md:table-cell">Provider</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={5}
-                      className="py-10 text-center text-sm text-muted-foreground"
-                    >
-                      No consultations found.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  rows.map((row) => (
+                {rows.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell>
                         <p className="font-medium">{row.patient.fullName}</p>
@@ -426,17 +443,20 @@ export function ConsultationsPage({
                           {row.chiefComplaint || "No complaint"}
                         </p>
                       </TableCell>
-                      <TableCell className="capitalize">
+                      <TableCell className="hidden capitalize sm:table-cell">
                         {row.station || "—"}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">{row.status}</Badge>
                       </TableCell>
-                      <TableCell>{row.providerName || "—"}</TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        {row.providerName || "—"}
+                      </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap justify-end gap-1">
                           {can(d, "consultations.view_patient") ? (
                             <Button
+                              type="button"
                               size="xs"
                               variant="outline"
                               onClick={() =>
@@ -451,6 +471,7 @@ export function ConsultationsPage({
                           {can(d, "consultations.record_initial_assessment") &&
                           !row.assessment ? (
                             <Button
+                              type="button"
                               size="xs"
                               onClick={() => {
                                 setFormMode("edit")
@@ -464,6 +485,7 @@ export function ConsultationsPage({
                           {can(d, "consultations.create_record") &&
                           row.status !== "Completed" ? (
                             <Button
+                              type="button"
                               size="xs"
                               onClick={() => {
                                 setFormMode("edit")
@@ -554,13 +576,14 @@ export function ConsultationsPage({
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
+                  ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
+      </PanelFrame>
 
       <ConsultationFormSheet
         open={formOpen}
