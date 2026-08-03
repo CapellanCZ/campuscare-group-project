@@ -128,6 +128,7 @@ export function RoleDashboard({
   const isSpecialty =
     access.designation === "physician" || access.designation === "dentist"
   const isAdmin = access.designation === "admin"
+  const isPhysician = access.designation === "physician"
   const nowServing = tickets.find((t) => t.status === "called") ?? null
   const waiting = tickets
     .filter(
@@ -136,7 +137,10 @@ export function RoleDashboard({
     )
     .slice(0, 8)
 
-  const kpiCards = kpis.cards.slice(0, isAdmin || isSpecialty ? 6 : 3)
+  const kpiCards = kpis.cards.slice(
+    0,
+    isPhysician ? 4 : isAdmin || isSpecialty ? 6 : 3
+  )
 
   const queueHref =
     access.designation === "queue_display"
@@ -147,6 +151,8 @@ export function RoleDashboard({
   const queueTitle =
     access.designation === "dentist"
       ? "Today's dental queue"
+      : isPhysician
+        ? "Your station queue"
       : isSpecialty
         ? "Station queue"
         : "Live queue"
@@ -164,7 +170,11 @@ export function RoleDashboard({
       <div className="flex flex-col gap-4">
         <PageIntro
           title={`Welcome back, ${firstName}`}
-          description={`${designationLabel(access.designation)} overview · ${stats.totalWaiting} waiting · ${stats.currentlyServing} serving`}
+          description={
+            isPhysician
+              ? `Your physician station · ${stats.totalWaiting} waiting · ${stats.currentlyServing} serving`
+              : `${designationLabel(access.designation)} overview · ${stats.totalWaiting} waiting · ${stats.currentlyServing} serving`
+          }
           action={
             <Button
               size="sm"
@@ -246,7 +256,7 @@ export function RoleDashboard({
               </PanelCell>
             ) : null}
 
-            <PanelCell className="lg:col-span-2">
+            <PanelCell className={isPhysician ? "lg:col-span-3" : "lg:col-span-2"}>
               <Card className={cn(panelCardClassName, "gap-0 py-0")}>
                 <CardHeader className="border-b">
                   <div className="flex items-center justify-between gap-2">
@@ -367,7 +377,8 @@ export function RoleDashboard({
               </Card>
             </PanelCell>
 
-            <PanelCell>
+            {!isPhysician ? (
+              <PanelCell>
               <Card className={cn(panelCardClassName, "h-full")}>
                 <CardHeader>
                   <CardTitle>Stations</CardTitle>
@@ -407,7 +418,8 @@ export function RoleDashboard({
                   )}
                 </CardContent>
               </Card>
-            </PanelCell>
+              </PanelCell>
+            ) : null}
           </PanelGrid>
         </PanelFrame>
       </div>
@@ -418,13 +430,15 @@ export function RoleDashboard({
           <PanelGrid className="lg:grid-cols-3">
             <RoleDashboardSummaries access={access} summary={summary} />
 
-            <PanelCell className="lg:col-span-2">
-              <ActivityFeed
-                className={panelCardClassName}
-                items={activity}
-                title="Activity"
-              />
-            </PanelCell>
+            {!isPhysician ? (
+              <PanelCell className="lg:col-span-2">
+                <ActivityFeed
+                  className={panelCardClassName}
+                  items={activity}
+                  title="Activity"
+                />
+              </PanelCell>
+            ) : null}
 
             <PanelCell>
               <Card className={cn(panelCardClassName, "h-full")}>

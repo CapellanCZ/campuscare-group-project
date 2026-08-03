@@ -143,6 +143,7 @@ export function CertificatesPage({
   const skipNextFetch = useRef(true)
 
   const d = access.designation
+  const isPhysician = d === "physician"
   const cardsLevel = getAccessLevel(d, "certificates.summary_cards")
   const canPrint = can(d, "certificates.print")
   const canManage = canMutate(d, "certificates.generate")
@@ -172,6 +173,7 @@ export function CertificatesPage({
           pageSize: PAGE_SIZE,
           sortBy: "issued_at",
           sortDirection: "desc",
+            studentIdOnly: isPhysician,
         }),
         fetchMedicalCertificateStatsAction(),
       ])
@@ -194,7 +196,7 @@ export function CertificatesPage({
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [isPhysician])
 
   const refresh = useCallback(async () => {
     await loadPage(debouncedQuery, page)

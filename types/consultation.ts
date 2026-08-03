@@ -103,6 +103,8 @@ export type ConsultationStats = {
 
 export type ConsultationListParams = {
   query?: string
+  /** When true, query matches campus/student ID only. */
+  studentIdOnly?: boolean
   page?: number
   pageSize?: number
   status?: ConsultationStatus | "all"

@@ -51,6 +51,8 @@ export type MedicalCertificateSortDirection = "asc" | "desc"
 
 export type MedicalCertificateListParams = {
   query?: string
+  /** When true, query matches student/campus ID only. */
+  studentIdOnly?: boolean
   page?: number
   pageSize?: number
   sortBy?: MedicalCertificateSortField

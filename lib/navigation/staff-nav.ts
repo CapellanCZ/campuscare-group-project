@@ -222,6 +222,10 @@ export function filterNavGroupsForRole(
     .map((group) => ({
       ...group,
       items: group.items.filter((item) => {
+        // Public Display gets its own login later — hide from physician sidebar.
+        if (item.id === "display" && designation === "physician") {
+          return false
+        }
         if (!item.module) return true
         return canViewModule(designation, item.module)
       }),

@@ -116,15 +116,20 @@ export async function StaffQueuePage() {
     access.designation === "physician" || access.designation === "dentist"
       ? allTickets.filter((t) => t.station === station)
       : allTickets
+  const isPhysician = access.designation === "physician"
 
   return (
     <QueuePage
       access={access}
       tickets={tickets}
       stats={computeQueueStats(tickets)}
-      boards={await getStationBoards(allTickets)}
-      recent={await getRecentlyServed(8, allTickets)}
-      activity={await getQueueActivity(8, allTickets)}
+      boards={
+        isPhysician ? [] : await getStationBoards(allTickets)
+      }
+      recent={await getRecentlyServed(8, tickets)}
+      activity={
+        isPhysician ? [] : await getQueueActivity(8, allTickets)
+      }
     />
   )
 }
@@ -475,10 +480,32 @@ export async function StaffSettingsPage() {
     )
   }
 
-  if (
-    access.primaryRole === "physician" ||
-    access.primaryRole === "dentist"
-  ) {
+  if (access.primaryRole === "physician") {
+    const { getClinicHours, getStaffWeeklyHours } = await import(
+      "@/lib/availability/queries"
+    )
+    const { StaffSchedulePage } = await import(
+      "@/features/availability/components/staff-schedule-page"
+    )
+    const [availability, clinicHours] = await Promise.all([
+      getStaffWeeklyHours(access.userId),
+      getClinicHours(),
+    ])
+    return (
+      <div className="flex flex-1 flex-col gap-8">
+        {profilePage}
+        <StaffSchedulePage
+          role={access.primaryRole}
+          doctorName={access.fullName}
+          availability={availability}
+          clinicHours={clinicHours}
+          embeddedInSettings
+        />
+      </div>
+    )
+  }
+
+  if (access.primaryRole === "dentist") {
     const { getClinicHours, getStaffWeeklyHours } = await import(
       "@/lib/availability/queries"
     )

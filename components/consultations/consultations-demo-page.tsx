@@ -159,6 +159,7 @@ export function ConsultationsPage({
   const [isPending, startTransition] = useTransition()
   const skipNextFetch = useRef(true)
   const d = access.designation
+  const isPhysician = d === "physician"
 
   useEffect(() => {
     if (initialError) toast.error(initialError)
@@ -178,11 +179,12 @@ export function ConsultationsPage({
       page: 1,
       pageSize: PAGE_SIZE,
       status: statusFilter,
-      provider: providerFilter,
-      station: stationFilter,
+      provider: isPhysician ? "all" : providerFilter,
+      station: isPhysician ? "physician" : stationFilter,
       consultationDate: dateFilter || "all",
+      studentIdOnly: isPhysician,
     }),
-    [statusFilter, providerFilter, stationFilter, dateFilter]
+    [statusFilter, providerFilter, stationFilter, dateFilter, isPhysician]
   )
 
   const loadPage = useCallback(
@@ -343,7 +345,9 @@ export function ConsultationsPage({
             <CardTitle className="text-base">Today&apos;s consultations</CardTitle>
             <Input
               className="sm:ml-auto sm:w-72"
-              placeholder="e.g. 2023-172065"
+              placeholder={
+                isPhysician ? "Search by student ID" : "e.g. 2023-172065"
+              }
               inputMode="numeric"
               autoComplete="off"
               maxLength={11}
@@ -383,38 +387,42 @@ export function ConsultationsPage({
                 ))}
               </SelectContent>
             </Select>
-            <Select
-              value={providerFilter}
-              onValueChange={(value) => setProviderFilter(value ?? "all")}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Provider" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All providers</SelectItem>
-                {providers.map((provider) => (
-                  <SelectItem key={provider} value={provider}>
-                    {provider}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={stationFilter}
-              onValueChange={(value) => setStationFilter(value ?? "all")}
-            >
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Station" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All stations</SelectItem>
-                {stations.map((station) => (
-                  <SelectItem key={station} value={station}>
-                    {station}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {!isPhysician ? (
+              <>
+                <Select
+                  value={providerFilter}
+                  onValueChange={(value) => setProviderFilter(value ?? "all")}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Provider" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All providers</SelectItem>
+                    {providers.map((provider) => (
+                      <SelectItem key={provider} value={provider}>
+                        {provider}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={stationFilter}
+                  onValueChange={(value) => setStationFilter(value ?? "all")}
+                >
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue placeholder="Station" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All stations</SelectItem>
+                    {stations.map((station) => (
+                      <SelectItem key={station} value={station}>
+                        {station}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
+            ) : null}
             <Input
               type="date"
               className="w-[160px]"

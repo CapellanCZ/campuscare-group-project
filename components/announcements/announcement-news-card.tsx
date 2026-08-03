@@ -5,7 +5,6 @@ import {
   announcementExcerpt,
 } from "@/features/announcements/lib/display"
 import { announcementImages } from "@/components/announcements/announcement-image-gallery"
-import { formatAnnouncementDate } from "@/features/announcements/lib/format"
 import { cn } from "@/lib/utils"
 import type { Announcement } from "@/types/announcement"
 
@@ -22,9 +21,6 @@ export function AnnouncementNewsCard({
 }) {
   const cover = announcementCoverUrl(announcement)
   const imageCount = announcementImages(announcement.attachments).length
-  const dateLabel = formatAnnouncementDate(
-    announcement.publishedAt ?? announcement.updatedAt
-  )
   const excerpt = announcementExcerpt(
     announcement.body,
     compact ? 90 : 140
@@ -74,7 +70,6 @@ export function AnnouncementNewsCard({
           compact && "sm:py-2.5"
         )}
       >
-        <p className="text-[11px] text-muted-foreground">{dateLabel}</p>
         <h3
           className={cn(
             "font-semibold text-foreground group-hover:text-primary",
@@ -93,9 +88,6 @@ export function AnnouncementNewsCard({
             {excerpt}
           </p>
         ) : null}
-        <p className="mt-auto pt-1 text-[11px] text-muted-foreground">
-          {announcement.audience}
-        </p>
       </div>
     </button>
   )

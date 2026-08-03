@@ -17,7 +17,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { announcementCoverUrl } from "@/features/announcements/lib/display"
-import { formatAnnouncementDateTime } from "@/features/announcements/lib/format"
 import type { Announcement } from "@/types/announcement"
 
 function bodyParagraphs(body: string): string[] {
@@ -58,9 +57,6 @@ export function AnnouncementArticleDialog({
   const documentAttachments = (announcement.attachments ?? []).filter(
     (item) => item.kind !== "image"
   )
-  const publishedLabel = formatAnnouncementDateTime(
-    announcement.publishedAt ?? announcement.updatedAt
-  )
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -70,9 +66,7 @@ export function AnnouncementArticleDialog({
       >
         <DialogHeader className="sr-only">
           <DialogTitle>{announcement.title}</DialogTitle>
-          <DialogDescription>
-            Published announcement for {announcement.audience}
-          </DialogDescription>
+          <DialogDescription>Published announcement</DialogDescription>
         </DialogHeader>
 
         <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
@@ -125,10 +119,6 @@ export function AnnouncementArticleDialog({
             )}
 
             <div className="relative z-10 flex h-full min-h-[220px] flex-col justify-end gap-3 px-6 py-8 sm:min-h-[280px] sm:px-10 sm:py-10">
-              <p className="text-xs tracking-wide text-white/70 uppercase">
-                {announcement.audience}
-                {publishedLabel !== "—" ? ` · ${publishedLabel}` : ""}
-              </p>
               <h2 className="max-w-3xl text-2xl leading-tight font-semibold text-balance text-white sm:text-3xl">
                 {announcement.title}
               </h2>

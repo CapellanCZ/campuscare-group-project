@@ -24,22 +24,49 @@ import type { ReportTableBundle, ReportTableRow } from "@/features/reports/types
 
 const PAGE_SIZE = 8
 
+function rowMatchesQuery(row: ReportTableRow, query: string) {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  const cellText = Object.values(row.cells)
+    .map((value) => String(value ?? ""))
+    .join(" ")
+    .toLowerCase()
+  const detailText = row.details
+    ? Object.values(row.details)
+        .map((value) => String(value ?? ""))
+        .join(" ")
+        .toLowerCase()
+    : ""
+  return cellText.includes(q) || detailText.includes(q)
+}
+
 export function ReportDataTable({
   table,
   query,
   onQueryChange,
+  hideTitle = false,
+  /** Isolate search to this table (does not update shared report filters). */
+  independentSearch = false,
 }: {
   table: ReportTableBundle
   query: string
   onQueryChange: (query: string) => void
+  /** When parent already shows the report title. */
+  hideTitle?: boolean
+  independentSearch?: boolean
 }) {
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
   const [page, setPage] = useState(1)
   const [details, setDetails] = useState<ReportTableRow | null>(null)
+  const [localQuery, setLocalQuery] = useState("")
+
+  const activeQuery = independentSearch ? localQuery : query
 
   const sorted = useMemo(() => {
-    const rows = [...table.rows]
+    const rows = independentSearch
+      ? table.rows.filter((row) => rowMatchesQuery(row, activeQuery))
+      : [...table.rows]
     if (!sortKey) return rows
     rows.sort((a, b) => {
       const av = a.cells[sortKey]
@@ -54,7 +81,7 @@ export function ReportDataTable({
       return sortDir === "asc" ? as.localeCompare(bs) : bs.localeCompare(as)
     })
     return rows
-  }, [table.rows, sortKey, sortDir])
+  }, [table.rows, sortKey, sortDir, independentSearch, activeQuery])
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
   const currentPage = Math.min(page, totalPages)
@@ -76,17 +103,24 @@ export function ReportDataTable({
     <div className="space-y-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-medium">{table.title}</h3>
+          {hideTitle ? null : (
+            <h3 className="text-sm font-medium">{table.title}</h3>
+          )}
           <Badge variant="secondary" className="tabular-nums">
-            {table.rows.length}
+            {sorted.length}
           </Badge>
         </div>
         <Input
           className="sm:max-w-72"
           placeholder="Search report rows"
-          value={query}
+          value={activeQuery}
           onChange={(e) => {
-            onQueryChange(e.target.value)
+            const next = e.target.value
+            if (independentSearch) {
+              setLocalQuery(next)
+            } else {
+              onQueryChange(next)
+            }
             setPage(1)
           }}
         />

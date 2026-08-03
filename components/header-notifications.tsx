@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import {
   fetchNotificationsAction,
+  fetchPreferencesAction,
   markAllNotificationsReadAction,
   markNotificationReadAction,
 } from "@/features/settings/actions"
@@ -58,8 +59,21 @@ function HeaderNotificationsInbox() {
 
   const load = useCallback(() => {
     startTransition(async () => {
-      const result = await fetchNotificationsAction()
-      if (result.ok) setItems(result.data)
+      const [notificationsResult, preferencesResult] = await Promise.all([
+        fetchNotificationsAction(),
+        fetchPreferencesAction(),
+      ])
+      if (!notificationsResult.ok) return
+      const preferences = preferencesResult.ok ? preferencesResult.data : null
+      setItems(
+        notificationsResult.data.filter((notification) => {
+          if (notification.type === "consultation_request") {
+            return preferences?.notifyConsultationRequests ?? true
+          }
+          if (notification.type === "queue") return preferences?.notifyQueue ?? true
+          return preferences?.notifyAnnouncements ?? true
+        })
+      )
     })
   }, [])
 

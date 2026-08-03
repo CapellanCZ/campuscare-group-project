@@ -422,7 +422,11 @@ export function RoleDashboardSummaries({
         </PanelCell>
       ) : null}
 
-      <PanelCell className={isSpecialty ? undefined : "lg:col-span-2"}>
+      <PanelCell
+        className={
+          isPhysician ? "lg:col-span-2" : isSpecialty ? undefined : "lg:col-span-2"
+        }
+      >
         <ModuleSnapshot
           title={isDentist ? "Dental consultations" : "Consultations"}
           description="Clinical visit status today."
@@ -434,10 +438,14 @@ export function RoleDashboardSummaries({
                 label: "Open",
                 value: summary.consultationStats.openToday,
               },
-              {
-                label: "Awaiting",
-                value: summary.consultationStats.awaitingAssessment,
-              },
+              ...(isPhysician
+                ? []
+                : [
+                    {
+                      label: "Awaiting",
+                      value: summary.consultationStats.awaitingAssessment,
+                    },
+                  ]),
               {
                 label: "In progress",
                 value: summary.consultationStats.inProgress,
@@ -451,7 +459,8 @@ export function RoleDashboardSummaries({
         </ModuleSnapshot>
       </PanelCell>
 
-      <PanelCell>
+      {!isPhysician ? (
+        <PanelCell>
         <ModuleSnapshot
           title={isDentist ? "Dental certificates" : "Medical certificates"}
           description={
@@ -488,9 +497,10 @@ export function RoleDashboardSummaries({
             </Button>
           ) : null}
         </ModuleSnapshot>
-      </PanelCell>
+        </PanelCell>
+      ) : null}
 
-      {summary.patientStats ? (
+      {!isPhysician && summary.patientStats ? (
         <PanelCell>
           <ModuleSnapshot
             title="Patient records"
@@ -570,6 +580,7 @@ export function RoleDashboardSummaries({
         </PanelCell>
       ) : null}
 
+      {!isPhysician ? (
       <PanelCell className={isAdmin || isNurse ? "lg:col-span-2" : undefined}>
         <ModuleSnapshot
           title="Announcements"
@@ -627,6 +638,7 @@ export function RoleDashboardSummaries({
           )}
         </ModuleSnapshot>
       </PanelCell>
+      ) : null}
 
       <DeclineRequestDialog
         open={Boolean(declineTarget)}

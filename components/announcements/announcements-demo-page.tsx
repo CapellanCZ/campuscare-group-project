@@ -64,7 +64,7 @@ import type {
 } from "@/types/announcement"
 
 const PAGE_SIZE = 10
-const FEED_PAGE_SIZE = 6
+const FEED_PAGE_SIZE = 24
 const FEED_PREVIEW_LIMIT = 6
 const SEARCH_DEBOUNCE_MS = 300
 const STATUS_FILTERS = ["all", "published", "scheduled", "draft"] as const
@@ -166,6 +166,7 @@ export function AnnouncementsPage({
   const skipNextFetch = useRef(true)
 
   const d = access.designation
+  const isPhysician = d === "physician"
   const canManage = canMutate(d, "announcements.add")
   const canEdit = can(d, "announcements.edit")
   const canPublish = can(d, "announcements.publish")
@@ -349,9 +350,10 @@ export function AnnouncementsPage({
     <div className="flex flex-col gap-6">
       <DemoPageHeader
         title="Announcements"
-        description="Clinic notices for students and staff"
+        description={isPhysician ? "" : "Clinic notices for students and staff"}
         designation={d}
         showDemoBanner={false}
+        showRoleSuffix={!isPhysician}
         actions={
           canManage ? (
             <Button onClick={openCreate}>Add announcement</Button>
@@ -383,9 +385,9 @@ export function AnnouncementsPage({
         ) : hasFeed ? (
           <>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {(showAllFeed
-                ? feed.items
-                : feed.items.slice(0, FEED_PREVIEW_LIMIT)
+              {(isPhysician && !showAllFeed
+                ? feed.items.slice(0, FEED_PREVIEW_LIMIT)
+                : feed.items
               ).map((item) => (
                 <AnnouncementNewsCard
                   key={item.id}
@@ -394,28 +396,15 @@ export function AnnouncementsPage({
                 />
               ))}
             </div>
-            {!showAllFeed &&
-            (feed.total > FEED_PREVIEW_LIMIT || canManage) ? (
+            {isPhysician && feed.items.length > FEED_PREVIEW_LIMIT ? (
               <div className="flex justify-center pt-1">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    const manage = document.getElementById(
-                      "announcements-manage"
-                    )
-                    if (manage) {
-                      manage.scrollIntoView({
-                        behavior: "smooth",
-                        block: "start",
-                      })
-                      return
-                    }
-                    setShowAllFeed(true)
-                  }}
+                  onClick={() => setShowAllFeed((current) => !current)}
                 >
-                  View All
+                  {showAllFeed ? "Show less" : "View All"}
                 </Button>
               </div>
             ) : null}

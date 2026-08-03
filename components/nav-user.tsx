@@ -20,7 +20,12 @@ import {
 import { useOptionalStaffAccess } from "@/components/staff-access-provider"
 import { signOut } from "@/app/auth/actions"
 import { staffBasePath } from "@/lib/auth/home-path"
-import { IconCalendar, IconLogout, IconUser } from "@tabler/icons-react"
+import {
+  IconCalendar,
+  IconLogout,
+  IconSettings,
+  IconUser,
+} from "@tabler/icons-react"
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -38,6 +43,7 @@ export function NavUser() {
   const avatarUrl = access?.avatarUrl ?? null
   const base = access ? staffBasePath(access.primaryRole) : "/login"
   const settingsHref = `${base}/settings`
+  const isPhysician = access?.primaryRole === "physician"
   const showSchedule =
     access?.primaryRole === "physician" || access?.primaryRole === "dentist"
   const mark = initials(name)
@@ -86,10 +92,23 @@ export function NavUser() {
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
-            <DropdownMenuItem render={<Link href={settingsHref} />}>
-              <IconUser aria-hidden="true" />
-              Profile
-            </DropdownMenuItem>
+            {isPhysician ? (
+              <DropdownMenuItem render={<Link href={settingsHref} />}>
+                <IconUser aria-hidden="true" />
+                Profile and Settings
+              </DropdownMenuItem>
+            ) : (
+              <>
+                <DropdownMenuItem render={<Link href={settingsHref} />}>
+                  <IconUser aria-hidden="true" />
+                  Account
+                </DropdownMenuItem>
+                <DropdownMenuItem render={<Link href={settingsHref} />}>
+                  <IconSettings aria-hidden="true" />
+                  Settings
+                </DropdownMenuItem>
+              </>
+            )}
             {showSchedule ? (
               <DropdownMenuItem render={<Link href={settingsHref} />}>
                 <IconCalendar aria-hidden="true" />

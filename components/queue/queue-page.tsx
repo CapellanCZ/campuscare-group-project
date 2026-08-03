@@ -155,6 +155,7 @@ export function QueuePage({
   const canMutate = canMutateQueue(access.designation)
   const myStation = stationForDesignation(access.designation)
   const isNurse = access.designation === "nurse"
+  const isPhysician = access.designation === "physician"
   const isSpecialtyStation =
     access.designation === "physician" || access.designation === "dentist"
 
@@ -318,6 +319,8 @@ export function QueuePage({
         title={
           isNurse
             ? "Nurse queue"
+            : isPhysician
+              ? "Your station queue"
             : access.designation === "dentist"
               ? "Dental queue"
               : "Queue management"
@@ -327,6 +330,8 @@ export function QueuePage({
             ? " · monitoring only"
             : isNurse
               ? " · vitals & specialty handoff"
+              : isPhysician
+                ? " · your station only"
               : access.designation === "dentist"
                 ? " · dental patients only"
                 : " · live controls"
@@ -377,7 +382,7 @@ export function QueuePage({
                 }}
               />
             </PanelCell>
-          ) : (
+          ) : isPhysician ? null : (
             cards.map((card) => (
               <PanelCell key={card.label}>
                 <StatCard flush label={card.label} value={card.value} />
@@ -1117,6 +1122,7 @@ export function QueuePage({
             </Card>
           </PanelCell>
 
+          {!isPhysician ? (
           <PanelCell className={isNurse ? "lg:col-span-1" : undefined}>
             <Card className={cn(panelCardClassName)}>
               <CardHeader>
@@ -1146,8 +1152,9 @@ export function QueuePage({
               </CardContent>
             </Card>
           </PanelCell>
+          ) : null}
 
-          {!isNurse ? (
+          {!isNurse && !isPhysician ? (
             <PanelCell>
               <ActivityFeed
                 className={panelCardClassName}
@@ -1157,7 +1164,15 @@ export function QueuePage({
             </PanelCell>
           ) : null}
 
-          <PanelCell className={isNurse ? "lg:col-span-2" : undefined}>
+          <PanelCell
+            className={
+              isNurse
+                ? "lg:col-span-2"
+                : isPhysician
+                  ? "lg:col-span-3"
+                  : undefined
+            }
+          >
             <Card className={cn(panelCardClassName)}>
               <CardHeader>
                 <CardTitle>Recently served</CardTitle>
@@ -1169,7 +1184,9 @@ export function QueuePage({
                     No completions yet.
                   </p>
                 ) : (
-                  recent.slice(0, isNurse ? 5 : recent.length).map((item) => (
+                  recent
+                    .slice(0, isNurse || isPhysician ? 6 : recent.length)
+                    .map((item) => (
                     <RecentlyServedCard key={item.ticketId} item={item} />
                   ))
                 )}

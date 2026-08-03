@@ -23,12 +23,14 @@ export function DemoPageHeader({
   designation,
   actions,
   showDemoBanner = false,
+  showRoleSuffix = true,
 }: {
   title: string
   description: string
   designation: ClinicDesignation
   actions?: React.ReactNode
   showDemoBanner?: boolean
+  showRoleSuffix?: boolean
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-3">
@@ -39,7 +41,11 @@ export function DemoPageHeader({
       ) : null}
       <PageIntro
         title={title}
-        description={`${description} · ${designationLabel(designation)}`}
+        description={
+          showRoleSuffix
+            ? `${description} · ${designationLabel(designation)}`
+            : description
+        }
         action={actions}
       />
     </div>
