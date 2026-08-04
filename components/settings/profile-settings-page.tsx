@@ -1,13 +1,11 @@
 "use client"
 
 import { useEffect, useRef, useState, useTransition } from "react"
-import { IconEye, IconEyeOff, IconUpload } from "@tabler/icons-react"
 import { toast } from "sonner"
 
 import { DemoPageHeader } from "@/components/demo/demo-page"
 import { useTheme } from "@/components/theme-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -23,7 +21,6 @@ import {
 } from "@/features/settings/actions"
 import { designationLabel } from "@/lib/health/roles"
 import { createClient } from "@/lib/supabase/client"
-import { cn } from "@/lib/utils"
 import type { StaffProfile, UserPreferences } from "@/services/staff-profile"
 
 function initials(name: string) {
@@ -37,7 +34,8 @@ function maskLicense(value: string, visible: boolean) {
   const trimmed = value.trim()
   if (!trimmed) return "—"
   if (visible || trimmed.length <= 4) return trimmed
-  return `${"*".repeat(Math.max(4, trimmed.length - 4))}${trimmed.slice(-4)}`
+  const hidden = Math.max(4, trimmed.length - 4)
+  return `${"*".repeat(hidden)}${trimmed.slice(-4)}`
 }
 
 function ProfileField({
@@ -68,7 +66,7 @@ export function ProfileSettingsPage({
   const fileRef = useRef<HTMLInputElement>(null)
   const [profile, setProfile] = useState(initialProfile)
   const [preferences, setPreferences] = useState(initialPreferences)
-  const [licenseVisible, setLicenseVisible] = useState(false)
+  const [licenseRevealed, setLicenseRevealed] = useState(false)
   const [pending, startTransition] = useTransition()
 
   useEffect(() => {
@@ -123,40 +121,52 @@ export function ProfileSettingsPage({
     })
   }
 
+  const license = profile.licenseNumber ?? ""
+
   return (
     <div className="flex flex-col gap-8 pt-2">
       <DemoPageHeader
         title="Profile and Settings"
-        description="Your staff profile, notifications, and display preferences"
+        description="Your staff profile and notification preferences"
         designation={profile.role}
         showDemoBanner={false}
         showRoleSuffix={false}
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        <Card className="min-w-0 shadow-none dark:ring-0">
+        <Card id="profile" className="min-w-0 scroll-mt-20 shadow-none dark:ring-0">
           <CardHeader className="border-b px-6 py-5">
             <CardTitle className="text-base">Personal Information</CardTitle>
             <CardDescription>
-              Profile details from campus records. Only your photo is editable
-              here.
+              Profile details from campus records. Click your photo to change it.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 px-6 py-6">
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">Profile Picture</p>
               <div className="flex items-center gap-4">
-                <Avatar className="size-20">
-                  {profile.avatarUrl ? (
-                    <AvatarImage
-                      src={profile.avatarUrl}
-                      alt={profile.fullName}
-                    />
-                  ) : null}
-                  <AvatarFallback className="text-lg font-medium">
-                    {initials(profile.fullName)}
-                  </AvatarFallback>
-                </Avatar>
+                <button
+                  type="button"
+                  disabled={pending}
+                  className="group relative rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  aria-label="Change profile picture"
+                  onClick={() => fileRef.current?.click()}
+                >
+                  <Avatar className="size-20">
+                    {profile.avatarUrl ? (
+                      <AvatarImage
+                        src={profile.avatarUrl}
+                        alt={profile.fullName}
+                      />
+                    ) : null}
+                    <AvatarFallback className="text-lg font-medium">
+                      {initials(profile.fullName)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/45 text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                    Change
+                  </span>
+                </button>
                 <div className="min-w-0">
                   <p className="truncate text-lg font-semibold tracking-tight">
                     {profile.fullName}
@@ -195,27 +205,22 @@ export function ProfileSettingsPage({
                   <dt className="text-sm text-muted-foreground">
                     Professional License Number
                   </dt>
-                  <dd className="text-sm font-medium text-foreground">
-                    {maskLicense(profile.licenseNumber ?? "", licenseVisible)}
+                  <dd
+                    className="text-sm font-medium text-foreground tabular-nums"
+                    tabIndex={0}
+                    title={
+                      license
+                        ? "Hover or focus to reveal full license number"
+                        : undefined
+                    }
+                    onMouseEnter={() => setLicenseRevealed(true)}
+                    onMouseLeave={() => setLicenseRevealed(false)}
+                    onFocus={() => setLicenseRevealed(true)}
+                    onBlur={() => setLicenseRevealed(false)}
+                  >
+                    {maskLicense(license, licenseRevealed)}
                   </dd>
                 </div>
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="ghost"
-                  aria-label={
-                    licenseVisible
-                      ? "Hide license number"
-                      : "Show license number"
-                  }
-                  onClick={() => setLicenseVisible((v) => !v)}
-                >
-                  {licenseVisible ? (
-                    <IconEyeOff className="size-4" aria-hidden />
-                  ) : (
-                    <IconEye className="size-4" aria-hidden />
-                  )}
-                </Button>
               </div>
               <ProfileField
                 label="Department"
@@ -227,36 +232,10 @@ export function ProfileSettingsPage({
         </Card>
 
         <div className="flex min-w-0 flex-col gap-6">
-          <Card className="min-w-0 shadow-none dark:ring-0">
-            <CardHeader className="border-b px-6 py-5">
-              <CardTitle className="text-base">Actions</CardTitle>
-              <CardDescription>
-                Profile fields stay view-only except your photo.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2 px-6 py-5">
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled
-                title="Protected fields are managed by administrators"
-              >
-                Edit Profile
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                disabled={pending}
-                onClick={() => fileRef.current?.click()}
-              >
-                <IconUpload className="size-4" aria-hidden />
-                Upload / Change Profile Picture
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="min-w-0 shadow-none dark:ring-0">
+          <Card
+            id="settings"
+            className="min-w-0 scroll-mt-20 shadow-none dark:ring-0"
+          >
             <CardHeader className="border-b px-6 py-5">
               <CardTitle className="text-base">Notification Settings</CardTitle>
               <CardDescription>
@@ -297,48 +276,6 @@ export function ProfileSettingsPage({
                   />
                 </div>
               ))}
-            </CardContent>
-          </Card>
-
-          <Card className="min-w-0 shadow-none dark:ring-0">
-            <CardHeader className="border-b px-6 py-5">
-              <CardTitle className="text-base">Display Preferences</CardTitle>
-              <CardDescription>
-                Appearance for this account across CampusCare.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 px-6 py-5">
-              {(
-                [
-                  { value: "light" as const, label: "Light Mode" },
-                  { value: "dark" as const, label: "Dark Mode" },
-                ] as const
-              ).map((option) => {
-                const selected = preferences.theme === option.value
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    disabled={pending}
-                    onClick={() => savePrefs({ theme: option.value })}
-                    className={cn(
-                      "flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left text-sm transition-colors",
-                      selected
-                        ? "border-primary bg-primary/5 font-medium"
-                        : "border-border/70 hover:border-border hover:bg-muted/40"
-                    )}
-                  >
-                    <span>{option.label}</span>
-                    <span
-                      className={cn(
-                        "size-2 rounded-full",
-                        selected ? "bg-primary" : "bg-transparent"
-                      )}
-                      aria-hidden
-                    />
-                  </button>
-                )
-              })}
             </CardContent>
           </Card>
         </div>

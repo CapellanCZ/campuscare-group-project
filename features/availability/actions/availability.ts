@@ -32,8 +32,11 @@ const REVALIDATE = [
   "/admin/settings",
   "/physician/settings",
   "/dentist/settings",
+  "/nurse",
   "/nurse/dashboard",
+  "/physician",
   "/physician/dashboard",
+  "/dentist",
   "/dentist/dashboard",
   "/physician/appointments",
 ]

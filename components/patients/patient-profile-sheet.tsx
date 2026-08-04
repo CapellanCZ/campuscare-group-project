@@ -18,9 +18,11 @@ import {
 
 function Row({ label, value }: { label: string; value: string | null | undefined }) {
   return (
-    <div className="grid grid-cols-[9rem_1fr] gap-2 text-sm">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 break-words font-medium">{value?.trim() || "—"}</dd>
+    <div className="grid grid-cols-[9.5rem_1fr] items-start gap-x-4 gap-y-1 py-2.5 text-sm">
+      <dt className="pt-0.5 text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 break-words leading-relaxed font-medium">
+        {value?.trim() || "—"}
+      </dd>
     </div>
   )
 }
@@ -69,7 +71,7 @@ function ExamBlock({ exam }: { exam: PhysicalExam }) {
     ["Other findings", exam.otherPertinentFindings],
   ]
   return (
-    <div className="space-y-2">
+    <div className="divide-y divide-border/50">
       {rows.map(([label, value]) => (
         <Row key={label} label={label} value={value} />
       ))}
@@ -104,9 +106,9 @@ export function PatientProfileSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-full flex-col sm:max-w-lg">
-        <SheetHeader>
-          <SheetTitle>
+      <SheetContent className="flex w-full flex-col sm:max-w-xl">
+        <SheetHeader className="gap-2 border-b pb-5">
+          <SheetTitle className="pr-8 text-lg">
             {patient ? patientFullName(patient) : "Patient profile"}
           </SheetTitle>
           <SheetDescription>
@@ -114,64 +116,80 @@ export function PatientProfileSheet({
           </SheetDescription>
         </SheetHeader>
         {patient ? (
-          <dl className="flex-1 space-y-4 overflow-y-auto px-4 pb-6">
-            <div className="space-y-2">
-              <p className="text-sm font-semibold">General Personal Information</p>
-              <Row label="Student ID" value={patientCampusId(patient)} />
-              <Row label="Course" value={patient.course} />
-              <Row label="Year level" value={patient.yearLevel} />
-              <Row label="Sex" value={patient.gender} />
-              <Row label="Birth date" value={patient.birthDate} />
-              <Row label="Age" value={age != null ? String(age) : null} />
-              <Row label="Status" value={patient.civilStatus} />
-              <Row label="Religion" value={patient.religion} />
-              <Row label="Nationality" value={patient.nationality} />
-              <Row label="Phone" value={patient.phone} />
-              <Row label="Email" value={patient.email} />
-              <Row label="Address" value={patient.address} />
+          <dl className="min-h-0 flex-1 space-y-8 overflow-y-auto px-6 py-6">
+            <div className="space-y-1">
+              <p className="mb-3 text-sm font-semibold tracking-tight">
+                General Personal Information
+              </p>
+              <div className="divide-y divide-border/50">
+                <Row label="Student ID" value={patientCampusId(patient)} />
+                <Row label="Course" value={patient.course} />
+                <Row label="Year level" value={patient.yearLevel} />
+                <Row label="Sex" value={patient.gender} />
+                <Row label="Birth date" value={patient.birthDate} />
+                <Row label="Age" value={age != null ? String(age) : null} />
+                <Row label="Status" value={patient.civilStatus} />
+                <Row label="Religion" value={patient.religion} />
+                <Row label="Nationality" value={patient.nationality} />
+                <Row label="Phone" value={patient.phone} />
+                <Row label="Email" value={patient.email} />
+                <Row label="Address" value={patient.address} />
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <p className="text-sm font-semibold">Emergency Contact Details</p>
-              <Row
-                label="Guardian"
-                value={family?.guardianName ?? patient.emergencyContactName}
-              />
-              <Row label="Relationship" value={family?.relationship} />
-              <Row label="Occupation" value={family?.occupation} />
-              <Row label="Address" value={family?.address} />
-              <Row
-                label="Mobile"
-                value={family?.mobile ?? patient.emergencyContactPhone}
-              />
-              <Row label="Email" value={family?.email} />
+            <div className="space-y-1">
+              <p className="mb-3 text-sm font-semibold tracking-tight">
+                Emergency Contact Details
+              </p>
+              <div className="divide-y divide-border/50">
+                <Row
+                  label="Guardian"
+                  value={family?.guardianName ?? patient.emergencyContactName}
+                />
+                <Row label="Relationship" value={family?.relationship} />
+                <Row label="Occupation" value={family?.occupation} />
+                <Row label="Address" value={family?.address} />
+                <Row
+                  label="Mobile"
+                  value={family?.mobile ?? patient.emergencyContactPhone}
+                />
+                <Row label="Email" value={family?.email} />
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <p className="text-sm font-semibold">Medical History</p>
-              <Row
-                label="Previous illness / surgery"
-                value={patient.medicalHistory.previousIllnessOrSurgery}
-              />
-              <FlagRow history={patient.medicalHistory} />
+            <div className="space-y-1">
+              <p className="mb-3 text-sm font-semibold tracking-tight">
+                Medical History
+              </p>
+              <div className="divide-y divide-border/50">
+                <Row
+                  label="Previous illness / surgery"
+                  value={patient.medicalHistory.previousIllnessOrSurgery}
+                />
+                <FlagRow history={patient.medicalHistory} />
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <p className="text-sm font-semibold">Physical Examination</p>
+            <div className="space-y-1">
+              <p className="mb-3 text-sm font-semibold tracking-tight">
+                Physical Examination
+              </p>
               <ExamBlock exam={patient.physicalExam} />
             </div>
 
-            <Row
-              label="Last edited"
-              value={formatLastEdited(
-                patient.lastEditedAt,
-                patient.lastEditedByName
-              )}
-            />
-            <Row
-              label="Consults"
-              value={String(patient.consultationsCount)}
-            />
+            <div className="divide-y divide-border/50 border-t pt-2">
+              <Row
+                label="Last edited"
+                value={formatLastEdited(
+                  patient.lastEditedAt,
+                  patient.lastEditedByName
+                )}
+              />
+              <Row
+                label="Consults"
+                value={String(patient.consultationsCount)}
+              />
+            </div>
           </dl>
         ) : null}
       </SheetContent>

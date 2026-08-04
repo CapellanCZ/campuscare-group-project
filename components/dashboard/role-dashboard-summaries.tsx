@@ -1,16 +1,13 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useState, useTransition } from "react"
-import { toast } from "sonner"
 
 import {
   ModuleSnapshot,
   SnapshotStatRow,
 } from "@/components/dashboard/module-snapshot"
+import { NurseRequestsPanel } from "@/components/dashboard/nurse-requests-panel"
 import { PanelCell } from "@/components/layout/panel-frame"
-import { DeclineRequestDialog } from "@/components/requests/decline-request-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { AppointmentStatusBadge } from "@/features/physician/components/appointment-status-badge"
@@ -18,7 +15,6 @@ import { CLINIC_TIMEZONE } from "@/features/physician/types"
 import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
-import { actionApproveConsultationRequest } from "@/lib/health/queue-server-actions"
 import { formatClinicTime, zonedDayKey } from "@/lib/physician/timezone"
 
 export function RoleDashboardSummaries({
@@ -28,7 +24,6 @@ export function RoleDashboardSummaries({
   access: StaffAccess
   summary: RoleDashboardSummary
 }) {
-  const router = useRouter()
   const d = access.designation
   const base = `/${d}`
   const isAdmin = d === "admin"
@@ -38,17 +33,9 @@ export function RoleDashboardSummaries({
   const isSpecialty = isPhysician || isDentist
 
   const nurseQueueHref = "/nurse/queue-management"
-  const nurseRequestsHref = "/nurse/consultation-requests"
 
-  const canTriage = can(d, "requests.approve")
-  const canDecline = can(d, "requests.decline")
   const canGenerateCert = can(d, "certificates.generate")
   const canGenerateFromConsult = can(d, "consultations.generate_certificate")
-  const [pendingApprove, startApprove] = useTransition()
-  const [declineTarget, setDeclineTarget] = useState<{
-    id: string
-    patientName: string
-  } | null>(null)
 
   const todayKey = zonedDayKey(new Date().toISOString(), CLINIC_TIMEZONE)
   const todaysAppointments =
@@ -153,98 +140,7 @@ export function RoleDashboardSummaries({
       {isNurse ? (
         <>
           <PanelCell className="lg:col-span-2">
-            <ModuleSnapshot
-              title="Consultation requests"
-              description="Pending requests waiting for triage."
-              href={nurseRequestsHref}
-              linkLabel="View all"
-              badge={summary.requests.pendingCount}
-            >
-              {summary.requests.recent.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No pending requests.
-                </p>
-              ) : (
-                <ul className="space-y-2">
-                  {summary.requests.recent.map((req) => (
-                    <li
-                      key={req.id}
-                      className="flex flex-col gap-2 rounded-xl border border-border/60 p-3 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate font-medium">{req.patientName}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {req.service} · {req.preferredDate}{" "}
-                          {req.preferredTime}
-                          {req.studentId ? ` · ${req.studentId}` : ""}
-                        </p>
-                        <Badge variant="secondary" className="mt-1">
-                          {req.status}
-                        </Badge>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          render={
-                            <Link
-                              href={`${nurseRequestsHref}?id=${encodeURIComponent(req.id)}`}
-                            />
-                          }
-                          nativeButton={false}
-                        >
-                          View
-                        </Button>
-                        {canTriage ? (
-                          <Button
-                            size="sm"
-                            disabled={pendingApprove || Boolean(declineTarget)}
-                            onClick={() =>
-                              startApprove(async () => {
-                                const result =
-                                  await actionApproveConsultationRequest({
-                                    requestId: req.id,
-                                    patientName: req.patientName,
-                                    studentId: req.studentId,
-                                    service: req.service,
-                                    reason: `${req.service} request`,
-                                  })
-                                if (!result.ok) {
-                                  toast.error(result.error)
-                                  return
-                                }
-                                toast.success(
-                                  result.message ??
-                                    "Approved — patient queued for nurse intake."
-                                )
-                                router.refresh()
-                              })
-                            }
-                          >
-                            Approve
-                          </Button>
-                        ) : null}
-                        {canDecline ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={pendingApprove || Boolean(declineTarget)}
-                            onClick={() =>
-                              setDeclineTarget({
-                                id: req.id,
-                                patientName: req.patientName,
-                              })
-                            }
-                          >
-                            Decline
-                          </Button>
-                        ) : null}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </ModuleSnapshot>
+            <NurseRequestsPanel access={access} summary={summary} />
           </PanelCell>
 
           <PanelCell>
@@ -639,19 +535,6 @@ export function RoleDashboardSummaries({
         </ModuleSnapshot>
       </PanelCell>
       ) : null}
-
-      <DeclineRequestDialog
-        open={Boolean(declineTarget)}
-        onOpenChange={(open) => {
-          if (!open) setDeclineTarget(null)
-        }}
-        requestId={declineTarget?.id ?? null}
-        patientName={declineTarget?.patientName}
-        onDeclined={() => {
-          setDeclineTarget(null)
-          router.refresh()
-        }}
-      />
     </>
   )
 }

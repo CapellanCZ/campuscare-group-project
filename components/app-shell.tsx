@@ -1,20 +1,30 @@
+"use client"
+
 import { cn } from "@/lib/utils"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { AppHeader } from "@/components/app-header"
 import { AppSidebar } from "@/components/app-sidebar"
+import { BreakModeOverlay } from "@/components/availability/on-break-control"
+import {
+  BreakModeProvider,
+  useOptionalBreakMode,
+} from "@/components/availability/break-mode-context"
 import { StaffAccessProvider } from "@/components/staff-access-provider"
 import type { StaffAccess } from "@/lib/auth/types"
 
-export function AppShell({
-  children,
-  access,
-}: {
-  children: React.ReactNode
-  access: StaffAccess
-}) {
+function ShellBody({ children }: { children: React.ReactNode }) {
+  const breakMode = useOptionalBreakMode()
+  const locked = Boolean(breakMode?.active)
+
   return (
-    <StaffAccessProvider access={access}>
-      <SidebarProvider className="[--app-wrapper-max-width:80rem]">
+    <SidebarProvider className="[--app-wrapper-max-width:100rem]">
+      <div
+        className={cn(
+          "contents",
+          locked && "pointer-events-none select-none [&_*]:pointer-events-none"
+        )}
+        aria-hidden={locked || undefined}
+      >
         <AppSidebar />
         <SidebarInset>
           <AppHeader />
@@ -27,7 +37,32 @@ export function AppShell({
             {children}
           </div>
         </SidebarInset>
-      </SidebarProvider>
+      </div>
+      <BreakModeOverlay />
+    </SidebarProvider>
+  )
+}
+
+export function AppShell({
+  children,
+  access,
+}: {
+  children: React.ReactNode
+  access: StaffAccess
+}) {
+  const role = access.primaryRole
+  const breakMode =
+    role === "nurse" || role === "admin"
+      ? ("clinic" as const)
+      : role === "physician" || role === "dentist"
+        ? ("staff" as const)
+        : null
+
+  return (
+    <StaffAccessProvider access={access}>
+      <BreakModeProvider mode={breakMode} role={role}>
+        <ShellBody>{children}</ShellBody>
+      </BreakModeProvider>
     </StaffAccessProvider>
   )
 }

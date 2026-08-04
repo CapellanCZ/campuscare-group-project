@@ -22,6 +22,7 @@ import { NurseWorkbench } from "@/components/queue/nurse-workbench"
 import { VitalsStrip } from "@/components/queue/vitals-strip"
 import { WaitStatusBadge } from "@/components/queue/wait-status-badge"
 import { WalkInSheet } from "@/components/queue/walk-in-sheet"
+import { StudentIdSearchInput } from "@/components/shared/student-id-search-input"
 import { ActivityFeed } from "@/components/shared/activity-feed"
 import { RecentlyServedCard } from "@/components/shared/recently-served-card"
 import { StatCard } from "@/components/shared/stat-card"
@@ -93,6 +94,7 @@ import type {
   StationId,
   TicketStatus,
 } from "@/lib/health/types"
+import { studentIdMatchesQuery } from "@/lib/students/student-id-input"
 import { cn } from "@/lib/utils"
 import { IconDots, IconRefresh, IconSearch } from "@tabler/icons-react"
 
@@ -182,12 +184,15 @@ export function QueuePage({
     if (isNurse) rows = ticketsInNurseLane(rows, nurseLane)
     const next = rows.filter((t) => {
       const q = query.trim().toLowerCase()
-      const matchesQuery =
-        !q ||
-        t.patientName.toLowerCase().includes(q) ||
-        (t.campusId ?? "").toLowerCase().includes(q) ||
-        t.ticketCode.toLowerCase().includes(q) ||
-        String(t.queueNumber ?? "").includes(q)
+      const matchesQuery = isNurse
+        ? !q ||
+          studentIdMatchesQuery(t.campusId, query) ||
+          studentIdMatchesQuery(t.studentId, query)
+        : !q ||
+          t.patientName.toLowerCase().includes(q) ||
+          (t.campusId ?? "").toLowerCase().includes(q) ||
+          t.ticketCode.toLowerCase().includes(q) ||
+          String(t.queueNumber ?? "").includes(q)
       const matchesStatus =
         statusFilter === "all" || t.status === (statusFilter as TicketStatus)
       const matchesStation =
@@ -325,17 +330,19 @@ export function QueuePage({
               ? "Dental queue"
               : "Queue management"
         }
-        description={`${designationLabel(access.designation)}${
-          readOnly
-            ? " · monitoring only"
-            : isNurse
-              ? " · vitals & specialty handoff"
-              : isPhysician
-                ? " · your station only"
-              : access.designation === "dentist"
-                ? " · dental patients only"
-                : " · live controls"
-        }`}
+        description={
+          isNurse
+            ? undefined
+            : `${designationLabel(access.designation)}${
+                readOnly
+                  ? " · monitoring only"
+                  : isPhysician
+                    ? " · your station only"
+                    : access.designation === "dentist"
+                      ? " · dental patients only"
+                      : " · live controls"
+              }`
+        }
         action={
           <>
             {canRegisterWalkIn(access.designation) ? <WalkInSheet /> : null}
@@ -405,20 +412,34 @@ export function QueuePage({
                   </CardTitle>
                 </div>
                 <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
-                  <InputGroup className="h-9 sm:w-56">
-                    <InputGroupAddon align="inline-start">
-                      <IconSearch className="size-4 opacity-60" aria-hidden />
-                    </InputGroupAddon>
-                    <InputGroupInput
-                      placeholder="Search ticket or patient"
+                  {isNurse ? (
+                    <StudentIdSearchInput
+                      className="sm:w-56"
+                      inputClassName="h-9"
                       value={query}
-                      onChange={(e) => {
-                        setQuery(e.target.value)
+                      onChange={(next) => {
+                        setQuery(next)
                         setPage(0)
                       }}
-                      aria-label="Search ticket or patient"
+                      placeholder="Search by Student ID"
+                      aria-label="Search by Student ID"
                     />
-                  </InputGroup>
+                  ) : (
+                    <InputGroup className="h-9 sm:w-56">
+                      <InputGroupAddon align="inline-start">
+                        <IconSearch className="size-4 opacity-60" aria-hidden />
+                      </InputGroupAddon>
+                      <InputGroupInput
+                        placeholder="Search ticket or patient"
+                        value={query}
+                        onChange={(e) => {
+                          setQuery(e.target.value)
+                          setPage(0)
+                        }}
+                        aria-label="Search ticket or patient"
+                      />
+                    </InputGroup>
+                  )}
                 </div>
               </div>
 
@@ -1176,7 +1197,9 @@ export function QueuePage({
             <Card className={cn(panelCardClassName)}>
               <CardHeader>
                 <CardTitle>Recently served</CardTitle>
-                <CardDescription>Latest completions today.</CardDescription>
+                {!isNurse ? (
+                  <CardDescription>Latest completions today.</CardDescription>
+                ) : null}
               </CardHeader>
               <CardContent className="space-y-2">
                 {recent.length === 0 ? (

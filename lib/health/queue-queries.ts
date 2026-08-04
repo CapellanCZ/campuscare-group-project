@@ -165,6 +165,69 @@ export async function getRecentlyServed(
     }))
 }
 
+/** Nurse Recently Served — completed consultation requests from today (Manila). */
+export async function getRecentlyServedFromConsultationRequests(
+  limit = 8
+): Promise<RecentlyServedItem[]> {
+  const supabase = await createClient()
+  const { startIso, endIso } = manilaDayBounds()
+
+  const { data, error } = await supabase
+    .from("consultation_requests")
+    .select(
+      "id, patient_name, student_id, service, assigned_nurse_name, assigned_doctor_name, updated_at, status"
+    )
+    .eq("status", "completed")
+    .gte("updated_at", startIso)
+    .lte("updated_at", endIso)
+    .order("updated_at", { ascending: false })
+    .limit(limit)
+
+  if (error) return []
+
+  return (data ?? []).map((row) => {
+    const service = (row.service as string | null)?.trim() || "Consultation"
+    const nurse = (row.assigned_nurse_name as string | null)?.trim()
+    const doctor = (row.assigned_doctor_name as string | null)?.trim()
+    return {
+      ticketId: row.id as string,
+      ticketLabel: service,
+      patientName: (row.patient_name as string) || "Patient",
+      stationLabel: service,
+      assignedPersonnel: doctor || nurse || "Clinic",
+      servedAt: (row.updated_at as string | null) ?? null,
+    }
+  })
+}
+
+/** Merge ticket completions with request completions; prefer newer timestamps. */
+export async function getNurseRecentlyServed(
+  limit = 8,
+  tickets?: QueueTicketRow[]
+): Promise<RecentlyServedItem[]> {
+  const [fromTickets, fromRequests] = await Promise.all([
+    getRecentlyServed(limit, tickets),
+    getRecentlyServedFromConsultationRequests(limit),
+  ])
+
+  const seen = new Set<string>()
+  const merged: RecentlyServedItem[] = []
+
+  const keyed = [...fromRequests, ...fromTickets].sort((a, b) =>
+    (b.servedAt ?? "").localeCompare(a.servedAt ?? "")
+  )
+
+  for (const item of keyed) {
+    const key = `${item.patientName.trim().toLowerCase()}|${(item.servedAt ?? "").slice(0, 16)}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    merged.push(item)
+    if (merged.length >= limit) break
+  }
+
+  return merged
+}
+
 export async function getQueueActivity(
   limit = 8,
   tickets?: QueueTicketRow[]
@@ -176,8 +239,9 @@ export async function getQueueActivity(
     .slice(0, limit)
     .map((t) => ({
       id: t.ticketId,
-      title: `${ticketLabel(t.queueNumber, t.ticketCode)} · ${t.status}`,
-      description: `${t.campusId ?? t.patientName} · ${stationLabel(t.station)}`,
+      title: t.patientName || t.campusId || "Patient",
+      description: `${ticketLabel(t.queueNumber, t.ticketCode)} · ${stationLabel(t.station)}`,
+      statusLabel: t.status,
       at: t.updatedAt ?? t.createdAt ?? new Date().toISOString(),
     }))
 }

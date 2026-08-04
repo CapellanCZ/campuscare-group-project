@@ -79,7 +79,7 @@ function Section({
 }) {
   return (
     <section className="space-y-4 border-t pt-6">
-      <h3 className="text-sm font-medium">{title}</h3>
+      <h3 className="text-sm font-medium tracking-tight">{title}</h3>
       {children}
     </section>
   )
@@ -168,16 +168,16 @@ export function ConsultationRequestDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-full flex-col data-[side=right]:sm:max-w-2xl sm:max-w-2xl">
-        <SheetHeader className="gap-2">
-          <SheetTitle className="pr-8">{request.patientName}</SheetTitle>
+      <SheetContent className="flex w-full flex-col sm:max-w-2xl">
+        <SheetHeader className="gap-2 border-b">
+          <SheetTitle className="pr-8 text-lg">{request.patientName}</SheetTitle>
           <SheetDescription>
             {request.service} · {consultationRequestStatusLabel(request.status)}
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 space-y-7 overflow-y-auto px-6 py-2 pb-6">
-          <div className="space-y-3 pt-1">
+        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5 pb-8">
+          <div className="space-y-4">
             <Badge
               variant={
                 request.status === "declined" || request.status === "cancelled"

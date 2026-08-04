@@ -22,10 +22,15 @@ export async function getDashboardBundle(designation: ClinicDesignation) {
       : allTickets
 
   const stats = computeQueueStats(scoped)
-  const boards = await getStationBoards(allTickets)
-  const activity = await getQueueActivity(8, allTickets)
-  const recent = await getRecentlyServed(6, allTickets)
-  const kpis = await buildKpis(designation, scoped, allTickets, stats)
+  const isNurse = designation === "nurse"
+
+  // Nurse home doesn't render station boards — skip that work.
+  const [boards, activity, recent, kpis] = await Promise.all([
+    isNurse ? Promise.resolve([]) : getStationBoards(allTickets),
+    getQueueActivity(8, allTickets),
+    getRecentlyServed(6, allTickets),
+    buildKpis(designation, scoped, allTickets, stats),
+  ])
 
   return {
     tickets: scoped,
@@ -148,6 +153,27 @@ async function buildKpis(
   all: QueueTicketRow[],
   stats: ReturnType<typeof computeQueueStats>
 ): Promise<DashboardKpis> {
+  if (designation === "nurse") {
+    // Nurse KPIs are ticket-derived; skip consult/cert/announcement count queries.
+    return {
+      cards: [
+        {
+          key: "waiting",
+          label: "Waiting patients",
+          value: String(stats.totalWaiting),
+          description: "In line now",
+          lowerIsBetter: true,
+        },
+        {
+          key: "served",
+          label: "Patients served today",
+          value: String(stats.completedToday),
+          description: "Completed tickets",
+        },
+      ],
+    }
+  }
+
   const supabase = await createClient()
   const { ymd, startIso, endIso } = manilaDayBounds()
 
@@ -240,44 +266,6 @@ async function buildKpis(
           label: "Active announcements",
           value: String(announcementCount),
           description: "Published notices",
-        },
-      ],
-    }
-  }
-
-  if (designation === "nurse") {
-    return {
-      cards: [
-        {
-          key: "pending",
-          label: "Pending requests",
-          value: String(appointmentCount),
-          description: "Appointments today",
-        },
-        {
-          key: "walkin",
-          label: "Walk-in patients",
-          value: String(stats.walkIns),
-          description: "Registered walk-ins",
-        },
-        {
-          key: "waiting",
-          label: "Waiting patients",
-          value: String(stats.totalWaiting),
-          description: "In line now",
-          lowerIsBetter: true,
-        },
-        {
-          key: "checkedin",
-          label: "Checked-in patients",
-          value: String(stats.checkedIn),
-          description: "Verified arrivals",
-        },
-        {
-          key: "served",
-          label: "Patients served today",
-          value: String(stats.completedToday),
-          description: "Completed tickets",
         },
       ],
     }

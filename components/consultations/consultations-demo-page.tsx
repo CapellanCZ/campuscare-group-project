@@ -12,6 +12,7 @@ import { toast } from "sonner"
 
 import { ConsultationDeleteDialog } from "@/components/consultations/consultation-delete-dialog"
 import { ConsultationFormSheet } from "@/components/consultations/consultation-form-sheet"
+import { StudentIdSearchInput } from "@/components/shared/student-id-search-input"
 import { DemoPageHeader, DemoStatGrid } from "@/components/demo/demo-page"
 import {
   PanelFrame,
@@ -160,6 +161,7 @@ export function ConsultationsPage({
   const skipNextFetch = useRef(true)
   const d = access.designation
   const isPhysician = d === "physician"
+  const isNurse = d === "nurse"
 
   useEffect(() => {
     if (initialError) toast.error(initialError)
@@ -179,12 +181,12 @@ export function ConsultationsPage({
       page: 1,
       pageSize: PAGE_SIZE,
       status: statusFilter,
-      provider: isPhysician ? "all" : providerFilter,
-      station: isPhysician ? "physician" : stationFilter,
+      provider: isPhysician || isNurse ? "all" : providerFilter,
+      station: isPhysician ? "physician" : isNurse ? "all" : stationFilter,
       consultationDate: dateFilter || "all",
-      studentIdOnly: isPhysician,
+      studentIdOnly: isPhysician || isNurse,
     }),
-    [statusFilter, providerFilter, stationFilter, dateFilter, isPhysician]
+    [statusFilter, providerFilter, stationFilter, dateFilter, isPhysician, isNurse]
   )
 
   const loadPage = useCallback(
@@ -306,9 +308,11 @@ export function ConsultationsPage({
       <DemoPageHeader
         title={d === "dentist" ? "Dental consultations" : "Consultations"}
         description={
-          d === "dentist"
-            ? "Dental examination, diagnosis, treatment, and follow-up charting"
-            : "Triage assessments and clinical charting"
+          isNurse
+            ? ""
+            : d === "dentist"
+              ? "Dental examination, diagnosis, treatment, and follow-up charting"
+              : "Triage assessments and clinical charting"
         }
         designation={d}
         showDemoBanner={false}
@@ -341,34 +345,39 @@ export function ConsultationsPage({
       <PanelFrame>
       <Card className={cn(panelCardClassName, "gap-0 py-0")}>
         <CardHeader className="gap-4 border-b px-6 py-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="text-base">Today&apos;s consultations</CardTitle>
-            <Input
-              className="sm:ml-auto sm:w-72"
-              placeholder={
-                isPhysician ? "Search by student ID" : "e.g. 2023-172065"
-              }
-              inputMode="numeric"
-              autoComplete="off"
-              maxLength={11}
-              value={query}
-              onChange={(e) => setQuery(formatStudentIdInput(e.target.value))}
-              onKeyDown={(e) => {
-                // Block letter keys; allow control/navigation and digits
-                if (
-                  e.key.length === 1 &&
-                  /[a-zA-Z]/.test(e.key) &&
-                  !e.ctrlKey &&
-                  !e.metaKey &&
-                  !e.altKey
-                ) {
-                  e.preventDefault()
-                }
-              }}
-              aria-label="Search by Student ID"
-            />
-          </div>
-          <div className="flex flex-wrap gap-2">
+          <CardTitle className="text-base">Today&apos;s consultations</CardTitle>
+          <div className="flex flex-wrap items-center gap-2">
+            {isPhysician || isNurse ? (
+              <StudentIdSearchInput
+                className="w-full min-w-[12rem] sm:w-56"
+                value={query}
+                onChange={setQuery}
+                placeholder="Search by Student ID"
+                aria-label="Search by Student ID"
+              />
+            ) : (
+              <Input
+                className="w-full min-w-[12rem] sm:w-56"
+                placeholder="e.g. 2023-172065"
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={11}
+                value={query}
+                onChange={(e) => setQuery(formatStudentIdInput(e.target.value))}
+                onKeyDown={(e) => {
+                  if (
+                    e.key.length === 1 &&
+                    /[a-zA-Z]/.test(e.key) &&
+                    !e.ctrlKey &&
+                    !e.metaKey &&
+                    !e.altKey
+                  ) {
+                    e.preventDefault()
+                  }
+                }}
+                aria-label="Search by Student ID"
+              />
+            )}
             <Select
               value={statusFilter}
               onValueChange={(value) =>
@@ -387,7 +396,7 @@ export function ConsultationsPage({
                 ))}
               </SelectContent>
             </Select>
-            {!isPhysician ? (
+            {!isPhysician && !isNurse ? (
               <>
                 <Select
                   value={providerFilter}

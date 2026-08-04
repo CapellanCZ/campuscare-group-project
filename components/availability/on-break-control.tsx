@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useState, useTransition } from "react"
+import { useState } from "react"
 import { IconPlayerPause, IconPlayerPlay } from "@tabler/icons-react"
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert"
+import { useOptionalBreakMode } from "@/components/availability/break-mode-context"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -13,180 +13,122 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  clearClinicBreak,
-  clearStaffBreak,
-  loadMyBreakBundle,
-  setClinicBreak,
-  setStaffBreak,
-} from "@/features/availability/actions/availability"
-import type { BreakStatus } from "@/lib/availability/types"
-import type { WebRole } from "@/lib/auth/types"
+import { cn } from "@/lib/utils"
 
-function toLocalInputValue(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0")
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
-}
+export function OnBreakControl({ className }: { className?: string }) {
+  const breakMode = useOptionalBreakMode()
+  const [confirmStartOpen, setConfirmStartOpen] = useState(false)
 
-function defaultReopenLocal(): string {
-  const d = new Date(Date.now() + 60 * 60 * 1000)
-  return toLocalInputValue(d)
-}
+  if (!breakMode?.mode) return null
+  if (breakMode.active) return null
 
-type OnBreakControlProps = {
-  role: WebRole | null | undefined
-  /** `clinic` = nurse sets clinic-wide break; `staff` = personal break */
-  mode: "clinic" | "staff"
-  className?: string
-}
-
-export function OnBreakControl({ role, mode, className }: OnBreakControlProps) {
-  const [clinicBreak, setClinicBreakState] = useState<BreakStatus | null>(null)
-  const [staffBreak, setStaffBreakState] = useState<BreakStatus | null>(null)
-  const [open, setOpen] = useState(false)
-  const [resumesLocal, setResumesLocal] = useState("")
-  const [error, setError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
-
-  const canClinic =
-    mode === "clinic" && (role === "nurse" || role === "admin")
-  const canStaff =
-    mode === "staff" &&
-    (role === "physician" || role === "dentist" || role === "nurse")
-
-  const active =
-    mode === "clinic"
-      ? Boolean(clinicBreak?.isOnBreak)
-      : Boolean(staffBreak?.isOnBreak)
-  const resumesAt =
-    mode === "clinic" ? clinicBreak?.resumesAt : staffBreak?.resumesAt
-
-  useEffect(() => {
-    if (!canClinic && !canStaff) return
-
-    let cancelled = false
-
-    void loadMyBreakBundle().then((bundle) => {
-      if (cancelled) return
-      setClinicBreakState(bundle.clinicBreak)
-      setStaffBreakState(bundle.staffBreak)
-    })
-
-    return () => {
-      cancelled = true
-    }
-  }, [canClinic, canStaff, role, mode])
-
-  function refresh() {
-    void loadMyBreakBundle().then((bundle) => {
-      setClinicBreakState(bundle.clinicBreak)
-      setStaffBreakState(bundle.staffBreak)
-    })
-  }
-
-  if (!canClinic && !canStaff) return null
-
-  function startBreak() {
-    setError(null)
-    const iso = new Date(resumesLocal).toISOString()
-    startTransition(async () => {
-      const result =
-        mode === "clinic" ? await setClinicBreak(iso) : await setStaffBreak(iso)
-      if (!result.ok) {
-        setError(result.error)
-        return
-      }
-      setOpen(false)
-      refresh()
-    })
-  }
-
-  function endBreak() {
-    setError(null)
-    startTransition(async () => {
-      const result =
-        mode === "clinic" ? await clearClinicBreak() : await clearStaffBreak()
-      if (!result.ok) {
-        setError(result.error)
-        return
-      }
-      refresh()
-    })
-  }
+  const { pending, error, startBreak } = breakMode
 
   return (
     <div className={className}>
-      {active ? (
-        <Alert variant="warning" className="mb-0 py-2">
-          <AlertTitle className="text-sm">
-            {mode === "clinic" ? "Clinic on break" : "You are on break"}
-          </AlertTitle>
-          <AlertDescription className="flex flex-wrap items-center gap-2 text-xs">
-            <span>
-              Reopens{" "}
-              {resumesAt
-                ? new Date(resumesAt).toLocaleString("en-PH", {
-                    timeZone: "Asia/Manila",
-                  })
-                : "soon"}
-            </span>
-            <Button size="sm" variant="outline" disabled={isPending} onClick={endBreak}>
-              <IconPlayerPlay data-icon="inline-start" />
-              End break
-            </Button>
-          </AlertDescription>
-        </Alert>
-      ) : (
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={isPending}
-          onClick={() => {
-            setResumesLocal(defaultReopenLocal())
-            setError(null)
-            setOpen(true)
-          }}
-        >
-          <IconPlayerPause data-icon="inline-start" />
-          On break
-        </Button>
-      )}
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={pending}
+        onClick={() => setConfirmStartOpen(true)}
+      >
+        <IconPlayerPause data-icon="inline-start" />
+        Break
+      </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={confirmStartOpen} onOpenChange={setConfirmStartOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {mode === "clinic" ? "Clinic on break" : "Go on break"}
-            </DialogTitle>
+            <DialogTitle>Go on break?</DialogTitle>
             <DialogDescription>
-              Patients cannot be scheduled or checked in until the reopen time
-              you set.
+              Are you sure you want to go on break? Clinic actions will be paused
+              until you resume work.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2 py-2">
-            <Label htmlFor="reopen-at">Reopen for transactions at</Label>
-            <Input
-              id="reopen-at"
-              type="datetime-local"
-              value={resumesLocal}
-              onChange={(e) => setResumesLocal(e.target.value)}
-            />
-            {error ? (
-              <p className="text-sm text-destructive">{error}</p>
-            ) : null}
-          </div>
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
+            <Button variant="outline" onClick={() => setConfirmStartOpen(false)}>
               Cancel
             </Button>
-            <Button disabled={isPending} onClick={startBreak}>
-              Confirm break
+            <Button
+              disabled={pending}
+              onClick={() => {
+                startBreak()
+                setConfirmStartOpen(false)
+              }}
+            >
+              Confirm
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+export function BreakModeOverlay() {
+  const breakMode = useOptionalBreakMode()
+  const [confirmEndOpen, setConfirmEndOpen] = useState(false)
+
+  if (!breakMode?.active) return null
+
+  const { pending, error, endBreak } = breakMode
+
+  return (
+    <>
+      <div
+        className={cn(
+          "fixed inset-0 z-[70] flex items-center justify-center",
+          "pointer-events-auto bg-background/55 backdrop-blur-md"
+        )}
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="break-overlay-title"
+      >
+        <div className="pointer-events-auto mx-4 flex w-full max-w-md flex-col items-center gap-6 rounded-2xl border-2 border-border bg-background px-8 py-10 text-center shadow-lg">
+          <p
+            id="break-overlay-title"
+            className="text-2xl font-semibold tracking-[0.2em] text-foreground uppercase"
+          >
+            On Break
+          </p>
+          <Button
+            size="lg"
+            disabled={pending}
+            onClick={() => setConfirmEndOpen(true)}
+          >
+            <IconPlayerPlay data-icon="inline-start" />
+            Resume Work
+          </Button>
+        </div>
+      </div>
+
+      <Dialog open={confirmEndOpen} onOpenChange={setConfirmEndOpen}>
+        <DialogContent className="z-[80]">
+          <DialogHeader>
+            <DialogTitle>Resume work?</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to stop your break and restore the
+              application?
+            </DialogDescription>
+          </DialogHeader>
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmEndOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={pending}
+              onClick={() => {
+                endBreak()
+                setConfirmEndOpen(false)
+              }}
+            >
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

@@ -7,17 +7,16 @@ import { toast } from "sonner"
 import {
   IconDots,
   IconListCheck,
-  IconSearch,
 } from "@tabler/icons-react"
 
 import { NurseWorkbench } from "@/components/queue/nurse-workbench"
 import { WaitStatusBadge } from "@/components/queue/wait-status-badge"
+import { StudentIdSearchInput } from "@/components/shared/student-id-search-input"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -35,7 +34,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
-import { Input } from "@/components/ui/input"
 import {
   Table,
   TableBody,
@@ -56,6 +54,7 @@ import { needsNurseIntake } from "@/lib/health/nurse-queue"
 import { canMutateQueue, canRegisterWalkIn } from "@/lib/health/roles"
 import { patientTypeLabel, ticketLabel } from "@/lib/health/mappers"
 import type { QueueTicketRow, TicketStatus } from "@/lib/health/types"
+import { studentIdDigits, studentIdMatchesQuery } from "@/lib/students/student-id-input"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 8
@@ -92,17 +91,15 @@ export function NurseTodayQueue({
   const showWalkIn = canRegisterWalkIn(access.designation)
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
+    const q = studentIdDigits(query)
     return tickets
       .filter((row) => {
         if (status === "intake") return needsNurseIntake(row)
         if (status !== "all" && row.status !== status) return false
         if (!q) return true
         return (
-          row.patientName.toLowerCase().includes(q) ||
-          (row.campusId ?? "").toLowerCase().includes(q) ||
-          (row.studentId ?? "").toLowerCase().includes(q) ||
-          ticketLabel(row.queueNumber, row.ticketCode).toLowerCase().includes(q)
+          studentIdMatchesQuery(row.campusId, query) ||
+          studentIdMatchesQuery(row.studentId, query)
         )
       })
       .sort((a, b) => {
@@ -148,14 +145,8 @@ export function NurseTodayQueue({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 space-y-1.5">
             <CardTitle>Today&apos;s queue</CardTitle>
-            <CardDescription>
-              Call, verify, intake, or skip from one board.
-            </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:pt-0.5">
-            <Badge variant="secondary" className="tabular-nums">
-              {filtered.length}
-            </Badge>
             {canCall ? (
               <Button
                 type="button"
@@ -171,7 +162,7 @@ export function NurseTodayQueue({
             <Button
               size="sm"
               variant="outline"
-              render={<Link href="/nurse/queue-management" />}
+              render={<Link href="/nurse/queue" />}
               nativeButton={false}
             >
               Open queue
@@ -179,22 +170,15 @@ export function NurseTodayQueue({
           </div>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="relative min-w-0 flex-1">
-            <IconSearch
-              className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-              aria-hidden
-            />
-            <Input
-              className="pl-8"
-              placeholder="Search name, ID, or ticket"
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value)
-                setPage(1)
-              }}
-              aria-label="Search today's queue"
-            />
-          </div>
+          <StudentIdSearchInput
+            className="min-w-0 flex-1"
+            value={query}
+            onChange={(next) => {
+              setQuery(next)
+              setPage(1)
+            }}
+            aria-label="Search today's queue by Student ID"
+          />
           <select
             aria-label="Filter by status"
             className="h-9 rounded-4xl border border-border bg-input/30 px-3 text-sm"

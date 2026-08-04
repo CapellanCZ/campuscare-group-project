@@ -18,7 +18,6 @@ import { NurseDashboardView } from "@/components/dashboard/nurse-dashboard-view"
 import { PhysicianDashboardView } from "@/components/dashboard/physician-dashboard-view"
 import { RoleDashboardSummaries } from "@/components/dashboard/role-dashboard-summaries"
 import { ActivityFeed } from "@/components/shared/activity-feed"
-import { RecentlyServedCard } from "@/components/shared/recently-served-card"
 import { StatCard } from "@/components/shared/stat-card"
 import { VitalsStrip } from "@/components/queue/vitals-strip"
 import { WaitStatusBadge } from "@/components/queue/wait-status-badge"
@@ -437,33 +436,6 @@ export function RoleDashboard({
                 items={activity}
                 title="Activity"
               />
-            </PanelCell>
-
-            <PanelCell>
-              <Card className={cn(panelCardClassName, "h-full")}>
-                <CardHeader>
-                  <CardTitle>Recently served</CardTitle>
-                  <CardDescription>
-                    Completions from this shift.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {recent.length === 0 ? (
-                    <Empty className="border-0 py-8">
-                      <EmptyHeader>
-                        <EmptyTitle>No completions yet</EmptyTitle>
-                        <EmptyDescription>
-                          Finished visits from this shift will show here.
-                        </EmptyDescription>
-                      </EmptyHeader>
-                    </Empty>
-                  ) : (
-                    recent.slice(0, 4).map((item) => (
-                      <RecentlyServedCard key={item.ticketId} item={item} />
-                    ))
-                  )}
-                </CardContent>
-              </Card>
             </PanelCell>
           </PanelGrid>
         </PanelFrame>

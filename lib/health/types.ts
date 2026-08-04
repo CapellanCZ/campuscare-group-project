@@ -83,6 +83,8 @@ export type ActivityItem = {
   id: string
   title: string
   description: string
+  /** Status shown beside relative time (e.g. Waiting). */
+  statusLabel?: string
   at: string
 }
 

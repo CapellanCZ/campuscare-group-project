@@ -1,5 +1,9 @@
 "use client"
 
+import { useState } from "react"
+
+import { CertificatePreviewDialog } from "@/components/certificates/certificate-preview-dialog"
+import { CertificatePrintView } from "@/components/certificates/certificate-print-view"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -10,7 +14,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
-import { CertificatePrintView } from "@/components/certificates/certificate-print-view"
 import {
   certificateStatusLabel,
   formatCertificateDate,
@@ -37,9 +40,9 @@ function DetailRow({
   value: React.ReactNode
 }) {
   return (
-    <div className="grid gap-1 border-b py-3 last:border-b-0 sm:grid-cols-[140px_1fr] sm:gap-4">
+          <div className="grid gap-1 border-b py-3.5 last:border-b-0 sm:grid-cols-[140px_1fr] sm:gap-4">
       <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="text-sm font-medium break-words">{value}</dd>
+      <dd className="text-sm leading-relaxed font-medium break-words">{value}</dd>
     </div>
   )
 }
@@ -63,10 +66,15 @@ export function CertificateDetailSheet({
   onEdit?: (certificate: MedicalCertificate) => void
   onDelete?: (certificate: MedicalCertificate) => void
 }) {
+  const [previewOpen, setPreviewOpen] = useState(false)
+
   function handlePrint() {
     if (!certificate) return
     window.print()
   }
+
+  const showDocActions =
+    Boolean(certificate) && certificate?.status !== "draft"
 
   return (
     <>
@@ -80,7 +88,7 @@ export function CertificateDetailSheet({
           </SheetHeader>
 
           {certificate ? (
-            <div className="flex-1 overflow-y-auto px-6">
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-2">
               <dl>
                 <DetailRow
                   label="Patient"
@@ -138,7 +146,7 @@ export function CertificateDetailSheet({
             </div>
           ) : null}
 
-          <SheetFooter className="border-t sm:flex-row sm:flex-wrap">
+          <SheetFooter className="sm:flex-row sm:flex-wrap">
             {canEdit && certificate && onEdit ? (
               <Button
                 variant="secondary"
@@ -155,9 +163,12 @@ export function CertificateDetailSheet({
                 Delete
               </Button>
             ) : null}
-            {canPrint &&
-            certificate &&
-            certificate.status !== "draft" ? (
+            {showDocActions ? (
+              <Button variant="outline" onClick={() => setPreviewOpen(true)}>
+                Preview
+              </Button>
+            ) : null}
+            {canPrint && showDocActions ? (
               <Button onClick={handlePrint}>Print</Button>
             ) : null}
             <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -166,6 +177,17 @@ export function CertificateDetailSheet({
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      <CertificatePreviewDialog
+        certificate={certificate}
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        canPrint={canPrint}
+        onPrint={() => {
+          setPreviewOpen(false)
+          window.setTimeout(() => window.print(), 100)
+        }}
+      />
 
       {certificate ? (
         <CertificatePrintView certificate={certificate} />

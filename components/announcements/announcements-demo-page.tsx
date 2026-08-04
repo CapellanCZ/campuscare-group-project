@@ -272,7 +272,8 @@ export function AnnouncementsPage({
 
   function openAnnouncement(announcement: Announcement) {
     setSelected(announcement)
-    if (announcement.status === "published") {
+    // Nurses always open the dedicated article reader for published items.
+    if (announcement.status === "published" || d === "nurse") {
       setSheetOpen(false)
       setArticleOpen(true)
     } else {
@@ -350,10 +351,10 @@ export function AnnouncementsPage({
     <div className="flex flex-col gap-6">
       <DemoPageHeader
         title="Announcements"
-        description={isPhysician ? "" : "Clinic notices for students and staff"}
+        description={isPhysician || d === "nurse" ? "" : "Clinic notices for students and staff"}
         designation={d}
         showDemoBanner={false}
-        showRoleSuffix={!isPhysician}
+        showRoleSuffix={!isPhysician && d !== "nurse"}
         actions={
           canManage ? (
             <Button onClick={openCreate}>Add announcement</Button>
@@ -361,7 +362,7 @@ export function AnnouncementsPage({
         }
       />
 
-      {canManage && can(d, "announcements.cards") ? (
+      {canManage && can(d, "announcements.cards") && d !== "nurse" ? (
         <DemoStatGrid stats={statCards} />
       ) : null}
 

@@ -68,6 +68,7 @@ import { loadRoleDashboardSummary } from "@/lib/health/load-role-dashboard-summa
 import {
   computeQueueStats,
   getQueueActivity,
+  getNurseRecentlyServed,
   getRecentlyServed,
   getStationBoards,
   getTodayQueueTickets,
@@ -92,6 +93,11 @@ export async function StaffHomePage() {
     bundle.allTickets
   )
 
+  const recent =
+    access.designation === "nurse"
+      ? await getNurseRecentlyServed(6, bundle.allTickets)
+      : bundle.recent
+
   return (
     <RoleDashboard
       access={access}
@@ -99,7 +105,7 @@ export async function StaffHomePage() {
       tickets={bundle.tickets}
       boards={bundle.boards}
       activity={bundle.activity}
-      recent={bundle.recent}
+      recent={recent}
       stats={bundle.stats}
       summary={summary}
     />
@@ -117,19 +123,24 @@ export async function StaffQueuePage() {
       ? allTickets.filter((t) => t.station === station)
       : allTickets
   const isPhysician = access.designation === "physician"
+  const isNurse = access.designation === "nurse"
+
+  const [boards, recent, activity] = await Promise.all([
+    isPhysician ? Promise.resolve([]) : getStationBoards(allTickets),
+    isNurse
+      ? getNurseRecentlyServed(8, tickets)
+      : getRecentlyServed(8, tickets),
+    isPhysician ? Promise.resolve([]) : getQueueActivity(8, allTickets),
+  ])
 
   return (
     <QueuePage
       access={access}
       tickets={tickets}
       stats={computeQueueStats(tickets)}
-      boards={
-        isPhysician ? [] : await getStationBoards(allTickets)
-      }
-      recent={await getRecentlyServed(8, tickets)}
-      activity={
-        isPhysician ? [] : await getQueueActivity(8, allTickets)
-      }
+      boards={boards}
+      recent={recent}
+      activity={activity}
     />
   )
 }
@@ -343,24 +354,30 @@ export async function StaffCertificatesPage() {
 export async function StaffReportsPage() {
   const access = await requireStaffModule("reports")
   const bundle = await loadReportsBundle(access.designation)
-  let announcements: Awaited<ReturnType<typeof getAnnouncements>> = {
-    items: [],
-    total: 0,
-    page: 1,
-    pageSize: 6,
-    totalPages: 1,
-  }
-  try {
-    announcements = await getAnnouncements({
+  const isNurse = access.designation === "nurse"
+
+  let announcements: Awaited<ReturnType<typeof getAnnouncements>> | undefined
+  if (!isNurse) {
+    announcements = {
+      items: [],
+      total: 0,
       page: 1,
       pageSize: 6,
-      sortBy: "updated_at",
-      sortDirection: "desc",
-      feed: true,
-    })
-  } catch {
-    // Reports still render without the announcements strip.
+      totalPages: 1,
+    }
+    try {
+      announcements = await getAnnouncements({
+        page: 1,
+        pageSize: 6,
+        sortBy: "updated_at",
+        sortDirection: "desc",
+        feed: true,
+      })
+    } catch {
+      // Reports still render without the announcements strip.
+    }
   }
+
   return (
     <ReportsAnalyticsPage
       access={access}
@@ -495,7 +512,6 @@ export async function StaffSettingsPage() {
       <div className="flex flex-1 flex-col gap-8">
         {profilePage}
         <StaffSchedulePage
-          role={access.primaryRole}
           doctorName={access.fullName}
           availability={availability}
           clinicHours={clinicHours}
@@ -520,7 +536,6 @@ export async function StaffSettingsPage() {
       <div className="flex flex-1 flex-col gap-8">
         {profilePage}
         <StaffSchedulePage
-          role={access.primaryRole}
           doctorName={access.fullName}
           availability={availability}
           clinicHours={clinicHours}

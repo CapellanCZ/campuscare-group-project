@@ -69,7 +69,7 @@ export function AnnouncementDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-full flex-col data-[side=right]:sm:max-w-2xl sm:max-w-2xl">
+      <SheetContent className="flex w-full flex-col sm:max-w-2xl">
         <SheetHeader className="gap-2">
           <SheetTitle className="pr-8">{announcement.title}</SheetTitle>
           <SheetDescription>

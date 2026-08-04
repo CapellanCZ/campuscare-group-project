@@ -17,15 +17,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useTheme } from "@/components/theme-provider"
 import { useOptionalStaffAccess } from "@/components/staff-access-provider"
 import { signOut } from "@/app/auth/actions"
+import { savePreferencesAction } from "@/features/settings/actions"
 import { staffBasePath } from "@/lib/auth/home-path"
 import {
   IconCalendar,
   IconLogout,
-  IconSettings,
+  IconMoon,
+  IconSun,
   IconUser,
 } from "@tabler/icons-react"
+import { toast } from "sonner"
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -36,6 +40,7 @@ function initials(name: string) {
 
 export function NavUser() {
   const access = useOptionalStaffAccess()
+  const { theme, setTheme, resolvedTheme } = useTheme()
   const [pending, startTransition] = useTransition()
 
   const name = access?.fullName ?? "Staff"
@@ -43,10 +48,22 @@ export function NavUser() {
   const avatarUrl = access?.avatarUrl ?? null
   const base = access ? staffBasePath(access.primaryRole) : "/login"
   const settingsHref = `${base}/settings`
-  const isPhysician = access?.primaryRole === "physician"
   const showSchedule =
     access?.primaryRole === "physician" || access?.primaryRole === "dentist"
   const mark = initials(name)
+  const isDark = (resolvedTheme ?? theme) === "dark"
+
+  function toggleTheme() {
+    const next = isDark ? "light" : "dark"
+    setTheme(next)
+    if (!access) return
+    startTransition(async () => {
+      const result = await savePreferencesAction({ theme: next })
+      if (!result.ok) {
+        toast.error(result.error)
+      }
+    })
+  }
 
   return (
     <DropdownMenu>
@@ -92,23 +109,24 @@ export function NavUser() {
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
-            {isPhysician ? (
-              <DropdownMenuItem render={<Link href={settingsHref} />}>
-                <IconUser aria-hidden="true" />
-                Profile and Settings
-              </DropdownMenuItem>
-            ) : (
-              <>
-                <DropdownMenuItem render={<Link href={settingsHref} />}>
-                  <IconUser aria-hidden="true" />
-                  Account
-                </DropdownMenuItem>
-                <DropdownMenuItem render={<Link href={settingsHref} />}>
-                  <IconSettings aria-hidden="true" />
-                  Settings
-                </DropdownMenuItem>
-              </>
-            )}
+            <DropdownMenuItem render={<Link href={settingsHref} />}>
+              <IconUser aria-hidden="true" />
+              Profile and Settings
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={pending}
+              onClick={(event) => {
+                event.preventDefault()
+                toggleTheme()
+              }}
+            >
+              {isDark ? (
+                <IconSun aria-hidden="true" />
+              ) : (
+                <IconMoon aria-hidden="true" />
+              )}
+              {isDark ? "Light mode" : "Dark mode"}
+            </DropdownMenuItem>
             {showSchedule ? (
               <DropdownMenuItem render={<Link href={settingsHref} />}>
                 <IconCalendar aria-hidden="true" />

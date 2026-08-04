@@ -20,7 +20,7 @@ import {
   announcementExcerpt,
 } from "@/features/announcements/lib/display"
 import { getAnnouncements } from "@/services/announcements"
-import { getConsultationRequests } from "@/services/consultation-requests"
+import { getConsultationRequests, getConsultationRequestStats } from "@/services/consultation-requests"
 import {
   getConsultationStats,
   getConsultations,
@@ -76,13 +76,16 @@ async function buildAnnouncements() {
 
 async function buildRequests(limit = 5) {
   try {
-    const list = await getConsultationRequests({
-      status: "pending",
-      page: 1,
-      pageSize: limit,
-    })
+    const [list, stats] = await Promise.all([
+      getConsultationRequests({
+        status: "all",
+        page: 1,
+        pageSize: limit,
+      }),
+      getConsultationRequestStats(),
+    ])
     return {
-      pendingCount: list.total,
+      pendingCount: stats.pending,
       recent: list.items.slice(0, limit).map((r) => ({
         id: r.id,
         patientName: r.patientName,
@@ -218,6 +221,8 @@ export async function loadRoleDashboardSummary(input: {
   const isDentist = designation === "dentist"
   const isSpecialty = isPhysician || isDentist
 
+  // Nurse dashboard only needs pending requests (+ lanes from tickets).
+  // Skip overlapping announcement / cert / consult / directory round-trips.
   const [
     consultationStats,
     certificateStats,
@@ -230,9 +235,13 @@ export async function loadRoleDashboardSummary(input: {
     recentConsultations,
     dentalReferralsToday,
   ] = await Promise.all([
-    getConsultationStats().catch(() => emptyConsultationStats),
-    getMedicalCertificateStats().catch(() => emptyCertificateStats),
-    isAdmin || isSpecialty || isNurse
+    isNurse
+      ? Promise.resolve(emptyConsultationStats)
+      : getConsultationStats().catch(() => emptyConsultationStats),
+    isNurse
+      ? Promise.resolve(emptyCertificateStats)
+      : getMedicalCertificateStats().catch(() => emptyCertificateStats),
+    isAdmin || isSpecialty
       ? getDirectoryPatientRecordStats().catch(() => null)
       : Promise.resolve(null),
     isAdmin
@@ -242,8 +251,10 @@ export async function loadRoleDashboardSummary(input: {
       : Promise.resolve(null),
     isSpecialty ? loadScheduleStrip(userId) : Promise.resolve(null),
     isPhysician ? loadPhysicianWorkspace() : Promise.resolve(null),
-    buildAnnouncements(),
-    buildRequests(isNurse ? 6 : 4),
+    isNurse
+      ? Promise.resolve({ publishedCount: 0, recent: [] })
+      : buildAnnouncements(),
+    buildRequests(isNurse ? 8 : 6),
     isSpecialty
       ? loadRecentConsultations(isDentist ? "dentist" : "physician")
       : Promise.resolve([]),

@@ -62,7 +62,6 @@ import { cn } from "@/lib/utils"
 import type { StaffAccess } from "@/lib/auth/types"
 import {
   CONSULTATION_PRIORITIES,
-  CONSULTATION_STATIONS,
   CONSULTATION_STATUSES,
   type Consultation,
   type ConsultationPriority,
@@ -192,7 +191,11 @@ function toForm(
   }
 }
 
-function toInput(form: FormState, dentalMode: boolean): CreateConsultationInput {
+function toInput(
+  form: FormState,
+  dentalMode: boolean,
+  options?: { mode?: "create" | "edit"; access?: StaffAccess }
+): CreateConsultationInput {
   const assessment = dentalMode
     ? formatDentalAssessment({
         oralFindings: form.oralFindings,
@@ -209,6 +212,16 @@ function toInput(form: FormState, dentalMode: boolean): CreateConsultationInput 
         duration: form.rxDuration,
       })
     : form.prescription
+
+  const isCreate = options?.mode === "create"
+  const station = isCreate
+    ? options?.access?.designation === "dentist"
+      ? "dentist"
+      : options?.access?.designation === "physician"
+        ? "physician"
+        : "nurse"
+    : form.station
+
   return {
     patientId: form.patientId,
     chiefComplaint: form.chiefComplaint,
@@ -217,12 +230,18 @@ function toInput(form: FormState, dentalMode: boolean): CreateConsultationInput 
     diagnosis: form.diagnosis,
     treatment: form.treatment,
     prescription,
-    providerName: form.providerName,
-    providerRole: form.providerRole,
-    station: form.station,
+    providerName: isCreate
+      ? (options?.access?.fullName ?? form.providerName)
+      : form.providerName,
+    providerRole: isCreate
+      ? (options?.access?.designation ?? form.providerRole)
+      : form.providerRole,
+    station,
     status: form.status,
     priority: form.priority,
-    consultationDate: fromDatetimeLocalValue(form.consultationDate),
+    consultationDate: isCreate
+      ? new Date().toISOString()
+      : fromDatetimeLocalValue(form.consultationDate),
     followUpDate:
       dentalMode && form.followUpRequired === "no" ? "" : form.followUpDate,
     notes: form.notes,
@@ -328,7 +347,7 @@ export function ConsultationFormSheet({
     const nextForm = complete
       ? { ...form, status: "Completed" as ConsultationStatus }
       : form
-    const input = toInput(nextForm, dentalMode)
+    const input = toInput(nextForm, dentalMode, { mode, access })
     if (!input.patientId.trim()) {
       toast.error("Patient is required.")
       return
@@ -380,8 +399,8 @@ export function ConsultationFormSheet({
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto px-4 pb-4">
-          <FieldGroup className="gap-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
+          <FieldGroup className="gap-5">
             <Field>
               <FieldLabel>Patient *</FieldLabel>
               <Popover open={patientOpen} onOpenChange={setPatientOpen}>
@@ -637,45 +656,6 @@ export function ConsultationFormSheet({
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>
-                <FieldLabel htmlFor="providerName">Provider</FieldLabel>
-                <Input
-                  id="providerName"
-                  value={form.providerName}
-                  onChange={(e) => update("providerName", e.target.value)}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="providerRole">Provider role</FieldLabel>
-                <Input
-                  id="providerRole"
-                  value={form.providerRole}
-                  onChange={(e) => update("providerRole", e.target.value)}
-                />
-              </Field>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field>
-                <FieldLabel>Station</FieldLabel>
-                <Select
-                  value={form.station}
-                  onValueChange={(value) => {
-                    if (value) update("station", value)
-                  }}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Station" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CONSULTATION_STATIONS.map((station) => (
-                      <SelectItem key={station} value={station}>
-                        {station}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field>
                 <FieldLabel>Priority</FieldLabel>
                 <Select
                   value={form.priority}
@@ -696,9 +676,6 @@ export function ConsultationFormSheet({
                   </SelectContent>
                 </Select>
               </Field>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
               <Field>
                 <FieldLabel>Status</FieldLabel>
                 <Select
@@ -718,17 +695,6 @@ export function ConsultationFormSheet({
                     ))}
                   </SelectContent>
                 </Select>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="consultationDate">
-                  Consultation date
-                </FieldLabel>
-                <Input
-                  id="consultationDate"
-                  type="datetime-local"
-                  value={form.consultationDate}
-                  onChange={(e) => update("consultationDate", e.target.value)}
-                />
               </Field>
             </div>
 

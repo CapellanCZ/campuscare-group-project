@@ -28,13 +28,6 @@ export function AppHeader() {
       : undefined)
 
   const role = access?.primaryRole
-  // One On Break control only: clinic-wide for nurse/admin, personal for clinicians.
-  const breakMode =
-    role === "nurse" || role === "admin"
-      ? ("clinic" as const)
-      : role === "physician" || role === "dentist"
-        ? ("staff" as const)
-        : null
 
   return (
     <header
@@ -53,10 +46,8 @@ export function AppHeader() {
         <AppBreadcrumbs page={page} />
       </div>
       <div className="flex flex-wrap items-center justify-end gap-3">
-        {breakMode && role ? (
-          <OnBreakControl mode={breakMode} role={role} />
-        ) : null}
-        <HeaderSearch />
+        {role ? <OnBreakControl /> : null}
+        {role !== "nurse" ? <HeaderSearch /> : null}
         <HeaderNotifications />
         <Separator
           className="h-4 data-[orientation=vertical]:self-center"

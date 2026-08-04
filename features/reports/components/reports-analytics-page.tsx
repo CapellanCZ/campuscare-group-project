@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react"
 import Link from "next/link"
+import { IconFileTypePdf } from "@tabler/icons-react"
 import { toast } from "sonner"
 
 import { AnnouncementNewsCard } from "@/components/announcements/announcement-news-card"
@@ -53,6 +54,7 @@ export function ReportsAnalyticsPage({
 }) {
   const d = access.designation
   const isPhysician = d === "physician"
+  const isNurse = d === "nurse"
   const catalog = catalogFor(d)
   const [filters, setFilters] = useState<ReportFilters>(initialBundle.filters)
   const [pending, startTransition] = useTransition()
@@ -175,21 +177,35 @@ export function ReportsAnalyticsPage({
       <PageIntro
         title="Reports and Analytics"
         description={
-          isPhysician
+          isPhysician || isNurse
             ? undefined
             : `${designationLabel(d)} clinic reports · quarterly HSO progress exports include narrative, KPIs, charts, and all tables`
         }
         action={
           <div className="flex flex-wrap gap-2">
             {pdfLevel !== "none" ? (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={exportEmpty}
-                onClick={handlePrintPdf}
-              >
-                {pdfLevel === "view" ? "Print / PDF" : "Export PDF"}
-              </Button>
+              isNurse ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={exportEmpty}
+                  onClick={handlePrintPdf}
+                  aria-label={
+                    pdfLevel === "view" ? "Print or export PDF" : "Export PDF"
+                  }
+                >
+                  <IconFileTypePdf className="size-4" aria-hidden />
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={exportEmpty}
+                  onClick={handlePrintPdf}
+                >
+                  {pdfLevel === "view" ? "Print / PDF" : "Export PDF"}
+                </Button>
+              )
             ) : null}
             {canExcel ? (
               <>
@@ -210,7 +226,7 @@ export function ReportsAnalyticsPage({
         }
       />
 
-      {!isPhysician ? (
+      {!isPhysician && !isNurse ? (
         <section className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-base font-semibold tracking-tight">

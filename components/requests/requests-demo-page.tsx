@@ -11,6 +11,7 @@ import {
 import { toast } from "sonner"
 
 import { ConsultationRequestDetailSheet } from "@/components/requests/consultation-request-detail-sheet"
+import { StudentIdSearchInput } from "@/components/shared/student-id-search-input"
 import {
   DemoPageHeader,
   DemoStatGrid,
@@ -223,7 +224,11 @@ export function RequestsPage({
     <div className="flex flex-col gap-8 pt-2">
       <DemoPageHeader
         title="Consultation Requests"
-        description="Nurse triage only — approve to queue the patient for check-in and intake, then assign specialty for the doctor list."
+        description={
+          access.designation === "nurse"
+            ? ""
+            : "Nurse triage only — approve to queue the patient for check-in and intake, then assign specialty for the doctor list."
+        }
         designation={access.designation}
         showDemoBanner={false}
       />
@@ -238,12 +243,21 @@ export function RequestsPage({
           <CardTitle className="text-base">Request queue</CardTitle>
           {can(access.designation, "requests.search_filters") ? (
             <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
-              <Input
-                className="sm:w-72"
-                placeholder="Search patient, ID, email, service, doctor, nurse, status"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
+              {access.designation === "nurse" ? (
+                <StudentIdSearchInput
+                  className="sm:w-72"
+                  value={query}
+                  onChange={setQuery}
+                  placeholder="Search by Student ID"
+                />
+              ) : (
+                <Input
+                  className="sm:w-72"
+                  placeholder="Search patient, ID, email, service, doctor, nurse, status"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              )}
               <select
                 aria-label="Filter by status"
                 className="h-9 rounded-4xl border border-border bg-input/30 px-3 text-sm"

@@ -15,7 +15,6 @@ import {
 } from "@/components/dashboard/clinic-datetime"
 import { DashboardQuickNav } from "@/components/dashboard/dashboard-quick-nav"
 import { RoleDashboardSummaries } from "@/components/dashboard/role-dashboard-summaries"
-import { RecentlyServedCard } from "@/components/shared/recently-served-card"
 import { StatCard } from "@/components/shared/stat-card"
 import { VitalsStrip } from "@/components/queue/vitals-strip"
 import { WaitStatusBadge } from "@/components/queue/wait-status-badge"
@@ -102,7 +101,7 @@ export function PhysicianDashboardView({
   access,
   kpis,
   tickets,
-  recent,
+  recent: _recent,
   stats,
   summary,
 }: {
@@ -113,6 +112,7 @@ export function PhysicianDashboardView({
   stats: QueueStats
   summary: RoleDashboardSummary
 }) {
+  void _recent
   const firstName = access.fullName.split(" ")[0] || access.fullName
   const nowServing = tickets.find((t) => t.status === "called") ?? null
   const waiting = tickets
@@ -321,40 +321,6 @@ export function PhysicianDashboardView({
         <PanelFrame>
           <PanelGrid className="lg:grid-cols-3">
             <RoleDashboardSummaries access={access} summary={summary} />
-          </PanelGrid>
-        </PanelFrame>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <SectionLabel>Recently served</SectionLabel>
-        <PanelFrame>
-          <PanelGrid>
-            <PanelCell>
-              <Card className={cn(panelCardClassName, "h-full")}>
-                <CardHeader>
-                  <CardTitle>Recently served</CardTitle>
-                  <CardDescription>
-                    Completions from this shift at your station.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {recent.length === 0 ? (
-                    <Empty className="border-0 py-8">
-                      <EmptyHeader>
-                        <EmptyTitle>No completions yet</EmptyTitle>
-                        <EmptyDescription>
-                          Finished visits from this shift will show here.
-                        </EmptyDescription>
-                      </EmptyHeader>
-                    </Empty>
-                  ) : (
-                    recent.slice(0, 6).map((item) => (
-                      <RecentlyServedCard key={item.ticketId} item={item} />
-                    ))
-                  )}
-                </CardContent>
-              </Card>
-            </PanelCell>
           </PanelGrid>
         </PanelFrame>
       </div>

@@ -67,9 +67,11 @@ function ReadOnly({
   value: string | null | undefined
 }) {
   return (
-    <div className="grid gap-1 text-sm">
+    <div className="grid gap-1.5 py-1 text-sm">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-medium break-words">{value?.trim() || "—"}</dd>
+      <dd className="leading-relaxed font-medium break-words">
+        {value?.trim() || "—"}
+      </dd>
     </div>
   )
 }
@@ -136,24 +138,26 @@ export function PatientMedicalSheet({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="flex w-full flex-col sm:max-w-2xl">
-          <SheetHeader>
-            <SheetTitle>
-              {patient ? `Medical record · ${patientFullName(patient)}` : "Medical record"}
+        <SheetContent className="flex w-full flex-col sm:max-w-3xl">
+          <SheetHeader className="gap-2 border-b">
+            <SheetTitle className="pr-8 text-lg">
+              {patient
+                ? `Medical record · ${patientFullName(patient)}`
+                : "Medical record"}
             </SheetTitle>
-            <SheetDescription>
+            <SheetDescription className="leading-relaxed">
               Identity fields are locked from enrollment. Update medical history
               and physical examination only.
             </SheetDescription>
           </SheetHeader>
 
           {patient ? (
-            <div className="flex-1 space-y-6 overflow-y-auto px-4 pb-4">
-              <section className="space-y-3">
+            <div className="min-h-0 flex-1 space-y-10 overflow-y-auto px-6 py-6 pb-8">
+              <section className="space-y-5">
                 <h3 className="text-sm font-semibold tracking-wide uppercase">
                   General Personal Information
                 </h3>
-                <dl className="grid gap-3 sm:grid-cols-2">
+                <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
                   <ReadOnly label="Surname" value={patient.lastName} />
                   <ReadOnly label="Given name" value={patient.firstName} />
                   <ReadOnly label="Middle name" value={patient.middleName} />
@@ -174,11 +178,11 @@ export function PatientMedicalSheet({
                 </dl>
               </section>
 
-              <section className="space-y-3">
+              <section className="space-y-5 border-t pt-8">
                 <h3 className="text-sm font-semibold tracking-wide uppercase">
                   Emergency Contact Information
                 </h3>
-                <dl className="grid gap-3 sm:grid-cols-2">
+                <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
                   <ReadOnly
                     label="Person to notify"
                     value={
@@ -197,12 +201,12 @@ export function PatientMedicalSheet({
                 </dl>
               </section>
 
-              <section className="space-y-3">
+              <section className="space-y-5 border-t pt-8">
                 <h3 className="text-sm font-semibold tracking-wide uppercase">
                   Medical History
                 </h3>
-                <FieldGroup className="gap-3">
-                  <Field>
+                <FieldGroup className="gap-5">
+                  <Field className="gap-2.5">
                     <FieldLabel htmlFor="prev-illness">
                       History of Previous Illness / Surgical Operation
                     </FieldLabel>
@@ -215,14 +219,15 @@ export function PatientMedicalSheet({
                           previousIllnessOrSurgery: e.target.value,
                         }))
                       }
-                      rows={3}
+                      rows={4}
+                      className="min-h-24"
                     />
                   </Field>
-                  <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="grid gap-3 sm:grid-cols-2">
                     {HISTORY_FLAGS.map((flag) => (
                       <label
                         key={flag.key}
-                        className="flex items-center gap-2 text-sm"
+                        className="flex items-center gap-3 rounded-xl border border-border/50 px-3.5 py-3 text-sm"
                       >
                         <Checkbox
                           checked={Boolean(history[flag.key])}
@@ -237,12 +242,12 @@ export function PatientMedicalSheet({
                 </FieldGroup>
               </section>
 
-              <section className="space-y-3">
+              <section className="space-y-5 border-t pt-8">
                 <h3 className="text-sm font-semibold tracking-wide uppercase">
                   Physical Examination
                 </h3>
-                <FieldGroup className="gap-3">
-                  <div className="grid gap-3 sm:grid-cols-3">
+                <FieldGroup className="gap-5">
+                  <div className="grid gap-5 sm:grid-cols-3">
                     {(
                       [
                         ["bloodPressure", "Blood Pressure"],
@@ -253,7 +258,7 @@ export function PatientMedicalSheet({
                         ["o2", "O2"],
                       ] as const
                     ).map(([key, label]) => (
-                      <Field key={key}>
+                      <Field key={key} className="gap-2.5">
                         <FieldLabel htmlFor={`pe-${key}`}>{label}</FieldLabel>
                         <Input
                           id={`pe-${key}`}
@@ -264,35 +269,37 @@ export function PatientMedicalSheet({
                     ))}
                   </div>
 
-                  {(
-                    [
-                      ["skin", "Skin"],
-                      ["eyesOd", "Eyes (O.D)"],
-                      ["eyesOs", "Eyes (O.S)"],
-                      ["earsAd", "Ears (A.D)"],
-                      ["earsAs", "Ears (A.S)"],
-                      ["nose", "Nose"],
-                      ["throat", "Throat"],
-                      ["neck", "Neck"],
-                      ["thorax", "Thorax"],
-                      ["heart", "Heart"],
-                      ["lungs", "Lungs"],
-                      ["abdomen", "Abdomen"],
-                      ["extremities", "Extremities"],
-                      ["deformities", "Deformities"],
-                    ] as const
-                  ).map(([key, label]) => (
-                    <Field key={key}>
-                      <FieldLabel htmlFor={`pe-${key}`}>{label}</FieldLabel>
-                      <Input
-                        id={`pe-${key}`}
-                        value={exam[key]}
-                        onChange={(e) => setExamField(key, e.target.value)}
-                      />
-                    </Field>
-                  ))}
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    {(
+                      [
+                        ["skin", "Skin"],
+                        ["eyesOd", "Eyes (O.D)"],
+                        ["eyesOs", "Eyes (O.S)"],
+                        ["earsAd", "Ears (A.D)"],
+                        ["earsAs", "Ears (A.S)"],
+                        ["nose", "Nose"],
+                        ["throat", "Throat"],
+                        ["neck", "Neck"],
+                        ["thorax", "Thorax"],
+                        ["heart", "Heart"],
+                        ["lungs", "Lungs"],
+                        ["abdomen", "Abdomen"],
+                        ["extremities", "Extremities"],
+                        ["deformities", "Deformities"],
+                      ] as const
+                    ).map(([key, label]) => (
+                      <Field key={key} className="gap-2.5">
+                        <FieldLabel htmlFor={`pe-${key}`}>{label}</FieldLabel>
+                        <Input
+                          id={`pe-${key}`}
+                          value={exam[key]}
+                          onChange={(e) => setExamField(key, e.target.value)}
+                        />
+                      </Field>
+                    ))}
+                  </div>
 
-                  <Field>
+                  <Field className="gap-2.5">
                     <FieldLabel htmlFor="pe-other">
                       Other Pertinent Findings
                     </FieldLabel>
@@ -302,13 +309,14 @@ export function PatientMedicalSheet({
                       onChange={(e) =>
                         setExamField("otherPertinentFindings", e.target.value)
                       }
-                      rows={3}
+                      rows={4}
+                      className="min-h-24"
                     />
                   </Field>
                 </FieldGroup>
               </section>
 
-              <p className="text-xs text-muted-foreground">
+              <p className="pt-2 text-xs leading-relaxed text-muted-foreground">
                 Last edited:{" "}
                 {formatLastEdited(
                   patient.lastEditedAt,
@@ -318,7 +326,7 @@ export function PatientMedicalSheet({
             </div>
           ) : null}
 
-          <SheetFooter className="gap-2 border-t px-4 py-3 sm:flex-row">
+          <SheetFooter className="sm:flex-row">
             <SheetClose render={<Button type="button" variant="outline" />}>
               Cancel
             </SheetClose>

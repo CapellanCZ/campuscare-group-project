@@ -13,6 +13,7 @@ import { toast } from "sonner"
 import { PatientHistorySheet } from "@/components/patients/patient-history-sheet"
 import { PatientMedicalSheet } from "@/components/patients/patient-medical-sheet"
 import { PatientProfileSheet } from "@/components/patients/patient-profile-sheet"
+import { StudentIdSearchInput } from "@/components/shared/student-id-search-input"
 import { DemoPageHeader, DemoStatGrid } from "@/components/demo/demo-page"
 import {
   PanelFrame,
@@ -334,7 +335,11 @@ export function PatientsPage({
     <div className="flex flex-col gap-6">
       <DemoPageHeader
         title="Patient Records"
-        description="Enrolled student medical records. Search by Student ID; update medical history and physical exam here."
+        description={
+          access.designation === "nurse"
+            ? ""
+            : "Enrolled student medical records. Search by Student ID; update medical history and physical exam here."
+        }
         designation={access.designation}
         showDemoBanner={false}
       />
@@ -349,19 +354,29 @@ export function PatientsPage({
           <CardTitle className="text-base">Student directory</CardTitle>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             {can(access.designation, "patients.search") ? (
-              <div className="relative w-full sm:w-72">
-                <IconSearch
-                  className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <Input
-                  className="pl-8"
-                  placeholder="Search by Student ID Number"
+              access.designation === "nurse" ? (
+                <StudentIdSearchInput
+                  className="w-full sm:w-72"
                   value={query}
-                  onChange={(e) => setQuery(e.target.value)}
+                  onChange={setQuery}
+                  placeholder="Search by Student ID Number"
                   aria-label="Search by Student ID Number"
                 />
-              </div>
+              ) : (
+                <div className="relative w-full sm:w-72">
+                  <IconSearch
+                    className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <Input
+                    className="pl-8"
+                    placeholder="Search by Student ID Number"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    aria-label="Search by Student ID Number"
+                  />
+                </div>
+              )
             ) : null}
           </div>
         </CardHeader>

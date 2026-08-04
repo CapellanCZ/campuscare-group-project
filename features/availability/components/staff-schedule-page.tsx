@@ -24,10 +24,8 @@ import {
 import { PageHeader } from "@/features/common/components/page-header"
 import type { ClinicOfficeHour, StaffWeeklyHour } from "@/lib/availability/types"
 import { CLINIC_TIMEZONE, DAY_LABELS } from "@/lib/availability/types"
-import type { WebRole } from "@/lib/auth/types"
 
 type StaffSchedulePageProps = {
-  role: Extract<WebRole, "physician" | "dentist">
   doctorName: string
   availability: StaffWeeklyHour[]
   clinicHours: ClinicOfficeHour[]
@@ -36,7 +34,6 @@ type StaffSchedulePageProps = {
 }
 
 export function StaffSchedulePage({
-  role,
   doctorName,
   availability,
   clinicHours,
@@ -99,7 +96,7 @@ export function StaffSchedulePage({
               : "Set your weekly office hours. Appointment times must fall inside both clinic hours and your schedule, and are blocked while you or the clinic are on break."
           }
         />
-        <OnBreakControl mode="staff" role={role} />
+        <OnBreakControl />
       </div>
 
       <Card className="rounded-2xl border-border/70 shadow-sm">

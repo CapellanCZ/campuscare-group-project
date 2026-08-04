@@ -6,7 +6,6 @@ import { getStaffAccess } from "@/lib/auth/access"
 import { STAFF_ROUTE_ROLES } from "@/lib/auth/home-path"
 import {
   assignQueueNumber,
-  approveConsultationRequest,
   callNextTicket,
   completeNurseIntakeAndAssign,
   completeTicket,
@@ -184,15 +183,25 @@ export async function actionApproveConsultationRequest(input: {
   service: string
   reason?: string
 }) {
-  return withStaff((access) =>
-    approveConsultationRequest({
-      designation: access.designation,
-      requestId: input.requestId,
-      patientName: input.patientName,
-      studentId: input.studentId,
-      service: input.service,
-      reason: input.reason,
-      staffName: access.fullName,
-    })
-  )
+  return withStaff(async () => {
+    try {
+      const { approveConsultationRequestRecord } = await import(
+        "@/services/consultation-requests"
+      )
+      await approveConsultationRequestRecord({
+        id: input.requestId,
+        notes: input.reason ?? null,
+      })
+      return {
+        ok: true as const,
+        message: "Approved — patient queued for nurse intake.",
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Could not approve consultation request."
+      return { ok: false as const, error: message }
+    }
+  })
 }

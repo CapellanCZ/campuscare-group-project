@@ -35,7 +35,13 @@ export function ActivityFeed({
                     {item.description}
                   </p>
                 </div>
-                <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                <span className="shrink-0 text-right text-xs text-muted-foreground tabular-nums">
+                  {item.statusLabel ? (
+                    <>
+                      <span className="capitalize">{item.statusLabel}</span>
+                      {" · "}
+                    </>
+                  ) : null}
                   {relativeTimeFrom(item.at)}
                 </span>
               </li>

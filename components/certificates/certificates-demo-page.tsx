@@ -9,11 +9,14 @@ import {
   useTransition,
 } from "react"
 import { toast } from "sonner"
-import { IconFileText } from "@tabler/icons-react"
+import { IconFileText, IconPrinter, IconFileTypePdf } from "@tabler/icons-react"
 
 import { CertificateDeleteDialog } from "@/components/certificates/certificate-delete-dialog"
 import { CertificateDetailSheet } from "@/components/certificates/certificate-detail-sheet"
 import { CertificateFormSheet } from "@/components/certificates/certificate-form-sheet"
+import { CertificatePreviewDialog } from "@/components/certificates/certificate-preview-dialog"
+import { CertificatePrintView } from "@/components/certificates/certificate-print-view"
+import { StudentIdSearchInput } from "@/components/shared/student-id-search-input"
 import { DemoPageHeader, DemoStatGrid } from "@/components/demo/demo-page"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -134,6 +137,7 @@ export function CertificatesPage({
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<MedicalCertificate | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [formMode, setFormMode] = useState<"create" | "edit">("create")
   const [editing, setEditing] = useState<MedicalCertificate | null>(null)
@@ -220,6 +224,11 @@ export function CertificatesPage({
     setSheetOpen(true)
   }
 
+  function openPreview(certificate: MedicalCertificate) {
+    setSelected(certificate)
+    setPreviewOpen(true)
+  }
+
   function openCreate() {
     setFormMode("create")
     setEditing(null)
@@ -285,7 +294,11 @@ export function CertificatesPage({
       <div className="print:hidden">
         <DemoPageHeader
           title="Medical Certificates"
-          description="Browse history and generate printable certificates"
+          description={
+            d === "nurse"
+              ? ""
+              : "Browse history and generate printable certificates"
+          }
           designation={d}
           showDemoBanner={false}
         />
@@ -309,13 +322,23 @@ export function CertificatesPage({
           </CardTitle>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             {can(d, "certificates.search_patient") ? (
-              <Input
-                className="sm:w-72"
-                placeholder="Search by Student ID"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                aria-label="Search by Student ID"
-              />
+              d === "nurse" ? (
+                <StudentIdSearchInput
+                  className="sm:w-72"
+                  value={query}
+                  onChange={setQuery}
+                  placeholder="Search by Student ID"
+                  aria-label="Search by Student ID"
+                />
+              ) : (
+                <Input
+                  className="sm:w-72"
+                  placeholder="Search by Student ID"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  aria-label="Search by Student ID"
+                />
+              )
             ) : null}
             {canManage ? (
               <Button className="shrink-0" onClick={openCreate}>
@@ -403,7 +426,7 @@ export function CertificatesPage({
                             <Button
                               size="xs"
                               variant="outline"
-                              onClick={() => openCertificate(row)}
+                              onClick={() => openPreview(row)}
                             >
                               Preview
                             </Button>
@@ -412,8 +435,13 @@ export function CertificatesPage({
                             <Button
                               size="xs"
                               onClick={() => handlePrintRow(row)}
+                              aria-label="Print certificate"
                             >
-                              Print
+                              {d === "nurse" ? (
+                                <IconPrinter className="size-3.5" aria-hidden />
+                              ) : (
+                                "Print"
+                              )}
                             </Button>
                           ) : null}
                           {can(d, "certificates.download_pdf") &&
@@ -425,8 +453,13 @@ export function CertificatesPage({
                                 openCertificate(row)
                                 window.setTimeout(() => window.print(), 150)
                               }}
+                              aria-label="Export PDF"
                             >
-                              PDF
+                              {d === "nurse" ? (
+                                <IconFileTypePdf className="size-3.5" aria-hidden />
+                              ) : (
+                                "PDF"
+                              )}
                             </Button>
                           ) : null}
                           {canManage ? (
@@ -494,6 +527,21 @@ export function CertificatesPage({
         onEdit={openEdit}
         onDelete={openDelete}
       />
+
+      <CertificatePreviewDialog
+        certificate={selected}
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        canPrint={canPrint}
+        onPrint={() => {
+          setPreviewOpen(false)
+          window.setTimeout(() => window.print(), 100)
+        }}
+      />
+
+      {selected && !sheetOpen ? (
+        <CertificatePrintView certificate={selected} />
+      ) : null}
 
       <CertificateFormSheet
         open={formOpen}
