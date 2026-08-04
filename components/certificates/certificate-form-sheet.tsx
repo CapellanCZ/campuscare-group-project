@@ -43,7 +43,6 @@ import {
   Sheet,
   SheetClose,
   SheetContent,
-  SheetDescription,
   SheetFooter,
   SheetHeader,
   SheetTitle,
@@ -65,6 +64,11 @@ const CERTIFICATE_TYPES = [
   "Fitness for duty",
   "Dental clearance",
 ] as const
+
+const CERTIFICATE_TYPE_OPTIONS = CERTIFICATE_TYPES.map((type) => ({
+  value: type,
+  label: type,
+}))
 
 type FormState = {
   patientId: string
@@ -285,17 +289,25 @@ function PatientSearchSelect({
 function CertificateFormBody({
   mode,
   certificate,
+  defaultDoctorName,
+  hideDoctorNameField,
   onOpenChange,
   onSaved,
 }: {
   mode: "create" | "edit"
   certificate: MedicalCertificate | null
+  defaultDoctorName: string
+  hideDoctorNameField: boolean
   onOpenChange: (open: boolean) => void
   onSaved: (certificate: MedicalCertificate) => void
 }) {
-  const [form, setForm] = useState<FormState>(() =>
-    certificate && mode === "edit" ? certificateToForm(certificate) : emptyForm
-  )
+  const [form, setForm] = useState<FormState>(() => {
+    if (certificate && mode === "edit") return certificateToForm(certificate)
+    return {
+      ...emptyForm,
+      doctorName: defaultDoctorName,
+    }
+  })
   const [patients, setPatients] = useState<MedicalCertificatePatient[]>([])
   const [loadingPatients, setLoadingPatients] = useState(mode === "create")
   const [error, setError] = useState<string | null>(null)
@@ -325,9 +337,23 @@ function CertificateFormBody({
     setForm((current) => ({ ...current, [key]: value }))
   }
 
+  function resolvedDoctorName() {
+    if (hideDoctorNameField) {
+      return (
+        form.doctorName.trim() ||
+        defaultDoctorName.trim() ||
+        certificate?.doctorName?.trim() ||
+        ""
+      )
+    }
+    return form.doctorName.trim()
+  }
+
   function onSubmit(event: React.FormEvent) {
     event.preventDefault()
-    const validationError = validateForm(form, mode)
+    const doctorName = resolvedDoctorName()
+    const formForValidation = { ...form, doctorName }
+    const validationError = validateForm(formForValidation, mode)
     if (validationError) {
       setError(validationError)
       toast.error(validationError)
@@ -350,7 +376,7 @@ function CertificateFormBody({
           certificateNumber: form.certificateNumber.trim() || undefined,
           certificateType: form.certificateType.trim(),
           purpose: form.purpose.trim() || null,
-          doctorName: form.doctorName.trim() || null,
+          doctorName: doctorName || null,
           remarks: form.remarks.trim() || null,
           status: form.status,
           issuedAt,
@@ -380,7 +406,7 @@ function CertificateFormBody({
         certificateNumber: form.certificateNumber.trim(),
         certificateType: form.certificateType.trim(),
         purpose: form.purpose.trim() || null,
-        doctorName: form.doctorName.trim() || null,
+        doctorName: doctorName || null,
         remarks: form.remarks.trim() || null,
         status: form.status,
         issuedAt,
@@ -407,11 +433,6 @@ function CertificateFormBody({
             ? "New medical certificate"
             : "Edit medical certificate"}
         </SheetTitle>
-        <SheetDescription>
-          {mode === "create"
-            ? "Create a certificate and save it to the clinic records."
-            : "Update editable fields. IDs and timestamps stay unchanged."}
-        </SheetDescription>
       </SheetHeader>
 
       <form
@@ -456,35 +477,20 @@ function CertificateFormBody({
             </Field>
           )}
 
-          <Field>
-            <FieldLabel>Certificate type</FieldLabel>
-            <Select
-              value={form.certificateType}
-              onValueChange={(value) =>
-                updateField("certificateType", value ?? CERTIFICATE_TYPES[0])
-              }
-              disabled={pending}
-            >
-              <SelectTrigger className="w-full" aria-label="Certificate type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CERTIFICATE_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type}
-                  </SelectItem>
-                ))}
-                {form.certificateType &&
-                !(CERTIFICATE_TYPES as readonly string[]).includes(
-                  form.certificateType
-                ) ? (
-                  <SelectItem value={form.certificateType}>
-                    {form.certificateType}
-                  </SelectItem>
-                ) : null}
-              </SelectContent>
-            </Select>
-          </Field>
+          <SelectWithOtherField
+            key={`${certificate?.id ?? "cert-create"}-type`}
+            id="cert-type"
+            label="Certificate type"
+            options={CERTIFICATE_TYPE_OPTIONS}
+            value={form.certificateType}
+            onValueChange={(value) => updateField("certificateType", value)}
+            placeholder="Select certificate type"
+            otherOptionLabel="Others"
+            otherLabel="Specify type"
+            otherPlaceholder="Specify certificate type"
+            required
+            disabled={pending}
+          />
 
           <SelectWithOtherField
             key={certificate?.id ?? "cert-create"}
@@ -499,18 +505,20 @@ function CertificateFormBody({
             disabled={pending}
           />
 
-          <Field>
-            <FieldLabel htmlFor="cert-doctor">Doctor name</FieldLabel>
-            <Input
-              id="cert-doctor"
-              value={form.doctorName}
-              onChange={(event) =>
-                updateField("doctorName", event.target.value)
-              }
-              placeholder="Attending clinician"
-              disabled={pending}
-            />
-          </Field>
+          {hideDoctorNameField ? null : (
+            <Field>
+              <FieldLabel htmlFor="cert-doctor">Doctor name</FieldLabel>
+              <Input
+                id="cert-doctor"
+                value={form.doctorName}
+                onChange={(event) =>
+                  updateField("doctorName", event.target.value)
+                }
+                placeholder="Attending clinician"
+                disabled={pending}
+              />
+            </Field>
+          )}
 
           <Field>
             <FieldLabel htmlFor="cert-issued-at">Issue date</FieldLabel>
@@ -622,12 +630,16 @@ export function CertificateFormSheet({
   open,
   mode,
   certificate,
+  defaultDoctorName = "",
+  hideDoctorNameField = false,
   onOpenChange,
   onSaved,
 }: {
   open: boolean
   mode: "create" | "edit"
   certificate: MedicalCertificate | null
+  defaultDoctorName?: string
+  hideDoctorNameField?: boolean
   onOpenChange: (open: boolean) => void
   onSaved: (certificate: MedicalCertificate) => void
 }) {
@@ -642,6 +654,8 @@ export function CertificateFormSheet({
             key={formKey}
             mode={mode}
             certificate={certificate}
+            defaultDoctorName={defaultDoctorName}
+            hideDoctorNameField={hideDoctorNameField}
             onOpenChange={onOpenChange}
             onSaved={onSaved}
           />

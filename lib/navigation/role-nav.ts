@@ -2,7 +2,6 @@ import type { ComponentType } from "react"
 import type { WebRole } from "@/lib/auth/types"
 import {
   IconBellRinging,
-  IconCalendarEvent,
   IconCalendarTime,
   IconChartBar,
   IconClipboardList,
@@ -130,11 +129,6 @@ const roleGroupsByRole: Record<WebRole, RoleNavGroup[]> = {
       label: "Clinical",
       items: [
         {
-          title: "Appointments",
-          href: "/physician/appointments",
-          icon: IconCalendarEvent,
-        },
-        {
           title: "Patients",
           href: "/physician/patients",
           icon: IconUsers,
@@ -237,7 +231,7 @@ const footerByRole: Record<WebRole, RoleNavItem[]> = {
 const quickActionByRole: Record<WebRole, { label: string; href: string }> = {
   admin: { label: "Create Announcement", href: "/admin/announcements" },
   nurse: { label: "Register Walk-In", href: "/nurse/consultation-requests" },
-  physician: { label: "Start Consultation", href: "/physician/appointments" },
+  physician: { label: "Start Consultation", href: "/physician/consultations" },
   dentist: { label: "Start Dental Consultation", href: "/dentist/queue" },
   queue_display: {
     label: "Open Display",

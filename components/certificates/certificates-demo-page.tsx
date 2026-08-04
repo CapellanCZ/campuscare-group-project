@@ -295,7 +295,7 @@ export function CertificatesPage({
         <DemoPageHeader
           title="Medical Certificates"
           description={
-            d === "nurse"
+            d === "nurse" || d === "physician"
               ? ""
               : "Browse history and generate printable certificates"
           }
@@ -322,13 +322,13 @@ export function CertificatesPage({
           </CardTitle>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             {can(d, "certificates.search_patient") ? (
-              d === "nurse" ? (
+              d === "nurse" || d === "physician" ? (
                 <StudentIdSearchInput
                   className="sm:w-72"
                   value={query}
                   onChange={setQuery}
-                  placeholder="Search by Student ID"
-                  aria-label="Search by Student ID"
+                  placeholder="Search by student ID number"
+                  aria-label="Search by student ID number"
                 />
               ) : (
                 <Input
@@ -445,6 +445,7 @@ export function CertificatesPage({
                             </Button>
                           ) : null}
                           {can(d, "certificates.download_pdf") &&
+                          d !== "physician" &&
                           row.status !== "draft" ? (
                             <Button
                               size="xs"
@@ -547,6 +548,8 @@ export function CertificatesPage({
         open={formOpen}
         mode={formMode}
         certificate={editing}
+        defaultDoctorName={access.fullName}
+        hideDoctorNameField={d === "physician"}
         onOpenChange={setFormOpen}
         onSaved={handleSaved}
       />

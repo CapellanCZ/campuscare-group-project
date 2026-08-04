@@ -4,7 +4,6 @@ import Link from "next/link"
 import type { ComponentType } from "react"
 import {
   IconBellRinging,
-  IconCalendarEvent,
   IconChartBar,
   IconClipboardList,
   IconListCheck,
@@ -71,11 +70,6 @@ const QUICK_NAV: Record<
     },
   ],
   physician: [
-    {
-      label: "Appointments",
-      href: "/physician/appointments",
-      icon: IconCalendarEvent,
-    },
     {
       label: "Queue",
       href: "/physician/queue",

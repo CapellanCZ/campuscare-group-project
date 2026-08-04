@@ -1,18 +1,6 @@
-import { Suspense } from "react"
+import { redirect } from "next/navigation"
 
-import { StateBlock } from "@/features/common/components/state-block"
-import { PhysicianAppointmentsPage } from "@/features/physician/components/physician-appointments-page"
-import { loadPhysicianWorkspace } from "@/features/physician/data/queries"
-
-async function Content() {
-  const workspace = await loadPhysicianWorkspace()
-  return <PhysicianAppointmentsPage workspace={workspace} />
-}
-
+/** Appointments board removed from physician portal. */
 export default function Page() {
-  return (
-    <Suspense fallback={<StateBlock state="loading" />}>
-      <Content />
-    </Suspense>
-  )
+  redirect("/physician")
 }

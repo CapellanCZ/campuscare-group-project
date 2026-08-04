@@ -47,7 +47,7 @@ export function AppHeader() {
       </div>
       <div className="flex flex-wrap items-center justify-end gap-3">
         {role ? <OnBreakControl /> : null}
-        {role !== "nurse" ? <HeaderSearch /> : null}
+        {role !== "nurse" && role !== "physician" ? <HeaderSearch /> : null}
         <HeaderNotifications />
         <Separator
           className="h-4 data-[orientation=vertical]:self-center"

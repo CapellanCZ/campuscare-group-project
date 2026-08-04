@@ -38,7 +38,6 @@ const REVALIDATE = [
   "/physician/dashboard",
   "/dentist",
   "/dentist/dashboard",
-  "/physician/appointments",
 ]
 
 function revalidateAvailability() {

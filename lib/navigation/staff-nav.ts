@@ -192,17 +192,6 @@ export function buildStaffNavGroups(
     if (reportsItem) {
       reportsItem.title = "Reports and Analytics"
     }
-
-    const clinical = groups.find((g) => g.id === "clinical")
-    const appointmentsPath = `${staffBasePath(designation)}/appointments`
-    clinical?.items.splice(0, 0, {
-      id: "appointments",
-      title: "Appointments",
-      path: appointmentsPath,
-      icon: "requests",
-      module: undefined,
-      matchPrefixes: [appointmentsPath],
-    })
   }
 
   return groups
