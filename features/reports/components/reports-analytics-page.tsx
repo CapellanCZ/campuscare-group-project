@@ -175,7 +175,13 @@ export function ReportsAnalyticsPage({
   const announcementItems = initialAnnouncements?.items.slice(0, 6) ?? []
 
   return (
-    <div className="flex flex-1 flex-col gap-8 pt-2">
+    <div
+      className={
+        isPhysician
+          ? "flex flex-1 flex-col gap-10 pt-2"
+          : "flex flex-1 flex-col gap-8 pt-2"
+      }
+    >
       <PageIntro
         title="Reports and Analytics"
         description={
@@ -355,8 +361,13 @@ export function ReportsAnalyticsPage({
         </PanelGrid>
       </PanelFrame>
       {useStackedTables ? (
-        <section className="flex flex-col gap-6">
-          <div className="space-y-1">
+        <section
+          className={cn(
+            "flex flex-col gap-6",
+            isPhysician && "gap-10"
+          )}
+        >
+          <div className={cn("space-y-1", isPhysician && "space-y-1.5")}>
             <h2 className="text-base font-semibold tracking-tight">Report tables</h2>
             {isDentist ? null : (
             <p className="text-sm text-muted-foreground">
@@ -366,12 +377,18 @@ export function ReportsAnalyticsPage({
           </div>
           {visibleTables.map((table) => (
             <Card key={table.kind} className="min-w-0 border-border/70 shadow-none dark:ring-0">
-              <CardHeader className={cn("pb-2", isDentist && "pb-4")}>
+              <CardHeader
+                className={cn(
+                  "pb-2",
+                  isDentist && "pb-4",
+                  isPhysician && "px-6 pb-3 pt-6"
+                )}
+              >
                 <CardTitle className="text-base">
                   {REPORT_KIND_LABELS[table.kind] ?? table.title}
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-6 pb-6">
                 <ReportDataTable
                   table={table}
                   query=""

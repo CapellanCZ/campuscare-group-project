@@ -26,6 +26,7 @@ type SelectWithOtherFieldProps = {
   onValueChange: (value: string) => void
   placeholder?: string
   otherLabel?: string
+  otherOptionLabel?: string
   otherPlaceholder?: string
   disabled?: boolean
   required?: boolean
@@ -45,6 +46,7 @@ export function SelectWithOtherField({
   onValueChange,
   placeholder = "Select…",
   otherLabel = "Please specify",
+  otherOptionLabel = "Other",
   otherPlaceholder = "Type a custom value",
   disabled,
   required,
@@ -103,7 +105,7 @@ export function SelectWithOtherField({
                 {option.label}
               </SelectItem>
             ))}
-            <SelectItem value={OTHER_SELECT_VALUE}>Other</SelectItem>
+            <SelectItem value={OTHER_SELECT_VALUE}>{otherOptionLabel}</SelectItem>
           </SelectContent>
         </Select>
       </Field>

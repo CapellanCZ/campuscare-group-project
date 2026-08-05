@@ -393,11 +393,12 @@ export function ConsultationFormSheet({
                 ? "Edit consultation"
                 : "Create consultation"}
           </SheetTitle>
-          <SheetDescription>
-            {dentalMode
-              ? "Record oral examination, diagnosis, treatment, and follow-up for dental patients."
-              : "Patient selection comes from patient records. Only patient_id is stored on the consultation."}
-          </SheetDescription>
+          {dentalMode ? (
+            <SheetDescription>
+              Record oral examination, diagnosis, treatment, and follow-up for
+              dental patients.
+            </SheetDescription>
+          ) : null}
         </SheetHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">

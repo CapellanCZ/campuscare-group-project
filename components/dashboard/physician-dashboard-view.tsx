@@ -10,11 +10,6 @@ import {
   IconUserHeart,
 } from "@tabler/icons-react"
 
-import {
-  ClinicDateTime,
-} from "@/components/dashboard/clinic-datetime"
-import { DashboardQuickNav } from "@/components/dashboard/dashboard-quick-nav"
-import { RoleDashboardSummaries } from "@/components/dashboard/role-dashboard-summaries"
 import { StatCard } from "@/components/shared/stat-card"
 import { VitalsStrip } from "@/components/queue/vitals-strip"
 import { WaitStatusBadge } from "@/components/queue/wait-status-badge"
@@ -87,7 +82,6 @@ function physicianKpiHref(key: string): string | undefined {
     case "queue":
       return "/physician/queue"
     case "appointments":
-      return "/physician/appointments"
     case "completed":
       return "/physician/consultations"
     case "requests":
@@ -102,8 +96,8 @@ export function PhysicianDashboardView({
   kpis,
   tickets,
   recent: _recent,
-  stats,
-  summary,
+  stats: _stats,
+  summary: _summary,
 }: {
   access: StaffAccess
   kpis: DashboardKpis
@@ -113,6 +107,8 @@ export function PhysicianDashboardView({
   summary: RoleDashboardSummary
 }) {
   void _recent
+  void _stats
+  void _summary
   const firstName = access.fullName.split(" ")[0] || access.fullName
   const nowServing = tickets.find((t) => t.status === "called") ?? null
   const waiting = tickets
@@ -123,31 +119,20 @@ export function PhysicianDashboardView({
 
   return (
     <div className="flex flex-1 flex-col gap-8">
-      <div className="flex flex-col gap-4">
-        <PageIntro
-          title={`Welcome back, ${firstName}`}
-          description={
-            <>
-              Your physician station · {stats.totalWaiting} waiting ·{" "}
-              {stats.currentlyServing} serving
-              {" · "}
-              <ClinicDateTime />
-            </>
-          }
-          action={
-            <Button
-              size="sm"
-              render={<Link href="/physician/queue" />}
-              nativeButton={false}
-            >
-              Open queue
-            </Button>
-          }
-        />
-        <DashboardQuickNav designation={access.designation} />
-      </div>
+      <PageIntro
+        title={`Welcome back, Dr. ${firstName}!`}
+        action={
+          <Button
+            size="sm"
+            render={<Link href="/physician/queue" />}
+            nativeButton={false}
+          >
+            Open queue
+          </Button>
+        }
+      />
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
         <SectionLabel>At a glance</SectionLabel>
         <PanelFrame>
           <PanelGrid className="sm:grid-cols-2 lg:grid-cols-4">
@@ -172,7 +157,7 @@ export function PhysicianDashboardView({
         </PanelFrame>
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
         <SectionLabel>Work now</SectionLabel>
         <PanelFrame>
           <PanelGrid className="lg:grid-cols-1">
@@ -217,7 +202,7 @@ export function PhysicianDashboardView({
             ) : null}
 
             <PanelCell>
-              <Card className={cn(panelCardClassName, "gap-0 py-0")}>
+              <Card className={cn(panelCardClassName)}>
                 <CardHeader className="border-b">
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0 space-y-1">
@@ -312,15 +297,6 @@ export function PhysicianDashboardView({
                 </CardContent>
               </Card>
             </PanelCell>
-          </PanelGrid>
-        </PanelFrame>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <SectionLabel>Clinic today</SectionLabel>
-        <PanelFrame>
-          <PanelGrid className="lg:grid-cols-3">
-            <RoleDashboardSummaries access={access} summary={summary} />
           </PanelGrid>
         </PanelFrame>
       </div>

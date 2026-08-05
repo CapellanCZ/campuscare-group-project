@@ -329,7 +329,7 @@ export function ConsultationsPage({
       <DemoPageHeader
         title={d === "dentist" ? "Dental consultations" : "Consultations"}
         description={
-          isNurse || isDentist
+          isNurse || isPhysician || isDentist
             ? ""
             : "Triage assessments and clinical charting"
         }
@@ -376,8 +376,8 @@ export function ConsultationsPage({
                 className="w-full min-w-[12rem] sm:w-56"
                 value={query}
                 onChange={setQuery}
-                placeholder="Search by Student ID"
-                aria-label="Search by Student ID"
+                placeholder="Search by student ID number"
+                aria-label="Search by student ID number"
               />
             ) : (
               <Input

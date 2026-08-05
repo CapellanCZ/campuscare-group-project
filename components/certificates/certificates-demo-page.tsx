@@ -301,11 +301,11 @@ export function CertificatesPage({
       <div className="print:hidden">
         <DemoPageHeader
           title="Medical Certificates"
-        description={
-          d === "nurse" || d === "dentist"
-            ? ""
-            : "Browse history and generate printable certificates"
-        }
+          description={
+            d === "nurse" || d === "physician" || d === "dentist"
+              ? ""
+              : "Browse history and generate printable certificates"
+          }
           designation={d}
           showDemoBanner={false}
         />
@@ -334,13 +334,13 @@ export function CertificatesPage({
           </CardTitle>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             {can(d, "certificates.search_patient") ? (
-              d === "nurse" ? (
+              d === "nurse" || d === "physician" ? (
                 <StudentIdSearchInput
                   className="sm:w-72"
                   value={query}
                   onChange={setQuery}
-                  placeholder="Search by Student ID"
-                  aria-label="Search by Student ID"
+                  placeholder="Search by student ID number"
+                  aria-label="Search by student ID number"
                 />
               ) : (
                 <Input
@@ -464,25 +464,26 @@ export function CertificatesPage({
                               )}
                             </Button>
                           ) : null}
-          {can(d, "certificates.download_pdf") &&
-          d !== "dentist" &&
-          row.status !== "draft" ? (
-            <Button
-              size="xs"
-              variant="secondary"
-              onClick={() => {
-                openCertificate(row)
-                window.setTimeout(() => window.print(), 150)
-              }}
-              aria-label="Export PDF"
-            >
-              {d === "nurse" ? (
-                <IconFileTypePdf className="size-3.5" aria-hidden />
-              ) : (
-                "PDF"
-              )}
-            </Button>
-          ) : null}
+                          {can(d, "certificates.download_pdf") &&
+                          d !== "physician" &&
+                          d !== "dentist" &&
+                          row.status !== "draft" ? (
+                            <Button
+                              size="xs"
+                              variant="secondary"
+                              onClick={() => {
+                                openCertificate(row)
+                                window.setTimeout(() => window.print(), 150)
+                              }}
+                              aria-label="Export PDF"
+                            >
+                              {d === "nurse" ? (
+                                <IconFileTypePdf className="size-3.5" aria-hidden />
+                              ) : (
+                                "PDF"
+                              )}
+                            </Button>
+                          ) : null}
                           {canManage ? (
                             <Button
                               size="xs"
@@ -568,9 +569,16 @@ export function CertificatesPage({
         open={formOpen}
         mode={formMode}
         certificate={editing}
+        defaultDoctorName={
+          d === "dentist" && access.fullName
+            ? /^(dr|dra)\.?\s+/i.test(access.fullName.trim())
+              ? access.fullName.trim()
+              : `Dr. ${access.fullName.trim()}`
+            : access.fullName
+        }
+        hideDoctorNameField={d === "physician" || d === "dentist"}
         onOpenChange={setFormOpen}
         onSaved={handleSaved}
-        access={access}
       />
 
       <CertificateDeleteDialog

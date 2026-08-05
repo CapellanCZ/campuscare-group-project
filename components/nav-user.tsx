@@ -23,7 +23,6 @@ import { signOut } from "@/app/auth/actions"
 import { savePreferencesAction } from "@/features/settings/actions"
 import { staffBasePath } from "@/lib/auth/home-path"
 import {
-  IconCalendar,
   IconLogout,
   IconMoon,
   IconSun,
@@ -48,7 +47,6 @@ export function NavUser() {
   const avatarUrl = access?.avatarUrl ?? null
   const base = access ? staffBasePath(access.primaryRole) : "/login"
   const settingsHref = `${base}/settings`
-  const showSchedule = access?.primaryRole === "physician"
   const mark = initials(name)
   const isDark = (resolvedTheme ?? theme) === "dark"
 
@@ -126,12 +124,6 @@ export function NavUser() {
               )}
               {isDark ? "Light mode" : "Dark mode"}
             </DropdownMenuItem>
-            {showSchedule ? (
-              <DropdownMenuItem render={<Link href={settingsHref} />}>
-                <IconCalendar aria-hidden="true" />
-                My schedule
-              </DropdownMenuItem>
-            ) : null}
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem

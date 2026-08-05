@@ -11,9 +11,10 @@ import type { AppointmentStatus } from "@/features/physician/types"
 export type ActionResult = { ok: true } | { ok: false; error: string }
 
 const PHYSICIAN_PATHS = [
+  "/physician",
   "/physician/dashboard",
-  "/physician/appointments",
   "/physician/patients",
+  "/physician/consultations",
   "/physician/settings",
   "/physician/reports",
   "/physician/profile",

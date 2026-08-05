@@ -186,15 +186,16 @@ export function QueuePage({
     if (isNurse) rows = ticketsInNurseLane(rows, nurseLane)
     const next = rows.filter((t) => {
       const q = query.trim().toLowerCase()
-      const matchesQuery = isNurse
-        ? !q ||
-          studentIdMatchesQuery(t.campusId, query) ||
-          studentIdMatchesQuery(t.studentId, query)
-        : !q ||
-          t.patientName.toLowerCase().includes(q) ||
-          (t.campusId ?? "").toLowerCase().includes(q) ||
-          t.ticketCode.toLowerCase().includes(q) ||
-          String(t.queueNumber ?? "").includes(q)
+      const matchesQuery =
+        isNurse || isPhysician
+          ? !q ||
+            studentIdMatchesQuery(t.campusId, query) ||
+            studentIdMatchesQuery(t.studentId, query)
+          : !q ||
+            t.patientName.toLowerCase().includes(q) ||
+            (t.campusId ?? "").toLowerCase().includes(q) ||
+            t.ticketCode.toLowerCase().includes(q) ||
+            String(t.queueNumber ?? "").includes(q)
       const matchesStatus =
         statusFilter === "all" || t.status === (statusFilter as TicketStatus)
       const matchesStation =
@@ -247,6 +248,7 @@ export function QueuePage({
     patientTypeFilter,
     consultationFilter,
     isNurse,
+    isPhysician,
     nurseLane,
     sortColumn,
     sortDirection,
@@ -323,16 +325,22 @@ export function QueuePage({
         ]
 
   return (
-    <div className="flex flex-1 flex-col gap-8 pt-2">
+    <div
+      className={
+        isPhysician
+          ? "flex flex-1 flex-col gap-10 pt-2"
+          : "flex flex-1 flex-col gap-8 pt-2"
+      }
+    >
       <PageIntro
         title={
           isNurse
             ? "Nurse queue"
             : isPhysician
               ? "Your station queue"
-            : access.designation === "dentist"
-              ? "Dental queue"
-              : "Queue management"
+              : access.designation === "dentist"
+                ? "Dental queue"
+                : "Queue management"
         }
         description={
           isNurse || isPhysician || isDentist
@@ -399,7 +407,7 @@ export function QueuePage({
 
           <PanelCell className="lg:col-span-3">
             <Card className={cn(panelCardClassName, "gap-0 py-0")}>
-              <div className="flex flex-col gap-4 border-b px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-4 border-b px-6 py-6 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0 space-y-1">
                   <CardTitle className="text-base">
                     {isNurse
@@ -412,7 +420,7 @@ export function QueuePage({
                   </CardTitle>
                 </div>
                 <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
-                  {isNurse ? (
+                  {isNurse || isPhysician ? (
                     <StudentIdSearchInput
                       className="sm:w-56"
                       inputClassName="h-9"
@@ -421,8 +429,8 @@ export function QueuePage({
                         setQuery(next)
                         setPage(0)
                       }}
-                      placeholder="Search by Student ID"
-                      aria-label="Search by Student ID"
+                      placeholder="Search by ID Number"
+                      aria-label="Search by ID Number"
                     />
                   ) : (
                     <InputGroup className="h-9 sm:w-56">

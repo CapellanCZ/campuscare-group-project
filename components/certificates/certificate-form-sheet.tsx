@@ -45,7 +45,6 @@ import {
   Sheet,
   SheetClose,
   SheetContent,
-  SheetDescription,
   SheetFooter,
   SheetHeader,
   SheetTitle,
@@ -53,7 +52,6 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { CERTIFICATE_PURPOSE_OPTIONS } from "@/lib/health/form-options"
 import { cn } from "@/lib/utils"
-import type { StaffAccess } from "@/lib/auth/types"
 import {
   MEDICAL_CERTIFICATE_STATUSES,
   type MedicalCertificate,
@@ -69,14 +67,10 @@ const CERTIFICATE_TYPES = [
   "Dental clearance",
 ] as const
 
-const DENTIST_CERTIFICATE_TYPES = [...CERTIFICATE_TYPES, "Others"] as const
-
-function formatDoctorDisplayName(fullName: string) {
-  const trimmed = fullName.trim()
-  if (!trimmed) return ""
-  if (/^(dr|dra)\.?\s+/i.test(trimmed)) return trimmed
-  return `Dr. ${trimmed}`
-}
+const CERTIFICATE_TYPE_OPTIONS = CERTIFICATE_TYPES.map((type) => ({
+  value: type,
+  label: type,
+}))
 
 type FormState = {
   patientId: string
@@ -245,11 +239,11 @@ function PatientSearchSelect({
             <span className="truncate">
               {loading || resolving
                 ? resolving
-                  ? "Syncing student…"
-                  : "Loading patients…"
+                  ? "Syncing student?"
+                  : "Loading patients?"
                 : selected
                   ? `${selected.fullName}${
-                      selected.studentId ? ` · ${selected.studentId}` : ""
+                      selected.studentId ? ` ? ${selected.studentId}` : ""
                     }`
                   : searchPlaceholder}
             </span>
@@ -271,7 +265,7 @@ function PatientSearchSelect({
             <CommandGroup>
               {filtered.map((patient) => {
                 const label = `${patient.fullName}${
-                  patient.studentId ? ` · ${patient.studentId}` : ""
+                  patient.studentId ? ` ? ${patient.studentId}` : ""
                 }`
                 return (
                   <CommandItem
@@ -302,44 +296,29 @@ function PatientSearchSelect({
 function CertificateFormBody({
   mode,
   certificate,
+  defaultDoctorName,
+  hideDoctorNameField,
   onOpenChange,
   onSaved,
-  access,
 }: {
   mode: "create" | "edit"
   certificate: MedicalCertificate | null
+  defaultDoctorName: string
+  hideDoctorNameField: boolean
   onOpenChange: (open: boolean) => void
   onSaved: (certificate: MedicalCertificate) => void
-  access?: StaffAccess
 }) {
-  const isDentist = access?.designation === "dentist"
-  const autoDoctorName = access?.fullName
-    ? formatDoctorDisplayName(access.fullName)
-    : ""
-  const certificateTypes = isDentist
-    ? DENTIST_CERTIFICATE_TYPES
-    : CERTIFICATE_TYPES
-
   const [form, setForm] = useState<FormState>(() => {
     if (certificate && mode === "edit") return certificateToForm(certificate)
     return {
       ...emptyForm,
-      doctorName: isDentist ? autoDoctorName : "",
+      doctorName: defaultDoctorName,
     }
   })
   const [patients, setPatients] = useState<MedicalCertificatePatient[]>([])
   const [loadingPatients, setLoadingPatients] = useState(mode === "create")
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
-
-  useEffect(() => {
-    if (!isDentist || !autoDoctorName) return
-    setForm((current) =>
-      current.doctorName === autoDoctorName
-        ? current
-        : { ...current, doctorName: autoDoctorName }
-    )
-  }, [autoDoctorName, isDentist])
 
   useEffect(() => {
     if (mode !== "create") return
@@ -365,9 +344,23 @@ function CertificateFormBody({
     setForm((current) => ({ ...current, [key]: value }))
   }
 
+  function resolvedDoctorName() {
+    if (hideDoctorNameField) {
+      return (
+        form.doctorName.trim() ||
+        defaultDoctorName.trim() ||
+        certificate?.doctorName?.trim() ||
+        ""
+      )
+    }
+    return form.doctorName.trim()
+  }
+
   function onSubmit(event: React.FormEvent) {
     event.preventDefault()
-    const validationError = validateForm(form, mode)
+    const doctorName = resolvedDoctorName()
+    const formForValidation = { ...form, doctorName }
+    const validationError = validateForm(formForValidation, mode)
     if (validationError) {
       setError(validationError)
       toast.error(validationError)
@@ -383,12 +376,6 @@ function CertificateFormBody({
       ) {
         issuedAt = new Date().toISOString()
       }
-
-      const doctorName = (
-        isDentist
-          ? autoDoctorName || form.doctorName
-          : form.doctorName
-      ).trim()
 
       if (mode === "create") {
         const result = await createMedicalCertificateAction({
@@ -453,11 +440,6 @@ function CertificateFormBody({
             ? "New medical certificate"
             : "Edit medical certificate"}
         </SheetTitle>
-        <SheetDescription>
-          {mode === "create"
-            ? "Create a certificate and save it to the clinic records."
-            : "Update editable fields. IDs and timestamps stay unchanged."}
-        </SheetDescription>
       </SheetHeader>
 
       <form
@@ -491,10 +473,10 @@ function CertificateFormBody({
                   certificate
                     ? `${certificate.patient.fullName}${
                         certificate.patient.studentId
-                          ? ` · ${certificate.patient.studentId}`
+                          ? ` ? ${certificate.patient.studentId}`
                           : ""
                       }`
-                    : "—"
+                    : "?"
                 }
                 disabled
                 readOnly
@@ -502,35 +484,20 @@ function CertificateFormBody({
             </Field>
           )}
 
-          <Field>
-            <FieldLabel>Certificate type</FieldLabel>
-            <Select
-              value={form.certificateType}
-              onValueChange={(value) =>
-                updateField("certificateType", value ?? CERTIFICATE_TYPES[0])
-              }
-              disabled={pending}
-            >
-              <SelectTrigger className="w-full" aria-label="Certificate type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {certificateTypes.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type}
-                  </SelectItem>
-                ))}
-                {form.certificateType &&
-                !(certificateTypes as readonly string[]).includes(
-                  form.certificateType
-                ) ? (
-                  <SelectItem value={form.certificateType}>
-                    {form.certificateType}
-                  </SelectItem>
-                ) : null}
-              </SelectContent>
-            </Select>
-          </Field>
+          <SelectWithOtherField
+            key={`${certificate?.id ?? "cert-create"}-type`}
+            id="cert-type"
+            label="Certificate type"
+            options={CERTIFICATE_TYPE_OPTIONS}
+            value={form.certificateType}
+            onValueChange={(value) => updateField("certificateType", value)}
+            placeholder="Select certificate type"
+            otherOptionLabel="Others"
+            otherLabel="Specify type"
+            otherPlaceholder="Specify certificate type"
+            required
+            disabled={pending}
+          />
 
           <SelectWithOtherField
             key={certificate?.id ?? "cert-create"}
@@ -545,16 +512,7 @@ function CertificateFormBody({
             disabled={pending}
           />
 
-          {isDentist ? (
-            <Field>
-              <FieldLabel>Issued by</FieldLabel>
-              <Input
-                value={form.doctorName || autoDoctorName}
-                disabled
-                readOnly
-              />
-            </Field>
-          ) : (
+          {hideDoctorNameField ? null : (
             <Field>
               <FieldLabel htmlFor="cert-doctor">Doctor name</FieldLabel>
               <Input
@@ -656,8 +614,8 @@ function CertificateFormBody({
           <Button type="submit" disabled={pending || loadingPatients}>
             {pending
               ? mode === "create"
-                ? "Creating…"
-                : "Saving…"
+                ? "Creating?"
+                : "Saving?"
               : mode === "create"
                 ? "Create certificate"
                 : "Save changes"}
@@ -679,16 +637,18 @@ export function CertificateFormSheet({
   open,
   mode,
   certificate,
+  defaultDoctorName = "",
+  hideDoctorNameField = false,
   onOpenChange,
   onSaved,
-  access,
 }: {
   open: boolean
   mode: "create" | "edit"
   certificate: MedicalCertificate | null
+  defaultDoctorName?: string
+  hideDoctorNameField?: boolean
   onOpenChange: (open: boolean) => void
   onSaved: (certificate: MedicalCertificate) => void
-  access?: StaffAccess
 }) {
   const formKey =
     mode === "edit" ? `edit-${certificate?.id ?? "unknown"}` : "create"
@@ -701,9 +661,10 @@ export function CertificateFormSheet({
             key={formKey}
             mode={mode}
             certificate={certificate}
+            defaultDoctorName={defaultDoctorName}
+            hideDoctorNameField={hideDoctorNameField}
             onOpenChange={onOpenChange}
             onSaved={onSaved}
-            access={access}
           />
         ) : null}
       </SheetContent>

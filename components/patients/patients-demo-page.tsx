@@ -342,7 +342,9 @@ export function PatientsPage({
       <DemoPageHeader
         title="Patient Records"
         description={
-          access.designation === "nurse" || access.designation === "dentist"
+          access.designation === "nurse" ||
+          access.designation === "physician" ||
+          access.designation === "dentist"
             ? ""
             : "Enrolled student medical records. Search by Student ID; update medical history and physical exam here."
         }
@@ -366,13 +368,14 @@ export function PatientsPage({
           <CardTitle className="text-base">Student directory</CardTitle>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             {can(access.designation, "patients.search") ? (
-              access.designation === "nurse" ? (
+              access.designation === "nurse" ||
+              access.designation === "physician" ? (
                 <StudentIdSearchInput
                   className="w-full sm:w-72"
                   value={query}
                   onChange={setQuery}
-                  placeholder="Search by Student ID Number"
-                  aria-label="Search by Student ID Number"
+                  placeholder="Search by ID Number"
+                  aria-label="Search by ID Number"
                 />
               ) : (
                 <div className="relative w-full sm:w-72">

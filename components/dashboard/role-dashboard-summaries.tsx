@@ -10,12 +10,9 @@ import { NurseRequestsPanel } from "@/components/dashboard/nurse-requests-panel"
 import { PanelCell } from "@/components/layout/panel-frame"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { AppointmentStatusBadge } from "@/features/physician/components/appointment-status-badge"
-import { CLINIC_TIMEZONE } from "@/features/physician/types"
 import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
-import { formatClinicTime, zonedDayKey } from "@/lib/physician/timezone"
 
 export function RoleDashboardSummaries({
   access,
@@ -36,20 +33,6 @@ export function RoleDashboardSummaries({
 
   const canGenerateCert = can(d, "certificates.generate")
   const canGenerateFromConsult = can(d, "consultations.generate_certificate")
-
-  const todayKey = zonedDayKey(new Date().toISOString(), CLINIC_TIMEZONE)
-  const todaysAppointments =
-    summary.physicianWorkspace?.appointments
-      .filter(
-        (a) =>
-          zonedDayKey(a.startsAt, a.timezone) === todayKey &&
-          a.status !== "cancelled"
-      )
-      .sort(
-        (a, b) =>
-          new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
-      )
-      .slice(0, 6) ?? []
 
   return (
     <>
@@ -206,74 +189,6 @@ export function RoleDashboardSummaries({
                 ))}
               </ul>
             )}
-          </ModuleSnapshot>
-        </PanelCell>
-      ) : null}
-
-      {isPhysician ? (
-        <PanelCell className="lg:col-span-3">
-          <ModuleSnapshot
-            title="Today's appointments"
-            description="Your clinic board for today."
-            href={`${base}/appointments`}
-            badge={summary.physicianWorkspace?.stats.todayCount ?? 0}
-          >
-            {todaysAppointments.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No appointments today. Check upcoming days or update
-                availability.
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {todaysAppointments.map((apt) => (
-                  <li
-                    key={apt.id}
-                    className="flex flex-col gap-2 rounded-xl border border-border/60 p-3 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate font-medium">{apt.patientName}</p>
-                        <AppointmentStatusBadge status={apt.status} />
-                      </div>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {formatClinicTime(apt.startsAt, apt.timezone)} ·{" "}
-                        {apt.reason ?? "No reason listed"}
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant={
-                        apt.status === "in_progress" ? "default" : "outline"
-                      }
-                      render={
-                        <Link href={`/physician/consultation/${apt.id}`} />
-                      }
-                      nativeButton={false}
-                    >
-                      {apt.status === "in_progress" ? "Continue" : "Open"}
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                render={<Link href={`${base}/appointments`} />}
-                nativeButton={false}
-              >
-                Open appointments
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                render={<Link href={`${base}/settings`} />}
-                nativeButton={false}
-              >
-                Manage schedule
-              </Button>
-            </div>
           </ModuleSnapshot>
         </PanelCell>
       ) : null}
