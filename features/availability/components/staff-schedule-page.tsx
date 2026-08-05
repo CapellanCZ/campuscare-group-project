@@ -29,7 +29,7 @@ type StaffSchedulePageProps = {
   doctorName: string
   availability: StaffWeeklyHour[]
   clinicHours: ClinicOfficeHour[]
-  /** When true, copy reflects Account settings placement (not Clinical nav). */
+  /** When true, copy reflects Profile and Settings placement (not Clinical nav). */
   embeddedInSettings?: boolean
 }
 
@@ -92,7 +92,7 @@ export function StaffSchedulePage({
           subtitle={doctorName}
           description={
             embeddedInSettings
-              ? "Manage your weekly availability from account settings. Appointment times must fall inside clinic hours and your schedule, and are blocked while you or the clinic are on break."
+              ? "Manage your weekly availability from Profile and Settings. Appointment times must fall inside clinic hours and your schedule, and are blocked while you or the clinic are on break."
               : "Set your weekly office hours. Appointment times must fall inside both clinic hours and your schedule, and are blocked while you or the clinic are on break."
           }
         />

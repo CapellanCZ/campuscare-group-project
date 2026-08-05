@@ -107,38 +107,52 @@ export function enrichDashboardKpis(
   }
 
   if (designation === "dentist") {
-    const byKey = new Map(kpis.cards.map((c) => [c.key, c]))
-    const patients = byKey.get("patients")
-    const waiting = byKey.get("waiting")
-    const completed = byKey.get("completed")
+    const dentalTickets = allTickets.filter((t) => t.station === "dentist")
+    const waitingCount = dentalTickets.filter((t) => t.status === "waiting")
+      .length
+    const ongoing = dentalTickets.find((t) => t.status === "ongoing")
+    const scheduleSlots = summary.schedule?.todaySlots.length ?? 0
+    const nextSlot = summary.schedule?.todaySlots[0]
+    const apptToday =
+      summary.physicianWorkspace?.stats.todayCount ??
+      dentalTickets.length
+
     return {
       cards: [
-        patients ?? {
-          key: "patients",
-          label: "Dental patients today",
-          value: "0",
-          description: "Dental visits",
-        },
-        waiting
-          ? { ...waiting, label: "Waiting dental patients" }
-          : {
-              key: "waiting",
-              label: "Waiting dental patients",
-              value: "0",
-              description: "In your queue",
-              lowerIsBetter: true,
-            },
-        completed ?? {
-          key: "completed",
-          label: "Completed dental consultations",
-          value: "0",
-          description: "Finished today",
+        {
+          key: "appointments",
+          label: "Today's Appointments",
+          value: String(apptToday),
+          description: "Dental visits today",
         },
         {
-          key: "referrals",
-          label: "Dental referrals",
-          value: String(summary.dentalReferralsToday),
-          description: "External referrals today",
+          key: "waiting",
+          label: "Patients Waiting",
+          value: String(waitingCount),
+          description: "In your dental queue",
+          lowerIsBetter: true,
+        },
+        {
+          key: "ongoing",
+          label: "Ongoing Consultation",
+          value: ongoing ? "1" : "0",
+          description: ongoing
+            ? ongoing.patientName
+            : "No consultation in progress",
+        },
+        {
+          key: "completed",
+          label: "Completed Consultations Today",
+          value: String(summary.consultationStats.completedToday),
+          description: "Finished dental charts",
+        },
+        {
+          key: "schedule",
+          label: "Upcoming Schedule",
+          value: String(scheduleSlots),
+          description: nextSlot
+            ? `${summary.schedule?.todayLabel ?? "Today"} · ${nextSlot.startTime}–${nextSlot.endTime}`
+            : "Manage in Profile and Settings",
         },
       ],
     }
@@ -225,7 +239,9 @@ async function buildKpis(
     scoped.map((t) => t.studentId).filter(Boolean)
   ).size
 
-  const current = scoped.find((t) => t.status === "called")
+  const current = scoped.find(
+    (t) => t.status === "called" || t.status === "ongoing"
+  )
 
   if (designation === "admin") {
     return {

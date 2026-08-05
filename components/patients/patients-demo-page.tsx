@@ -14,6 +14,7 @@ import { PatientHistorySheet } from "@/components/patients/patient-history-sheet
 import { PatientMedicalSheet } from "@/components/patients/patient-medical-sheet"
 import { PatientProfileSheet } from "@/components/patients/patient-profile-sheet"
 import { StudentIdSearchInput } from "@/components/shared/student-id-search-input"
+import { DENTIST_PATIENT_SEARCH_PLACEHOLDER } from "@/lib/students/patient-search-copy"
 import { DemoPageHeader, DemoStatGrid } from "@/components/demo/demo-page"
 import {
   PanelFrame,
@@ -332,11 +333,16 @@ export function PatientsPage({
     : "No enrolled students found. Check the Student Dataset file in Storage."
 
   return (
-    <div className="flex flex-col gap-6">
+    <div
+      className={cn(
+        "flex flex-col gap-6",
+        access.designation === "dentist" && "gap-8 pt-2"
+      )}
+    >
       <DemoPageHeader
         title="Patient Records"
         description={
-          access.designation === "nurse"
+          access.designation === "nurse" || access.designation === "dentist"
             ? ""
             : "Enrolled student medical records. Search by Student ID; update medical history and physical exam here."
         }
@@ -350,7 +356,13 @@ export function PatientsPage({
 
       <PanelFrame>
         <Card className={cn(panelCardClassName, "gap-0 py-0")}>
-        <CardHeader className="flex flex-col gap-3 border-b pt-(--card-spacing) sm:flex-row sm:items-center sm:justify-between">
+        <CardHeader
+          className={cn(
+            "flex flex-col gap-3 border-b pt-(--card-spacing) sm:flex-row sm:items-center sm:justify-between",
+            access.designation === "dentist" &&
+              "gap-4 border-b px-6 py-5 pt-5"
+          )}
+        >
           <CardTitle className="text-base">Student directory</CardTitle>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             {can(access.designation, "patients.search") ? (
@@ -370,10 +382,18 @@ export function PatientsPage({
                   />
                   <Input
                     className="pl-8"
-                    placeholder="Search by Student ID Number"
+                    placeholder={
+                      access.designation === "dentist"
+                        ? DENTIST_PATIENT_SEARCH_PLACEHOLDER
+                        : "Search by Student ID Number"
+                    }
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    aria-label="Search by Student ID Number"
+                    aria-label={
+                      access.designation === "dentist"
+                        ? DENTIST_PATIENT_SEARCH_PLACEHOLDER
+                        : "Search by Student ID Number"
+                    }
                   />
                 </div>
               )

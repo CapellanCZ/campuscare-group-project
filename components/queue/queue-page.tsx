@@ -23,6 +23,7 @@ import { VitalsStrip } from "@/components/queue/vitals-strip"
 import { WaitStatusBadge } from "@/components/queue/wait-status-badge"
 import { WalkInSheet } from "@/components/queue/walk-in-sheet"
 import { StudentIdSearchInput } from "@/components/shared/student-id-search-input"
+import { DENTIST_PATIENT_SEARCH_PLACEHOLDER } from "@/lib/students/patient-search-copy"
 import { ActivityFeed } from "@/components/shared/activity-feed"
 import { RecentlyServedCard } from "@/components/shared/recently-served-card"
 import { StatCard } from "@/components/shared/stat-card"
@@ -158,6 +159,7 @@ export function QueuePage({
   const myStation = stationForDesignation(access.designation)
   const isNurse = access.designation === "nurse"
   const isPhysician = access.designation === "physician"
+  const isDentist = access.designation === "dentist"
   const isSpecialtyStation =
     access.designation === "physician" || access.designation === "dentist"
 
@@ -309,7 +311,9 @@ export function QueuePage({
           {
             label: "Current",
             value: (() => {
-              const current = localTickets.find((t) => t.status === "called")
+              const current = localTickets.find(
+                (t) => t.status === "called" || t.status === "ongoing"
+              )
               return current
                 ? ticketLabel(current.queueNumber, current.ticketCode)
                 : "—"
@@ -331,16 +335,12 @@ export function QueuePage({
               : "Queue management"
         }
         description={
-          isNurse
+          isNurse || isPhysician || isDentist
             ? undefined
             : `${designationLabel(access.designation)}${
                 readOnly
                   ? " · monitoring only"
-                  : isPhysician
-                    ? " · your station only"
-                    : access.designation === "dentist"
-                      ? " · dental patients only"
-                      : " · live controls"
+                  : " · live controls"
               }`
         }
         action={
@@ -389,7 +389,7 @@ export function QueuePage({
                 }}
               />
             </PanelCell>
-          ) : isPhysician ? null : (
+          ) : isPhysician || isDentist ? null : (
             cards.map((card) => (
               <PanelCell key={card.label}>
                 <StatCard flush label={card.label} value={card.value} />
@@ -430,13 +430,21 @@ export function QueuePage({
                         <IconSearch className="size-4 opacity-60" aria-hidden />
                       </InputGroupAddon>
                       <InputGroupInput
-                        placeholder="Search ticket or patient"
+                        placeholder={
+                          isDentist
+                            ? DENTIST_PATIENT_SEARCH_PLACEHOLDER
+                            : "Search ticket or patient"
+                        }
                         value={query}
                         onChange={(e) => {
                           setQuery(e.target.value)
                           setPage(0)
                         }}
-                        aria-label="Search ticket or patient"
+                        aria-label={
+                          isDentist
+                            ? DENTIST_PATIENT_SEARCH_PLACEHOLDER
+                            : "Search ticket or patient"
+                        }
                       />
                     </InputGroup>
                   )}
@@ -1022,13 +1030,27 @@ export function QueuePage({
                                         Call / recall
                                       </DropdownMenuItem>
                                       <DropdownMenuItem
-                                        onClick={() =>
+                                        onClick={() => {
+                                          if (isDentist) {
+                                            setLocalTickets((prev) =>
+                                              prev.map((ticket) =>
+                                                ticket.ticketId === row.ticketId
+                                                  ? {
+                                                      ...ticket,
+                                                      status: "ongoing" as const,
+                                                      assignedPersonnel:
+                                                        access.fullName,
+                                                    }
+                                                  : ticket
+                                              )
+                                            )
+                                          }
                                           run(() =>
                                             actionStartConsultation(
                                               row.ticketId
                                             )
                                           )
-                                        }
+                                        }}
                                       >
                                         Start consultation
                                       </DropdownMenuItem>
@@ -1143,7 +1165,7 @@ export function QueuePage({
             </Card>
           </PanelCell>
 
-          {!isPhysician ? (
+          {!isPhysician && !isDentist ? (
           <PanelCell className={isNurse ? "lg:col-span-1" : undefined}>
             <Card className={cn(panelCardClassName)}>
               <CardHeader>
@@ -1175,7 +1197,7 @@ export function QueuePage({
           </PanelCell>
           ) : null}
 
-          {!isNurse && !isPhysician ? (
+          {!isNurse && !isPhysician && !isDentist ? (
             <PanelCell>
               <ActivityFeed
                 className={panelCardClassName}
@@ -1189,7 +1211,7 @@ export function QueuePage({
             className={
               isNurse
                 ? "lg:col-span-2"
-                : isPhysician
+                : isPhysician || isDentist
                   ? "lg:col-span-3"
                   : undefined
             }
@@ -1197,7 +1219,7 @@ export function QueuePage({
             <Card className={cn(panelCardClassName)}>
               <CardHeader>
                 <CardTitle>Recently served</CardTitle>
-                {!isNurse ? (
+                {!isNurse && !isDentist ? (
                   <CardDescription>Latest completions today.</CardDescription>
                 ) : null}
               </CardHeader>
@@ -1208,7 +1230,10 @@ export function QueuePage({
                   </p>
                 ) : (
                   recent
-                    .slice(0, isNurse || isPhysician ? 6 : recent.length)
+                    .slice(
+                      0,
+                      isNurse || isPhysician || isDentist ? 6 : recent.length
+                    )
                     .map((item) => (
                     <RecentlyServedCard key={item.ticketId} item={item} />
                   ))

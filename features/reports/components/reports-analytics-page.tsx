@@ -55,6 +55,8 @@ export function ReportsAnalyticsPage({
   const d = access.designation
   const isPhysician = d === "physician"
   const isNurse = d === "nurse"
+  const isDentist = d === "dentist"
+  const useStackedTables = isPhysician || isDentist
   const catalog = catalogFor(d)
   const [filters, setFilters] = useState<ReportFilters>(initialBundle.filters)
   const [pending, startTransition] = useTransition()
@@ -177,7 +179,7 @@ export function ReportsAnalyticsPage({
       <PageIntro
         title="Reports and Analytics"
         description={
-          isPhysician || isNurse
+          isPhysician || isNurse || isDentist
             ? undefined
             : `${designationLabel(d)} clinic reports · quarterly HSO progress exports include narrative, KPIs, charts, and all tables`
         }
@@ -226,7 +228,7 @@ export function ReportsAnalyticsPage({
         }
       />
 
-      {!isPhysician && !isNurse ? (
+      {!isPhysician && !isNurse && !isDentist ? (
         <section className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-base font-semibold tracking-tight">
@@ -267,7 +269,7 @@ export function ReportsAnalyticsPage({
           {canFilters ? (
             <PanelCell className="lg:col-span-3">
               <Card className={cn(panelCardClassName)}>
-                <CardHeader className="pb-2">
+                <CardHeader className={cn("pb-2", d === "dentist" && "pb-4")}>
                   <CardTitle className="text-base">Filters</CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -309,7 +311,7 @@ export function ReportsAnalyticsPage({
               ))
             : null}
 
-          {!isPhysician ? (
+          {!useStackedTables ? (
           <PanelCell className="lg:col-span-3">
             <Card className={cn(panelCardClassName)}>
               <CardHeader className="space-y-3">
@@ -352,17 +354,19 @@ export function ReportsAnalyticsPage({
           ) : null}
         </PanelGrid>
       </PanelFrame>
-      {isPhysician ? (
+      {useStackedTables ? (
         <section className="flex flex-col gap-6">
           <div className="space-y-1">
             <h2 className="text-base font-semibold tracking-tight">Report tables</h2>
+            {isDentist ? null : (
             <p className="text-sm text-muted-foreground">
               Each dataset is shown in its own table for easier scanning.
             </p>
+            )}
           </div>
           {visibleTables.map((table) => (
             <Card key={table.kind} className="min-w-0 border-border/70 shadow-none dark:ring-0">
-              <CardHeader className="pb-2">
+              <CardHeader className={cn("pb-2", isDentist && "pb-4")}>
                 <CardTitle className="text-base">
                   {REPORT_KIND_LABELS[table.kind] ?? table.title}
                 </CardTitle>

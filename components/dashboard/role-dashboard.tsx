@@ -14,12 +14,12 @@ import {
 } from "@tabler/icons-react"
 
 import { DashboardQuickNav } from "@/components/dashboard/dashboard-quick-nav"
+import { DentistDashboardView } from "@/components/dashboard/dentist-dashboard-view"
 import { NurseDashboardView } from "@/components/dashboard/nurse-dashboard-view"
 import { PhysicianDashboardView } from "@/components/dashboard/physician-dashboard-view"
 import { RoleDashboardSummaries } from "@/components/dashboard/role-dashboard-summaries"
 import { ActivityFeed } from "@/components/shared/activity-feed"
 import { StatCard } from "@/components/shared/stat-card"
-import { VitalsStrip } from "@/components/queue/vitals-strip"
 import { WaitStatusBadge } from "@/components/queue/wait-status-badge"
 import {
   PageIntro,
@@ -55,7 +55,7 @@ import {
 import type { StaffAccess } from "@/lib/auth/types"
 import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
 import { designationLabel, stationLabel } from "@/lib/health/roles"
-import { patientTypeLabel, ticketLabel } from "@/lib/health/mappers"
+import { ticketLabel } from "@/lib/health/mappers"
 import type {
   ActivityItem,
   DashboardKpis,
@@ -138,17 +138,25 @@ export function RoleDashboard({
     )
   }
 
-  const isSpecialty = access.designation === "dentist"
-  const isAdmin = access.designation === "admin"
-  const nowServing = tickets.find((t) => t.status === "called") ?? null
-  const waiting = tickets
-    .filter(
-      (t) =>
-        t.status === "waiting" || (isSpecialty && t.status === "called")
+  if (access.designation === "dentist") {
+    return (
+      <DentistDashboardView
+        access={access}
+        kpis={kpis}
+        tickets={tickets}
+        recent={recent}
+        stats={stats}
+        summary={summary}
+      />
     )
+  }
+
+  const isAdmin = access.designation === "admin"
+  const waiting = tickets
+    .filter((t) => t.status === "waiting")
     .slice(0, 8)
 
-  const kpiCards = kpis.cards.slice(0, isAdmin || isSpecialty ? 6 : 3)
+  const kpiCards = kpis.cards.slice(0, isAdmin ? 6 : 3)
 
   const queueHref =
     access.designation === "queue_display"
@@ -156,20 +164,11 @@ export function RoleDashboard({
       : `/${access.designation}/queue`
 
   const firstName = access.fullName.split(" ")[0] || access.fullName
-  const queueTitle =
-    access.designation === "dentist"
-      ? "Today's dental queue"
-      : isSpecialty
-        ? "Station queue"
-        : "Live queue"
+  const queueTitle = "Live queue"
   const queueDescription = isAdmin
     ? "Clinic-wide tickets (view only)."
-    : access.designation === "dentist"
-      ? "Patients assigned for dental consultation."
-      : "Active tickets at your station."
-  const emptyQueueCopy = isSpecialty
-    ? "Patients appear after nurse intake."
-    : "Queue is clear."
+    : "Active tickets at your station."
+  const emptyQueueCopy = "Queue is clear."
 
   return (
     <div className="flex flex-1 flex-col gap-6">
@@ -225,39 +224,6 @@ export function RoleDashboard({
         <SectionLabel>Work now</SectionLabel>
         <PanelFrame>
           <PanelGrid className="lg:grid-cols-3">
-            {isSpecialty && nowServing ? (
-              <PanelCell className="lg:col-span-3">
-                <Card className={cn(panelCardClassName)}>
-                  <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
-                    <div className="min-w-0 space-y-1">
-                      <CardTitle className="text-base">Now serving</CardTitle>
-                      <CardDescription className="truncate">
-                        {nowServing.patientName}
-                        {nowServing.campusId
-                          ? ` · ${nowServing.campusId}`
-                          : ""}
-                      </CardDescription>
-                    </div>
-                    <Badge className="tabular-nums">
-                      {ticketLabel(
-                        nowServing.queueNumber,
-                        nowServing.ticketCode
-                      )}
-                    </Badge>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                      Nurse vitals
-                    </p>
-                    <VitalsStrip
-                      vitals={nowServing.vitals}
-                      chiefComplaint={nowServing.chiefComplaint}
-                    />
-                  </CardContent>
-                </Card>
-              </PanelCell>
-            ) : null}
-
             <PanelCell className="lg:col-span-2">
               <Card className={cn(panelCardClassName, "gap-0 py-0")}>
                 <CardHeader className="border-b">
@@ -300,28 +266,11 @@ export function RoleDashboard({
                           <TableRow>
                             <TableHead className="pl-6">#</TableHead>
                             <TableHead>Patient</TableHead>
-                            {isSpecialty ? (
-                              <>
-                                <TableHead className="hidden sm:table-cell">
-                                  Type
-                                </TableHead>
-                                <TableHead className="hidden md:table-cell">
-                                  Complaint
-                                </TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="hidden pr-6 lg:table-cell">
-                                  Wait
-                                </TableHead>
-                              </>
-                            ) : (
-                              <>
-                                <TableHead className="hidden sm:table-cell">
-                                  Station
-                                </TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="pr-6" />
-                              </>
-                            )}
+                            <TableHead className="hidden sm:table-cell">
+                              Station
+                            </TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="pr-6" />
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -333,42 +282,16 @@ export function RoleDashboard({
                               <TableCell className="max-w-40 truncate font-medium">
                                 {row.patientName}
                               </TableCell>
-                              {isSpecialty ? (
-                                <>
-                                  <TableCell className="hidden sm:table-cell">
-                                    <Badge variant="outline">
-                                      {patientTypeLabel(row.patientType)}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell className="hidden max-w-[10rem] truncate text-muted-foreground md:table-cell">
-                                    {row.chiefComplaint || "—"}
-                                  </TableCell>
-                                  <TableCell>
-                                    <WaitStatusBadge
-                                      status={row.status}
-                                      waitMinutes={row.estimatedWaitMinutes}
-                                    />
-                                  </TableCell>
-                                  <TableCell className="hidden pr-6 text-muted-foreground tabular-nums lg:table-cell">
-                                    {row.estimatedWaitMinutes != null
-                                      ? `${row.estimatedWaitMinutes}m`
-                                      : "—"}
-                                  </TableCell>
-                                </>
-                              ) : (
-                                <>
-                                  <TableCell className="hidden text-muted-foreground sm:table-cell">
-                                    {stationLabel(row.station)}
-                                  </TableCell>
-                                  <TableCell>
-                                    <WaitStatusBadge
-                                      status={row.status}
-                                      waitMinutes={row.estimatedWaitMinutes}
-                                    />
-                                  </TableCell>
-                                  <TableCell className="pr-6" />
-                                </>
-                              )}
+                              <TableCell className="hidden text-muted-foreground sm:table-cell">
+                                {stationLabel(row.station)}
+                              </TableCell>
+                              <TableCell>
+                                <WaitStatusBadge
+                                  status={row.status}
+                                  waitMinutes={row.estimatedWaitMinutes}
+                                />
+                              </TableCell>
+                              <TableCell className="pr-6" />
                             </TableRow>
                           ))}
                         </TableBody>

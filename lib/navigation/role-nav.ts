@@ -171,11 +171,6 @@ const roleGroupsByRole: Record<WebRole, RoleNavGroup[]> = {
           href: "/dentist/patients",
           icon: IconUsers,
         },
-        {
-          title: "Schedule",
-          href: "/dentist/settings",
-          icon: IconCalendarTime,
-        },
       ],
     },
   ],
@@ -226,7 +221,7 @@ const footerByRole: Record<WebRole, RoleNavItem[]> = {
       icon: IconChartBar,
     },
     {
-      title: "Profile",
+      title: "Profile and Settings",
       href: "/dentist/settings",
       icon: IconSettings,
     },

@@ -1,6 +1,7 @@
 export type TicketStatus =
   | "waiting"
   | "called"
+  | "ongoing"
   | "completed"
   | "expired"
   | "no_show"

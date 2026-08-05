@@ -108,11 +108,6 @@ const QUICK_NAV: Record<
       href: "/dentist/consultations",
       icon: IconStethoscope,
     },
-    {
-      label: "Announcements",
-      href: "/dentist/announcements",
-      icon: IconBellRinging,
-    },
   ],
 }
 

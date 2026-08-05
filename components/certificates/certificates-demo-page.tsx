@@ -17,6 +17,7 @@ import { CertificateFormSheet } from "@/components/certificates/certificate-form
 import { CertificatePreviewDialog } from "@/components/certificates/certificate-preview-dialog"
 import { CertificatePrintView } from "@/components/certificates/certificate-print-view"
 import { StudentIdSearchInput } from "@/components/shared/student-id-search-input"
+import { DENTIST_PATIENT_SEARCH_PLACEHOLDER } from "@/lib/students/patient-search-copy"
 import { DemoPageHeader, DemoStatGrid } from "@/components/demo/demo-page"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -56,6 +57,7 @@ import {
 import { can, canMutate, getAccessLevel } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { DemoStat } from "@/lib/demo/types"
+import { cn } from "@/lib/utils"
 import type {
   MedicalCertificate,
   MedicalCertificateListResult,
@@ -290,15 +292,20 @@ export function CertificatesPage({
   }
 
   return (
-    <div className="flex flex-col gap-6 print:p-0">
+    <div
+      className={cn(
+        "flex flex-col gap-6 print:p-0",
+        d === "dentist" && "gap-8 pt-2"
+      )}
+    >
       <div className="print:hidden">
         <DemoPageHeader
           title="Medical Certificates"
-          description={
-            d === "nurse"
-              ? ""
-              : "Browse history and generate printable certificates"
-          }
+        description={
+          d === "nurse" || d === "dentist"
+            ? ""
+            : "Browse history and generate printable certificates"
+        }
           designation={d}
           showDemoBanner={false}
         />
@@ -311,7 +318,12 @@ export function CertificatesPage({
       ) : null}
 
       <Card className="min-w-0 shadow-none print:hidden dark:ring-0">
-        <CardHeader className="gap-4 border-b px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+        <CardHeader
+          className={cn(
+            "gap-4 border-b px-6 py-5 sm:flex-row sm:items-center sm:justify-between",
+            d === "dentist" && "gap-4 px-6 py-5"
+          )}
+        >
           <CardTitle className="text-base">
             Certificate history
             {cardsLevel === "view" ? (
@@ -333,10 +345,18 @@ export function CertificatesPage({
               ) : (
                 <Input
                   className="sm:w-72"
-                  placeholder="Search by Student ID"
+                  placeholder={
+                    d === "dentist"
+                      ? DENTIST_PATIENT_SEARCH_PLACEHOLDER
+                      : "Search by Student ID"
+                  }
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  aria-label="Search by Student ID"
+                  aria-label={
+                    d === "dentist"
+                      ? DENTIST_PATIENT_SEARCH_PLACEHOLDER
+                      : "Search by Student ID"
+                  }
                 />
               )
             ) : null}
@@ -444,24 +464,25 @@ export function CertificatesPage({
                               )}
                             </Button>
                           ) : null}
-                          {can(d, "certificates.download_pdf") &&
-                          row.status !== "draft" ? (
-                            <Button
-                              size="xs"
-                              variant="secondary"
-                              onClick={() => {
-                                openCertificate(row)
-                                window.setTimeout(() => window.print(), 150)
-                              }}
-                              aria-label="Export PDF"
-                            >
-                              {d === "nurse" ? (
-                                <IconFileTypePdf className="size-3.5" aria-hidden />
-                              ) : (
-                                "PDF"
-                              )}
-                            </Button>
-                          ) : null}
+          {can(d, "certificates.download_pdf") &&
+          d !== "dentist" &&
+          row.status !== "draft" ? (
+            <Button
+              size="xs"
+              variant="secondary"
+              onClick={() => {
+                openCertificate(row)
+                window.setTimeout(() => window.print(), 150)
+              }}
+              aria-label="Export PDF"
+            >
+              {d === "nurse" ? (
+                <IconFileTypePdf className="size-3.5" aria-hidden />
+              ) : (
+                "PDF"
+              )}
+            </Button>
+          ) : null}
                           {canManage ? (
                             <Button
                               size="xs"
@@ -549,6 +570,7 @@ export function CertificatesPage({
         certificate={editing}
         onOpenChange={setFormOpen}
         onSaved={handleSaved}
+        access={access}
       />
 
       <CertificateDeleteDialog

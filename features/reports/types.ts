@@ -125,13 +125,13 @@ export type RoleReportsCatalog = {
 export const REPORT_KIND_LABELS: Record<ReportKind, string> = {
   daily_consultation: "Daily Consultation Report",
   monthly_consultation: "Monthly Consultation Report",
-  daily_dental: "Daily Dental Consultation Report",
-  monthly_dental: "Monthly Dental Consultation Report",
+  daily_dental: "Consultation Reports",
+  monthly_dental: "Dental Treatment Summary",
   patient_list: "Patient List Report",
   queue_performance: "Queue Performance Report",
   medical_certificate: "Medical Certificate Report",
-  dental_certificate: "Dental Certificate Report",
+  dental_certificate: "Medical Certificate Reports",
   consultation_request: "Consultation Request Report",
   patient_consultation_history: "Patient Consultation History",
-  patient_dental_history: "Patient Dental History",
+  patient_dental_history: "Patient Visit History",
 }

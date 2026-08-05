@@ -9,6 +9,7 @@ import type {
 const TICKET_STATUSES: TicketStatus[] = [
   "waiting",
   "called",
+  "ongoing",
   "completed",
   "expired",
   "no_show",
@@ -172,7 +173,7 @@ export function mapTicketRow(
     workflowStatus:
       station === "nurse"
         ? "queued_for_nurse"
-        : status === "called"
+        : status === "called" || status === "ongoing"
           ? "provider_in_progress"
           : status === "completed"
             ? "completed"

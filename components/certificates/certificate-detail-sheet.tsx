@@ -95,7 +95,7 @@ export function CertificateDetailSheet({
                   value={certificate.patient.fullName}
                 />
                 <DetailRow
-                  label="Student number"
+                  label="ID Number"
                   value={certificate.patient.studentId ?? "—"}
                 />
                 <DetailRow

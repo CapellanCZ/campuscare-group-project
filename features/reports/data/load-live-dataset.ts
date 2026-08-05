@@ -459,7 +459,7 @@ export async function loadLiveReportsDataset(): Promise<{
     }
 
     const status = ((ticket.status as string) || "").toLowerCase()
-    if (status === "waiting" || status === "called") mutable.waiting += 1
+    if (status === "waiting" || status === "called" || status === "ongoing") mutable.waiting += 1
     if (status === "completed") mutable.served += 1
     const wait = ticket.estimated_wait_minutes as number | null
     if (typeof wait === "number" && Number.isFinite(wait)) {

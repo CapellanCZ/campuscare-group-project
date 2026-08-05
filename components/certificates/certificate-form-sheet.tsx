@@ -15,6 +15,8 @@ import {
 import { certificateStatusLabel } from "@/features/certificates/lib/format"
 import { isEnrolledVirtualId } from "@/lib/students/virtual-id"
 import { NO_STUDENT_FOUND } from "@/lib/students/types"
+import { DENTIST_PATIENT_SEARCH_PLACEHOLDER } from "@/lib/students/patient-search-copy"
+import { useOptionalStaffAccess } from "@/components/staff-access-provider"
 import { SelectWithOtherField } from "@/components/shared/select-with-other-field"
 import { Button } from "@/components/ui/button"
 import {
@@ -51,6 +53,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { CERTIFICATE_PURPOSE_OPTIONS } from "@/lib/health/form-options"
 import { cn } from "@/lib/utils"
+import type { StaffAccess } from "@/lib/auth/types"
 import {
   MEDICAL_CERTIFICATE_STATUSES,
   type MedicalCertificate,
@@ -65,6 +68,15 @@ const CERTIFICATE_TYPES = [
   "Fitness for duty",
   "Dental clearance",
 ] as const
+
+const DENTIST_CERTIFICATE_TYPES = [...CERTIFICATE_TYPES, "Others"] as const
+
+function formatDoctorDisplayName(fullName: string) {
+  const trimmed = fullName.trim()
+  if (!trimmed) return ""
+  if (/^(dr|dra)\.?\s+/i.test(trimmed)) return trimmed
+  return `Dr. ${trimmed}`
+}
 
 type FormState = {
   patientId: string
@@ -167,6 +179,11 @@ function PatientSearchSelect({
   loading?: boolean
   onChange: (patient: MedicalCertificatePatient) => void
 }) {
+  const designation = useOptionalStaffAccess()?.designation
+  const searchPlaceholder =
+    designation === "dentist"
+      ? DENTIST_PATIENT_SEARCH_PLACEHOLDER
+      : "Search by Student ID Number"
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [resolving, setResolving] = useState(false)
@@ -234,7 +251,7 @@ function PatientSearchSelect({
                   ? `${selected.fullName}${
                       selected.studentId ? ` · ${selected.studentId}` : ""
                     }`
-                  : "Search by Student ID Number"}
+                  : searchPlaceholder}
             </span>
             <IconChevronDown className="ml-2 size-4 shrink-0 opacity-50" />
           </Button>
@@ -243,7 +260,7 @@ function PatientSearchSelect({
       <PopoverContent className="w-[var(--anchor-width)] p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="Search by Student ID Number"
+            placeholder={searchPlaceholder}
             value={query}
             onValueChange={setQuery}
           />
@@ -287,19 +304,42 @@ function CertificateFormBody({
   certificate,
   onOpenChange,
   onSaved,
+  access,
 }: {
   mode: "create" | "edit"
   certificate: MedicalCertificate | null
   onOpenChange: (open: boolean) => void
   onSaved: (certificate: MedicalCertificate) => void
+  access?: StaffAccess
 }) {
-  const [form, setForm] = useState<FormState>(() =>
-    certificate && mode === "edit" ? certificateToForm(certificate) : emptyForm
-  )
+  const isDentist = access?.designation === "dentist"
+  const autoDoctorName = access?.fullName
+    ? formatDoctorDisplayName(access.fullName)
+    : ""
+  const certificateTypes = isDentist
+    ? DENTIST_CERTIFICATE_TYPES
+    : CERTIFICATE_TYPES
+
+  const [form, setForm] = useState<FormState>(() => {
+    if (certificate && mode === "edit") return certificateToForm(certificate)
+    return {
+      ...emptyForm,
+      doctorName: isDentist ? autoDoctorName : "",
+    }
+  })
   const [patients, setPatients] = useState<MedicalCertificatePatient[]>([])
   const [loadingPatients, setLoadingPatients] = useState(mode === "create")
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+
+  useEffect(() => {
+    if (!isDentist || !autoDoctorName) return
+    setForm((current) =>
+      current.doctorName === autoDoctorName
+        ? current
+        : { ...current, doctorName: autoDoctorName }
+    )
+  }, [autoDoctorName, isDentist])
 
   useEffect(() => {
     if (mode !== "create") return
@@ -344,13 +384,19 @@ function CertificateFormBody({
         issuedAt = new Date().toISOString()
       }
 
+      const doctorName = (
+        isDentist
+          ? autoDoctorName || form.doctorName
+          : form.doctorName
+      ).trim()
+
       if (mode === "create") {
         const result = await createMedicalCertificateAction({
           patientId: form.patientId,
           certificateNumber: form.certificateNumber.trim() || undefined,
           certificateType: form.certificateType.trim(),
           purpose: form.purpose.trim() || null,
-          doctorName: form.doctorName.trim() || null,
+          doctorName: doctorName || null,
           remarks: form.remarks.trim() || null,
           status: form.status,
           issuedAt,
@@ -380,7 +426,7 @@ function CertificateFormBody({
         certificateNumber: form.certificateNumber.trim(),
         certificateType: form.certificateType.trim(),
         purpose: form.purpose.trim() || null,
-        doctorName: form.doctorName.trim() || null,
+        doctorName: doctorName || null,
         remarks: form.remarks.trim() || null,
         status: form.status,
         issuedAt,
@@ -469,13 +515,13 @@ function CertificateFormBody({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {CERTIFICATE_TYPES.map((type) => (
+                {certificateTypes.map((type) => (
                   <SelectItem key={type} value={type}>
                     {type}
                   </SelectItem>
                 ))}
                 {form.certificateType &&
-                !(CERTIFICATE_TYPES as readonly string[]).includes(
+                !(certificateTypes as readonly string[]).includes(
                   form.certificateType
                 ) ? (
                   <SelectItem value={form.certificateType}>
@@ -499,18 +545,29 @@ function CertificateFormBody({
             disabled={pending}
           />
 
-          <Field>
-            <FieldLabel htmlFor="cert-doctor">Doctor name</FieldLabel>
-            <Input
-              id="cert-doctor"
-              value={form.doctorName}
-              onChange={(event) =>
-                updateField("doctorName", event.target.value)
-              }
-              placeholder="Attending clinician"
-              disabled={pending}
-            />
-          </Field>
+          {isDentist ? (
+            <Field>
+              <FieldLabel>Issued by</FieldLabel>
+              <Input
+                value={form.doctorName || autoDoctorName}
+                disabled
+                readOnly
+              />
+            </Field>
+          ) : (
+            <Field>
+              <FieldLabel htmlFor="cert-doctor">Doctor name</FieldLabel>
+              <Input
+                id="cert-doctor"
+                value={form.doctorName}
+                onChange={(event) =>
+                  updateField("doctorName", event.target.value)
+                }
+                placeholder="Attending clinician"
+                disabled={pending}
+              />
+            </Field>
+          )}
 
           <Field>
             <FieldLabel htmlFor="cert-issued-at">Issue date</FieldLabel>
@@ -624,12 +681,14 @@ export function CertificateFormSheet({
   certificate,
   onOpenChange,
   onSaved,
+  access,
 }: {
   open: boolean
   mode: "create" | "edit"
   certificate: MedicalCertificate | null
   onOpenChange: (open: boolean) => void
   onSaved: (certificate: MedicalCertificate) => void
+  access?: StaffAccess
 }) {
   const formKey =
     mode === "edit" ? `edit-${certificate?.id ?? "unknown"}` : "create"
@@ -644,6 +703,7 @@ export function CertificateFormSheet({
             certificate={certificate}
             onOpenChange={onOpenChange}
             onSaved={onSaved}
+            access={access}
           />
         ) : null}
       </SheetContent>

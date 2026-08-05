@@ -55,7 +55,7 @@ async function fetchJoinedTickets(): Promise<QueueTicketRow[]> {
   const { data: tickets, error } = await supabase
     .from("health_queue_tickets")
     .select(TICKET_SELECT)
-    .or(`created_at.gte.${startIso},status.in.(waiting,called,no_show)`)
+    .or(`created_at.gte.${startIso},status.in.(waiting,called,ongoing,no_show)`)
     .order("queue_position", { ascending: true })
 
   if (error) {
@@ -85,7 +85,9 @@ export async function getTodayQueueTickets(filter?: {
 
 export function computeQueueStats(tickets: QueueTicketRow[]): QueueStats {
   const waiting = tickets.filter((t) => t.status === "waiting")
-  const serving = tickets.filter((t) => t.status === "called")
+  const serving = tickets.filter(
+    (t) => t.status === "called" || t.status === "ongoing"
+  )
   const completed = tickets.filter((t) => t.status === "completed")
   const checkedIn = tickets.filter((t) => Boolean(t.checkedInAt))
   const walkIns = tickets.filter((t) =>
@@ -120,7 +122,9 @@ export async function getStationBoards(
     const waiting = scoped
       .filter((t) => t.status === "waiting")
       .sort((a, b) => a.queuePosition - b.queuePosition)
-    const called = scoped.find((t) => t.status === "called")
+    const called = scoped.find(
+      (t) => t.status === "called" || t.status === "ongoing"
+    )
     const waits = waiting
       .map((t) => t.estimatedWaitMinutes)
       .filter((n): n is number => typeof n === "number")

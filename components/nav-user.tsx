@@ -48,8 +48,7 @@ export function NavUser() {
   const avatarUrl = access?.avatarUrl ?? null
   const base = access ? staffBasePath(access.primaryRole) : "/login"
   const settingsHref = `${base}/settings`
-  const showSchedule =
-    access?.primaryRole === "physician" || access?.primaryRole === "dentist"
+  const showSchedule = access?.primaryRole === "physician"
   const mark = initials(name)
   const isDark = (resolvedTheme ?? theme) === "dark"
 

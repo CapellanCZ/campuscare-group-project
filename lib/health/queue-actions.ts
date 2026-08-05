@@ -150,7 +150,7 @@ export async function startConsultation(params: {
   if (!ticket) return { ok: false, error: "Ticket not found." }
 
   const patch: Record<string, unknown> = {
-    status: "called",
+    status: params.designation === "dentist" ? "ongoing" : "called",
     assigned_staff_name: params.staffName,
     updated_at: new Date().toISOString(),
   }

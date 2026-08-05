@@ -36,7 +36,7 @@ function CertificateDocument({
           This is to certify that{" "}
           <strong>{certificate.patient.fullName}</strong>
           {certificate.patient.studentId
-            ? ` (Student No. ${certificate.patient.studentId})`
+            ? ` (ID Number ${certificate.patient.studentId})`
             : ""}{" "}
           was examined / attended to at the campus clinic.
         </p>

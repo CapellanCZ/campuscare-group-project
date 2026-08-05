@@ -14,6 +14,7 @@ import {
 } from "@/features/patients/actions"
 import { isEnrolledVirtualId } from "@/lib/students/virtual-id"
 import { NO_STUDENT_FOUND } from "@/lib/students/types"
+import { DENTIST_PATIENT_SEARCH_PLACEHOLDER } from "@/lib/students/patient-search-copy"
 import { SelectWithOtherField } from "@/components/shared/select-with-other-field"
 import { Button } from "@/components/ui/button"
 import {
@@ -426,7 +427,11 @@ export function ConsultationFormSheet({
                 <PopoverContent className="w-[var(--anchor-width)] p-0" align="start">
                   <Command shouldFilter={false}>
                     <CommandInput
-                      placeholder="Search by Student ID Number"
+                      placeholder={
+                        access?.designation === "dentist"
+                          ? DENTIST_PATIENT_SEARCH_PLACEHOLDER
+                          : "Search by Student ID Number"
+                      }
                       value={patientQuery}
                       onValueChange={setPatientQuery}
                     />

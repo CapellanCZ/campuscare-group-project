@@ -13,6 +13,7 @@ import { toast } from "sonner"
 import { ConsultationDeleteDialog } from "@/components/consultations/consultation-delete-dialog"
 import { ConsultationFormSheet } from "@/components/consultations/consultation-form-sheet"
 import { StudentIdSearchInput } from "@/components/shared/student-id-search-input"
+import { DENTIST_PATIENT_SEARCH_PLACEHOLDER } from "@/lib/students/patient-search-copy"
 import { DemoPageHeader, DemoStatGrid } from "@/components/demo/demo-page"
 import {
   PanelFrame,
@@ -162,6 +163,7 @@ export function ConsultationsPage({
   const d = access.designation
   const isPhysician = d === "physician"
   const isNurse = d === "nurse"
+  const isDentist = d === "dentist"
 
   useEffect(() => {
     if (initialError) toast.error(initialError)
@@ -181,12 +183,26 @@ export function ConsultationsPage({
       page: 1,
       pageSize: PAGE_SIZE,
       status: statusFilter,
-      provider: isPhysician || isNurse ? "all" : providerFilter,
-      station: isPhysician ? "physician" : isNurse ? "all" : stationFilter,
+      provider: isPhysician || isNurse || isDentist ? "all" : providerFilter,
+      station: isPhysician
+        ? "physician"
+        : isDentist
+          ? "dentist"
+          : isNurse
+            ? "all"
+            : stationFilter,
       consultationDate: dateFilter || "all",
       studentIdOnly: isPhysician || isNurse,
     }),
-    [statusFilter, providerFilter, stationFilter, dateFilter, isPhysician, isNurse]
+    [
+      statusFilter,
+      providerFilter,
+      stationFilter,
+      dateFilter,
+      isPhysician,
+      isNurse,
+      isDentist,
+    ]
   )
 
   const loadPage = useCallback(
@@ -304,15 +320,18 @@ export function ConsultationsPage({
   }
 
   return (
-    <div className="flex flex-col gap-8 pt-2">
+    <div
+      className={cn(
+        "flex flex-col gap-8 pt-2",
+        isDentist && "gap-10 pt-3"
+      )}
+    >
       <DemoPageHeader
         title={d === "dentist" ? "Dental consultations" : "Consultations"}
         description={
-          isNurse
+          isNurse || isDentist
             ? ""
-            : d === "dentist"
-              ? "Dental examination, diagnosis, treatment, and follow-up charting"
-              : "Triage assessments and clinical charting"
+            : "Triage assessments and clinical charting"
         }
         designation={d}
         showDemoBanner={false}
@@ -346,7 +365,12 @@ export function ConsultationsPage({
       <Card className={cn(panelCardClassName, "gap-0 py-0")}>
         <CardHeader className="gap-4 border-b px-6 py-5">
           <CardTitle className="text-base">Today&apos;s consultations</CardTitle>
-          <div className="flex flex-wrap items-center gap-2">
+          <div
+            className={cn(
+              "flex flex-wrap items-center gap-2",
+              isDentist && "gap-3"
+            )}
+          >
             {isPhysician || isNurse ? (
               <StudentIdSearchInput
                 className="w-full min-w-[12rem] sm:w-56"
@@ -358,7 +382,11 @@ export function ConsultationsPage({
             ) : (
               <Input
                 className="w-full min-w-[12rem] sm:w-56"
-                placeholder="e.g. 2023-172065"
+                placeholder={
+                  d === "dentist"
+                    ? DENTIST_PATIENT_SEARCH_PLACEHOLDER
+                    : "e.g. 2023-172065"
+                }
                 inputMode="numeric"
                 autoComplete="off"
                 maxLength={11}
@@ -375,7 +403,11 @@ export function ConsultationsPage({
                     e.preventDefault()
                   }
                 }}
-                aria-label="Search by Student ID"
+                aria-label={
+                  d === "dentist"
+                    ? DENTIST_PATIENT_SEARCH_PLACEHOLDER
+                    : "Search by Student ID"
+                }
               />
             )}
             <Select
@@ -396,7 +428,7 @@ export function ConsultationsPage({
                 ))}
               </SelectContent>
             </Select>
-            {!isPhysician && !isNurse ? (
+            {!isPhysician && !isNurse && !isDentist ? (
               <>
                 <Select
                   value={providerFilter}
@@ -459,34 +491,72 @@ export function ConsultationsPage({
             <div className="min-w-0 overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Patient</TableHead>
-                  <TableHead className="hidden sm:table-cell">Station</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="hidden md:table-cell">Provider</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                <TableRow className={isDentist ? "h-14" : undefined}>
+                  <TableHead className={isDentist ? "px-4" : undefined}>
+                    Patient
+                  </TableHead>
+                  <TableHead
+                    className={cn(
+                      "hidden sm:table-cell",
+                      isDentist && "px-4"
+                    )}
+                  >
+                    Station
+                  </TableHead>
+                  <TableHead className={isDentist ? "px-4" : undefined}>
+                    Status
+                  </TableHead>
+                  <TableHead
+                    className={cn(
+                      "hidden md:table-cell",
+                      isDentist && "px-4"
+                    )}
+                  >
+                    Provider
+                  </TableHead>
+                  <TableHead
+                    className={cn(
+                      "text-right",
+                      isDentist && "px-4"
+                    )}
+                  >
+                    Actions
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell>
+                    <TableRow
+                      key={row.id}
+                      className={isDentist ? "h-14" : undefined}
+                    >
+                      <TableCell className={isDentist ? "px-4" : undefined}>
                         <p className="font-medium">{row.patient.fullName}</p>
                         <p className="text-xs text-muted-foreground">
                           {row.patient.studentId} ·{" "}
                           {row.chiefComplaint || "No complaint"}
                         </p>
                       </TableCell>
-                      <TableCell className="hidden capitalize sm:table-cell">
+                      <TableCell
+                        className={cn(
+                          "hidden capitalize sm:table-cell",
+                          isDentist && "px-4"
+                        )}
+                      >
                         {row.station || "—"}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className={isDentist ? "px-4" : undefined}>
                         <Badge variant="outline">{row.status}</Badge>
                       </TableCell>
-                      <TableCell className="hidden md:table-cell">
+                      <TableCell
+                        className={cn(
+                          "hidden md:table-cell",
+                          isDentist && "px-4"
+                        )}
+                      >
                         {row.providerName || "—"}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className={isDentist ? "px-4" : undefined}>
                         <div className="flex flex-wrap justify-end gap-1">
                           {can(d, "consultations.view_patient") ? (
                             <Button

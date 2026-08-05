@@ -127,7 +127,11 @@ export function ProfileSettingsPage({
     <div className="flex flex-col gap-8 pt-2">
       <DemoPageHeader
         title="Profile and Settings"
-        description="Your staff profile and notification preferences"
+        description={
+          profile.role === "dentist"
+            ? ""
+            : "Your staff profile and notification preferences"
+        }
         designation={profile.role}
         showDemoBanner={false}
         showRoleSuffix={false}

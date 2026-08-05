@@ -351,10 +351,14 @@ export function AnnouncementsPage({
     <div className="flex flex-col gap-6">
       <DemoPageHeader
         title="Announcements"
-        description={isPhysician || d === "nurse" ? "" : "Clinic notices for students and staff"}
+        description={
+          isPhysician || d === "nurse" || d === "dentist"
+            ? ""
+            : "Clinic notices for students and staff"
+        }
         designation={d}
         showDemoBanner={false}
-        showRoleSuffix={!isPhysician && d !== "nurse"}
+        showRoleSuffix={!isPhysician && d !== "nurse" && d !== "dentist"}
         actions={
           canManage ? (
             <Button onClick={openCreate}>Add announcement</Button>

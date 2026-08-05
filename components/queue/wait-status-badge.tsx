@@ -39,9 +39,12 @@ export function WaitStatusBadge({
       : null
 
   const label =
-    waitMinutes != null && (status === "waiting" || status === "called")
-      ? `${status} · ${waitMinutes}m`
-      : status
+    status === "ongoing"
+      ? "Ongoing"
+      : waitMinutes != null &&
+          (status === "waiting" || status === "called" || status === "ongoing")
+        ? `${status} · ${waitMinutes}m`
+        : status
 
   return (
     <Badge
@@ -49,6 +52,8 @@ export function WaitStatusBadge({
       className={cn(
         "gap-1.5 capitalize tabular-nums",
         urgency ? badgeClass[urgency] : undefined,
+        status === "ongoing" &&
+          "border-primary/30 bg-primary/10 text-primary",
         className
       )}
     >
