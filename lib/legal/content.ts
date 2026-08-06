@@ -1,6 +1,7 @@
 export type LegalSection = {
   heading: string
   paragraphs: string[]
+  bullets?: string[]
 }
 
 export type LegalDocument = {
@@ -10,117 +11,188 @@ export type LegalDocument = {
   sections: LegalSection[]
 }
 
-export const termsOfService: LegalDocument = {
-  title: "Terms of Service",
-  lastUpdated: "July 31, 2026",
+export const privacyPolicy: LegalDocument = {
+  title: "Privacy Policy",
+  lastUpdated: "August 2026",
   intro:
-    "These Terms of Service govern use of CampusCare, the digital clinic platform operated for the National University – Dasmariñas Health Services Office (HSO).",
+    "Welcome to CampusCare, a web and mobile platform developed for the Health Services Office (HSO) of National University – Dasmariñas. Your privacy is important to us, and we are committed to protecting the personal and health information you provide while using our system.",
   sections: [
     {
-      heading: "1. Acceptance",
-      paragraphs: [
-        "By accessing CampusCare or signing in with a staff account, you agree to these Terms. If you do not agree, do not use the service.",
+      heading: "Information We Collect",
+      paragraphs: ["CampusCare may collect the following information:"],
+      bullets: [
+        "Personal Information (e.g., name, student/employee ID, email address, contact number)",
+        "Academic or employment information necessary for user verification",
+        "Health-related information submitted during consultations",
+        "System activity logs and usage information",
       ],
     },
     {
-      heading: "2. Purpose of the service",
-      paragraphs: [
-        "CampusCare supports HSO clinic operations—including consultation requests, queue management, patient records, medical certificates, reports, and health announcements.",
-        "It is not an emergency response system. For medical emergencies, seek immediate on-campus assistance or contact local emergency services.",
+      heading: "How We Use Your Information",
+      paragraphs: ["The information collected is used to:"],
+      bullets: [
+        "Verify user identity.",
+        "Manage consultation requests and patient records.",
+        "Improve the delivery of health services.",
+        "Generate operational reports and analytics.",
+        "Maintain the security and integrity of the system.",
       ],
     },
     {
-      heading: "3. Eligible users",
+      heading: "Information Security",
       paragraphs: [
-        "Staff access is invite-based and limited to authorized HSO personnel and other approved campus roles. You must use your assigned work credentials and keep them confidential.",
-        "You are responsible for activity under your account. Notify an HSO administrator immediately if you suspect unauthorized access.",
+        "CampusCare implements appropriate administrative, technical, and organizational measures to protect personal information against unauthorized access, disclosure, alteration, or destruction.",
       ],
     },
     {
-      heading: "4. Acceptable use",
+      heading: "Information Sharing",
       paragraphs: [
-        "Use CampusCare only for legitimate clinic and campus health workflows. Do not attempt to access data outside your role, share patient information improperly, disrupt the service, or misuse certificates and records.",
+        "Personal information is accessible only to authorized Health Services Office personnel and system administrators with appropriate access privileges. Information will not be shared with third parties unless required by law or with the user's consent.",
       ],
     },
     {
-      heading: "5. Clinical content",
-      paragraphs: [
-        "Records, certificates, and related documentation entered in CampusCare remain subject to HSO policies and applicable Philippine data-privacy and health regulations. CampusCare does not replace professional clinical judgment.",
+      heading: "User Rights",
+      paragraphs: ["Users have the right to:"],
+      bullets: [
+        "Access their personal information.",
+        "Request corrections to inaccurate information.",
+        "Request deletion of information when legally applicable.",
+        "Withdraw consent, subject to applicable laws and institutional policies.",
       ],
     },
     {
-      heading: "6. Availability",
+      heading: "Changes to this Policy",
       paragraphs: [
-        "We aim to keep CampusCare available during clinic hours, but the service may be interrupted for maintenance, network issues, or circumstances beyond HSO control.",
-      ],
-    },
-    {
-      heading: "7. Changes",
-      paragraphs: [
-        "HSO may update these Terms as the platform evolves. Continued use after updates constitutes acceptance of the revised Terms.",
-      ],
-    },
-    {
-      heading: "8. Contact",
-      paragraphs: [
-        "Questions about these Terms may be sent to clinic@nu-dasma.edu.ph or raised with an HSO administrator on campus.",
+        "This Privacy Policy may be updated periodically. Continued use of CampusCare constitutes acceptance of any revisions.",
       ],
     },
   ],
 }
 
-export const privacyPolicy: LegalDocument = {
-  title: "Privacy Policy",
-  lastUpdated: "July 31, 2026",
+export const termsOfUse: LegalDocument = {
+  title: "Terms of Use",
+  lastUpdated: "August 2026",
   intro:
-    "This Privacy Policy explains how CampusCare handles personal and health-related information for the NU Dasmariñas Health Services Office.",
+    "By accessing and using CampusCare, you agree to comply with the following terms and conditions.",
   sections: [
     {
-      heading: "1. Information we process",
+      heading: "Authorized Users",
       paragraphs: [
-        "Depending on your role, CampusCare may process account details (name, work email, designation), consultation and queue data, patient demographic and visit records, certificate requests, and operational logs needed to run the clinic.",
+        "CampusCare is intended exclusively for:",
+        "Only verified university members may access the system.",
+      ],
+      bullets: [
+        "Students",
+        "Faculty Members",
+        "Non-Teaching Employees",
+        "Authorized Health Services Office Personnel",
       ],
     },
     {
-      heading: "2. How we use information",
-      paragraphs: [
-        "Information is used to deliver clinic services, manage queues and appointments, maintain medical documentation, issue certificates, generate internal reports, publish health announcements, and secure staff access.",
+      heading: "User Responsibilities",
+      paragraphs: ["Users agree to:"],
+      bullets: [
+        "Provide accurate and truthful information.",
+        "Keep login credentials confidential.",
+        "Use the system only for legitimate university health-related purposes.",
+        "Respect the privacy of other users.",
       ],
     },
     {
-      heading: "3. Access and sharing",
-      paragraphs: [
-        "Access is role-based. Only authorized staff can view clinical data relevant to their duties. We do not sell personal information. Disclosure may occur when required by law, university policy, or to protect health and safety.",
+      heading: "Prohibited Activities",
+      paragraphs: ["Users shall not:"],
+      bullets: [
+        "Attempt unauthorized access to the system.",
+        "Share another user's account.",
+        "Modify or misuse system data.",
+        "Upload malicious software or harmful content.",
+        "Use the platform for unlawful purposes.",
       ],
     },
     {
-      heading: "4. Storage and security",
+      heading: "Availability",
       paragraphs: [
-        "Data is stored using CampusCare’s configured cloud and authentication providers with access controls, session management, and audit practices appropriate for a campus health workflow. No system is perfectly secure; report suspected incidents to HSO promptly.",
+        "While every effort is made to ensure continuous availability, CampusCare does not guarantee uninterrupted service due to maintenance, updates, or unforeseen technical issues.",
       ],
     },
     {
-      heading: "5. Retention",
+      heading: "Limitation of Liability",
       paragraphs: [
-        "Records are retained according to HSO and university retention requirements for clinical and administrative documentation, then disposed of or archived following those policies.",
+        "CampusCare is developed to assist the Health Services Office in managing health services. The system does not replace professional medical judgment or emergency healthcare services.",
       ],
     },
     {
-      heading: "6. Your choices",
+      heading: "Termination of Access",
       paragraphs: [
-        "Staff may request account corrections through an HSO administrator. Patients seeking access to or correction of their clinical records should follow HSO’s existing records request process.",
+        "The Health Services Office reserves the right to suspend or terminate accounts that violate these Terms of Use or university policies.",
+      ],
+    },
+  ],
+}
+
+export const dataPrivacyNotice: LegalDocument = {
+  title: "Data Privacy Notice",
+  lastUpdated: "August 2026",
+  intro:
+    "CampusCare recognizes the importance of protecting personal data and is committed to complying with the Data Privacy Act of 2012 (Republic Act No. 10173) and its Implementing Rules and Regulations.",
+  sections: [
+    {
+      heading: "Purpose of Data Collection",
+      paragraphs: [
+        "Personal information is collected solely for legitimate Health Services Office operations, including:",
+      ],
+      bullets: [
+        "User verification",
+        "Consultation management",
+        "Patient record management",
+        "Queue management",
+        "Medical certificate processing",
+        "Health service reporting",
       ],
     },
     {
-      heading: "7. Updates",
-      paragraphs: [
-        "This Policy may be updated to reflect operational or legal changes. The “Last updated” date at the top of this page will change when revisions are published.",
+      heading: "Personal Data Collected",
+      paragraphs: ["CampusCare may collect:"],
+      bullets: [
+        "Full Name",
+        "University ID Number",
+        "Contact Information",
+        "Email Address",
+        "College or Department",
+        "Employment Classification (Faculty or Non-Teaching Employee)",
+        "Medical and consultation records",
+        "System activity logs",
       ],
     },
     {
-      heading: "8. Contact",
+      heading: "Data Protection",
       paragraphs: [
-        "For privacy questions related to CampusCare, contact clinic@nu-dasma.edu.ph or the Health Services Office at NU Dasmariñas.",
+        "Personal information is protected through appropriate security measures, including controlled access, authentication, and secure storage. Access is limited to authorized personnel whose responsibilities require such information.",
+      ],
+    },
+    {
+      heading: "Data Retention",
+      paragraphs: [
+        "Personal data shall be retained only for as long as necessary to fulfill the purposes for which it was collected or as required by applicable laws and university policies.",
+      ],
+    },
+    {
+      heading: "Data Subject Rights",
+      paragraphs: [
+        "In accordance with the Data Privacy Act of 2012, users have the right to:",
+      ],
+      bullets: [
+        "Be informed about the collection and processing of their personal data.",
+        "Access their personal information.",
+        "Correct inaccurate or incomplete information.",
+        "Request the deletion or blocking of personal information, when applicable.",
+        "File a complaint with the appropriate authorities if their privacy rights are violated.",
+      ],
+    },
+    {
+      heading: "Contact Information",
+      paragraphs: [
+        "For questions regarding privacy or data protection, users may contact the Health Services Office of National University – Dasmariñas through its official communication channels.",
       ],
     },
   ],

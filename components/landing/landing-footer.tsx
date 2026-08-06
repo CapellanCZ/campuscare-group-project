@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import Link from "next/link"
 import {
   IconMail,
@@ -13,8 +14,7 @@ import {
   footerBlurb,
   footerContact,
   footerLegalLinks,
-  footerOverviewLinks,
-  footerSupportLinks,
+  footerQuickLinks,
 } from "@/lib/landing/content"
 
 function FooterLinkList({
@@ -61,25 +61,44 @@ export function LandingFooter() {
       className="scroll-mt-20 border-t border-border/60 bg-muted/40 text-foreground"
     >
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-2 lg:grid-cols-4 lg:gap-8 lg:py-16">
-        <Reveal className="min-w-0 space-y-5 md:col-span-2 lg:col-span-1">
+        <Reveal className="min-w-0 space-y-5">
           <Link
             href="#home"
-            className="inline-flex items-center gap-2.5 font-semibold tracking-tight transition-opacity hover:opacity-90"
+            className="inline-flex items-center gap-3 transition-opacity hover:opacity-90"
           >
             <CampusCareLogo
               variant="blue"
-              alt=""
-              className="h-8 w-auto"
-              width={48}
-              height={32}
+              alt="CampusCare"
+              className="h-10 w-auto"
+              width={56}
+              height={40}
             />
-            <span className="text-base">CampusCare</span>
+            <Image
+              src="/images/NU-Logo.png"
+              alt="National University"
+              width={56}
+              height={40}
+              className="h-10 w-auto object-contain"
+            />
           </Link>
 
           <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
             {footerBlurb}
           </p>
+        </Reveal>
 
+        <Reveal delay={0.05}>
+          <FooterLinkList title="Quick Links" links={footerQuickLinks} />
+        </Reveal>
+
+        <Reveal delay={0.08}>
+          <FooterLinkList title="Legal" links={footerLegalLinks} />
+        </Reveal>
+
+        <Reveal delay={0.11} className="min-w-0 space-y-4">
+          <h3 className="text-xs font-semibold tracking-[0.14em] text-foreground uppercase">
+            Contact
+          </h3>
           <ul className="space-y-3 text-sm text-muted-foreground">
             <li className="flex items-start gap-2.5">
               <IconMapPin
@@ -125,24 +144,14 @@ export function LandingFooter() {
             </li>
           </ul>
         </Reveal>
-
-        <Reveal delay={0.05}>
-          <FooterLinkList title="Overview" links={footerOverviewLinks} />
-        </Reveal>
-
-        <Reveal delay={0.08}>
-          <FooterLinkList title="Legal" links={footerLegalLinks} />
-        </Reveal>
-
-        <Reveal delay={0.11}>
-          <FooterLinkList title="Support" links={footerSupportLinks} />
-        </Reveal>
       </div>
 
       <div className="border-t border-border/70">
-        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <p>© {new Date().getFullYear()} CampusCare · NU Dasmariñas HSO</p>
-          <p className="sm:text-right">{footerContact.hours}</p>
+        <div className="mx-auto max-w-6xl px-4 py-6 text-center text-xs text-muted-foreground sm:px-6">
+          <p>
+            © {new Date().getFullYear()} CampusCare · NU Dasmariñas HSO · All
+            Rights Reserved.
+          </p>
         </div>
       </div>
     </ScrollFadeSection>

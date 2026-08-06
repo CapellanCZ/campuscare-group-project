@@ -47,21 +47,38 @@ export function LegalDocumentPage({ document }: { document: LegalDocument }) {
         </p>
 
         <div className="mt-10 space-y-8">
-          {document.sections.map((section) => (
-            <section key={section.heading} className="space-y-3">
-              <h2 className="text-lg font-semibold tracking-tight">
-                {section.heading}
-              </h2>
-              {section.paragraphs.map((paragraph) => (
-                <p
-                  key={paragraph.slice(0, 48)}
-                  className="text-sm leading-relaxed text-muted-foreground"
-                >
-                  {paragraph}
-                </p>
-              ))}
-            </section>
-          ))}
+          {document.sections.map((section) => {
+            const [lead, ...rest] = section.paragraphs
+            const hasBullets = Boolean(section.bullets?.length)
+
+            return (
+              <section key={section.heading} className="space-y-3">
+                <h2 className="text-lg font-semibold tracking-tight">
+                  {section.heading}
+                </h2>
+                {lead ? (
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    {lead}
+                  </p>
+                ) : null}
+                {hasBullets ? (
+                  <ul className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-muted-foreground">
+                    {section.bullets!.map((bullet) => (
+                      <li key={bullet}>{bullet}</li>
+                    ))}
+                  </ul>
+                ) : null}
+                {rest.map((paragraph) => (
+                  <p
+                    key={paragraph}
+                    className="text-sm leading-relaxed text-muted-foreground"
+                  >
+                    {paragraph}
+                  </p>
+                ))}
+              </section>
+            )
+          })}
         </div>
       </main>
     </div>
