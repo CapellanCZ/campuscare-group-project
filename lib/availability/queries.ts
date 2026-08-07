@@ -15,6 +15,7 @@ import type {
   StaffHoursPerson,
   StaffWeeklyHour,
 } from "@/lib/availability/types"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 
 function mapHour(row: {
@@ -151,6 +152,62 @@ export async function getStaffBreakStatus(
     .maybeSingle()
 
   return mapBreak(data)
+}
+
+export type StationRoleBreakKey = "nurse" | "physician" | "dentist"
+
+/**
+ * Active staff breaks keyed by primary role (any clinician of that role on break).
+ * Used by the public queue display for per-station status.
+ * Service role resolves staff roles — queue_display cannot always read other
+ * users rows under RLS, which left stations stuck on Idle while a doctor was on break.
+ */
+export async function getActiveStaffBreaksByRole(
+  client?: SupabaseClient
+): Promise<Partial<Record<StationRoleBreakKey, BreakStatus>>> {
+  // Prefer service role so display (and any restricted session) can resolve station breaks.
+  let supabase: SupabaseClient
+  try {
+    supabase = createAdminClient()
+  } catch {
+    supabase = client ?? (await createClient())
+  }
+
+  const { data: breakRows, error } = await supabase
+    .from("staff_break_status")
+    .select("user_id, is_on_break, resumes_at, set_by, updated_at")
+    .eq("is_on_break", true)
+
+  if (error || !breakRows?.length) return {}
+
+  const userIds = breakRows.map((row) => row.user_id as string).filter(Boolean)
+  if (!userIds.length) return {}
+
+  const { data: userRows } = await supabase
+    .from("users")
+    .select("id, primary_role")
+    .in("id", userIds)
+
+  const roleByUser = new Map(
+    (userRows ?? []).map((u) => [u.id as string, u.primary_role as string])
+  )
+
+  const out: Partial<Record<StationRoleBreakKey, BreakStatus>> = {}
+  for (const row of breakRows) {
+    const status = mapBreak(row)
+    if (!status.isOnBreak) continue
+    const role = roleByUser.get(row.user_id as string)
+    if (role !== "nurse" && role !== "physician" && role !== "dentist") continue
+    const existing = out[role]
+    if (
+      !existing ||
+      (status.resumesAt &&
+        (!existing.resumesAt || status.resumesAt < existing.resumesAt))
+    ) {
+      out[role] = status
+    }
+  }
+  return out
 }
 
 export async function listStaffForHoursEditor(

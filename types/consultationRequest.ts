@@ -5,6 +5,7 @@ export const CONSULTATION_REQUEST_STATUSES = [
   "rescheduled",
   "completed",
   "cancelled",
+  "waitlisted",
 ] as const
 
 export type ConsultationRequestStatus =
@@ -108,6 +109,7 @@ export type ConsultationRequest = {
   email: string | null
   phone: string | null
   service: string
+  providerType: "physician" | "dentist"
   preferredDate: string | null
   preferredTime: string | null
   reason: string
@@ -124,10 +126,13 @@ export type ConsultationRequest = {
   rescheduleReason: string | null
   approvalNotes: string | null
   queueTicketId: string | null
+  queueNumber: number | null
+  waitlistedAt: string | null
   createdBy: string | null
   submittedAt: string
   createdAt: string
   updatedAt: string
+  recommendComeEarly: boolean
   attachments: ConsultationRequestAttachment[]
   timeline: ConsultationRequestTimelineItem[]
   notes: ConsultationRequestNote[]
@@ -142,6 +147,7 @@ export type ConsultationRequestStats = {
   rescheduled: number
   completed: number
   cancelled: number
+  waitlisted: number
   total: number
 }
 
@@ -179,6 +185,11 @@ export type RescheduleConsultationRequestInput = {
   preferredDate: string
   preferredTime: string
   reason: string
+}
+
+export type AdmitConsultationRequestInput = {
+  id: string
+  force?: boolean
 }
 
 export type UpdateConsultationRequestStatusInput = {

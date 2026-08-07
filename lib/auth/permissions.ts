@@ -117,44 +117,44 @@ function roles(
 }
 
 const MATRIX: Record<Permission, RoleAccess> = {
-  // Dashboard
+  // Dashboard — admin: ops cards only (no live queue / named requests)
   "dashboard.cards": roles(ALL, ALL, ALL, ALL),
-  "dashboard.recent_requests": roles(ALL, ALL, NONE, NONE),
-  "dashboard.live_queue": roles(ALL, ALL, ALL, ALL),
-  "dashboard.consultation_statistics": roles(ALL, VIEW, VIEW, VIEW),
-  "dashboard.recent_activities": roles(ALL, ALL, ALL, ALL),
+  "dashboard.recent_requests": roles(NONE, ALL, NONE, NONE),
+  "dashboard.live_queue": roles(NONE, ALL, ALL, ALL),
+  "dashboard.consultation_statistics": roles(VIEW, VIEW, VIEW, VIEW),
+  "dashboard.recent_activities": roles(VIEW, ALL, ALL, ALL),
 
-  // Consultation Requests — Nurse triage (+ Admin oversight). Not for Physician/Dentist.
-  "requests.summary_cards": roles(ALL, ALL, NONE, NONE),
-  "requests.search_filters": roles(ALL, ALL, NONE, NONE),
-  "requests.table": roles(ALL, ALL, NONE, NONE),
-  "requests.view_patient_details": roles(ALL, ALL, NONE, NONE),
+  // Consultation Requests — Nurse triage only (admin not clinical)
+  "requests.summary_cards": roles(NONE, ALL, NONE, NONE),
+  "requests.search_filters": roles(NONE, ALL, NONE, NONE),
+  "requests.table": roles(NONE, ALL, NONE, NONE),
+  "requests.view_patient_details": roles(NONE, ALL, NONE, NONE),
   "requests.approve": roles(NONE, ALL, NONE, NONE),
   "requests.decline": roles(NONE, ALL, NONE, NONE),
   "requests.reschedule": roles(NONE, ALL, NONE, NONE),
 
-  // Queue Management
-  "queue.summary_cards": roles(ALL, ALL, ALL, ALL),
-  "queue.table": roles(ALL, ALL, ALL, ALL),
+  // Queue Management — clinical staff only
+  "queue.summary_cards": roles(NONE, ALL, ALL, ALL),
+  "queue.table": roles(NONE, ALL, ALL, ALL),
   "queue.register_walk_in": roles(NONE, ALL, NONE, NONE),
   "queue.verify_check_in": roles(NONE, ALL, NONE, NONE),
   "queue.call_next": roles(NONE, ALL, ALL, ALL),
   "queue.skip": roles(NONE, ALL, ALL, ALL),
   "queue.mark_complete": roles(NONE, ALL, ALL, ALL),
 
-  // Patient Records
-  "patients.summary_cards": roles(ALL, ALL, ALL, ALL),
-  "patients.search": roles(ALL, ALL, ALL, ALL),
-  "patients.table": roles(ALL, ALL, ALL, ALL),
-  "patients.view_profile": roles(ALL, ALL, ALL, ALL),
-  "patients.edit_information": roles(ALL, ALL, ALL, NONE),
-  "patients.update_medical": roles(ALL, ALL, ALL, NONE),
-  "patients.view_consultation_history": roles(ALL, ALL, ALL, ALL),
-  "patients.view_medical_documents": roles(ALL, ALL, ALL, ALL),
+  // Patient Records — clinical staff only
+  "patients.summary_cards": roles(NONE, ALL, ALL, ALL),
+  "patients.search": roles(NONE, ALL, ALL, ALL),
+  "patients.table": roles(NONE, ALL, ALL, ALL),
+  "patients.view_profile": roles(NONE, ALL, ALL, ALL),
+  "patients.edit_information": roles(NONE, ALL, ALL, NONE),
+  "patients.update_medical": roles(NONE, ALL, ALL, NONE),
+  "patients.view_consultation_history": roles(NONE, ALL, ALL, ALL),
+  "patients.view_medical_documents": roles(NONE, ALL, ALL, ALL),
 
-  // Consultations
-  "consultations.cards": roles(ALL, ALL, ALL, ALL),
-  "consultations.view_patient": roles(ALL, ALL, ALL, ALL),
+  // Consultations — clinical staff only
+  "consultations.cards": roles(NONE, ALL, ALL, ALL),
+  "consultations.view_patient": roles(NONE, ALL, ALL, ALL),
   "consultations.record_initial_assessment": roles(NONE, ALL, NONE, NONE),
   "consultations.create_record": roles(NONE, NONE, ALL, ALL),
   "consultations.update_record": roles(NONE, NONE, ALL, ALL),
@@ -164,16 +164,16 @@ const MATRIX: Record<Permission, RoleAccess> = {
   "consultations.complete": roles(NONE, NONE, ALL, ALL),
   "consultations.generate_certificate": roles(NONE, NONE, ALL, NONE),
 
-  // Medical Certificates
-  "certificates.summary_cards": roles(ALL, VIEW, ALL, ALL),
-  "certificates.search_patient": roles(ALL, VIEW, ALL, ALL),
-  "certificates.view_history": roles(ALL, VIEW, ALL, ALL),
-  "certificates.generate": roles(ALL, NONE, ALL, ALL),
-  "certificates.preview": roles(ALL, NONE, ALL, ALL),
-  "certificates.print": roles(ALL, NONE, ALL, ALL),
-  "certificates.download_pdf": roles(ALL, NONE, ALL, ALL),
+  // Medical Certificates — clinical staff only
+  "certificates.summary_cards": roles(NONE, VIEW, ALL, ALL),
+  "certificates.search_patient": roles(NONE, VIEW, ALL, ALL),
+  "certificates.view_history": roles(NONE, VIEW, ALL, ALL),
+  "certificates.generate": roles(NONE, NONE, ALL, ALL),
+  "certificates.preview": roles(NONE, NONE, ALL, ALL),
+  "certificates.print": roles(NONE, NONE, ALL, ALL),
+  "certificates.download_pdf": roles(NONE, NONE, ALL, ALL),
 
-  // Reports
+  // Reports — admin aggregate ops
   "reports.summary_cards": roles(ALL, VIEW, VIEW, VIEW),
   "reports.filters": roles(ALL, ALL, ALL, ALL),
   "reports.charts": roles(ALL, VIEW, VIEW, VIEW),
@@ -190,7 +190,7 @@ const MATRIX: Record<Permission, RoleAccess> = {
   "announcements.delete": roles(ALL, ALL, NONE, NONE),
   "announcements.publish": roles(ALL, ALL, NONE, NONE),
 
-  // User Management
+  // User Management — admin ops (staff/admins only in UI)
   "users.summary_cards": roles(ALL, NONE, NONE, NONE),
   "users.table": roles(ALL, NONE, NONE, NONE),
   "users.add": roles(ALL, NONE, NONE, NONE),
@@ -201,7 +201,7 @@ const MATRIX: Record<Permission, RoleAccess> = {
 
   // Settings
   "settings.clinic": roles(ALL, NONE, NONE, NONE),
-  "settings.queue": roles(ALL, NONE, NONE, NONE),
+  "settings.queue": roles(ALL, ALL, NONE, NONE),
   "settings.notification": roles(ALL, ALL, ALL, ALL),
   "settings.security": roles(ALL, NONE, NONE, NONE),
   "settings.system": roles(ALL, NONE, NONE, NONE),

@@ -38,6 +38,8 @@ const REVALIDATE = [
   "/physician/dashboard",
   "/dentist",
   "/dentist/dashboard",
+  "/queue-management/display",
+  "/display",
 ]
 
 function revalidateAvailability() {

@@ -58,30 +58,42 @@ import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { DemoStat } from "@/lib/demo/types"
 import {
-  CONSULTATION_REQUEST_STATUSES,
-  type ConsultationRequest,
-  type ConsultationRequestListResult,
-  type ConsultationRequestStats,
-  type ConsultationRequestStatus,
-} from "@/types/consultationRequest"
+  APPOINTMENT_REQUEST_STATUSES,
+  type AppointmentRequest,
+  type AppointmentRequestListResult,
+  type AppointmentRequestStats,
+  type AppointmentRequestStatus,
+} from "@/types/appointmentRequest"
 import { IconClipboardList } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
+import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
+import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 
 const SEARCH_DEBOUNCE_MS = 300
 
+const NURSE_FILTER_STATUSES: AppointmentRequestStatus[] = [
+  "pending",
+  "confirmed",
+  "waitlisted",
+  "rescheduled",
+  "cancelled",
+]
+
 const statusVariant: Record<
-  ConsultationRequestStatus,
+  AppointmentRequestStatus,
   "default" | "secondary" | "outline" | "destructive"
 > = {
   pending: "secondary",
-  approved: "default",
-  declined: "destructive",
+  confirmed: "default",
+  waitlisted: "outline",
   rescheduled: "outline",
+  in_progress: "default",
   completed: "default",
   cancelled: "destructive",
+  no_show: "destructive",
 }
 
-function toStatCards(stats: ConsultationRequestStats): DemoStat[] {
+function toStatCards(stats: AppointmentRequestStats): DemoStat[] {
   return [
     {
       key: "pending",
@@ -90,10 +102,16 @@ function toStatCards(stats: ConsultationRequestStats): DemoStat[] {
       description: "Awaiting nurse review",
     },
     {
-      key: "approved",
-      label: "Approved",
-      value: String(stats.approved),
-      description: "Ready for queue",
+      key: "confirmed",
+      label: "Confirmed",
+      value: String(stats.confirmed),
+      description: "Approved reservations",
+    },
+    {
+      key: "waitlisted",
+      label: "Waitlisted",
+      value: String(stats.waitlisted ?? 0),
+      description: "Date capacity full",
     },
     {
       key: "rescheduled",
@@ -102,10 +120,10 @@ function toStatCards(stats: ConsultationRequestStats): DemoStat[] {
       description: "New slots proposed",
     },
     {
-      key: "declined",
-      label: "Declined",
-      value: String(stats.declined),
-      description: "Not accepted",
+      key: "cancelled",
+      label: "Cancelled",
+      value: String(stats.cancelled),
+      description: "Declined or cancelled",
     },
   ]
 }
@@ -117,8 +135,8 @@ export function RequestsPage({
   initialError,
 }: {
   access: StaffAccess
-  initialList: ConsultationRequestListResult
-  initialStats: ConsultationRequestStats
+  initialList: AppointmentRequestListResult
+  initialStats: AppointmentRequestStats
   initialError?: string | null
 }) {
   const [query, setQuery] = useState("")
@@ -127,7 +145,7 @@ export function RequestsPage({
   const [list, setList] = useState(initialList)
   const [stats, setStats] = useState(initialStats)
   const [loading, setLoading] = useState(false)
-  const [selected, setSelected] = useState<ConsultationRequest | null>(null)
+  const [selected, setSelected] = useState<AppointmentRequest | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const skipNextFetch = useRef(true)
@@ -160,7 +178,7 @@ export function RequestsPage({
             status:
               nextStatus === "all"
                 ? "all"
-                : (nextStatus as ConsultationRequestStatus),
+                : (nextStatus as AppointmentRequestStatus),
             page: 1,
             pageSize: 50,
           }),
@@ -191,6 +209,14 @@ export function RequestsPage({
     await loadPage(debouncedQuery, status)
   }, [debouncedQuery, status, loadPage])
 
+  useStaffRealtimeRefresh(
+    `staff-requests-${access.designation}`,
+    STAFF_REALTIME_TABLES.requests,
+    () => {
+      void refresh()
+    }
+  )
+
   useEffect(() => {
     if (skipNextFetch.current) {
       skipNextFetch.current = false
@@ -201,8 +227,12 @@ export function RequestsPage({
 
   const rows = list.items
   const statCards = useMemo(() => toStatCards(stats), [stats])
+  const filterStatuses =
+    access.designation === "nurse"
+      ? NURSE_FILTER_STATUSES
+      : [...APPOINTMENT_REQUEST_STATUSES]
 
-  function openRequest(row: ConsultationRequest) {
+  function openRequest(row: AppointmentRequest) {
     setSelected(row)
     setSheetOpen(true)
     startTransition(async () => {
@@ -215,7 +245,7 @@ export function RequestsPage({
     })
   }
 
-  async function handleUpdated(request: ConsultationRequest) {
+  async function handleUpdated(request: AppointmentRequest) {
     setSelected(request)
     await refresh()
   }
@@ -253,7 +283,7 @@ export function RequestsPage({
               ) : (
                 <Input
                   className="sm:w-72"
-                  placeholder="Search patient, ID, email, service, doctor, nurse, status"
+                  placeholder="Search patient, ID, email, service, doctor, status"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                 />
@@ -265,7 +295,7 @@ export function RequestsPage({
                 onChange={(e) => setStatus(e.target.value)}
               >
                 <option value="all">All statuses</option>
-                {CONSULTATION_REQUEST_STATUSES.map((value) => (
+                {filterStatuses.map((value) => (
                   <option key={value} value={value}>
                     {consultationRequestStatusLabel(value)}
                   </option>
@@ -289,7 +319,7 @@ export function RequestsPage({
                 </EmptyMedia>
                 <EmptyTitle>No consultation requests</EmptyTitle>
                 <EmptyDescription>
-                  New requests will appear here for nurse triage.
+                  Mobile appointment submissions appear here for nurse triage.
                 </EmptyDescription>
               </EmptyHeader>
             </Empty>
@@ -301,6 +331,7 @@ export function RequestsPage({
                   <TableHead>Patient</TableHead>
                   <TableHead className="hidden sm:table-cell">Service</TableHead>
                   <TableHead className="hidden md:table-cell">Preferred</TableHead>
+                  <TableHead className="hidden lg:table-cell">Queue #</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -317,11 +348,19 @@ export function RequestsPage({
                         </div>
                       </TableCell>
                       <TableCell className="hidden sm:table-cell">
-                        {row.service}
+                        <div>
+                          <p>{row.service}</p>
+                          <p className="text-xs text-muted-foreground capitalize">
+                            {row.providerType}
+                          </p>
+                        </div>
                       </TableCell>
                       <TableCell className="hidden text-sm md:table-cell">
                         {formatRequestDate(row.preferredDate)}{" "}
                         {row.preferredTime || ""}
+                      </TableCell>
+                      <TableCell className="hidden tabular-nums lg:table-cell">
+                        {row.queueNumber != null ? row.queueNumber : "—"}
                       </TableCell>
                       <TableCell>
                         <Badge variant={statusVariant[row.status]}>
@@ -349,7 +388,19 @@ export function RequestsPage({
                               Approve
                             </Button>
                           ) : null}
-                          {canReschedule && row.status === "pending" ? (
+                          {canApprove && row.status === "waitlisted" ? (
+                            <Button
+                              type="button"
+                              size="xs"
+                              onClick={() => openRequest(row)}
+                            >
+                              Admit
+                            </Button>
+                          ) : null}
+                          {canReschedule &&
+                          (row.status === "pending" ||
+                            row.status === "waitlisted" ||
+                            row.status === "confirmed") ? (
                             <Button
                               type="button"
                               size="xs"
@@ -359,7 +410,9 @@ export function RequestsPage({
                               Reschedule
                             </Button>
                           ) : null}
-                          {canDecline && row.status === "pending" ? (
+                          {canDecline &&
+                          (row.status === "pending" ||
+                            row.status === "waitlisted") ? (
                             <Button
                               type="button"
                               size="xs"

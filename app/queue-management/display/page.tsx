@@ -12,6 +12,7 @@ export default async function QueueManagementDisplayPage() {
       initialBoards={snapshot.boards}
       initialRecentlyServed={snapshot.recentlyServed}
       initialTotalWaiting={snapshot.totalWaiting}
+      initialClinicBreak={snapshot.clinicBreak}
     />
   )
 }

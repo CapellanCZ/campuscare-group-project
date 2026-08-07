@@ -8,6 +8,7 @@ export const APPOINTMENT_STATUSES = [
   "completed",
   "cancelled",
   "no_show",
+  "waitlisted",
 ] as const
 
 export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number]
@@ -91,4 +92,13 @@ export function isActionableStatus(status: AppointmentStatus): boolean {
 
 export function canStartConsultation(status: AppointmentStatus): boolean {
   return status === "confirmed" || status === "rescheduled" || status === "in_progress"
+}
+
+/** Statuses shown on the physician clinic board by default (excludes nurse waitlist). */
+export function isPhysicianBoardStatus(status: AppointmentStatus): boolean {
+  return (
+    status === "confirmed" ||
+    status === "rescheduled" ||
+    status === "in_progress"
+  )
 }

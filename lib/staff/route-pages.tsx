@@ -11,6 +11,7 @@ import { ReportsAnalyticsPage } from "@/features/reports/components/reports-anal
 import { loadReportsBundle } from "@/features/reports/data/queries"
 import { loadOfficeHoursBundle } from "@/features/availability/actions/availability"
 import { OfficeHoursSettings } from "@/features/admin/components/office-hours-settings"
+import { adminPageShellClassName } from "@/features/admin/lib/admin-surface"
 import {
   getAnnouncements,
   getAnnouncementStats,
@@ -25,18 +26,18 @@ import {
   listDirectoryPatientRecords,
 } from "@/lib/students/directory"
 import {
-  getConsultationRequests,
-  getConsultationRequestStats,
-} from "@/services/consultation-requests"
+  getAppointmentRequests,
+  getAppointmentRequestStats,
+} from "@/services/appointment-requests"
 import {
   getMedicalCertificates,
   getMedicalCertificateStats,
 } from "@/services/medicalCertificates"
 import {
-  ConsultationRequestServiceError,
-  type ConsultationRequestListResult,
-  type ConsultationRequestStats,
-} from "@/types/consultationRequest"
+  AppointmentRequestServiceError,
+  type AppointmentRequestListResult,
+  type AppointmentRequestStats,
+} from "@/types/appointmentRequest"
 import {
   AnnouncementServiceError,
   type AnnouncementListResult,
@@ -113,8 +114,7 @@ export async function StaffHomePage() {
 }
 
 export async function StaffQueuePage() {
-  const access = await getStaffAccess()
-  if (!access?.hasClinicMembership) redirect("/login")
+  const access = await requireStaffModule("queue_management")
 
   const station = stationForDesignation(access.designation)
   const allTickets = await getTodayQueueTickets()
@@ -148,20 +148,22 @@ export async function StaffQueuePage() {
 export async function StaffRequestsPage() {
   const access = await requireStaffModule("consultation_requests")
 
-  const emptyList: ConsultationRequestListResult = {
+  const emptyList: AppointmentRequestListResult = {
     items: [],
     total: 0,
     page: 1,
     pageSize: 50,
     totalPages: 1,
   }
-  const emptyStats: ConsultationRequestStats = {
+  const emptyStats: AppointmentRequestStats = {
     pending: 0,
-    approved: 0,
-    declined: 0,
+    confirmed: 0,
+    waitlisted: 0,
     rescheduled: 0,
+    in_progress: 0,
     completed: 0,
     cancelled: 0,
+    no_show: 0,
     total: 0,
   }
 
@@ -171,14 +173,14 @@ export async function StaffRequestsPage() {
 
   try {
     const [nextList, nextStats] = await Promise.all([
-      getConsultationRequests({ page: 1, pageSize: 50, status: "all" }),
-      getConsultationRequestStats(),
+      getAppointmentRequests({ page: 1, pageSize: 50, status: "all" }),
+      getAppointmentRequestStats(),
     ])
     list = nextList
     stats = nextStats
   } catch (error) {
     initialError =
-      error instanceof ConsultationRequestServiceError
+      error instanceof AppointmentRequestServiceError
         ? error.message
         : error instanceof Error
           ? error.message
@@ -480,14 +482,26 @@ export async function StaffSettingsPage() {
   }
 
   const profilePage = (
-    <ProfileSettingsPage profile={profile} preferences={preferences} />
+    <ProfileSettingsPage
+      profile={profile}
+      preferences={preferences}
+      elevated={access.primaryRole === "admin"}
+    />
   )
 
   if (access.primaryRole === "admin") {
     const bundle = await loadOfficeHoursBundle()
+    const { getClinicCapacities } = await import(
+      "@/services/consultation-capacity"
+    )
+    const { ConsultationCapacitySettings } = await import(
+      "@/features/admin/components/consultation-capacity-settings"
+    )
+    const capacities = await getClinicCapacities()
     return (
-      <div className="flex flex-1 flex-col gap-8">
+      <div className={adminPageShellClassName("gap-8")}>
         {profilePage}
+        <ConsultationCapacitySettings initial={capacities} />
         <OfficeHoursSettings
           access={access}
           clinicHours={bundle.clinicHours}
@@ -542,6 +556,28 @@ export async function StaffSettingsPage() {
           embeddedInSettings
         />
       </div>
+    )
+  }
+
+  if (access.primaryRole === "nurse") {
+    const { getClinicCapacities } = await import(
+      "@/services/consultation-capacity"
+    )
+    const { ConsultationCapacitySettings } = await import(
+      "@/features/admin/components/consultation-capacity-settings"
+    )
+    const capacities = await getClinicCapacities()
+    return (
+      <ProfileSettingsPage
+        profile={profile}
+        preferences={preferences}
+        rightColumnExtras={
+          <ConsultationCapacitySettings
+            initial={capacities}
+            elevated={false}
+          />
+        }
+      />
     )
   }
 

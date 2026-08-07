@@ -38,6 +38,10 @@ import { UserEditSheet } from "@/features/admin/components/user-edit-sheet"
 import { UserImportSheet } from "@/features/admin/components/user-import-sheet"
 import { UserInviteSheet } from "@/features/admin/components/user-invite-sheet"
 import {
+  adminElevatedCardClassName,
+  adminPageShellClassName,
+} from "@/features/admin/lib/admin-surface"
+import {
   Alert,
   AlertDescription,
   AlertTitle,
@@ -398,14 +402,11 @@ export function UserDirectoryPanel({
   const deletePrimary = deleteSelection[0]
 
   return (
-    <div className="flex min-h-0 flex-col gap-4">
-      <div className="min-w-0 space-y-1.5">
+    <div className={adminPageShellClassName("min-h-0 gap-4")}>
+      <div className="min-w-0">
         <h1 className="truncate text-2xl font-semibold tracking-tight">
           {config.title}
         </h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          {config.description}
-        </p>
       </div>
 
       {loadError ? (
@@ -417,28 +418,32 @@ export function UserDirectoryPanel({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
+          className={adminElevatedCardClassName}
           label={directory === "admins" ? "Admin accounts" : "Staff accounts"}
           value={String(summary.total)}
           description="In this directory"
         />
         <StatCard
+          className={adminElevatedCardClassName}
           label="Active"
           value={String(summary.active)}
           description="Have signed in"
         />
         <StatCard
+          className={adminElevatedCardClassName}
           label="Invited"
           value={String(summary.invited)}
           description="Invite sent, not yet signed in"
         />
         <StatCard
+          className={adminElevatedCardClassName}
           label="Inactive"
           value={String(summary.inactive)}
           description="Access revoked"
         />
       </div>
 
-      <Card className="min-w-0 gap-0 py-0 shadow-none dark:ring-0">
+      <Card className={cn(adminElevatedCardClassName, "min-w-0 gap-0 py-0")}>
         <CardHeader className="flex flex-col gap-3 border-b pt-(--card-spacing) sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-base">
             {config.directoryTitle}

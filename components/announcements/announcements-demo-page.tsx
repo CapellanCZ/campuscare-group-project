@@ -56,6 +56,8 @@ import {
 import { can, canMutate } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { DemoStat } from "@/lib/demo/types"
+import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
+import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 import type {
   Announcement,
   AnnouncementListResult,
@@ -256,6 +258,14 @@ export function AnnouncementsPage({
     await loadPage(debouncedQuery, page, statusFilter)
   }, [debouncedQuery, page, statusFilter, loadPage])
 
+  useStaffRealtimeRefresh(
+    `staff-announcements-${d}`,
+    STAFF_REALTIME_TABLES.announcements,
+    () => {
+      void refresh()
+    }
+  )
+
   useEffect(() => {
     if (skipNextFetch.current) {
       skipNextFetch.current = false
@@ -351,14 +361,10 @@ export function AnnouncementsPage({
     <div className="flex flex-col gap-6">
       <DemoPageHeader
         title="Announcements"
-        description={
-          isPhysician || d === "nurse" || d === "dentist"
-            ? ""
-            : "Clinic notices for students and staff"
-        }
+        description=""
         designation={d}
         showDemoBanner={false}
-        showRoleSuffix={!isPhysician && d !== "nurse" && d !== "dentist"}
+        showRoleSuffix={false}
         actions={
           canManage ? (
             <Button onClick={openCreate}>Add announcement</Button>
@@ -371,19 +377,14 @@ export function AnnouncementsPage({
       ) : null}
 
       <section className="flex flex-col gap-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-base font-semibold tracking-tight">
-            Latest Announcements
-          </h2>
-          {!canManage ? (
-            <Input
-              className="sm:w-72"
-              placeholder="Search announcements"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          ) : null}
-        </div>
+        {!canManage ? (
+          <Input
+            className="sm:w-72"
+            placeholder="Search announcements"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        ) : null}
 
         {showSkeleton && !hasFeed ? (
           <NewsFeedSkeleton />

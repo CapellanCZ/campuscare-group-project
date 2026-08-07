@@ -6,10 +6,17 @@ import { getStaffAccess } from "@/lib/auth/access"
 import { can } from "@/lib/auth/permissions"
 import type { ClinicDesignation } from "@/lib/auth/types"
 import { createClient } from "@/lib/supabase/server"
-import { approveConsultationRequest as queueApprove } from "@/lib/health/queue-actions"
+import {
+  admitWaitlistedConsultationRequest,
+  approveConsultationRequest as queueApprove,
+  releaseConsultationReservation,
+} from "@/lib/health/queue-actions"
+import { recommendComeEarly } from "@/lib/health/consultation-workflow"
+import { reReserveConsultationRequestDate } from "@/services/consultation-submit"
 import {
   CONSULTATION_REQUEST_STATUSES,
   ConsultationRequestServiceError,
+  type AdmitConsultationRequestInput,
   type ApproveConsultationRequestInput,
   type ConsultationRequest,
   type ConsultationRequestAttachment,
@@ -41,6 +48,7 @@ type RequestRow = {
   email: string | null
   phone: string | null
   service: string
+  provider_type: string | null
   preferred_date: string | null
   preferred_time: string | null
   reason: string
@@ -57,6 +65,8 @@ type RequestRow = {
   reschedule_reason: string | null
   approval_notes: string | null
   queue_ticket_id: string | null
+  queue_number: number | null
+  waitlisted_at: string | null
   created_by: string | null
   submitted_at: string
   created_at: string
@@ -155,6 +165,8 @@ function mapRequest(
     email: row.email,
     phone: row.phone,
     service: row.service,
+    providerType:
+      row.provider_type === "dentist" ? "dentist" : "physician",
     preferredDate: row.preferred_date,
     preferredTime: row.preferred_time,
     reason: row.reason,
@@ -171,10 +183,13 @@ function mapRequest(
     rescheduleReason: row.reschedule_reason,
     approvalNotes: row.approval_notes,
     queueTicketId: row.queue_ticket_id,
+    queueNumber: row.queue_number,
+    waitlistedAt: row.waitlisted_at,
     createdBy: row.created_by,
     submittedAt: row.submitted_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    recommendComeEarly: recommendComeEarly(row.queue_number),
     attachments: extras?.attachments ?? [],
     timeline: extras?.timeline ?? [],
     notes: extras?.notes ?? [],
@@ -548,6 +563,7 @@ export async function getConsultationRequestStats(
     rescheduled: 0,
     completed: 0,
     cancelled: 0,
+    waitlisted: 0,
     total: (data ?? []).length,
   }
 
@@ -634,7 +650,7 @@ export async function approveConsultationRequestRecord(
   if (!queueResult.ok) {
     throw new ConsultationRequestServiceError(
       "database",
-      queueResult.error || "Failed to queue the request."
+      queueResult.error || "Failed to approve the request."
     )
   }
 
@@ -668,7 +684,7 @@ export async function approveConsultationRequestRecord(
       queueResult.message ?? null,
     ]
       .filter(Boolean)
-      .join(" · ") || "Request approved and queued.",
+      .join(" · ") || "Request approved; reserved queue number kept.",
     actor.userId,
     actor.fullName
   )
@@ -677,8 +693,57 @@ export async function approveConsultationRequestRecord(
     input.id,
     "approved_by",
     queueResult.ticketCode
-      ? `Queued as ${queueResult.ticketCode}`
+      ? `Confirmed ${queueResult.ticketCode}`
       : "Request approved",
+    actor.userId,
+    actor.fullName
+  )
+
+  return getConsultationRequestById(input.id, supabase)
+}
+
+export async function admitConsultationRequestRecord(
+  input: AdmitConsultationRequestInput,
+  client?: SupabaseClient
+): Promise<ConsultationRequest> {
+  const actor = await requireStaffActor()
+  if (!can(actor.designation as ClinicDesignation, "requests.approve")) {
+    throw new ConsultationRequestServiceError(
+      "permission",
+      "Only nurses can admit waitlisted requests."
+    )
+  }
+
+  const supabase = await getClient(client)
+  const result = await admitWaitlistedConsultationRequest({
+    designation: actor.designation as "nurse",
+    requestId: input.id,
+    staffName: actor.fullName,
+    force: input.force ?? true,
+  })
+
+  if (!result.ok) {
+    throw new ConsultationRequestServiceError(
+      "database",
+      result.error || "Failed to admit waitlisted request."
+    )
+  }
+
+  await appendTimeline(
+    supabase,
+    input.id,
+    "Admitted",
+    result.message ?? "Admitted from waitlist.",
+    actor.userId,
+    actor.fullName
+  )
+  await appendAudit(
+    supabase,
+    input.id,
+    "admitted_from_waitlist",
+    result.ticketCode
+      ? `Queued as ${result.ticketCode}`
+      : "Admitted from waitlist",
     actor.userId,
     actor.fullName
   )
@@ -707,6 +772,12 @@ export async function declineConsultationRequestRecord(
   }
 
   const supabase = await getClient(client)
+  const existing = await getConsultationRequestById(input.id, supabase)
+  await releaseConsultationReservation({
+    requestId: existing.id,
+    ticketId: existing.queueTicketId,
+  })
+
   const { error } = await supabase
     .from("consultation_requests")
     .update({
@@ -714,6 +785,8 @@ export async function declineConsultationRequestRecord(
       decline_reason: reason,
       assigned_nurse_id: actor.userId,
       assigned_nurse_name: actor.fullName,
+      queue_ticket_id: null,
+      queue_number: null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", input.id)
@@ -767,10 +840,35 @@ export async function rescheduleConsultationRequestRecord(
   }
 
   const supabase = await getClient(client)
+  const existing = await getConsultationRequestById(input.id, supabase)
+
+  let reserved
+  try {
+    reserved = await reReserveConsultationRequestDate(
+      {
+        requestId: existing.id,
+        providerType: existing.providerType,
+        preferredDate: input.preferredDate,
+        preferredTime: input.preferredTime,
+        patientName: existing.patientName,
+        studentId: existing.studentId,
+        reason: existing.reason,
+        actorId: actor.userId,
+        actorName: actor.fullName,
+      },
+      supabase
+    )
+  } catch (error) {
+    throw new ConsultationRequestServiceError(
+      "database",
+      error instanceof Error ? error.message : "Failed to re-reserve the date."
+    )
+  }
+
   const { error } = await supabase
     .from("consultation_requests")
     .update({
-      status: "rescheduled",
+      status: reserved.status === "waitlisted" ? "waitlisted" : "rescheduled",
       preferred_date: input.preferredDate,
       preferred_time: input.preferredTime,
       reschedule_reason: reason,
@@ -782,7 +880,11 @@ export async function rescheduleConsultationRequestRecord(
 
   if (error) mapError(error)
 
-  const remarks = `New schedule ${input.preferredDate} ${input.preferredTime}. ${reason}`
+  const remarks = `New schedule ${input.preferredDate} ${input.preferredTime}. ${reason}${
+    reserved.queueNumber != null
+      ? ` · Queue #${reserved.queueNumber}`
+      : " · Waitlisted"
+  }`
   await appendTimeline(
     supabase,
     input.id,

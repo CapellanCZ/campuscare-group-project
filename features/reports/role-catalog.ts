@@ -22,7 +22,6 @@ export const ROLE_REPORTS_CATALOG: Record<
     reportKinds: [
       "daily_consultation",
       "monthly_consultation",
-      "patient_list",
       "queue_performance",
       "medical_certificate",
     ],

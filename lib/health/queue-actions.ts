@@ -325,19 +325,38 @@ export async function completeNurseIntakeAndAssign(params: {
     return { ok: false, error: openCheck.error }
   }
 
-  const toStation = params.intake.toStation
-  if (toStation !== "physician" && toStation !== "dentist") {
-    return { ok: false, error: "Assign physician or dentist only." }
-  }
-
   const supabase = await createClient()
   const { data: ticket } = await supabase
     .from("health_queue_tickets")
-    .select("id, station, status")
+    .select("id, station, status, provider_type, consultation_request_id")
     .eq("id", params.ticketId)
     .maybeSingle()
 
   if (!ticket) return { ok: false, error: "Ticket not found." }
+
+  let toStation: SpecialtyStationId | null =
+    params.intake.toStation === "physician" || params.intake.toStation === "dentist"
+      ? params.intake.toStation
+      : null
+
+  if (!toStation) {
+    if (ticket.provider_type === "physician" || ticket.provider_type === "dentist") {
+      toStation = ticket.provider_type
+    } else if (ticket.consultation_request_id) {
+      const { data: req } = await supabase
+        .from("consultation_requests")
+        .select("provider_type")
+        .eq("id", ticket.consultation_request_id)
+        .maybeSingle()
+      if (req?.provider_type === "physician" || req?.provider_type === "dentist") {
+        toStation = req.provider_type
+      }
+    }
+  }
+
+  if (!toStation) {
+    return { ok: false, error: "Assign physician or dentist only." }
+  }
 
   const { nextPos } = await nextQueueSlot(supabase)
   const now = new Date().toISOString()
@@ -356,6 +375,9 @@ export async function completeNurseIntakeAndAssign(params: {
       vitals_heart_rate: params.intake.heartRate ?? null,
       vitals_temperature_c: params.intake.temperatureC ?? null,
       vitals_spo2: params.intake.spo2 ?? null,
+      vitals_height_cm: params.intake.heightCm ?? null,
+      vitals_weight_kg: params.intake.weightKg ?? null,
+      vitals_respiratory_rate: params.intake.respiratoryRate ?? null,
       intake_notes: params.intake.intakeNotes?.trim() || null,
       intake_completed_at: now,
       estimated_wait_minutes: nextPos * 10,
@@ -476,6 +498,8 @@ export async function registerWalkIn(params: {
   const { nextPos, nextNum } = await nextQueueSlot(supabase)
   const ticketCode = `WI-${String(nextNum).padStart(4, "0")}`
   const now = new Date().toISOString()
+  const providerType: SpecialtyStationId | null =
+    station === "physician" || station === "dentist" ? station : null
 
   const { error } = await supabase.from("health_queue_tickets").insert({
     ticket_code: ticketCode,
@@ -492,6 +516,7 @@ export async function registerWalkIn(params: {
     campus_id: resolvedCampusId,
     consultation_type: params.consultationType || "Walk-in consultation",
     assigned_staff_name: params.staffName,
+    provider_type: providerType,
   })
 
   if (error) return { ok: false, error: error.message }
@@ -509,10 +534,51 @@ function suggestedSpecialtyFromService(service: string): SpecialtyStationId {
   return "physician"
 }
 
+export async function releaseConsultationReservation(params: {
+  requestId: string
+  ticketId?: string | null
+}): Promise<HealthActionResult> {
+  const supabase = await createClient()
+  const ticketId = params.ticketId
+  if (!ticketId) {
+    const { data: req } = await supabase
+      .from("consultation_requests")
+      .select("queue_ticket_id")
+      .eq("id", params.requestId)
+      .maybeSingle()
+    if (!req?.queue_ticket_id) return { ok: true, message: "No reservation to release." }
+    return releaseConsultationReservation({
+      requestId: params.requestId,
+      ticketId: req.queue_ticket_id as string,
+    })
+  }
+
+  const now = new Date().toISOString()
+  const { error } = await supabase
+    .from("health_queue_tickets")
+    .update({
+      status: "expired",
+      updated_at: now,
+    })
+    .eq("id", ticketId)
+
+  if (error) return { ok: false, error: error.message }
+
+  await supabase
+    .from("consultation_requests")
+    .update({
+      queue_ticket_id: null,
+      queue_number: null,
+      updated_at: now,
+    })
+    .eq("id", params.requestId)
+
+  return { ok: true, message: "Reservation released." }
+}
+
 /**
- * Nurse approves a consultation request → patient enters the nurse queue
- * (auto queue number). After check-in + intake, nurse assigns physician/dentist
- * so the case appears on that doctor's station list.
+ * Nurse approves a consultation request that already holds a reserved queue
+ * number from patient submit. Does not create a second ticket.
  */
 export async function approveConsultationRequest(params: {
   designation: ClinicDesignation
@@ -522,92 +588,173 @@ export async function approveConsultationRequest(params: {
   service: string
   reason?: string
   staffName: string
-}): Promise<HealthActionResult & { ticketCode?: string; suggestedSpecialty?: SpecialtyStationId }> {
+}): Promise<
+  HealthActionResult & {
+    ticketCode?: string
+    suggestedSpecialty?: SpecialtyStationId
+    queueNumber?: number | null
+  }
+> {
   if (!canApproveConsultationRequest(params.designation)) {
     return { ok: false, error: "Only nurses can approve consultation requests." }
   }
 
-  const openCheck = await assertCanAccommodate({ at: new Date() })
-  if (!openCheck.ok) {
-    return { ok: false, error: openCheck.error }
-  }
-
-  const name = params.patientName.trim()
-  if (!name) return { ok: false, error: "Patient name is required." }
-
   const supabase = await createClient()
-  const { ymd } = manilaDayBounds()
-  const campusId = params.studentId?.trim() || null
-  const suggestedSpecialty = suggestedSpecialtyFromService(params.service)
+  const { data: request } = await supabase
+    .from("consultation_requests")
+    .select(
+      "id, status, queue_ticket_id, queue_number, provider_type, service, preferred_date"
+    )
+    .eq("id", params.requestId)
+    .maybeSingle()
 
-  let patientId: string | null = null
-  let resolvedName = name
-  let resolvedCampusId = campusId
-
-  if (campusId) {
-    const enrolled = await lookupEnrolledStudentById(campusId)
-    if (enrolled) {
-      try {
-        const ensured = await ensurePatientFromEnrollment(enrolled)
-        patientId = ensured.operational.id
-        resolvedName = ensured.operational.fullName || name
-        resolvedCampusId = ensured.operational.studentId ?? campusId
-      } catch (error) {
-        return {
-          ok: false,
-          error:
-            error instanceof Error
-              ? error.message
-              : "Could not sync enrolled student for this request.",
-        }
-      }
-    } else {
-      const { data: byEmployee } = await supabase
-        .from("patients")
-        .select("id, full_name, employee_id")
-        .eq("employee_id", campusId)
-        .limit(1)
-        .maybeSingle()
-
-      if (byEmployee) {
-        patientId = byEmployee.id
-        resolvedName = byEmployee.full_name
-        resolvedCampusId = byEmployee.employee_id
-      }
-      // Requests may use demo IDs — still allow queue ticket without patient FK.
+  if (!request) return { ok: false, error: "Consultation request not found." }
+  if (request.status === "waitlisted") {
+    return {
+      ok: false,
+      error: "This request is waitlisted. Use Admit to place it in the queue.",
     }
   }
 
-  const { nextPos, nextNum } = await nextQueueSlot(supabase)
-  const ticketCode = `CR-${String(nextNum).padStart(4, "0")}`
-  const now = new Date().toISOString()
-  const consultationType = `${params.service.trim() || "Consultation"} → ${suggestedSpecialty}`
+  const suggestedSpecialty: SpecialtyStationId =
+    request.provider_type === "dentist" || request.provider_type === "physician"
+      ? request.provider_type
+      : suggestedSpecialtyFromService(params.service)
 
-  const { error } = await supabase.from("health_queue_tickets").insert({
-    ticket_code: ticketCode,
-    queue_position: nextPos,
-    queue_number: nextNum,
-    estimated_wait_minutes: nextPos * 10,
-    status: "waiting",
-    station: "nurse",
-    checked_in_at: null,
-    expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-    service_date: ymd,
-    patient_id: patientId,
-    patient_name: resolvedName,
-    campus_id: resolvedCampusId,
-    consultation_type: consultationType,
-    chief_complaint: params.reason?.trim() || null,
-    assigned_staff_name: params.staffName,
-    intake_notes: `Approved request ${params.requestId}. Suggested specialty: ${suggestedSpecialty}.`,
-  })
+  if (!request.queue_ticket_id) {
+    return {
+      ok: false,
+      error:
+        "No reserved queue number on this request. Ask the patient to resubmit or use Admit.",
+    }
+  }
+
+  const { data: ticket } = await supabase
+    .from("health_queue_tickets")
+    .select("id, ticket_code, queue_number, status")
+    .eq("id", request.queue_ticket_id)
+    .maybeSingle()
+
+  if (!ticket) {
+    return { ok: false, error: "Reserved queue ticket is missing." }
+  }
+
+  const now = new Date().toISOString()
+  await supabase
+    .from("health_queue_tickets")
+    .update({
+      assigned_staff_name: params.staffName,
+      intake_notes: `Approved request ${params.requestId}. Specialty: ${suggestedSpecialty}.`,
+      status: ticket.status === "expired" ? "waiting" : ticket.status,
+      updated_at: now,
+    })
+    .eq("id", ticket.id)
+
+  return {
+    ok: true,
+    ticketCode: ticket.ticket_code as string,
+    suggestedSpecialty,
+    queueNumber: (ticket.queue_number as number | null) ?? request.queue_number,
+    message: `Request approved. Reserved queue #${ticket.queue_number ?? request.queue_number} kept (${ticket.ticket_code}).`,
+  }
+}
+
+/**
+ * Nurse admits a waitlisted request into the daily queue (may exceed soft cap).
+ */
+export async function admitWaitlistedConsultationRequest(params: {
+  designation: ClinicDesignation
+  requestId: string
+  staffName: string
+  force?: boolean
+}): Promise<
+  HealthActionResult & { ticketCode?: string; queueNumber?: number }
+> {
+  if (!canApproveConsultationRequest(params.designation)) {
+    return { ok: false, error: "Only nurses can admit waitlisted requests." }
+  }
+
+  const supabase = await createClient()
+  const { data: request } = await supabase
+    .from("consultation_requests")
+    .select("*")
+    .eq("id", params.requestId)
+    .maybeSingle()
+
+  if (!request) return { ok: false, error: "Consultation request not found." }
+  if (request.status !== "waitlisted" && !params.force) {
+    return { ok: false, error: "Only waitlisted requests can be admitted." }
+  }
+
+  const providerType: SpecialtyStationId =
+    request.provider_type === "dentist" ? "dentist" : "physician"
+  const serviceDate =
+    (request.preferred_date as string | null) || manilaDayBounds().ymd
+
+  const { nextReservedQueueNumber } = await import(
+    "@/services/consultation-capacity"
+  )
+  const { nextNumber, used, max } = await nextReservedQueueNumber(
+    providerType,
+    serviceDate,
+    supabase
+  )
+
+  if (used >= max && !params.force) {
+    return {
+      ok: false,
+      error: `Daily capacity full (${used}/${max}). Retry with force to override.`,
+    }
+  }
+
+  const queueNumber = nextNumber
+  const ticketCode = `CR-${String(queueNumber).padStart(4, "0")}`
+  const now = new Date().toISOString()
+
+  const { data: ticket, error } = await supabase
+    .from("health_queue_tickets")
+    .insert({
+      ticket_code: ticketCode,
+      queue_position: queueNumber,
+      queue_number: queueNumber,
+      estimated_wait_minutes: queueNumber * 10,
+      status: "waiting",
+      station: "nurse",
+      checked_in_at: null,
+      service_date: serviceDate,
+      patient_name: request.patient_name,
+      campus_id: request.student_id,
+      consultation_type: request.service,
+      chief_complaint: request.reason,
+      consultation_request_id: request.id,
+      provider_type: providerType,
+      assigned_staff_name: params.staffName,
+      intake_notes: params.force
+        ? `Admitted over capacity by nurse (${used}/${max}).`
+        : "Admitted from waitlist.",
+      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    })
+    .select("id")
+    .single()
 
   if (error) return { ok: false, error: error.message }
+
+  await supabase
+    .from("consultation_requests")
+    .update({
+      status: "pending",
+      queue_ticket_id: ticket.id,
+      queue_number: queueNumber,
+      waitlisted_at: null,
+      updated_at: now,
+    })
+    .eq("id", request.id)
+
   return {
     ok: true,
     ticketCode,
-    suggestedSpecialty,
-    message: `Request approved as ${ticketCode} (queue #${nextNum}). Complete check-in and intake, then assign ${suggestedSpecialty} so they appear on the doctor queue.`,
+    queueNumber,
+    message: `Admitted as ${ticketCode} (queue #${queueNumber}). Approve when ready.`,
   }
 }
 

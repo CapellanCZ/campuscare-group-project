@@ -90,3 +90,63 @@ export async function signOut(): Promise<AuthResult> {
     }
   }
 }
+
+/**
+ * Password sign-in for the public queue display kiosk account.
+ * Only users with primary_role = queue_display may succeed.
+ */
+export async function signInDisplayAccount(
+  email: string,
+  password: string
+): Promise<AuthResult> {
+  try {
+    const trimmedEmail = email.trim().toLowerCase()
+    const trimmedPassword = password
+
+    if (!trimmedEmail) {
+      return { ok: false, error: "Enter the display account email." }
+    }
+    if (!trimmedPassword) {
+      return { ok: false, error: "Enter the display account password." }
+    }
+
+    const supabase = await createClient()
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: trimmedEmail,
+      password: trimmedPassword,
+    })
+
+    if (error) {
+      return {
+        ok: false,
+        error: mapAuthError(error, "Invalid email or password."),
+      }
+    }
+
+    const userId = data.user?.id
+    if (!userId) {
+      return { ok: false, error: "Could not establish a display session." }
+    }
+
+    const { data: profile } = await supabase
+      .from("users")
+      .select("primary_role, is_active")
+      .eq("id", userId)
+      .maybeSingle()
+
+    if (!profile?.is_active || profile.primary_role !== "queue_display") {
+      await supabase.auth.signOut()
+      return {
+        ok: false,
+        error: "This account is not a display login.",
+      }
+    }
+
+    return { ok: true }
+  } catch (error) {
+    return {
+      ok: false,
+      error: asErrorMessage(error, "Could not sign in to the display."),
+    }
+  }
+}

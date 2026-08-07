@@ -18,6 +18,9 @@ export type QueueVitals = {
   heartRate: number | null
   temperatureC: number | null
   spo2: number | null
+  heightCm: number | null
+  weightKg: number | null
+  respiratoryRate: number | null
 }
 
 export type QueueTicketRow = {
@@ -50,6 +53,8 @@ export type QueueTicketRow = {
   vitals: QueueVitals
   intakeNotes: string | null
   priority: "normal" | "urgent"
+  consultationRequestId: string | null
+  providerType: SpecialtyStationId | null
 }
 
 export type QueueStats = {
@@ -64,11 +69,13 @@ export type QueueStats = {
 export type StationBoard = {
   station: StationId
   label: string
-  status: "active" | "idle"
+  status: "active" | "idle" | "on_break"
   waitingCount: number
   averageWaitMinutes: number
   nowServing: string | null
   upcoming: string[]
+  /** ISO resume time when status is on_break */
+  resumesAt?: string | null
 }
 
 export type RecentlyServedItem = {
@@ -111,6 +118,10 @@ export type NurseIntakeInput = {
   heartRate?: number | null
   temperatureC?: number | null
   spo2?: number | null
+  heightCm?: number | null
+  weightKg?: number | null
+  respiratoryRate?: number | null
   intakeNotes?: string
-  toStation: SpecialtyStationId
+  /** Defaults from ticket.providerType when omitted. */
+  toStation?: SpecialtyStationId
 }

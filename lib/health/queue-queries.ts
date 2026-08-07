@@ -1,4 +1,9 @@
 import { createClient } from "@/lib/supabase/server"
+import {
+  getActiveStaffBreaksByRole,
+  getClinicBreakStatus,
+} from "@/lib/availability/queries"
+import type { BreakStatus } from "@/lib/availability/types"
 import { mapTicketRow, ticketLabel, type RawQueueTicket } from "@/lib/health/mappers"
 import { stationLabel } from "@/lib/health/roles"
 import { manilaDayBounds } from "@/lib/health/time"
@@ -117,7 +122,7 @@ export async function getStationBoards(
   const all = tickets ?? (await fetchJoinedTickets())
   const stations: StationId[] = ["nurse", "physician", "dentist"]
 
-  return stations.map((station) => {
+  const boards: StationBoard[] = stations.map((station) => {
     const scoped = all.filter((t) => t.station === station)
     const waiting = scoped
       .filter((t) => t.status === "waiting")
@@ -147,6 +152,36 @@ export async function getStationBoards(
         .slice(0, 3)
         .map((t) => ticketLabel(t.queueNumber, t.ticketCode)),
     }
+  })
+
+  return applyBreakStatusToBoards(boards)
+}
+
+async function applyBreakStatusToBoards(
+  boards: StationBoard[]
+): Promise<StationBoard[]> {
+  const [clinicBreak, staffByRole] = await Promise.all([
+    getClinicBreakStatus(),
+    getActiveStaffBreaksByRole(),
+  ])
+
+  return boards.map((board) => {
+    if (clinicBreak.isOnBreak) {
+      return {
+        ...board,
+        status: "on_break",
+        resumesAt: clinicBreak.resumesAt,
+      }
+    }
+    const roleBreak = staffByRole[board.station]
+    if (roleBreak?.isOnBreak) {
+      return {
+        ...board,
+        status: "on_break",
+        resumesAt: roleBreak.resumesAt,
+      }
+    }
+    return { ...board, resumesAt: null }
   })
 }
 
@@ -251,19 +286,32 @@ export async function getQueueActivity(
 }
 
 /** Public display uses the SQL view (anon-readable). */
-export async function getPublicQueueSnapshot() {
+export async function getPublicQueueSnapshot(): Promise<{
+  tickets: QueueTicketRow[]
+  boards: StationBoard[]
+  recentlyServed: RecentlyServedItem[]
+  totalWaiting: number
+  clinicBreak: BreakStatus
+}> {
   const supabase = await createClient()
+  const clinicBreakPromise = getClinicBreakStatus(supabase)
+
   const { data, error } = await supabase
     .from("public_queue_display")
     .select("*")
     .order("queue_number", { ascending: true })
 
   if (error) {
+    const [boards, clinicBreak] = await Promise.all([
+      getStationBoards([]),
+      clinicBreakPromise,
+    ])
     return {
       tickets: [] as QueueTicketRow[],
-      boards: await getStationBoards([]),
+      boards,
       recentlyServed: [] as RecentlyServedItem[],
       totalWaiting: 0,
+      clinicBreak,
     }
   }
 
@@ -318,10 +366,16 @@ export async function getPublicQueueSnapshot() {
     )
   )
 
+  const [boards, clinicBreak] = await Promise.all([
+    getStationBoards(tickets),
+    clinicBreakPromise,
+  ])
+
   return {
     tickets,
-    boards: await getStationBoards(tickets),
+    boards,
     recentlyServed: await getRecentlyServed(8, tickets),
     totalWaiting: tickets.filter((t) => t.status === "waiting").length,
+    clinicBreak,
   }
 }

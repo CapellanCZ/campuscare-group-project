@@ -8,11 +8,9 @@ import {
   IconLayoutGrid,
   IconListCheck,
   IconSettings,
-  IconShield,
   IconStethoscope,
   IconUserCog,
   IconUsers,
-  IconUserHeart,
 } from "@tabler/icons-react"
 
 export type RoleNavItem = {
@@ -42,40 +40,22 @@ const roleGroupsByRole: Record<WebRole, RoleNavGroup[]> = {
     {
       label: "Overview",
       items: [
-        { title: "Dashboard", href: "/admin/dashboard", icon: IconLayoutGrid },
-        { title: "Analytics", href: "/admin/analytics", icon: IconChartBar },
+        { title: "Dashboard", href: "/admin", icon: IconLayoutGrid },
+        { title: "Reports", href: "/admin/reports", icon: IconChartBar },
       ],
     },
     {
       label: "Management",
       items: [
-        { title: "Reports", href: "/admin/reports", icon: IconChartBar },
         {
           title: "Announcements",
           href: "/admin/announcements",
           icon: IconBellRinging,
         },
         {
-          title: "User Management",
-          href: "/admin/user-management",
-          icon: IconUserCog,
-          children: [
-            {
-              title: "Admins",
-              href: "/admin/user-management/admins",
-              icon: IconShield,
-            },
-            {
-              title: "Clinic Staff",
-              href: "/admin/user-management/staff",
-              icon: IconStethoscope,
-            },
-            {
-              title: "Patients",
-              href: "/admin/user-management/patients",
-              icon: IconUserHeart,
-            },
-          ],
+          title: "Clinic Staff",
+          href: "/admin/user-management/staff",
+          icon: IconStethoscope,
         },
       ],
     },

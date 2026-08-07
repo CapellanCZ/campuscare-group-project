@@ -1,5 +1,8 @@
 export function consultationRequestStatusLabel(status: string): string {
-  return status.charAt(0).toUpperCase() + status.slice(1)
+  return status
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ")
 }
 
 export function formatRequestDateTime(value: string | null | undefined): string {

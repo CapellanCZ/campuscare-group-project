@@ -12,6 +12,7 @@ const STATUS_VARIANT: Record<
   completed: "success-light",
   cancelled: "destructive-light",
   no_show: "destructive-light",
+  waitlisted: "warning-light",
 }
 
 const STATUS_LABEL: Record<AppointmentStatus, string> = {
@@ -22,6 +23,7 @@ const STATUS_LABEL: Record<AppointmentStatus, string> = {
   completed: "Completed",
   cancelled: "Cancelled",
   no_show: "No-show",
+  waitlisted: "Waitlisted",
 }
 
 export function AppointmentStatusBadge({ status }: { status: AppointmentStatus }) {

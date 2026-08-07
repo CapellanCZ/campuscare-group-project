@@ -14,6 +14,21 @@ import { stationForDesignation } from "@/lib/health/roles"
 import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
 
 export async function getDashboardBundle(designation: ClinicDesignation) {
+  // Admin ops home never shows live queue / named tickets — skip queue hydration.
+  if (designation === "admin") {
+    const emptyStats = computeQueueStats([])
+    const kpis = await buildKpis("admin", [], [], emptyStats)
+    return {
+      tickets: [] as QueueTicketRow[],
+      allTickets: [] as QueueTicketRow[],
+      stats: emptyStats,
+      boards: [],
+      activity: [],
+      recent: [],
+      kpis,
+    }
+  }
+
   const stationFilter = stationForDesignation(designation)
   const allTickets = await getTodayQueueTickets()
   const scoped =
@@ -52,20 +67,17 @@ export function enrichDashboardKpis(
 ): DashboardKpis {
   if (designation === "admin") {
     const byKey = new Map(kpis.cards.map((c) => [c.key, c]))
-    const ordered = ["requests", "patients", "queue", "completed", "certs"]
-      .map((key) => byKey.get(key))
-      .filter((c): c is NonNullable<typeof c> => Boolean(c))
-    return {
-      cards: [
-        ...ordered,
-        {
-          key: "staff",
-          label: "Active staff",
-          value: String(summary.staffSummary?.active ?? 0),
-          description: `${summary.staffSummary?.total ?? 0} total accounts`,
-        },
-      ],
+    const staffCard = {
+      key: "staff",
+      label: "Active staff",
+      value: String(summary.staffSummary?.active ?? 0),
+      description: `${summary.staffSummary?.total ?? 0} total accounts`,
     }
+    const ordered = ["staff", "announcements", "completed", "certs"]
+      .map((key) => (key === "staff" ? staffCard : byKey.get(key)))
+      .filter((c): c is NonNullable<typeof c> => Boolean(c))
+      .slice(0, 4)
+    return { cards: ordered }
   }
 
   if (designation === "nurse") {
@@ -244,44 +256,29 @@ async function buildKpis(
   )
 
   if (designation === "admin") {
+    void patientsToday
+    void appointmentCount
+    void all
+    void stats
     return {
       cards: [
         {
-          key: "requests",
-          label: "Consultation requests",
-          value: String(appointmentCount),
-          description: "Created today",
-        },
-        {
-          key: "patients",
-          label: "Patients today",
-          value: String(patientsToday || all.length),
-          description: "Unique students in queue",
-        },
-        {
-          key: "queue",
-          label: "Current queue",
-          value: String(stats.totalWaiting + stats.currentlyServing),
-          description: "Waiting + serving",
-          lowerIsBetter: true,
+          key: "announcements",
+          label: "Published announcements",
+          value: String(announcementCount),
+          description: "Active clinic notices",
         },
         {
           key: "completed",
-          label: "Completed consultations",
-          value: String(consultCount || stats.completedToday),
-          description: "Recorded today",
+          label: "Visits recorded today",
+          value: String(consultCount),
+          description: "Aggregate consultations",
         },
         {
           key: "certs",
-          label: "Medical certificates issued",
+          label: "Certificates issued",
           value: String(certCount),
           description: "Issued today",
-        },
-        {
-          key: "announcements",
-          label: "Active announcements",
-          value: String(announcementCount),
-          description: "Published notices",
         },
       ],
     }

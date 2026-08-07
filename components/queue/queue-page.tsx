@@ -27,6 +27,8 @@ import { DENTIST_PATIENT_SEARCH_PLACEHOLDER } from "@/lib/students/patient-searc
 import { ActivityFeed } from "@/components/shared/activity-feed"
 import { RecentlyServedCard } from "@/components/shared/recently-served-card"
 import { StatCard } from "@/components/shared/stat-card"
+import { useStaffRealtimeRouterRefresh } from "@/hooks/use-staff-realtime-refresh"
+import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 import {
   PageIntro,
   PanelCell,
@@ -135,6 +137,10 @@ export function QueuePage({
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [localTickets, setLocalTickets] = useState(tickets)
+  useStaffRealtimeRouterRefresh(
+    `staff-queue-${access.designation}`,
+    STAFF_REALTIME_TABLES.queue
+  )
   const [query, setQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [stationFilter, setStationFilter] = useState<string>("all")
@@ -1052,6 +1058,28 @@ export function QueuePage({
                                                   : ticket
                                               )
                                             )
+                                          }
+                                          if (isPhysician && row.appointmentId) {
+                                            startTransition(async () => {
+                                              const result =
+                                                await actionStartConsultation(
+                                                  row.ticketId
+                                                )
+                                              if (!result.ok) {
+                                                toast.error(
+                                                  result.error ?? "Action failed"
+                                                )
+                                                return
+                                              }
+                                              toast.success(
+                                                result.message ?? "Updated"
+                                              )
+                                              router.push(
+                                                `/physician/consultation/${row.appointmentId}`
+                                              )
+                                              router.refresh()
+                                            })
+                                            return
                                           }
                                           run(() =>
                                             actionStartConsultation(

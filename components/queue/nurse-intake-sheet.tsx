@@ -77,6 +77,9 @@ export function NurseIntakeSheet({
   const [heartRate, setHeartRate] = useState("")
   const [temperatureC, setTemperatureC] = useState("")
   const [spo2, setSpo2] = useState("")
+  const [heightCm, setHeightCm] = useState("")
+  const [weightKg, setWeightKg] = useState("")
+  const [respiratoryRate, setRespiratoryRate] = useState("")
   const [intakeNotes, setIntakeNotes] = useState("")
   const [toStation, setToStation] = useState<SpecialtyStationId>("physician")
   const [error, setError] = useState<string | null>(null)
@@ -100,11 +103,24 @@ export function NurseIntakeSheet({
         : ""
     )
     setSpo2(ticket.vitals.spo2 != null ? String(ticket.vitals.spo2) : "")
+    setHeightCm(
+      ticket.vitals.heightCm != null ? String(ticket.vitals.heightCm) : ""
+    )
+    setWeightKg(
+      ticket.vitals.weightKg != null ? String(ticket.vitals.weightKg) : ""
+    )
+    setRespiratoryRate(
+      ticket.vitals.respiratoryRate != null
+        ? String(ticket.vitals.respiratoryRate)
+        : ""
+    )
     setIntakeNotes(ticket.intakeNotes ?? "")
     setToStation(
-      ticket.station === "dentist" || ticket.station === "physician"
-        ? ticket.station
-        : "physician"
+      ticket.providerType === "dentist" || ticket.providerType === "physician"
+        ? ticket.providerType
+        : ticket.station === "dentist" || ticket.station === "physician"
+          ? ticket.station
+          : "physician"
     )
     setError(null)
     setStatusMessage(null)
@@ -117,6 +133,9 @@ export function NurseIntakeSheet({
     setHeartRate("")
     setTemperatureC("")
     setSpo2("")
+    setHeightCm("")
+    setWeightKg("")
+    setRespiratoryRate("")
     setIntakeNotes("")
     setToStation("physician")
     setError(null)
@@ -138,6 +157,9 @@ export function NurseIntakeSheet({
         heartRate: toNumber(heartRate),
         temperatureC: toNumber(temperatureC),
         spo2: toNumber(spo2),
+        heightCm: toNumber(heightCm),
+        weightKg: toNumber(weightKg),
+        respiratoryRate: toNumber(respiratoryRate),
         intakeNotes,
         toStation,
       })
@@ -265,7 +287,6 @@ export function NurseIntakeSheet({
                 <VitalField
                   label="SpO₂ %"
                   htmlFor="intake-spo2"
-                  className="col-span-2"
                 >
                   <Input
                     id="intake-spo2"
@@ -273,6 +294,43 @@ export function NurseIntakeSheet({
                     placeholder="98"
                     value={spo2}
                     onChange={(e) => setSpo2(e.target.value)}
+                    disabled={pending}
+                    className="h-9 tabular-nums"
+                  />
+                </VitalField>
+                <VitalField label="Height cm" htmlFor="intake-height">
+                  <Input
+                    id="intake-height"
+                    inputMode="decimal"
+                    placeholder="165"
+                    value={heightCm}
+                    onChange={(e) => setHeightCm(e.target.value)}
+                    disabled={pending}
+                    className="h-9 tabular-nums"
+                  />
+                </VitalField>
+                <VitalField label="Weight kg" htmlFor="intake-weight">
+                  <Input
+                    id="intake-weight"
+                    inputMode="decimal"
+                    placeholder="60"
+                    value={weightKg}
+                    onChange={(e) => setWeightKg(e.target.value)}
+                    disabled={pending}
+                    className="h-9 tabular-nums"
+                  />
+                </VitalField>
+                <VitalField
+                  label="RR"
+                  htmlFor="intake-rr"
+                  className="col-span-2"
+                >
+                  <Input
+                    id="intake-rr"
+                    inputMode="numeric"
+                    placeholder="16"
+                    value={respiratoryRate}
+                    onChange={(e) => setRespiratoryRate(e.target.value)}
                     disabled={pending}
                     className="h-9 tabular-nums"
                   />
@@ -297,6 +355,9 @@ export function NurseIntakeSheet({
             <div className="space-y-1.5">
               <p className="text-[11px] font-medium text-muted-foreground">
                 Send to
+                {ticket?.providerType
+                  ? ` (auto: ${ticket.providerType})`
+                  : ""}
               </p>
               <div
                 role="radiogroup"

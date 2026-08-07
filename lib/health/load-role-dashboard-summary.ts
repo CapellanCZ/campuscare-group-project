@@ -19,8 +19,8 @@ import {
   announcementCoverUrl,
   announcementExcerpt,
 } from "@/features/announcements/lib/display"
-import { getAnnouncements } from "@/services/announcements"
-import { getConsultationRequests, getConsultationRequestStats } from "@/services/consultation-requests"
+import { getAnnouncements, getAnnouncementStats } from "@/services/announcements"
+import { getAppointmentRequests, getAppointmentRequestStats } from "@/services/appointment-requests"
 import {
   getConsultationStats,
   getConsultations,
@@ -44,7 +44,39 @@ const emptyCertificateStats: MedicalCertificateStats = {
   pending: 0,
 }
 
-async function buildAnnouncements() {
+const emptyAnnouncementStats = {
+  published: 0,
+  scheduled: 0,
+  drafts: 0,
+  total: 0,
+}
+
+async function buildAnnouncements(mode: "preview" | "stats" | "none") {
+  if (mode === "none") {
+    return {
+      publishedCount: 0,
+      recent: [],
+      stats: null,
+    }
+  }
+
+  if (mode === "stats") {
+    try {
+      const stats = await getAnnouncementStats()
+      return {
+        publishedCount: stats.published,
+        recent: [],
+        stats,
+      }
+    } catch {
+      return {
+        publishedCount: 0,
+        recent: [],
+        stats: emptyAnnouncementStats,
+      }
+    }
+  }
+
   try {
     const list = await getAnnouncements({
       status: "published",
@@ -65,11 +97,13 @@ async function buildAnnouncements() {
         excerpt: announcementExcerpt(a.body, 90),
         coverUrl: announcementCoverUrl(a),
       })),
+      stats: null,
     }
   } catch {
     return {
       publishedCount: 0,
       recent: [],
+      stats: null,
     }
   }
 }
@@ -77,15 +111,15 @@ async function buildAnnouncements() {
 async function buildRequests(limit = 5) {
   try {
     const [list, stats] = await Promise.all([
-      getConsultationRequests({
+      getAppointmentRequests({
         status: "all",
         page: 1,
         pageSize: limit,
       }),
-      getConsultationRequestStats(),
+      getAppointmentRequestStats(),
     ])
     return {
-      pendingCount: stats.pending,
+      pendingCount: stats.pending + stats.waitlisted,
       recent: list.items.slice(0, limit).map((r) => ({
         id: r.id,
         patientName: r.patientName,
@@ -94,6 +128,8 @@ async function buildRequests(limit = 5) {
         preferredDate: r.preferredDate ?? "",
         preferredTime: r.preferredTime ?? "",
         status: r.status,
+        queueNumber: r.queueNumber,
+        providerType: r.providerType,
       })),
     }
   } catch {
@@ -235,13 +271,13 @@ export async function loadRoleDashboardSummary(input: {
     recentConsultations,
     dentalReferralsToday,
   ] = await Promise.all([
-    isNurse
+    isNurse || isAdmin
       ? Promise.resolve(emptyConsultationStats)
       : getConsultationStats().catch(() => emptyConsultationStats),
-    isNurse
+    isNurse || isAdmin
       ? Promise.resolve(emptyCertificateStats)
       : getMedicalCertificateStats().catch(() => emptyCertificateStats),
-    isAdmin || isSpecialty
+    isSpecialty
       ? getDirectoryPatientRecordStats().catch(() => null)
       : Promise.resolve(null),
     isAdmin
@@ -252,9 +288,14 @@ export async function loadRoleDashboardSummary(input: {
     isSpecialty ? loadScheduleStrip(userId) : Promise.resolve(null),
     isPhysician ? loadPhysicianWorkspace() : Promise.resolve(null),
     isNurse
-      ? Promise.resolve({ publishedCount: 0, recent: [] })
-      : buildAnnouncements(),
-    buildRequests(isNurse ? 8 : 6),
+      ? buildAnnouncements("none")
+      : isAdmin
+        ? buildAnnouncements("stats")
+        : buildAnnouncements("preview"),
+    // Admin must not hydrate named request previews.
+    isAdmin
+      ? Promise.resolve({ pendingCount: 0, recent: [] })
+      : buildRequests(isNurse ? 8 : 6),
     isSpecialty
       ? loadRecentConsultations(isDentist ? "dentist" : "physician")
       : Promise.resolve([]),
@@ -268,10 +309,7 @@ export async function loadRoleDashboardSummary(input: {
     staffSummary,
     announcements,
     requests,
-    nurseLanes:
-      isNurse || isAdmin
-        ? buildNurseLanes(allTickets, checkedIn)
-        : null,
+    nurseLanes: isNurse ? buildNurseLanes(allTickets, checkedIn) : null,
     schedule,
     physicianWorkspace,
     recentConsultations,

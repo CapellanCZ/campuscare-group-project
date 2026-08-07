@@ -41,8 +41,13 @@ export type RawQueueTicket = {
   vitals_heart_rate: number | null
   vitals_temperature_c: number | null
   vitals_spo2: number | null
+  vitals_height_cm?: number | null
+  vitals_weight_kg?: number | null
+  vitals_respiratory_rate?: number | null
   intake_notes: string | null
   intake_completed_at: string | null
+  consultation_request_id?: string | null
+  provider_type?: string | null
   patients?:
     | {
         id: string
@@ -145,7 +150,17 @@ export function mapTicketRow(
         ? null
         : Number(raw.vitals_temperature_c),
     spo2: raw.vitals_spo2,
+    heightCm:
+      raw.vitals_height_cm == null ? null : Number(raw.vitals_height_cm),
+    weightKg:
+      raw.vitals_weight_kg == null ? null : Number(raw.vitals_weight_kg),
+    respiratoryRate: raw.vitals_respiratory_rate ?? null,
   }
+
+  const providerType =
+    raw.provider_type === "physician" || raw.provider_type === "dentist"
+      ? raw.provider_type
+      : null
 
   const status = asStatus(raw.status)
   const rejoinCount = raw.rejoin_count ?? 0
@@ -188,6 +203,8 @@ export function mapTicketRow(
     vitals,
     intakeNotes: raw.intake_notes,
     priority: "normal",
+    consultationRequestId: raw.consultation_request_id ?? null,
+    providerType,
   }
 }
 

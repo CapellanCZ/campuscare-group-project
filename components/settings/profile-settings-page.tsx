@@ -9,7 +9,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -22,6 +21,8 @@ import {
 import { designationLabel } from "@/lib/health/roles"
 import { createClient } from "@/lib/supabase/client"
 import type { StaffProfile, UserPreferences } from "@/services/staff-profile"
+import { adminElevatedCardClassName } from "@/features/admin/lib/admin-surface"
+import { cn } from "@/lib/utils"
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -58,9 +59,14 @@ function ProfileField({
 export function ProfileSettingsPage({
   profile: initialProfile,
   preferences: initialPreferences,
+  elevated = false,
+  rightColumnExtras,
 }: {
   profile: StaffProfile
   preferences: UserPreferences
+  elevated?: boolean
+  /** Renders under Notification Settings in the right column (e.g. nurse capacity). */
+  rightColumnExtras?: React.ReactNode
 }) {
   const { setTheme } = useTheme()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -68,6 +74,9 @@ export function ProfileSettingsPage({
   const [preferences, setPreferences] = useState(initialPreferences)
   const [licenseRevealed, setLicenseRevealed] = useState(false)
   const [pending, startTransition] = useTransition()
+  const cardClass = elevated
+    ? adminElevatedCardClassName
+    : "shadow-none dark:ring-0"
 
   useEffect(() => {
     setTheme(preferences.theme)
@@ -127,23 +136,19 @@ export function ProfileSettingsPage({
     <div className="flex flex-col gap-8 pt-2">
       <DemoPageHeader
         title="Profile and Settings"
-        description={
-          profile.role === "dentist"
-            ? ""
-            : "Your staff profile and notification preferences"
-        }
+        description=""
         designation={profile.role}
         showDemoBanner={false}
         showRoleSuffix={false}
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        <Card id="profile" className="min-w-0 scroll-mt-20 shadow-none dark:ring-0">
+        <Card
+          id="profile"
+          className={cn("min-w-0 scroll-mt-20", cardClass)}
+        >
           <CardHeader className="border-b px-6 py-5">
             <CardTitle className="text-base">Personal Information</CardTitle>
-            <CardDescription>
-              Profile details from campus records. Click your photo to change it.
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 px-6 py-6">
             <div className="space-y-2">
@@ -238,13 +243,10 @@ export function ProfileSettingsPage({
         <div className="flex min-w-0 flex-col gap-6">
           <Card
             id="settings"
-            className="min-w-0 scroll-mt-20 shadow-none dark:ring-0"
+            className={cn("min-w-0 scroll-mt-20", cardClass)}
           >
             <CardHeader className="border-b px-6 py-5">
               <CardTitle className="text-base">Notification Settings</CardTitle>
-              <CardDescription>
-                Choose which clinic events appear in your notification bell.
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 px-6 py-5">
               {(
@@ -282,6 +284,7 @@ export function ProfileSettingsPage({
               ))}
             </CardContent>
           </Card>
+          {rightColumnExtras}
         </div>
       </div>
     </div>

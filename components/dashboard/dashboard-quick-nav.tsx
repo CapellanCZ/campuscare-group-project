@@ -27,9 +27,9 @@ const QUICK_NAV: Record<
 > = {
   admin: [
     {
-      label: "Queue",
-      href: "/admin/queue",
-      icon: IconListCheck,
+      label: "Reports",
+      href: "/admin/reports",
+      icon: IconChartBar,
     },
     {
       label: "Announcements",
@@ -40,11 +40,6 @@ const QUICK_NAV: Record<
       label: "Staff",
       href: "/admin/user-management/staff",
       icon: IconUserCog,
-    },
-    {
-      label: "Reports",
-      href: "/admin/reports",
-      icon: IconChartBar,
     },
   ],
   nurse: [

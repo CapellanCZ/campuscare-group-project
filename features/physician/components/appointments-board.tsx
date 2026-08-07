@@ -92,7 +92,6 @@ export function AppointmentsBoard({
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [filters, setFilters] = useState<Filter[]>([
     createFilter("status", "is_any_of", [
-      "pending",
       "confirmed",
       "rescheduled",
       "in_progress",
@@ -149,6 +148,7 @@ export function AppointmentsBoard({
           { value: "completed", label: "Completed" },
           { value: "cancelled", label: "Cancelled" },
           { value: "no_show", label: "No-show" },
+          { value: "waitlisted", label: "Waitlisted" },
         ],
       },
     ],

@@ -7,7 +7,10 @@ export function hasRecordedVitals(vitals: QueueVitals) {
     vitals.bpDiastolic != null ||
     vitals.heartRate != null ||
     vitals.temperatureC != null ||
-    vitals.spo2 != null
+    vitals.spo2 != null ||
+    vitals.heightCm != null ||
+    vitals.weightKg != null ||
+    vitals.respiratoryRate != null
   )
 }
 
@@ -24,6 +27,9 @@ export function formatVitalsLine(vitals: QueueVitals) {
   if (vitals.heartRate != null) parts.push(`HR ${vitals.heartRate}`)
   if (vitals.temperatureC != null) parts.push(`${vitals.temperatureC}°C`)
   if (vitals.spo2 != null) parts.push(`SpO₂ ${vitals.spo2}%`)
+  if (vitals.heightCm != null) parts.push(`${vitals.heightCm} cm`)
+  if (vitals.weightKg != null) parts.push(`${vitals.weightKg} kg`)
+  if (vitals.respiratoryRate != null) parts.push(`RR ${vitals.respiratoryRate}`)
   return parts.join(" · ")
 }
 
@@ -52,6 +58,19 @@ export function VitalsStrip({
     {
       label: "SpO₂",
       value: vitals.spo2 != null ? `${vitals.spo2}%` : null,
+    },
+    {
+      label: "Ht",
+      value: vitals.heightCm != null ? `${vitals.heightCm}` : null,
+    },
+    {
+      label: "Wt",
+      value: vitals.weightKg != null ? `${vitals.weightKg}` : null,
+    },
+    {
+      label: "RR",
+      value:
+        vitals.respiratoryRate != null ? String(vitals.respiratoryRate) : null,
     },
   ].filter((item) => item.value)
 

@@ -50,6 +50,8 @@ export type Consultation = {
   consultationDate: string
   followUpDate: string | null
   notes: string | null
+  queueTicketId: string | null
+  consultationRequestId: string | null
   createdAt: string
   updatedAt: string
   patient: ConsultationPatient
@@ -72,6 +74,8 @@ export type ConsultationJson = {
   consultation_date: string
   follow_up_date: string | null
   notes: string | null
+  queue_ticket_id?: string | null
+  consultation_request_id?: string | null
   created_at: string
   updated_at: string
   patient_records?:
@@ -137,6 +141,8 @@ export type CreateConsultationInput = {
   consultationDate?: string | null
   followUpDate?: string | null
   notes?: string | null
+  queueTicketId?: string | null
+  consultationRequestId?: string | null
 }
 
 export type UpdateConsultationInput = CreateConsultationInput & {
@@ -207,6 +213,8 @@ export function consultationFromJson(json: ConsultationJson): Consultation {
     consultationDate: json.consultation_date,
     followUpDate: json.follow_up_date,
     notes: json.notes,
+    queueTicketId: json.queue_ticket_id ?? null,
+    consultationRequestId: json.consultation_request_id ?? null,
     createdAt: json.created_at,
     updatedAt: json.updated_at,
     patient: {
@@ -240,6 +248,8 @@ export function consultationToJson(
     consultation_date: emptyToNull(input.consultationDate) ?? new Date().toISOString(),
     follow_up_date: emptyToNull(input.followUpDate),
     notes: emptyToNull(input.notes),
+    queue_ticket_id: emptyToNull(input.queueTicketId),
+    consultation_request_id: emptyToNull(input.consultationRequestId),
   }
 }
 

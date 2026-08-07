@@ -5,6 +5,7 @@ import { IconDeviceFloppy, IconPlus, IconTrash } from "@tabler/icons-react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert"
 import { Badge } from "@/components/reui/badge"
+import { adminElevatedCardClassName } from "@/features/admin/lib/admin-surface"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -31,6 +32,8 @@ import type {
 } from "@/lib/availability/types"
 import { DAY_LABELS } from "@/lib/availability/types"
 import type { StaffAccess } from "@/lib/auth/types"
+import { useStaffRealtimeRouterRefresh } from "@/hooks/use-staff-realtime-refresh"
+import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 
 type OfficeHoursSettingsProps = {
   access: StaffAccess
@@ -50,6 +53,11 @@ export function OfficeHoursSettings({
   clinicHours,
   staff,
 }: OfficeHoursSettingsProps) {
+  useStaffRealtimeRouterRefresh(
+    `staff-office-hours-${access.userId}`,
+    STAFF_REALTIME_TABLES.officeHours
+  )
+
   const [days, setDays] = useState<DayDraft[]>(() =>
     DAY_LABELS.map((_, index) => {
       const row = clinicHours.find((h) => h.dayOfWeek === index)
@@ -61,6 +69,20 @@ export function OfficeHoursSettings({
       }
     })
   )
+
+  useEffect(() => {
+    setDays(
+      DAY_LABELS.map((_, index) => {
+        const row = clinicHours.find((h) => h.dayOfWeek === index)
+        return {
+          dayOfWeek: index,
+          isClosed: row?.isClosed ?? index === 0,
+          startTime: row?.startTime ?? "07:00",
+          endTime: row?.endTime ?? (index === 6 ? "19:00" : "21:00"),
+        }
+      })
+    )
+  }, [clinicHours])
   const [selectedStaffId, setSelectedStaffId] = useState(staff[0]?.userId ?? "")
   const [staffSlots, setStaffSlots] = useState<StaffWeeklyHour[]>([])
   const [dayOfWeek, setDayOfWeek] = useState("1")
@@ -145,11 +167,7 @@ export function OfficeHoursSettings({
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Office hours"
-        subtitle={`Signed in as ${access.fullName}`}
-        description="Set clinic operating hours and individual nurse, physician, and dentist schedules. These rules gate appointments and intake, and are readable by the mobile app."
-      />
+      <PageHeader title="Office hours" />
 
       {error ? (
         <Alert variant="destructive">
@@ -164,7 +182,7 @@ export function OfficeHoursSettings({
         </Alert>
       ) : null}
 
-      <Card className="rounded-2xl border-border/70 shadow-sm">
+      <Card className={adminElevatedCardClassName}>
         <CardHeader>
           <CardTitle className="text-base">Clinic hours</CardTitle>
         </CardHeader>
@@ -240,7 +258,7 @@ export function OfficeHoursSettings({
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl border-border/70 shadow-sm">
+      <Card className={adminElevatedCardClassName}>
         <CardHeader>
           <CardTitle className="text-base">Staff weekly hours</CardTitle>
         </CardHeader>

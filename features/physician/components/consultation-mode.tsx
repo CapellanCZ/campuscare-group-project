@@ -24,11 +24,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { PageHeader } from "@/features/common/components/page-header"
 import { AppointmentStatusBadge } from "@/features/physician/components/appointment-status-badge"
 import { saveConsultation } from "@/features/physician/actions/appointments"
+import { VisitMedicalChart } from "@/features/physician/components/visit-medical-chart"
+import type { NurseVisitVitals } from "@/features/physician/types-visit"
 import type {
   PhysicianAppointment,
   PhysicianConsultation,
   PhysicianPatient,
 } from "@/features/physician/types"
+import type { PatientRecord } from "@/types/patientRecord"
 import { formatClinicDateTime } from "@/lib/physician/timezone"
 
 const steps = [
@@ -42,6 +45,8 @@ type ConsultationModeProps = {
   patient: PhysicianPatient | null
   consultation: PhysicianConsultation | null
   priorRecordsEmpty: boolean
+  medicalRecord: PatientRecord | null
+  nurseVitals: NurseVisitVitals
 }
 
 export function ConsultationMode({
@@ -49,6 +54,8 @@ export function ConsultationMode({
   patient,
   consultation,
   priorRecordsEmpty,
+  medicalRecord,
+  nurseVitals,
 }: ConsultationModeProps) {
   const router = useRouter()
   const [step, setStep] = useState(1)
@@ -125,6 +132,12 @@ export function ConsultationMode({
           </AlertDescription>
         </Alert>
       ) : null}
+
+      <VisitMedicalChart
+        record={medicalRecord}
+        nurseVitals={nurseVitals}
+        readOnly={appointment.status === "completed"}
+      />
 
       {error ? (
         <Alert variant="destructive">

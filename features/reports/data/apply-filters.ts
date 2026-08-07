@@ -371,7 +371,27 @@ function buildCharts(
   return keys.map((key) => map[key])
 }
 
-function columnsFor(kind: ReportKind): ReportTableColumn[] {
+function columnsFor(kind: ReportKind, aggregateOnly = false): ReportTableColumn[] {
+  if (aggregateOnly) {
+    if (kind === "daily_consultation" || kind === "daily_dental") {
+      return [
+        { key: "date", label: "Date", sortable: true },
+        { key: "consultations", label: "Consultations", sortable: true },
+        { key: "patients", label: "Patients", sortable: true },
+        { key: "medical", label: "Medical", sortable: true },
+        { key: "dental", label: "Dental", sortable: true },
+        { key: "avgWait", label: "Avg wait (min)", sortable: true },
+      ]
+    }
+    if (kind === "medical_certificate" || kind === "dental_certificate") {
+      return [
+        { key: "date", label: "Date", sortable: true },
+        { key: "certificateType", label: "Type", sortable: true },
+        { key: "status", label: "Status", sortable: true },
+        { key: "count", label: "Count", sortable: true },
+      ]
+    }
+  }
   switch (kind) {
     case "monthly_consultation":
     case "monthly_dental":
@@ -431,13 +451,88 @@ function columnsFor(kind: ReportKind): ReportTableColumn[] {
   }
 }
 
+function toDailyAggregateRows(rows: SeedConsultRow[]): ReportTableRow[] {
+  const byDate = new Map<
+    string,
+    {
+      count: number
+      patients: Set<string>
+      medical: number
+      dental: number
+      wait: number
+    }
+  >()
+  for (const row of rows) {
+    const entry = byDate.get(row.date) ?? {
+      count: 0,
+      patients: new Set<string>(),
+      medical: 0,
+      dental: 0,
+      wait: 0,
+    }
+    entry.count += 1
+    entry.patients.add(row.campusId)
+    if (row.consultationType === "dental") entry.dental += 1
+    else entry.medical += 1
+    entry.wait += row.waitMinutes
+    byDate.set(row.date, entry)
+  }
+  return [...byDate.entries()]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([date, entry]) => ({
+      id: date,
+      cells: {
+        date,
+        consultations: entry.count,
+        patients: entry.patients.size,
+        medical: entry.medical,
+        dental: entry.dental,
+        avgWait: Math.round(entry.wait / Math.max(entry.count, 1)),
+      },
+      details: {
+        Date: date,
+        Consultations: String(entry.count),
+        Patients: String(entry.patients.size),
+        Medical: String(entry.medical),
+        Dental: String(entry.dental),
+        "Avg wait (min)": String(
+          Math.round(entry.wait / Math.max(entry.count, 1))
+        ),
+      },
+    }))
+}
+
+function toCertAggregateRows(certs: SeedCertRow[]): ReportTableRow[] {
+  const byKey = new Map<string, number>()
+  for (const cert of certs) {
+    const key = `${cert.date}|${cert.certificateType}|${cert.status}`
+    byKey.set(key, (byKey.get(key) ?? 0) + 1)
+  }
+  return [...byKey.entries()]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([key, count]) => {
+      const [date, certificateType, status] = key.split("|")
+      return {
+        id: key,
+        cells: { date, certificateType, status, count },
+        details: {
+          Date: date,
+          Type: certificateType,
+          Status: status,
+          Count: String(count),
+        },
+      }
+    })
+}
+
 function buildTable(
   kind: ReportKind,
   consults: SeedConsultRow[],
   certs: SeedCertRow[],
   requests: SeedRequestRow[],
   queueDays: SeedQueueDay[],
-  query: string
+  query: string,
+  aggregateOnly = false
 ): ReportTableBundle {
   let rows: ReportTableRow[] = []
 
@@ -449,30 +544,41 @@ function buildTable(
     kind === "patient_consultation_history" ||
     kind === "patient_dental_history"
   ) {
-    rows = toTableRowsFromConsults(kind, consults)
-  } else if (kind === "patient_list") {
-    const byPatient = new Map<string, SeedConsultRow>()
-    for (const row of consults) {
-      const prev = byPatient.get(row.campusId)
-      if (!prev || row.date > prev.date) byPatient.set(row.campusId, row)
+    if (
+      aggregateOnly &&
+      (kind === "daily_consultation" || kind === "daily_dental")
+    ) {
+      rows = toDailyAggregateRows(consults)
+    } else {
+      rows = toTableRowsFromConsults(kind, consults)
     }
-    rows = [...byPatient.values()].map((row) => ({
-      id: row.campusId,
-      cells: {
-        patient: row.patientName,
-        campusId: row.campusId,
-        type: row.patientType === "faculty" ? "Faculty / Employee" : "Student",
-        service: row.service,
-        date: row.date,
-      },
-      details: {
-        Patient: row.patientName,
-        "Campus ID": row.campusId,
-        Type: row.patientType === "faculty" ? "Faculty / Employee" : "Student",
-        "Last service": row.service,
-        "Last visit": row.date,
-      },
-    }))
+  } else if (kind === "patient_list") {
+    if (aggregateOnly) {
+      rows = toDailyAggregateRows(consults)
+    } else {
+      const byPatient = new Map<string, SeedConsultRow>()
+      for (const row of consults) {
+        const prev = byPatient.get(row.campusId)
+        if (!prev || row.date > prev.date) byPatient.set(row.campusId, row)
+      }
+      rows = [...byPatient.values()].map((row) => ({
+        id: row.campusId,
+        cells: {
+          patient: row.patientName,
+          campusId: row.campusId,
+          type: row.patientType === "faculty" ? "Faculty / Employee" : "Student",
+          service: row.service,
+          date: row.date,
+        },
+        details: {
+          Patient: row.patientName,
+          "Campus ID": row.campusId,
+          Type: row.patientType === "faculty" ? "Faculty / Employee" : "Student",
+          "Last service": row.service,
+          "Last visit": row.date,
+        },
+      }))
+    }
   } else if (kind === "queue_performance") {
     rows = queueDays.map((q) => ({
       id: q.id,
@@ -494,25 +600,29 @@ function buildTable(
       },
     }))
   } else if (kind === "medical_certificate" || kind === "dental_certificate") {
-    rows = certs.map((c) => ({
-      id: c.id,
-      cells: {
-        date: c.date,
-        patient: c.patientName,
-        campusId: c.campusId,
-        certificateType: c.certificateType,
-        doctor: c.doctorName,
-        status: c.status,
-      },
-      details: {
-        Date: c.date,
-        Patient: c.patientName,
-        "Campus ID": c.campusId,
-        Type: c.certificateType,
-        Doctor: c.doctorName,
-        Status: c.status,
-      },
-    }))
+    if (aggregateOnly) {
+      rows = toCertAggregateRows(certs)
+    } else {
+      rows = certs.map((c) => ({
+        id: c.id,
+        cells: {
+          date: c.date,
+          patient: c.patientName,
+          campusId: c.campusId,
+          certificateType: c.certificateType,
+          doctor: c.doctorName,
+          status: c.status,
+        },
+        details: {
+          Date: c.date,
+          Patient: c.patientName,
+          "Campus ID": c.campusId,
+          Type: c.certificateType,
+          Doctor: c.doctorName,
+          Status: c.status,
+        },
+      }))
+    }
   } else if (kind === "consultation_request") {
     rows = requests.map((r) => ({
       id: r.id,
@@ -539,7 +649,10 @@ function buildTable(
   return {
     kind,
     title: REPORT_KIND_LABELS[kind],
-    columns: columnsFor(kind),
+    columns: columnsFor(
+      aggregateOnly && kind === "patient_list" ? "daily_consultation" : kind,
+      aggregateOnly
+    ),
     rows: searchRows(rows, query),
   }
 }
@@ -593,7 +706,8 @@ export function applyReportsFilters(
       scopedCerts,
       requests,
       queueDays,
-      effective.query
+      effective.query,
+      designation === "admin"
     )
   })
 

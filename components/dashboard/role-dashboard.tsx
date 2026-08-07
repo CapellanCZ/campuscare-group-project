@@ -14,6 +14,7 @@ import {
 } from "@tabler/icons-react"
 
 import { DashboardQuickNav } from "@/components/dashboard/dashboard-quick-nav"
+import { AdminDashboardView } from "@/components/dashboard/admin-dashboard-view"
 import { DentistDashboardView } from "@/components/dashboard/dentist-dashboard-view"
 import { NurseDashboardView } from "@/components/dashboard/nurse-dashboard-view"
 import { PhysicianDashboardView } from "@/components/dashboard/physician-dashboard-view"
@@ -65,6 +66,8 @@ import type {
   StationBoard,
 } from "@/lib/health/types"
 import { cn } from "@/lib/utils"
+import { useStaffRealtimeRouterRefresh } from "@/hooks/use-staff-realtime-refresh"
+import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 
 const KPI_ICONS: Record<
   string,
@@ -111,6 +114,11 @@ export function RoleDashboard({
   stats: QueueStats
   summary: RoleDashboardSummary
 }) {
+  useStaffRealtimeRouterRefresh(
+    `staff-dashboard-${access.designation}`,
+    STAFF_REALTIME_TABLES.dashboard
+  )
+
   if (access.designation === "nurse") {
     return (
       <NurseDashboardView
@@ -151,12 +159,17 @@ export function RoleDashboard({
     )
   }
 
-  const isAdmin = access.designation === "admin"
+  if (access.designation === "admin") {
+    return (
+      <AdminDashboardView access={access} kpis={kpis} summary={summary} />
+    )
+  }
+
   const waiting = tickets
     .filter((t) => t.status === "waiting")
     .slice(0, 8)
 
-  const kpiCards = kpis.cards.slice(0, isAdmin ? 6 : 3)
+  const kpiCards = kpis.cards.slice(0, 3)
 
   const queueHref =
     access.designation === "queue_display"
@@ -165,9 +178,7 @@ export function RoleDashboard({
 
   const firstName = access.fullName.split(" ")[0] || access.fullName
   const queueTitle = "Live queue"
-  const queueDescription = isAdmin
-    ? "Clinic-wide tickets (view only)."
-    : "Active tickets at your station."
+  const queueDescription = "Active tickets at your station."
   const emptyQueueCopy = "Queue is clear."
 
   return (

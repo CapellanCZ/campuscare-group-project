@@ -354,6 +354,50 @@ export async function deleteConsultation(
   }
 }
 
+/** Marks consultation, linked ticket, and request as completed. */
+export async function completeConsultationVisit(
+  input: {
+    consultationId: string
+    queueTicketId?: string | null
+    consultationRequestId?: string | null
+  },
+  client?: SupabaseClient
+): Promise<Consultation> {
+  const supabase = await getClient(client)
+  const now = new Date().toISOString()
+  const { data, error } = await supabase
+    .from("consultations")
+    .update({
+      status: "Completed",
+      queue_ticket_id: input.queueTicketId ?? undefined,
+      consultation_request_id: input.consultationRequestId ?? undefined,
+      updated_at: now,
+    })
+    .eq("id", input.consultationId)
+    .select(SELECT_WITH_PATIENT)
+    .maybeSingle()
+
+  if (error) mapError(error)
+  if (!data) {
+    throw new ConsultationServiceError("not_found", "Consultation not found.")
+  }
+
+  if (input.queueTicketId) {
+    await supabase
+      .from("health_queue_tickets")
+      .update({ status: "completed", updated_at: now })
+      .eq("id", input.queueTicketId)
+  }
+  if (input.consultationRequestId) {
+    await supabase
+      .from("consultation_requests")
+      .update({ status: "completed", updated_at: now })
+      .eq("id", input.consultationRequestId)
+  }
+
+  return consultationFromJson(data as ConsultationJson)
+}
+
 export async function listConsultationFilterOptions(
   client?: SupabaseClient
 ): Promise<{ providers: string[]; stations: string[] }> {

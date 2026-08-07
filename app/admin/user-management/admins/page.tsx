@@ -1,5 +1,6 @@
-import { UserManagementPage } from "@/features/admin/components/user-management-page"
+import { redirect } from "next/navigation"
 
+/** Single admin account — no admin directory under user management. */
 export default function AdminAdminsPage() {
-  return <UserManagementPage directory="admins" />
+  redirect("/admin/user-management/staff")
 }

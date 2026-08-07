@@ -1,12 +1,6 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
-import {
-  IconDownload,
-  IconFile,
-  IconFileTypePdf,
-  IconTrash,
-} from "@tabler/icons-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
@@ -29,15 +23,11 @@ import {
 } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  addConsultationRequestNoteAction,
+  admitConsultationRequestAction,
   approveConsultationRequestAction,
   declineConsultationRequestAction,
-  deleteConsultationRequestNoteAction,
-  fetchConsultationRequestByIdAction,
   listAssignableDoctorsAction,
   rescheduleConsultationRequestAction,
-  updateConsultationRequestNoteAction,
-  updateConsultationRequestStatusAction,
 } from "@/features/requests/actions"
 import {
   consultationRequestStatusLabel,
@@ -45,15 +35,8 @@ import {
   formatRequestDateTime,
 } from "@/features/requests/lib/format"
 import {
-  extensionIconLabel,
-  formatFileSize,
-  isImageMime,
-} from "@/lib/attachments/file-types"
-import {
-  CONSULTATION_REQUEST_STATUSES,
-  type ConsultationRequest,
-  type ConsultationRequestStatus,
-} from "@/types/consultationRequest"
+  type AppointmentRequest,
+} from "@/types/appointmentRequest"
 
 function DetailRow({
   label,
@@ -94,13 +77,13 @@ export function ConsultationRequestDetailSheet({
   canReschedule,
   onUpdated,
 }: {
-  request: ConsultationRequest | null
+  request: AppointmentRequest | null
   open: boolean
   onOpenChange: (open: boolean) => void
   canApprove: boolean
   canDecline: boolean
   canReschedule: boolean
-  onUpdated: (request: ConsultationRequest) => void
+  onUpdated: (request: AppointmentRequest) => void
 }) {
   const [pending, startTransition] = useTransition()
   const [doctors, setDoctors] = useState<
@@ -114,30 +97,17 @@ export function ConsultationRequestDetailSheet({
   const [rescheduleDate, setRescheduleDate] = useState("")
   const [rescheduleTime, setRescheduleTime] = useState("")
   const [rescheduleReason, setRescheduleReason] = useState("")
-  const [noteBody, setNoteBody] = useState("")
-  const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
-  const [editingNoteBody, setEditingNoteBody] = useState("")
-  const [statusValue, setStatusValue] = useState<ConsultationRequestStatus>(
-    "pending"
-  )
 
   useEffect(() => {
     if (!open || !request) return
-    setDoctorId(request.assignedDoctorId ?? "")
-    setScheduleAt(
-      request.scheduleAt
-        ? request.scheduleAt.slice(0, 16)
-        : ""
-    )
-    setRoom(request.consultationRoom ?? "")
-    setApprovalNotes(request.approvalNotes ?? "")
+    setDoctorId(request.doctorId ?? "")
+    setScheduleAt(request.startsAt ? request.startsAt.slice(0, 16) : "")
+    setRoom(request.location ?? "")
+    setApprovalNotes("")
     setDeclineReason("")
     setRescheduleDate(request.preferredDate ?? "")
     setRescheduleTime(request.preferredTime ?? "")
     setRescheduleReason("")
-    setNoteBody("")
-    setEditingNoteId(null)
-    setStatusValue(request.status)
 
     void listAssignableDoctorsAction().then((result) => {
       if (result.ok) setDoctors(result.data)
@@ -146,17 +116,9 @@ export function ConsultationRequestDetailSheet({
 
   if (!request) return null
 
-  const history = request.medicalHistory
-  const images = request.attachments.filter(
-    (item) => item.category === "image" || isImageMime(item.mimeType)
-  )
-  const files = request.attachments.filter(
-    (item) => !(item.category === "image" || isImageMime(item.mimeType))
-  )
-
   function refreshFrom(result: {
     ok: true
-    data: ConsultationRequest
+    data: AppointmentRequest
   } | { ok: false; error: string }) {
     if (!result.ok) {
       toast.error(result.error)
@@ -165,6 +127,15 @@ export function ConsultationRequestDetailSheet({
     onUpdated(result.data)
     return true
   }
+
+  const statusTone =
+    request.status === "cancelled" || request.status === "no_show"
+      ? "destructive"
+      : request.status === "confirmed" || request.status === "completed"
+        ? "default"
+        : request.status === "waitlisted"
+          ? "outline"
+          : "secondary"
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -178,26 +149,17 @@ export function ConsultationRequestDetailSheet({
 
         <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5 pb-8">
           <div className="space-y-4">
-            <Badge
-              variant={
-                request.status === "declined" || request.status === "cancelled"
-                  ? "destructive"
-                  : request.status === "approved" ||
-                      request.status === "completed"
-                    ? "default"
-                    : "secondary"
-              }
-            >
+            <Badge variant={statusTone}>
               {consultationRequestStatusLabel(request.status)}
             </Badge>
-            {request.status === "declined" ? (
+            {request.status === "cancelled" ? (
               <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3">
                 <p className="text-sm font-medium text-destructive">
-                  Status: Declined
+                  Status: Cancelled
                 </p>
                 <p className="mt-1 text-sm text-foreground">
                   <span className="font-medium">Reason:</span>{" "}
-                  {request.declineReason?.trim() ||
+                  {request.cancellationReason?.trim() ||
                     "No reason was provided."}
                 </p>
               </div>
@@ -207,420 +169,59 @@ export function ConsultationRequestDetailSheet({
           <dl>
             <DetailRow label="Patient Name" value={request.patientName} />
             <DetailRow label="Student ID" value={request.studentId} />
-            <DetailRow label="Course" value={request.course} />
-            <DetailRow label="Year" value={request.yearLevel} />
             <DetailRow label="Email" value={request.email} />
             <DetailRow label="Phone Number" value={request.phone} />
             <DetailRow label="Requested Service" value={request.service} />
+            <DetailRow
+              label="Provider type"
+              value={
+                request.providerType === "dentist" ? "Dentist" : "Physician"
+              }
+            />
+            <DetailRow
+              label="Queue number"
+              value={
+                request.queueNumber != null
+                  ? String(request.queueNumber)
+                  : "—"
+              }
+            />
+            {request.recommendComeEarly ? (
+              <DetailRow
+                label="Recommendation"
+                value="Come early and keep the scheduled date (queue #1–5)."
+              />
+            ) : null}
             <DetailRow
               label="Preferred Date"
               value={formatRequestDate(request.preferredDate)}
             />
             <DetailRow label="Preferred Time" value={request.preferredTime} />
             <DetailRow label="Reason" value={request.reason} />
-            <DetailRow label="Symptoms" value={request.symptoms} />
             <DetailRow
-              label="Additional Notes"
-              value={request.additionalNotes}
+              label="Submitted"
+              value={formatRequestDateTime(request.createdAt)}
             />
-            <DetailRow
-              label="Submission Date"
-              value={formatRequestDateTime(request.submittedAt)}
-            />
-            <DetailRow
-              label="Assigned Nurse"
-              value={request.assignedNurseName}
-            />
-            <DetailRow
-              label="Assigned Doctor"
-              value={request.assignedDoctorName}
-            />
-            <DetailRow
-              label="Consultation Room"
-              value={request.consultationRoom}
-            />
-            {request.status !== "declined" && request.declineReason ? (
-              <DetailRow label="Decline Reason" value={request.declineReason} />
-            ) : null}
-            {request.rescheduleReason ? (
+            <DetailRow label="Assigned Doctor" value={request.doctorName} />
+            <DetailRow label="Location" value={request.location} />
+            {request.cancellationReason && request.status !== "cancelled" ? (
               <DetailRow
-                label="Reschedule Reason"
-                value={request.rescheduleReason}
+                label="Cancellation Reason"
+                value={request.cancellationReason}
               />
             ) : null}
           </dl>
 
-          <Section title="Medical History">
-            {!history?.hasRecords ? (
-              <p className="text-sm text-muted-foreground">
-                No previous medical records found.
-              </p>
-            ) : (
-              <dl>
-                <DetailRow label="Allergies" value={history.allergies} />
-                <DetailRow
-                  label="Current Medications"
-                  value={history.currentMedications}
-                />
-                <DetailRow
-                  label="Existing Conditions"
-                  value={history.medicalConditions}
-                />
-                <DetailRow
-                  label="Vaccination History"
-                  value={history.vaccinationHistory}
-                />
-                <DetailRow
-                  label="Previous Clinic Visits"
-                  value={
-                    history.previousVisits.length
-                      ? history.previousVisits
-                          .map(
-                            (visit) =>
-                              `${formatRequestDate(visit.date)} · ${visit.chiefComplaint || visit.status}`
-                          )
-                          .join("; ")
-                      : "—"
-                  }
-                />
-                <DetailRow
-                  label="Previous Consultations"
-                  value={
-                    history.previousConsultations.length
-                      ? history.previousConsultations
-                          .map(
-                            (item) =>
-                              `${formatRequestDateTime(item.date)} · ${item.service} (${item.status})`
-                          )
-                          .join("; ")
-                      : "—"
-                  }
-                />
-                <DetailRow
-                  label="Previous Certificates"
-                  value={
-                    history.previousCertificates.length
-                      ? history.previousCertificates
-                          .map(
-                            (item) =>
-                              `${item.certificateNumber} · ${item.certificateType}`
-                          )
-                          .join("; ")
-                      : "—"
-                  }
-                />
-              </dl>
-            )}
-          </Section>
-
-          <Section title="Supporting Files">
-            {request.attachments.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No supporting files uploaded.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {images.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-2">
-                    {images.map((image) => (
-                      <div key={image.id} className="space-y-1">
-                        {image.url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={image.url}
-                            alt={image.fileName}
-                            className="aspect-square w-full rounded-xl border object-cover"
-                          />
-                        ) : null}
-                        <p className="truncate text-xs">{image.fileName}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatRequestDateTime(image.createdAt)}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-                {files.map((file) => (
-                  <div
-                    key={file.id}
-                    className="flex items-center gap-3 rounded-xl border px-3 py-2"
-                  >
-                    {file.mimeType === "application/pdf" ? (
-                      <IconFileTypePdf className="size-5 text-muted-foreground" />
-                    ) : (
-                      <div className="flex size-9 flex-col items-center justify-center rounded-md border bg-muted/40">
-                        <IconFile className="size-3.5 text-muted-foreground" />
-                        <span className="text-[9px] font-medium text-muted-foreground">
-                          {extensionIconLabel(file.fileName)}
-                        </span>
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">
-                        {file.fileName}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatFileSize(file.fileSize)} ·{" "}
-                        {formatRequestDateTime(file.createdAt)}
-                      </p>
-                    </div>
-                    {file.url ? (
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        render={
-                          <a
-                            href={file.url}
-                            download={file.fileName}
-                            target="_blank"
-                            rel="noreferrer"
-                          />
-                        }
-                        nativeButton={false}
-                      >
-                        <IconDownload className="size-3.5" />
-                        Download
-                      </Button>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-            )}
-          </Section>
-
-          <Section title="Timeline">
-            {request.timeline.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No timeline yet.</p>
-            ) : (
-              <ol className="space-y-4 border-l pl-5">
-                {request.timeline.map((item) => (
-                  <li key={item.id} className="relative space-y-1">
-                    <span className="absolute -left-[23px] top-1.5 size-2.5 rounded-full bg-foreground" />
-                    <p className="text-sm font-medium">{item.action}</p>
-                    <p className="text-xs leading-relaxed text-muted-foreground">
-                      {formatRequestDateTime(item.createdAt)}
-                      {item.actorName ? ` · ${item.actorName}` : ""}
-                    </p>
-                    {item.remarks ? (
-                      <p className="text-sm leading-relaxed text-muted-foreground">
-                        {item.remarks}
-                      </p>
-                    ) : null}
-                  </li>
-                ))}
-              </ol>
-            )}
-          </Section>
-
-          <Section title="Audit Log">
-            {request.auditLog.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No audit entries.</p>
-            ) : (
-              <ul className="space-y-3">
-                {request.auditLog.map((item) => (
-                  <li key={item.id} className="text-sm leading-relaxed">
-                    <span className="font-medium">{item.event}</span>
-                    <span className="text-muted-foreground">
-                      {" "}
-                      · {formatRequestDateTime(item.createdAt)}
-                      {item.actorName ? ` · ${item.actorName}` : ""}
-                    </span>
-                    {item.details ? (
-                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                        {item.details}
-                      </p>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Section>
-
-          <Section title="Internal Notes">
-            <p className="text-xs text-muted-foreground">
-              Visible to clinic staff only. Students never see these notes.
-            </p>
-            <div className="space-y-3">
-              {request.notes.map((note) => (
-                <div key={note.id} className="rounded-xl border p-4">
-                  {editingNoteId === note.id ? (
-                    <div className="space-y-2">
-                      <Textarea
-                        value={editingNoteBody}
-                        onChange={(event) =>
-                          setEditingNoteBody(event.target.value)
-                        }
-                        rows={3}
-                        disabled={pending}
-                      />
-                      <div className="flex gap-2">
-                        <Button
-                          size="xs"
-                          disabled={pending}
-                          onClick={() =>
-                            startTransition(async () => {
-                              const result =
-                                await updateConsultationRequestNoteAction(
-                                  note.id,
-                                  editingNoteBody
-                                )
-                              if (!result.ok) {
-                                toast.error(result.error)
-                                return
-                              }
-                              toast.success("Note updated.")
-                              setEditingNoteId(null)
-                              const refreshed =
-                                await fetchConsultationRequestByIdAction(
-                                  request.id
-                                )
-                              if (refreshed.ok) onUpdated(refreshed.data)
-                            })
-                          }
-                        >
-                          Save
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          onClick={() => setEditingNoteId(null)}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <p className="whitespace-pre-wrap text-sm">{note.body}</p>
-                      <div className="mt-2 flex items-center justify-between gap-2">
-                        <p className="text-xs text-muted-foreground">
-                          {note.authorName} ·{" "}
-                          {formatRequestDateTime(note.updatedAt)}
-                        </p>
-                        <div className="flex gap-1">
-                          <Button
-                            size="xs"
-                            variant="ghost"
-                            onClick={() => {
-                              setEditingNoteId(note.id)
-                              setEditingNoteBody(note.body)
-                            }}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="ghost"
-                            disabled={pending}
-                            onClick={() =>
-                              startTransition(async () => {
-                                const result =
-                                  await deleteConsultationRequestNoteAction(
-                                    note.id
-                                  )
-                                if (!result.ok) {
-                                  toast.error(result.error)
-                                  return
-                                }
-                                toast.success("Note deleted.")
-                                const refreshed =
-                                  await fetchConsultationRequestByIdAction(
-                                    request.id
-                                  )
-                                if (refreshed.ok) onUpdated(refreshed.data)
-                              })
-                            }
-                          >
-                            <IconTrash className="size-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-            <div className="space-y-3">
-              <Textarea
-                placeholder="Add an internal clinic note"
-                value={noteBody}
-                onChange={(event) => setNoteBody(event.target.value)}
-                rows={3}
-                disabled={pending}
-              />
-              <Button
-                size="sm"
-                disabled={pending || !noteBody.trim()}
-                onClick={() =>
-                  startTransition(async () => {
-                    const result = await addConsultationRequestNoteAction(
-                      request.id,
-                      noteBody
-                    )
-                    if (!result.ok) {
-                      toast.error(result.error)
-                      return
-                    }
-                    toast.success("Note added.")
-                    setNoteBody("")
-                    const refreshed =
-                      await fetchConsultationRequestByIdAction(request.id)
-                    if (refreshed.ok) onUpdated(refreshed.data)
-                  })
-                }
-              >
-                Add note
-              </Button>
-            </div>
-          </Section>
-
-          <Section title="Status Management">
-            <div className="flex flex-wrap items-end gap-2">
-              <Field className="min-w-40 flex-1">
-                <FieldLabel>Status</FieldLabel>
-                <Select
-                  value={statusValue}
-                  onValueChange={(value) =>
-                    setStatusValue(
-                      (value as ConsultationRequestStatus) ?? request.status
-                    )
-                  }
-                  disabled={pending}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CONSULTATION_REQUEST_STATUSES.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {consultationRequestStatusLabel(status)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Button
-                size="sm"
-                disabled={pending || statusValue === request.status}
-                onClick={() =>
-                  startTransition(async () => {
-                    const result = await updateConsultationRequestStatusAction({
-                      id: request.id,
-                      status: statusValue,
-                    })
-                    if (!refreshFrom(result)) return
-                    toast.success("Status updated.")
-                  })
-                }
-              >
-                Update status
-              </Button>
-            </div>
-          </Section>
-
           {canApprove && request.status === "pending" ? (
             <Section title="Approve Consultation">
               <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Confirms the existing reservation
+                  {request.queueNumber != null
+                    ? ` (queue #${request.queueNumber})`
+                    : ""}
+                  . Does not assign a new number.
+                </p>
                 <Field>
                   <FieldLabel>Assign doctor</FieldLabel>
                   <Select
@@ -682,21 +283,46 @@ export function ConsultationRequestDetailSheet({
                         scheduleAt: scheduleAt
                           ? new Date(scheduleAt).toISOString()
                           : null,
-                        consultationRoom: room,
+                        location: room,
                         notes: approvalNotes,
                       })
                       if (!refreshFrom(result)) return
-                      toast.success("Request approved and queued.")
+                      toast.success("Appointment confirmed.")
                     })
                   }
                 >
-                  Approve & queue
+                  Approve request
                 </Button>
               </div>
             </Section>
           ) : null}
 
-          {canDecline && request.status === "pending" ? (
+          {canApprove && request.status === "waitlisted" ? (
+            <Section title="Admit from waitlist">
+              <p className="mb-3 text-sm text-muted-foreground">
+                Creates a queue reservation for this patient&apos;s preferred
+                date (may exceed daily capacity).
+              </p>
+              <Button
+                disabled={pending}
+                onClick={() =>
+                  startTransition(async () => {
+                    const result = await admitConsultationRequestAction(
+                      request.id,
+                      true
+                    )
+                    if (!refreshFrom(result)) return
+                    toast.success("Patient admitted from waitlist.")
+                  })
+                }
+              >
+                Admit to queue
+              </Button>
+            </Section>
+          ) : null}
+
+          {canDecline &&
+          (request.status === "pending" || request.status === "waitlisted") ? (
             <Section title="Decline Consultation">
               <Field>
                 <FieldLabel>Decline reason</FieldLabel>
@@ -718,7 +344,7 @@ export function ConsultationRequestDetailSheet({
                       reason: declineReason,
                     })
                     if (!refreshFrom(result)) return
-                    toast.success("Request declined.")
+                    toast.success("Appointment cancelled.")
                   })
                 }
               >
@@ -730,7 +356,8 @@ export function ConsultationRequestDetailSheet({
           {canReschedule &&
           (request.status === "pending" ||
             request.status === "rescheduled" ||
-            request.status === "approved") ? (
+            request.status === "confirmed" ||
+            request.status === "waitlisted") ? (
             <Section title="Reschedule">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field>
@@ -778,7 +405,7 @@ export function ConsultationRequestDetailSheet({
                       reason: rescheduleReason,
                     })
                     if (!refreshFrom(result)) return
-                    toast.success("Request rescheduled.")
+                    toast.success("Appointment rescheduled.")
                   })
                 }
               >

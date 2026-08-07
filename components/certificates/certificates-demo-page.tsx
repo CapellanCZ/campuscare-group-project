@@ -63,6 +63,8 @@ import type {
   MedicalCertificateListResult,
   MedicalCertificateStats,
 } from "@/types/medicalCertificate"
+import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
+import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 
 const PAGE_SIZE = 10
 const SEARCH_DEBOUNCE_MS = 300
@@ -207,6 +209,14 @@ export function CertificatesPage({
   const refresh = useCallback(async () => {
     await loadPage(debouncedQuery, page)
   }, [debouncedQuery, page, loadPage])
+
+  useStaffRealtimeRefresh(
+    `staff-certificates-${access.designation}`,
+    STAFF_REALTIME_TABLES.certificates,
+    () => {
+      void refresh()
+    }
+  )
 
   useEffect(() => {
     if (skipNextFetch.current) {

@@ -1,7 +1,8 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { IconChevronLeft } from "@tabler/icons-react"
 
 import { AuthEmailStep } from "@/components/auth/auth-email-step"
@@ -19,7 +20,11 @@ import { isValidEmail } from "@/lib/auth/email"
 
 type AuthStep = "email" | "otp"
 
+const DISPLAY_LOGIN_CLICK_WINDOW_MS = 800
+const DISPLAY_LOGIN_CLICKS_REQUIRED = 3
+
 export function AuthPage() {
+  const router = useRouter()
   const [step, setStep] = useState<AuthStep>("email")
   const [email, setEmail] = useState("")
   const [otp, setOtp] = useState("")
@@ -28,6 +33,8 @@ export function AuthPage() {
   const [isSendingOtp, setIsSendingOtp] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
   const [resendSeconds, setResendSeconds] = useState(0)
+  const displayLoginClicks = useRef(0)
+  const displayLoginTimer = useRef<number | null>(null)
 
   useEffect(() => {
     if (resendSeconds <= 0) return
@@ -38,6 +45,30 @@ export function AuthPage() {
 
     return () => window.clearInterval(timer)
   }, [resendSeconds])
+
+  useEffect(() => {
+    return () => {
+      if (displayLoginTimer.current != null) {
+        window.clearTimeout(displayLoginTimer.current)
+      }
+    }
+  }, [])
+
+  const handleDisplayLoginSecret = useCallback(() => {
+    displayLoginClicks.current += 1
+    if (displayLoginTimer.current != null) {
+      window.clearTimeout(displayLoginTimer.current)
+    }
+    if (displayLoginClicks.current >= DISPLAY_LOGIN_CLICKS_REQUIRED) {
+      displayLoginClicks.current = 0
+      router.push("/display-login")
+      return
+    }
+    displayLoginTimer.current = window.setTimeout(() => {
+      displayLoginClicks.current = 0
+      displayLoginTimer.current = null
+    }, DISPLAY_LOGIN_CLICK_WINDOW_MS)
+  }, [router])
 
   const validateEmail = useCallback(() => {
     const trimmedEmail = email.trim()
@@ -123,13 +154,20 @@ export function AuthPage() {
     <main className="relative md:h-screen md:overflow-hidden lg:grid lg:grid-cols-2">
       <div className="relative hidden h-full flex-col border-r bg-secondary p-10 lg:flex dark:bg-secondary/20">
         <div className="absolute inset-0 bg-linear-to-b from-transparent via-transparent to-background" />
-        <CampusCareLogo
-          alt="CampusCare"
-          className="relative z-10 mr-auto h-10 w-auto"
-          width={160}
-          height={40}
-          priority
-        />
+        <button
+          type="button"
+          onClick={handleDisplayLoginSecret}
+          className="relative z-10 mr-auto cursor-default border-0 bg-transparent p-0"
+          aria-label="CampusCare"
+        >
+          <CampusCareLogo
+            alt="CampusCare"
+            className="h-10 w-auto"
+            width={160}
+            height={40}
+            priority
+          />
+        </button>
 
         <div className="z-10 mt-auto">
           <blockquote className="space-y-2">

@@ -33,6 +33,19 @@ export function formatClock(date = new Date()) {
   }).format(date)
 }
 
+/** Short clock for resume times on public displays (no seconds). */
+export function formatResumeClock(iso: string | null | undefined) {
+  if (!iso) return null
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return null
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Manila",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date)
+}
+
 export function formatLongDate(date = new Date()) {
   return new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Manila",

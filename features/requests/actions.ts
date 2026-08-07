@@ -1,39 +1,39 @@
 "use server"
 
 import {
-  addConsultationRequestNote,
-  approveConsultationRequestRecord,
-  declineConsultationRequestRecord,
-  deleteConsultationRequestNote,
-  getConsultationRequestById,
-  getConsultationRequests,
-  getConsultationRequestStats,
-  listAssignableDoctors,
-  rescheduleConsultationRequestRecord,
-  updateConsultationRequestNote,
-  updateConsultationRequestStatus,
-} from "@/services/consultation-requests"
+  admitAppointmentRequestRecord,
+  approveAppointmentRequestRecord,
+  getAppointmentRequestById,
+  getAppointmentRequests,
+  getAppointmentRequestStats,
+  listAssignableDoctorsForAppointments,
+  declineAppointmentRequestRecord,
+  rescheduleAppointmentRequestRecord,
+} from "@/services/appointment-requests"
 import {
-  ConsultationRequestServiceError,
-  type ApproveConsultationRequestInput,
-  type ConsultationRequest,
-  type ConsultationRequestListParams,
-  type ConsultationRequestListResult,
-  type ConsultationRequestNote,
-  type ConsultationRequestStats,
-  type DeclineConsultationRequestInput,
-  type RescheduleConsultationRequestInput,
-  type UpdateConsultationRequestStatusInput,
-} from "@/types/consultationRequest"
+  AppointmentRequestServiceError,
+  type AdmitAppointmentRequestInput,
+  type AppointmentRequest,
+  type AppointmentRequestListParams,
+  type AppointmentRequestListResult,
+  type AppointmentRequestStats,
+  type ApproveAppointmentRequestInput,
+  type DeclineAppointmentRequestInput,
+  type RescheduleAppointmentRequestInput,
+} from "@/types/appointmentRequest"
 
-export type ConsultationRequestActionResult<T> =
+export type AppointmentRequestActionResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string; code: string }
 
+/** @deprecated Use AppointmentRequestActionResult */
+export type ConsultationRequestActionResult<T> =
+  AppointmentRequestActionResult<T>
+
 function toErrorResult(
   error: unknown
-): ConsultationRequestActionResult<never> {
-  if (error instanceof ConsultationRequestServiceError) {
+): AppointmentRequestActionResult<never> {
+  if (error instanceof AppointmentRequestServiceError) {
     return { ok: false, error: error.message, code: error.code }
   }
   if (error instanceof Error) {
@@ -54,26 +54,26 @@ function toErrorResult(
   }
   return {
     ok: false,
-    error: "Something went wrong while loading consultation requests.",
+    error: "Something went wrong while loading appointment requests.",
     code: "unknown",
   }
 }
 
 export async function fetchConsultationRequestsAction(
-  params: ConsultationRequestListParams = {}
-): Promise<ConsultationRequestActionResult<ConsultationRequestListResult>> {
+  params: AppointmentRequestListParams = {}
+): Promise<AppointmentRequestActionResult<AppointmentRequestListResult>> {
   try {
-    return { ok: true, data: await getConsultationRequests(params) }
+    return { ok: true, data: await getAppointmentRequests(params) }
   } catch (error) {
     return toErrorResult(error)
   }
 }
 
 export async function fetchConsultationRequestStatsAction(): Promise<
-  ConsultationRequestActionResult<ConsultationRequestStats>
+  AppointmentRequestActionResult<AppointmentRequestStats>
 > {
   try {
-    return { ok: true, data: await getConsultationRequestStats() }
+    return { ok: true, data: await getAppointmentRequestStats() }
   } catch (error) {
     return toErrorResult(error)
   }
@@ -81,98 +81,75 @@ export async function fetchConsultationRequestStatsAction(): Promise<
 
 export async function fetchConsultationRequestByIdAction(
   id: string
-): Promise<ConsultationRequestActionResult<ConsultationRequest>> {
+): Promise<AppointmentRequestActionResult<AppointmentRequest>> {
   try {
-    return { ok: true, data: await getConsultationRequestById(id) }
+    return { ok: true, data: await getAppointmentRequestById(id) }
   } catch (error) {
     return toErrorResult(error)
   }
 }
 
 export async function listAssignableDoctorsAction(): Promise<
-  ConsultationRequestActionResult<
+  AppointmentRequestActionResult<
     { id: string; fullName: string; email: string | null }[]
   >
 > {
   try {
-    return { ok: true, data: await listAssignableDoctors() }
+    return { ok: true, data: await listAssignableDoctorsForAppointments() }
   } catch (error) {
     return toErrorResult(error)
   }
 }
 
 export async function approveConsultationRequestAction(
-  input: ApproveConsultationRequestInput
-): Promise<ConsultationRequestActionResult<ConsultationRequest>> {
-  try {
-    return { ok: true, data: await approveConsultationRequestRecord(input) }
-  } catch (error) {
-    return toErrorResult(error)
+  input: ApproveAppointmentRequestInput & {
+    consultationRoom?: string | null
   }
-}
-
-export async function declineConsultationRequestAction(
-  input: DeclineConsultationRequestInput
-): Promise<ConsultationRequestActionResult<ConsultationRequest>> {
-  try {
-    return { ok: true, data: await declineConsultationRequestRecord(input) }
-  } catch (error) {
-    return toErrorResult(error)
-  }
-}
-
-export async function rescheduleConsultationRequestAction(
-  input: RescheduleConsultationRequestInput
-): Promise<ConsultationRequestActionResult<ConsultationRequest>> {
-  try {
-    return { ok: true, data: await rescheduleConsultationRequestRecord(input) }
-  } catch (error) {
-    return toErrorResult(error)
-  }
-}
-
-export async function updateConsultationRequestStatusAction(
-  input: UpdateConsultationRequestStatusInput
-): Promise<ConsultationRequestActionResult<ConsultationRequest>> {
-  try {
-    return { ok: true, data: await updateConsultationRequestStatus(input) }
-  } catch (error) {
-    return toErrorResult(error)
-  }
-}
-
-export async function addConsultationRequestNoteAction(
-  requestId: string,
-  body: string
-): Promise<ConsultationRequestActionResult<ConsultationRequestNote>> {
-  try {
-    return { ok: true, data: await addConsultationRequestNote(requestId, body) }
-  } catch (error) {
-    return toErrorResult(error)
-  }
-}
-
-export async function updateConsultationRequestNoteAction(
-  noteId: string,
-  body: string
-): Promise<ConsultationRequestActionResult<ConsultationRequestNote>> {
+): Promise<AppointmentRequestActionResult<AppointmentRequest>> {
   try {
     return {
       ok: true,
-      data: await updateConsultationRequestNote(noteId, body),
+      data: await approveAppointmentRequestRecord({
+        id: input.id,
+        doctorId: input.doctorId,
+        doctorName: input.doctorName,
+        scheduleAt: input.scheduleAt,
+        location: input.location ?? input.consultationRoom ?? null,
+        notes: input.notes,
+      }),
     }
   } catch (error) {
     return toErrorResult(error)
   }
 }
 
-export async function deleteConsultationRequestNoteAction(
-  noteId: string
-): Promise<
-  ConsultationRequestActionResult<{ id: string; requestId: string }>
-> {
+export async function admitConsultationRequestAction(
+  id: string,
+  force = true
+): Promise<AppointmentRequestActionResult<AppointmentRequest>> {
   try {
-    return { ok: true, data: await deleteConsultationRequestNote(noteId) }
+    const input: AdmitAppointmentRequestInput = { id, force }
+    return { ok: true, data: await admitAppointmentRequestRecord(input) }
+  } catch (error) {
+    return toErrorResult(error)
+  }
+}
+
+export async function declineConsultationRequestAction(
+  input: DeclineAppointmentRequestInput
+): Promise<AppointmentRequestActionResult<AppointmentRequest>> {
+  try {
+    return { ok: true, data: await declineAppointmentRequestRecord(input) }
+  } catch (error) {
+    return toErrorResult(error)
+  }
+}
+
+export async function rescheduleConsultationRequestAction(
+  input: RescheduleAppointmentRequestInput
+): Promise<AppointmentRequestActionResult<AppointmentRequest>> {
+  try {
+    return { ok: true, data: await rescheduleAppointmentRequestRecord(input) }
   } catch (error) {
     return toErrorResult(error)
   }

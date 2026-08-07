@@ -37,7 +37,13 @@ const chartConfig = {
   secondary: { label: "Secondary", color: "#0ea5e9" },
 } satisfies ChartConfig
 
-export function ReportChartCard({ series }: { series: ReportChartSeries }) {
+export function ReportChartCard({
+  series,
+  elevated = false,
+}: {
+  series: ReportChartSeries
+  elevated?: boolean
+}) {
   const data = series.points.map((p) => ({
     label: p.label,
     value: p.value,
@@ -45,7 +51,13 @@ export function ReportChartCard({ series }: { series: ReportChartSeries }) {
   }))
 
   return (
-    <Card className={cn(panelCardClassName)}>
+    <Card
+      className={cn(
+        elevated
+          ? "rounded-xl border bg-card shadow-sm dark:ring-0"
+          : panelCardClassName
+      )}
+    >
       <CardHeader className="pb-2">
         <CardTitle className="text-base">{series.title}</CardTitle>
         {series.description ? (

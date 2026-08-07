@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation"
 
 import { DisplayHeader } from "@/components/display/display-header"
 import { StationCard } from "@/components/display/station-card"
-import { ReservedMediaSlot } from "@/components/display/reserved-media-slot"
 import { RecentlyServedCard } from "@/components/shared/recently-served-card"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/client"
-import { subscribeQueueChanges } from "@/lib/health/realtime"
+import { subscribeDisplayChanges } from "@/lib/health/realtime"
+import type { BreakStatus } from "@/lib/availability/types"
 import type { RecentlyServedItem, StationBoard } from "@/lib/health/types"
 import { IconClock } from "@tabler/icons-react"
 
@@ -17,15 +17,18 @@ export function QueueDisplay({
   initialBoards,
   initialRecentlyServed,
   initialTotalWaiting,
+  initialClinicBreak,
 }: {
   initialBoards: StationBoard[]
   initialRecentlyServed: RecentlyServedItem[]
   initialTotalWaiting: number
+  initialClinicBreak: BreakStatus
 }) {
   const router = useRouter()
   const [boards, setBoards] = useState(initialBoards)
   const [recent, setRecent] = useState(initialRecentlyServed)
   const [totalWaiting, setTotalWaiting] = useState(initialTotalWaiting)
+  const [clinicBreak, setClinicBreak] = useState(initialClinicBreak)
   const [speakerOn, setSpeakerOn] = useState(true)
   const [lastAnnounced, setLastAnnounced] = useState<string | null>(null)
 
@@ -33,19 +36,28 @@ export function QueueDisplay({
     setBoards(initialBoards)
     setRecent(initialRecentlyServed)
     setTotalWaiting(initialTotalWaiting)
-  }, [initialBoards, initialRecentlyServed, initialTotalWaiting])
+    setClinicBreak(initialClinicBreak)
+  }, [
+    initialBoards,
+    initialRecentlyServed,
+    initialTotalWaiting,
+    initialClinicBreak,
+  ])
 
   const servingKey = useMemo(
     () =>
       boards
-        .map((b) => `${b.station}:${b.nowServing ?? "-"}`)
+        .map((b) => `${b.station}:${b.nowServing ?? "-"}:${b.status}`)
         .join("|"),
     [boards]
   )
 
   useEffect(() => {
     if (!speakerOn || typeof window === "undefined") return
-    const next = boards.find((b) => b.nowServing)?.nowServing
+    if (clinicBreak.isOnBreak) return
+    const next = boards.find(
+      (b) => b.status !== "on_break" && b.nowServing
+    )?.nowServing
     if (!next || next === lastAnnounced) return
     setLastAnnounced(next)
     const station = boards.find((b) => b.nowServing === next)?.label ?? "clinic"
@@ -55,11 +67,11 @@ export function QueueDisplay({
     utterance.rate = 0.95
     window.speechSynthesis.cancel()
     window.speechSynthesis.speak(utterance)
-  }, [boards, speakerOn, lastAnnounced, servingKey])
+  }, [boards, speakerOn, lastAnnounced, servingKey, clinicBreak.isOnBreak])
 
   useEffect(() => {
     const client = createClient()
-    const channel = subscribeQueueChanges(client, () => {
+    const channel = subscribeDisplayChanges(client, () => {
       router.refresh()
     })
 
@@ -77,6 +89,8 @@ export function QueueDisplay({
         totalWaiting={totalWaiting}
         speakerOn={speakerOn}
         onToggleSpeaker={() => setSpeakerOn((v) => !v)}
+        clinicOnBreak={clinicBreak.isOnBreak}
+        clinicResumesAt={clinicBreak.resumesAt}
       />
 
       <main className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-4 p-4 md:gap-6 md:p-6">
@@ -107,8 +121,6 @@ export function QueueDisplay({
             </CardContent>
           </Card>
         </section>
-
-        <ReservedMediaSlot />
       </main>
     </div>
   )

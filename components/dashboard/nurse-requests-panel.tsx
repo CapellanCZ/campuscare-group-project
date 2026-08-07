@@ -24,22 +24,26 @@ import {
 import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
-import type { ConsultationRequest } from "@/types/consultationRequest"
-import type { ConsultationRequestStatus } from "@/types/consultationRequest"
+import type {
+  AppointmentRequest,
+  AppointmentRequestStatus,
+} from "@/types/appointmentRequest"
 
 const REQUESTS_HREF = "/nurse/requests"
 const DASHBOARD_LIMIT = 6
 
 const statusVariant: Record<
-  ConsultationRequestStatus,
+  AppointmentRequestStatus,
   "default" | "secondary" | "outline" | "destructive"
 > = {
   pending: "secondary",
-  approved: "default",
-  declined: "destructive",
+  confirmed: "default",
+  waitlisted: "outline",
   rescheduled: "outline",
+  in_progress: "default",
   completed: "default",
   cancelled: "destructive",
+  no_show: "destructive",
 }
 
 export function NurseRequestsPanel({
@@ -56,7 +60,7 @@ export function NurseRequestsPanel({
   const canViewDetails = can(access.designation, "requests.view_patient_details")
   const [pendingView, startView] = useTransition()
   const [selectedRequest, setSelectedRequest] =
-    useState<ConsultationRequest | null>(null)
+    useState<AppointmentRequest | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
 
   const rows = summary.requests.recent.slice(0, DASHBOARD_LIMIT)
@@ -84,7 +88,7 @@ export function NurseRequestsPanel({
       >
         {rows.length === 0 ? (
           <p className="px-1 py-6 text-sm text-muted-foreground">
-            No consultation requests yet.
+            No appointment requests yet.
           </p>
         ) : (
           <div className="-mx-6 min-w-0 overflow-x-auto">
@@ -106,6 +110,9 @@ export function NurseRequestsPanel({
                         <p className="font-medium">{row.patientName}</p>
                         <p className="text-xs text-muted-foreground tabular-nums">
                           {row.studentId || "—"}
+                          {row.queueNumber != null
+                            ? ` · #${row.queueNumber}`
+                            : ""}
                         </p>
                       </div>
                     </TableCell>
@@ -144,7 +151,19 @@ export function NurseRequestsPanel({
                             Approve
                           </Button>
                         ) : null}
-                        {canReschedule && row.status === "pending" ? (
+                        {canApprove && row.status === "waitlisted" ? (
+                          <Button
+                            type="button"
+                            size="xs"
+                            disabled={pendingView}
+                            onClick={() => openRequestView(row.id)}
+                          >
+                            Admit
+                          </Button>
+                        ) : null}
+                        {canReschedule &&
+                        (row.status === "pending" ||
+                          row.status === "waitlisted") ? (
                           <Button
                             type="button"
                             size="xs"
@@ -155,7 +174,9 @@ export function NurseRequestsPanel({
                             Reschedule
                           </Button>
                         ) : null}
-                        {canDecline && row.status === "pending" ? (
+                        {canDecline &&
+                        (row.status === "pending" ||
+                          row.status === "waitlisted") ? (
                           <Button
                             type="button"
                             size="xs"

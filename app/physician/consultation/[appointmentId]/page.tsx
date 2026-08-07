@@ -4,6 +4,7 @@ import { notFound } from "next/navigation"
 import { StateBlock } from "@/features/common/components/state-block"
 import { ConsultationMode } from "@/features/physician/components/consultation-mode"
 import { loadPhysicianWorkspace } from "@/features/physician/data/queries"
+import { loadVisitMedicalChart } from "@/features/physician/data/visit-chart"
 import { startConsultation } from "@/features/physician/actions/appointments"
 
 type PageProps = {
@@ -33,8 +34,15 @@ async function Content({ appointmentId }: { appointmentId: string }) {
     null
   const priorRecordsEmpty =
     workspace.consultations.filter(
-      (c) => c.patientId === appointment.patientId && c.appointmentId !== appointmentId
+      (c) =>
+        c.patientId === appointment.patientId &&
+        c.appointmentId !== appointmentId
     ).length === 0
+
+  const chart = await loadVisitMedicalChart({
+    appointmentId,
+    campusId: appointment.patientStudentId ?? patient?.studentId ?? null,
+  })
 
   return (
     <ConsultationMode
@@ -42,6 +50,8 @@ async function Content({ appointmentId }: { appointmentId: string }) {
       patient={patient}
       consultation={consultation}
       priorRecordsEmpty={priorRecordsEmpty}
+      medicalRecord={chart.record}
+      nurseVitals={chart.nurseVitals}
     />
   )
 }

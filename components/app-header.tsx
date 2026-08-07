@@ -10,7 +10,6 @@ import { CustomSidebarTrigger } from "@/components/custom-sidebar-trigger"
 import { DecorIcon } from "@/components/decor-icon"
 import { resolveActiveNav } from "@/components/app-shared"
 import { HeaderNotifications } from "@/components/header-notifications"
-import { HeaderSearch } from "@/components/header-search"
 import { NavUser } from "@/components/nav-user"
 import { OnBreakControl } from "@/components/availability/on-break-control"
 import { useOptionalStaffAccess } from "@/components/staff-access-provider"
@@ -47,9 +46,6 @@ export function AppHeader() {
       </div>
       <div className="flex flex-wrap items-center justify-end gap-3">
         {role ? <OnBreakControl /> : null}
-        {role !== "nurse" && role !== "physician" && role !== "dentist" ? (
-          <HeaderSearch />
-        ) : null}
         <HeaderNotifications />
         <Separator
           className="h-4 data-[orientation=vertical]:self-center"

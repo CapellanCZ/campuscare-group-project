@@ -11,6 +11,11 @@ export default async function AuthContinuePage() {
     redirect("/login")
   }
 
+  // Display kiosk accounts always open the public queue board.
+  if (access.primaryRole === "queue_display") {
+    redirect("/queue-management/display")
+  }
+
   if (!access.hasClinicMembership) {
     redirect("/auth/pending")
   }

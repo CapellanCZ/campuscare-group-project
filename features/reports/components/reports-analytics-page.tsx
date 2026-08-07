@@ -1,11 +1,10 @@
 "use client"
 
 import { useEffect, useMemo, useState, useTransition } from "react"
-import Link from "next/link"
 import { IconFileTypePdf } from "@tabler/icons-react"
 import { toast } from "sonner"
 
-import { AnnouncementNewsCard } from "@/components/announcements/announcement-news-card"
+import { AdminReportsView } from "@/features/reports/components/admin-reports-view"
 import { ReportChartCard } from "@/features/reports/components/report-chart-card"
 import { ReportDataTable } from "@/features/reports/components/report-data-table"
 import { ReportsFilterBar } from "@/features/reports/components/reports-filter-bar"
@@ -37,16 +36,39 @@ import type {
 } from "@/features/reports/types"
 import { REPORT_KIND_LABELS } from "@/features/reports/types"
 import { can, getAccessLevel } from "@/lib/auth/permissions"
-import { staffBasePath } from "@/lib/auth/home-path"
 import type { StaffAccess } from "@/lib/auth/types"
 import { designationLabel } from "@/lib/health/roles"
 import { cn } from "@/lib/utils"
 import type { AnnouncementListResult } from "@/types/announcement"
+import { useStaffRealtimeRouterRefresh } from "@/hooks/use-staff-realtime-refresh"
+import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 
 export function ReportsAnalyticsPage({
   access,
   initialBundle,
   initialAnnouncements,
+}: {
+  access: StaffAccess
+  initialBundle: ReportsBundle
+  initialAnnouncements?: AnnouncementListResult
+}) {
+  if (access.designation === "admin") {
+    return (
+      <AdminReportsView access={access} initialBundle={initialBundle} />
+    )
+  }
+
+  return (
+    <ClinicalReportsAnalyticsPage
+      access={access}
+      initialBundle={initialBundle}
+    />
+  )
+}
+
+function ClinicalReportsAnalyticsPage({
+  access,
+  initialBundle,
 }: {
   access: StaffAccess
   initialBundle: ReportsBundle
@@ -60,6 +82,11 @@ export function ReportsAnalyticsPage({
   const catalog = catalogFor(d)
   const [filters, setFilters] = useState<ReportFilters>(initialBundle.filters)
   const [pending, startTransition] = useTransition()
+
+  useStaffRealtimeRouterRefresh(
+    `staff-reports-${d}`,
+    STAFF_REALTIME_TABLES.reports
+  )
 
   useEffect(() => {
     if (initialBundle.error) {
@@ -171,9 +198,6 @@ export function ReportsAnalyticsPage({
     visibleKinds.includes(table.kind as ReportKind)
   )
 
-  const announcementsHref = `${staffBasePath(d)}/announcements`
-  const announcementItems = initialAnnouncements?.items.slice(0, 6) ?? []
-
   return (
     <div
       className={
@@ -184,11 +208,6 @@ export function ReportsAnalyticsPage({
     >
       <PageIntro
         title="Reports and Analytics"
-        description={
-          isPhysician || isNurse || isDentist
-            ? undefined
-            : `${designationLabel(d)} clinic reports · quarterly HSO progress exports include narrative, KPIs, charts, and all tables`
-        }
         action={
           <div className="flex flex-wrap gap-2">
             {pdfLevel !== "none" ? (
@@ -233,42 +252,6 @@ export function ReportsAnalyticsPage({
           </div>
         }
       />
-
-      {!isPhysician && !isNurse && !isDentist ? (
-        <section className="flex flex-col gap-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-base font-semibold tracking-tight">
-              Latest Announcements
-            </h2>
-            <Button
-              size="sm"
-              variant="outline"
-              render={<Link href={announcementsHref} />}
-              nativeButton={false}
-            >
-              View All
-            </Button>
-          </div>
-          {announcementItems.length > 0 ? (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {announcementItems.map((item) => (
-                <AnnouncementNewsCard
-                  key={item.id}
-                  announcement={item}
-                  compact
-                  onClick={() => {
-                    window.location.assign(announcementsHref)
-                  }}
-                />
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No announcements yet.
-            </p>
-          )}
-        </section>
-      ) : null}
 
       <PanelFrame>
         <PanelGrid className="lg:grid-cols-3">

@@ -1,12 +1,6 @@
-import { PatientsPage } from "@/features/admin/components/patients-page"
+import { redirect } from "next/navigation"
 
-type PageProps = {
-  searchParams: Promise<Record<string, string | string[] | undefined>>
-}
-
-export default async function AdminPatientsUnderUserManagementPage({
-  searchParams,
-}: PageProps) {
-  const resolved = await searchParams
-  return <PatientsPage searchParams={resolved} />
+/** Admin user management is staff/admins only — no patient registry. */
+export default function AdminPatientsUnderUserManagementPage() {
+  redirect("/admin/user-management/staff")
 }

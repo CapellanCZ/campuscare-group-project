@@ -12,7 +12,13 @@ import {
 import { StaffAccessProvider } from "@/components/staff-access-provider"
 import type { StaffAccess } from "@/lib/auth/types"
 
-function ShellBody({ children }: { children: React.ReactNode }) {
+function ShellBody({
+  children,
+  isAdmin,
+}: {
+  children: React.ReactNode
+  isAdmin: boolean
+}) {
   const breakMode = useOptionalBreakMode()
   const locked = Boolean(breakMode?.active)
 
@@ -31,7 +37,8 @@ function ShellBody({ children }: { children: React.ReactNode }) {
           <div
             className={cn(
               "flex flex-1 flex-col p-4 md:p-6",
-              "mx-auto w-full max-w-(--app-wrapper-max-width)"
+              "mx-auto w-full max-w-(--app-wrapper-max-width)",
+              isAdmin && "bg-muted/30"
             )}
           >
             {children}
@@ -61,7 +68,7 @@ export function AppShell({
   return (
     <StaffAccessProvider access={access}>
       <BreakModeProvider mode={breakMode} role={role}>
-        <ShellBody>{children}</ShellBody>
+        <ShellBody isAdmin={role === "admin"}>{children}</ShellBody>
       </BreakModeProvider>
     </StaffAccessProvider>
   )
