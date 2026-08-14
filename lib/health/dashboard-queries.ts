@@ -201,7 +201,7 @@ async function buildKpis(
   }
 
   const supabase = await createClient()
-  const { ymd, startIso, endIso } = manilaDayBounds()
+  const { startIso, endIso } = manilaDayBounds()
 
   const safeCount = async (
     run: () => PromiseLike<{ count: number | null; error: { message: string } | null }>
@@ -217,19 +217,18 @@ async function buildKpis(
 
   const consultCount = await safeCount(() =>
     supabase
-      .from("health_consultations")
+      .from("consultations")
       .select("id", { count: "exact", head: true })
-      .gte("visit_date", ymd)
-      .lte("visit_date", ymd)
+      .gte("consultation_date", startIso)
+      .lte("consultation_date", endIso)
   )
 
   const certCount = await safeCount(() =>
     supabase
-      .from("health_consultations")
+      .from("medical_certificates")
       .select("id", { count: "exact", head: true })
-      .gte("visit_date", ymd)
-      .lte("visit_date", ymd)
-      .ilike("certificate_status", "%issued%")
+      .gte("created_at", startIso)
+      .lte("created_at", endIso)
   )
 
   const announcementCount = await safeCount(() =>

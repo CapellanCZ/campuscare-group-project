@@ -8,11 +8,8 @@ import {
 import {
   ensurePatientFromStudentId,
 } from "@/lib/students/ensure-patient"
-import { listEnrolledStudents } from "@/lib/students/enrolled-dataset"
-import { enrolledDisplayName } from "@/lib/students/map-enrolled-student"
 import { NO_STUDENT_FOUND } from "@/lib/students/types"
 import {
-  enrolledVirtualId,
   isEnrolledVirtualId,
   studentIdFromVirtualId,
 } from "@/lib/students/virtual-id"
@@ -26,6 +23,7 @@ import {
 } from "@/services/patientRecords"
 import {
   PatientRecordServiceError,
+  patientFullName,
   type CreatePatientRecordInput,
   type PatientRecord,
   type PatientRecordListParams,
@@ -37,8 +35,12 @@ import {
 import {
   getConsultationsByPatientId,
 } from "@/services/consultations"
+import { getMedicalCertificatesForPatientRecord } from "@/services/medicalCertificates"
 import type { Consultation } from "@/types/consultation"
-import type { MedicalCertificatePatient } from "@/types/medicalCertificate"
+import type {
+  MedicalCertificate,
+  MedicalCertificatePatient,
+} from "@/types/medicalCertificate"
 
 export type PatientRecordActionResult<T> =
   | { ok: true; data: T }
@@ -105,6 +107,22 @@ export async function searchPatientByStudentIdAction(
     if (!id) {
       return { ok: false, error: NO_STUDENT_FOUND, code: "not_found" }
     }
+
+    const listed = await listDirectoryPatientRecords({
+      query: id,
+      page: 1,
+      pageSize: 5,
+      patientType: "all",
+    })
+    const exact =
+      listed.items.find(
+        (p) =>
+          p.studentId?.toLowerCase() === id.toLowerCase() ||
+          p.employeeId?.toLowerCase() === id.toLowerCase()
+      ) ?? listed.items[0]
+    if (exact) return { ok: true, data: exact }
+
+    // Optional legacy fallback: enrollment bucket ensure for walk-ins not yet imported
     const ensured = await ensurePatientFromStudentId(id)
     if (!ensured) {
       return { ok: false, error: NO_STUDENT_FOUND, code: "not_found" }
@@ -161,19 +179,23 @@ export async function ensureCertificatePatientByStudentIdAction(
   }
 }
 
-/** Enrolled roster for certificate patient picker (virtual ids until selected). */
+/** Imported roster for certificate patient picker. */
 export async function listEnrolledCertificatePatientsAction(): Promise<
   PatientRecordActionResult<MedicalCertificatePatient[]>
 > {
   try {
-    const enrolled = await listEnrolledStudents()
+    const listed = await listDirectoryPatientRecords({
+      page: 1,
+      pageSize: 50,
+      patientType: "all",
+    })
     return {
       ok: true,
-      data: enrolled.map((student) => ({
-        id: enrolledVirtualId(student.studentId),
-        fullName: enrolledDisplayName(student),
-        studentId: student.studentId,
-        email: student.email,
+      data: listed.items.map((patient) => ({
+        id: patient.id,
+        fullName: patientFullName(patient),
+        studentId: patient.studentId ?? patient.employeeId,
+        email: patient.email,
       })),
     }
   } catch (error) {
@@ -269,14 +291,40 @@ export async function fetchPatientConsultationHistoryAction(
   }
 }
 
+export async function fetchPatientDocumentsAction(
+  patient: Pick<PatientRecord, "studentId" | "employeeId">
+): Promise<PatientRecordActionResult<MedicalCertificate[]>> {
+  try {
+    const data = await getMedicalCertificatesForPatientRecord({
+      studentId: patient.studentId,
+      employeeId: patient.employeeId,
+    })
+    return { ok: true, data }
+  } catch (error) {
+    return toErrorResult(error)
+  }
+}
+
 export async function importPatientRecordsFromExcelAction(
   formData: FormData
 ): Promise<PatientRecordImportActionResult> {
   try {
     const result = await importPatientRecordsFromExcel(formData)
+    const parts: string[] = []
+    if (result.created > 0) {
+      parts.push(
+        `${result.created} created`
+      )
+    }
+    if (result.updated > 0) {
+      parts.push(`${result.updated} updated`)
+    }
     return {
       ok: true,
-      message: `Imported ${result.created} patient${result.created === 1 ? "" : "s"}.`,
+      message:
+        parts.length > 0
+          ? `Import complete: ${parts.join(", ")}.`
+          : "Import finished.",
       warning:
         result.failures.length > 0
           ? `${result.failures.length} row(s) failed. ${result.failures.slice(0, 3).join(" · ")}`

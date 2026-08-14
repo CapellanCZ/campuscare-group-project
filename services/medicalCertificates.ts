@@ -461,6 +461,61 @@ export async function listCertificatePatients(
   }))
 }
 
+/**
+ * Certificates for a clinical patient_records row (soft-linked via campus ID).
+ */
+export async function getMedicalCertificatesForPatientRecord(
+  input: {
+    studentId?: string | null
+    employeeId?: string | null
+  },
+  client?: SupabaseClient
+): Promise<MedicalCertificate[]> {
+  const supabase = await getClient(client)
+  const studentId = input.studentId?.trim() || null
+  const employeeId = input.employeeId?.trim() || null
+
+  if (!studentId && !employeeId) return []
+
+  let patientQuery = supabase.from("patients").select("id").limit(1)
+  if (studentId) {
+    patientQuery = patientQuery.eq("student_id", studentId)
+  } else if (employeeId) {
+    patientQuery = patientQuery.eq("employee_id", employeeId)
+  }
+
+  const { data: patient, error: patientError } = await patientQuery.maybeSingle()
+  if (patientError) mapError(patientError)
+  if (!patient?.id) return []
+
+  const { data, error } = await supabase
+    .from("medical_certificates")
+    .select(SELECT_WITH_PATIENT)
+    .eq("patient_id", patient.id)
+    .order("created_at", { ascending: false })
+
+  if (error) mapError(error)
+  return ((data ?? []) as CertificateRow[])
+    .map(mapCertificate)
+    .sort((a, b) => {
+      const left = a.issuedAt ? Date.parse(a.issuedAt) : Date.parse(a.createdAt)
+      const right = b.issuedAt ? Date.parse(b.issuedAt) : Date.parse(b.createdAt)
+      return right - left
+    })
+}
+
+export async function countMedicalCertificates(
+  client?: SupabaseClient
+): Promise<number> {
+  const supabase = await getClient(client)
+  const { count, error } = await supabase
+    .from("medical_certificates")
+    .select("id", { count: "exact", head: true })
+
+  if (error) mapError(error)
+  return count ?? 0
+}
+
 export async function deleteMedicalCertificate(
   id: string,
   client?: SupabaseClient

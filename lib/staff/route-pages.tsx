@@ -9,6 +9,7 @@ import { QueuePage } from "@/components/queue/queue-page"
 import { RequestsPage } from "@/components/requests/requests-demo-page"
 import { ReportsAnalyticsPage } from "@/features/reports/components/reports-analytics-page"
 import { loadReportsBundle } from "@/features/reports/data/queries"
+import { loadAdminOpsSnapshot } from "@/features/admin/data/ops-snapshot"
 import { loadOfficeHoursBundle } from "@/features/availability/actions/availability"
 import { OfficeHoursSettings } from "@/features/admin/components/office-hours-settings"
 import { adminPageShellClassName } from "@/features/admin/lib/admin-surface"
@@ -99,6 +100,11 @@ export async function StaffHomePage() {
       ? await getNurseRecentlyServed(6, bundle.allTickets)
       : bundle.recent
 
+  const ops =
+    access.designation === "admin"
+      ? await loadAdminOpsSnapshot()
+      : null
+
   return (
     <RoleDashboard
       access={access}
@@ -109,6 +115,7 @@ export async function StaffHomePage() {
       recent={recent}
       stats={bundle.stats}
       summary={summary}
+      ops={ops}
     />
   )
 }
@@ -355,6 +362,25 @@ export async function StaffCertificatesPage() {
 
 export async function StaffReportsPage() {
   const access = await requireStaffModule("reports")
+
+  if (access.designation === "admin") {
+    const { defaultFiltersFor } = await import(
+      "@/features/reports/data/apply-filters"
+    )
+    const { loadAdminReportsAggregates } = await import(
+      "@/features/admin/data/reports-aggregates"
+    )
+    const filters = defaultFiltersFor("admin")
+    const aggregates = await loadAdminReportsAggregates(filters)
+    return (
+      <ReportsAnalyticsPage
+        access={access}
+        initialAdminFilters={filters}
+        initialAdminAggregates={aggregates}
+      />
+    )
+  }
+
   const bundle = await loadReportsBundle(access.designation)
   const isNurse = access.designation === "nurse"
 

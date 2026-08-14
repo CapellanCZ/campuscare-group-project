@@ -14,15 +14,15 @@ export const ROLE_REPORTS_CATALOG: Record<
     ],
     chartKeys: [
       "monthly_consult_trend",
-      "common_health_complaints",
-      "common_dental_cases",
       "patient_type_distribution",
       "queue_performance",
+      "consultation_request_trend",
     ],
     reportKinds: [
       "daily_consultation",
       "monthly_consultation",
       "queue_performance",
+      "consultation_request",
       "medical_certificate",
     ],
     defaultConsultationType: "all",

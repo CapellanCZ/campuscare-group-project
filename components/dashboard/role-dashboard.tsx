@@ -104,6 +104,7 @@ export function RoleDashboard({
   recent,
   stats,
   summary,
+  ops = null,
 }: {
   access: StaffAccess
   kpis: DashboardKpis
@@ -113,6 +114,7 @@ export function RoleDashboard({
   recent: RecentlyServedItem[]
   stats: QueueStats
   summary: RoleDashboardSummary
+  ops?: import("@/features/admin/types/ops").AdminOpsSnapshot | null
 }) {
   useStaffRealtimeRouterRefresh(
     `staff-dashboard-${access.designation}`,
@@ -160,9 +162,14 @@ export function RoleDashboard({
   }
 
   if (access.designation === "admin") {
-    return (
-      <AdminDashboardView access={access} kpis={kpis} summary={summary} />
-    )
+    if (!ops) {
+      return (
+        <div className="p-6 text-sm text-muted-foreground">
+          Loading operations overview…
+        </div>
+      )
+    }
+    return <AdminDashboardView access={access} ops={ops} />
   }
 
   const waiting = tickets

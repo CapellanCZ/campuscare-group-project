@@ -731,11 +731,19 @@ export function applyReportsFilters(
     .filter(Boolean)
     .sort()
 
+  const chartKeys = catalog.chartKeys.filter(
+    (key) =>
+      designation !== "admin" ||
+      (key !== "common_health_complaints" &&
+        key !== "common_dental_cases" &&
+        key !== "common_diagnoses")
+  )
+
   return {
     designation,
     filters: effective,
     kpis: buildKpis(catalog.kpiKeys, consults, certs, requests, live),
-    charts: buildCharts(catalog.chartKeys, consults, requests, queueDays),
+    charts: buildCharts(chartKeys, consults, requests, queueDays),
     tables,
     personnelOptions: personnel,
     statusOptions: statuses,

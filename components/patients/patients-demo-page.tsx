@@ -10,7 +10,9 @@ import {
 } from "react"
 import { toast } from "sonner"
 
+import { PatientDocumentsSheet } from "@/components/patients/patient-documents-sheet"
 import { PatientHistorySheet } from "@/components/patients/patient-history-sheet"
+import { PatientImportSheet } from "@/components/patients/patient-import-sheet"
 import { PatientMedicalSheet } from "@/components/patients/patient-medical-sheet"
 import { PatientProfileSheet } from "@/components/patients/patient-profile-sheet"
 import { StudentIdSearchInput } from "@/components/shared/student-id-search-input"
@@ -81,7 +83,7 @@ function toStatCards(stats: PatientRecordStats): DemoStat[] {
       key: "total",
       label: "Patients on file",
       value: String(stats.patientsOnFile),
-      description: "Enrolled students",
+      description: "Imported patient records",
     },
     {
       key: "visited",
@@ -99,7 +101,7 @@ function toStatCards(stats: PatientRecordStats): DemoStat[] {
       key: "docs",
       label: "Documents",
       value: String(stats.documents),
-      description: "Uploaded files",
+      description: "Medical certificates",
     },
   ]
 }
@@ -145,6 +147,9 @@ export function PatientsPage({
   )
   const [profilePatient, setProfilePatient] = useState<PatientRecord | null>(null)
   const [historyPatient, setHistoryPatient] = useState<PatientRecord | null>(null)
+  const [documentsPatient, setDocumentsPatient] = useState<PatientRecord | null>(
+    null
+  )
   const [isPending, startTransition] = useTransition()
   const skipNextFetch = useRef(true)
   const mountedRef = useRef(false)
@@ -188,7 +193,7 @@ export function PatientsPage({
           searchPatientRecordsAction(nextQuery, {
             page: 1,
             pageSize: PAGE_SIZE,
-            patientType: "student",
+            patientType: "all",
             sortBy: nextSortBy,
             sortDir: nextSortDir,
           }),
@@ -330,7 +335,7 @@ export function PatientsPage({
   const rows = list.items
   const emptyMessage = debouncedQuery
     ? NO_STUDENT_FOUND
-    : "No enrolled students found. Check the Student Dataset file in Storage."
+    : "No patients on file yet. Use Import patients to upload a roster."
 
   return (
     <div
@@ -346,7 +351,7 @@ export function PatientsPage({
           access.designation === "physician" ||
           access.designation === "dentist"
             ? ""
-            : "Enrolled student medical records. Search by Student ID; update medical history and physical exam here."
+            : "Import a roster into Patient Records, then search and update medical history here."
         }
         designation={access.designation}
         showDemoBanner={false}
@@ -365,7 +370,7 @@ export function PatientsPage({
               "gap-4 border-b px-6 py-5 pt-5"
           )}
         >
-          <CardTitle className="text-base">Student directory</CardTitle>
+          <CardTitle className="text-base">Patient directory</CardTitle>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             {can(access.designation, "patients.search") ? (
               access.designation === "nurse" ||
@@ -400,6 +405,9 @@ export function PatientsPage({
                   />
                 </div>
               )
+            ) : null}
+            {can(access.designation, "patients.table") ? (
+              <PatientImportSheet toolbar onImported={refresh} />
             ) : null}
           </div>
         </CardHeader>
@@ -532,9 +540,7 @@ export function PatientsPage({
                               size="xs"
                               variant="outline"
                               onClick={() =>
-                                toast.info(
-                                  "Medical documents will be available when the documents module is ready."
-                                )
+                                void openEnsuredPatient(row, setDocumentsPatient)
                               }
                             >
                               Documents
@@ -586,6 +592,13 @@ export function PatientsPage({
         stationFilter={
           access.designation === "dentist" ? "dentist" : "all"
         }
+      />
+      <PatientDocumentsSheet
+        patient={documentsPatient}
+        open={Boolean(documentsPatient)}
+        onOpenChange={(open) => {
+          if (!open) setDocumentsPatient(null)
+        }}
       />
     </div>
   )

@@ -2,6 +2,8 @@ import "server-only"
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 
+import { CAMPUS_CLINIC_ID } from "@/lib/auth/campus-clinic"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 import { PATIENT_RECORD_SELECT_COLUMNS } from "@/lib/students/patient-record-select"
 import {
@@ -277,29 +279,36 @@ export async function getPatientRecordStats(
   const supabase = await getClient(client)
   const { start, end } = manilaMonthBounds()
 
-  const [allResult, visitedResult, allergiesResult] = await Promise.all([
-    supabase.from("patient_records").select("id", { count: "exact", head: true }),
-    supabase
-      .from("patient_records")
-      .select("id", { count: "exact", head: true })
-      .gte("last_visit", start)
-      .lt("last_visit", end),
-    supabase
-      .from("patient_records")
-      .select("id", { count: "exact", head: true })
-      .not("allergies", "is", null)
-      .neq("allergies", ""),
-  ])
+  const [allResult, visitedResult, allergiesResult, documentsResult] =
+    await Promise.all([
+      supabase
+        .from("patient_records")
+        .select("id", { count: "exact", head: true }),
+      supabase
+        .from("patient_records")
+        .select("id", { count: "exact", head: true })
+        .gte("last_visit", start)
+        .lt("last_visit", end),
+      supabase
+        .from("patient_records")
+        .select("id", { count: "exact", head: true })
+        .not("allergies", "is", null)
+        .neq("allergies", ""),
+      supabase
+        .from("medical_certificates")
+        .select("id", { count: "exact", head: true }),
+    ])
 
   if (allResult.error) mapError(allResult.error)
   if (visitedResult.error) mapError(visitedResult.error)
   if (allergiesResult.error) mapError(allergiesResult.error)
+  if (documentsResult.error) mapError(documentsResult.error)
 
   return {
     patientsOnFile: allResult.count ?? 0,
     visitedThisMonth: visitedResult.count ?? 0,
     flaggedAllergies: allergiesResult.count ?? 0,
-    documents: 0,
+    documents: documentsResult.count ?? 0,
   }
 }
 
@@ -318,7 +327,151 @@ export async function createPatientRecord(
     .single()
 
   if (error) mapError(error)
-  return mapPatient(data as PatientRow)
+  const clinical = mapPatient(data as PatientRow)
+  await upsertOperationalPatient(clinical)
+  return clinical
+}
+
+/**
+ * Upsert clinical patient_records by campus ID, then mirror demographics to patients.
+ * Does not wipe medical_history / physical_exam on update.
+ */
+export async function upsertPatientRecord(
+  input: CreatePatientRecordInput,
+  client?: SupabaseClient
+): Promise<{ record: PatientRecord; created: boolean }> {
+  validateRequired(input)
+  const supabase = await getClient(client)
+  const payload = patientRecordToJson(input)
+  const patientType = normalizePatientType(input.patientType) ?? "student"
+  const campusId =
+    patientType === "student"
+      ? (input.studentId ?? "").trim()
+      : (input.employeeId ?? "").trim()
+
+  if (!campusId) {
+    throw new PatientRecordServiceError(
+      "validation",
+      patientType === "student"
+        ? "Student ID is required."
+        : "Employee / faculty ID is required."
+    )
+  }
+
+  let existingQuery = supabase
+    .from("patient_records")
+    .select(`${SELECT_COLUMNS}, consultations(count)`)
+
+  existingQuery =
+    patientType === "student"
+      ? existingQuery.eq("student_id", campusId)
+      : existingQuery.eq("employee_id", campusId)
+
+  const { data: existing, error: findError } = await existingQuery.maybeSingle()
+  if (findError) mapError(findError)
+
+  if (existing) {
+    const { data, error } = await supabase
+      .from("patient_records")
+      .update({
+        patient_type: payload.patient_type,
+        student_id: payload.student_id,
+        employee_id: payload.employee_id,
+        first_name: payload.first_name,
+        middle_name: payload.middle_name,
+        last_name: payload.last_name,
+        course: payload.course,
+        year_level: payload.year_level,
+        gender: payload.gender,
+        birth_date: payload.birth_date,
+        phone: payload.phone,
+        email: payload.email,
+        address: payload.address,
+        emergency_contact_name: payload.emergency_contact_name,
+        emergency_contact_phone: payload.emergency_contact_phone,
+        blood_type: payload.blood_type,
+        // Keep existing allergies / medical_conditions / notes / chart unless provided
+        allergies: payload.allergies ?? (existing as PatientRow).allergies,
+        medical_conditions:
+          payload.medical_conditions ??
+          (existing as PatientRow).medical_conditions,
+        notes: payload.notes ?? (existing as PatientRow).notes,
+      })
+      .eq("id", (existing as PatientRow).id)
+      .select(`${SELECT_COLUMNS}, consultations(count)`)
+      .single()
+
+    if (error) mapError(error)
+    const clinical = mapPatient(data as PatientRow)
+    await upsertOperationalPatient(clinical)
+    return { record: clinical, created: false }
+  }
+
+  const { data, error } = await supabase
+    .from("patient_records")
+    .insert(payload)
+    .select(`${SELECT_COLUMNS}, consultations(count)`)
+    .single()
+
+  if (error) mapError(error)
+  const clinical = mapPatient(data as PatientRow)
+  await upsertOperationalPatient(clinical)
+  return { record: clinical, created: true }
+}
+
+async function upsertOperationalPatient(clinical: PatientRecord) {
+  const admin = createAdminClient()
+  const fullName = patientFullName(clinical)
+  const isStudent = clinical.patientType === "student"
+  const studentId = isStudent ? clinical.studentId : null
+  const employeeId = isStudent ? null : clinical.employeeId
+
+  let existing: { id: string } | null = null
+  if (studentId) {
+    const { data, error } = await admin
+      .from("patients")
+      .select("id")
+      .eq("student_id", studentId)
+      .limit(1)
+      .maybeSingle()
+    if (error) mapError(error)
+    existing = data
+  } else if (employeeId) {
+    const { data, error } = await admin
+      .from("patients")
+      .select("id")
+      .eq("employee_id", employeeId)
+      .limit(1)
+      .maybeSingle()
+    if (error) mapError(error)
+    existing = data
+  }
+
+  const body = {
+    full_name: fullName,
+    email: clinical.email,
+    phone: clinical.phone,
+    date_of_birth: clinical.birthDate,
+    sex: clinical.gender,
+    patient_type: clinical.patientType,
+    affiliation: clinical.patientType,
+    student_id: studentId,
+    employee_id: employeeId,
+    updated_at: new Date().toISOString(),
+  }
+
+  if (existing?.id) {
+    const { error } = await admin.from("patients").update(body).eq("id", existing.id)
+    if (error) mapError(error)
+    return
+  }
+
+  const { error } = await admin.from("patients").insert({
+    clinic_id: CAMPUS_CLINIC_ID,
+    timezone: "Asia/Manila",
+    ...body,
+  })
+  if (error) mapError(error)
 }
 
 export async function updatePatientRecord(
@@ -447,6 +600,7 @@ export async function listPatientOptions(
 
 export type ImportPatientRecordsResult = {
   created: number
+  updated: number
   failures: string[]
 }
 
@@ -482,6 +636,7 @@ export async function importPatientRecordsFromExcel(
   }
 
   let created = 0
+  let updated = 0
   const failures: string[] = []
 
   for (const [index, row] of rows.entries()) {
@@ -491,14 +646,27 @@ export async function importPatientRecordsFromExcel(
       ) ?? "student"
 
     const fromFullName = splitFullName(row.full_name || row.name || "")
-    const firstName = (row.first_name || fromFullName.firstName).trim()
-    const lastName = (row.last_name || fromFullName.lastName).trim()
-    const middleName = (row.middle_name || "").trim()
-    const studentId = (row.student_id || "").trim()
+    const firstName = (
+      row.first_name ||
+      row.firstname ||
+      fromFullName.firstName
+    ).trim()
+    const lastName = (
+      row.last_name ||
+      row.lastname ||
+      fromFullName.lastName
+    ).trim()
+    const middleName = (row.middle_name || row.middlename || "").trim()
+    const studentId = (
+      row.student_id ||
+      row.student_id_number ||
+      row.nu_quest_id ||
+      ""
+    ).trim()
     const employeeId = (row.employee_id || row.id_number || "").trim()
 
     try {
-      await createPatientRecord(
+      const result = await upsertPatientRecord(
         {
           patientType,
           studentId:
@@ -512,26 +680,52 @@ export async function importPatientRecordsFromExcel(
           firstName,
           middleName: middleName || null,
           lastName,
-          course: (row.course || row.department || "").trim() || null,
+          course: (row.course || "").trim() || null,
           yearLevel: (row.year_level || "").trim() || null,
           gender: (row.gender || row.sex || "").trim() || null,
-          birthDate: (row.birth_date || row.date_of_birth || row.dob || "").trim() || null,
+          birthDate:
+            (
+              row.birth_date ||
+              row.date_of_birth ||
+              row.dob ||
+              ""
+            ).trim() || null,
           bloodType: (row.blood_type || "").trim() || null,
           allergies: (row.allergies || "").trim() || null,
-          phone: (row.phone || "").trim() || null,
-          email: (row.email || "").trim().toLowerCase() || null,
-          address: (row.address || "").trim() || null,
+          phone: (
+            row.phone ||
+            row.mobile ||
+            row.mobile_number ||
+            ""
+          ).trim() || null,
+          email: (
+            row.email ||
+            row.official_email_address ||
+            ""
+          )
+            .trim()
+            .toLowerCase() || null,
+          address: (row.address || row.present_address || "").trim() || null,
           emergencyContactName:
-            (row.emergency_contact_name || "").trim() || null,
+            (
+              row.emergency_contact_name ||
+              row.parent_guardian_name ||
+              ""
+            ).trim() || null,
           emergencyContactPhone:
-            (row.emergency_contact_phone || "").trim() || null,
+            (
+              row.emergency_contact_phone ||
+              row.guardian_mobile ||
+              ""
+            ).trim() || null,
           medicalConditions: (row.medical_conditions || "").trim() || null,
           notes: (row.notes || "").trim() || null,
           lastVisit: (row.last_visit || "").trim() || null,
         },
         client
       )
-      created += 1
+      if (result.created) created += 1
+      else updated += 1
     } catch (error) {
       const message =
         error instanceof PatientRecordServiceError
@@ -543,7 +737,7 @@ export async function importPatientRecordsFromExcel(
     }
   }
 
-  if (created === 0) {
+  if (created === 0 && updated === 0) {
     throw new PatientRecordServiceError(
       "validation",
       failures[0] ??
@@ -551,7 +745,7 @@ export async function importPatientRecordsFromExcel(
     )
   }
 
-  return { created, failures }
+  return { created, updated, failures }
 }
 
 export type { PatientType }

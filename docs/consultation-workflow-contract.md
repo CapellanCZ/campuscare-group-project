@@ -104,6 +104,43 @@ Message keys (mobile owns wording):
 - `queue.called`
 - `request.approved` | `request.declined` | `request.rescheduled`
 
+## Patient auth link (`patients.auth_user_id`)
+
+Roster import creates `patients` rows with `auth_user_id = null`. Mobile must link after OTP:
+
+1. Patient signs in (Auth OTP / magic link) → `auth.users` row exists.
+2. Call RPC **`claim_my_patient_profile()`** (authenticated).  
+   It matches `auth.users.email` → `patients.email` and sets `auth_user_id = auth.uid()`.
+3. Subsequent reads use RLS `patients_select_own` (`auth_user_id = auth.uid()`) and helper `is_enrolled_patient()`.
+
+Without the claim step, newly imported students cannot see their patient row (SELECT is blocked until linked). Staff can also backfill with:
+
+```bash
+npx tsx scripts/link-patient-auth.ts --all
+# or one email:
+npx tsx scripts/link-patient-auth.ts student@students.nu-dasma.edu.ph
+```
+
+Patients without an email cannot be Auth-linked until the roster/email is filled.
+
+## Patient vitals (BP / heart rate)
+
+Nurse intake stores visit vitals on **`health_queue_tickets`**:
+
+- `vitals_bp_systolic` / `vitals_bp_diastolic`
+- `vitals_heart_rate`
+
+Patients may `SELECT` their own tickets (`patients_select_own_queue_tickets`) when `patients.auth_user_id = auth.uid()`.
+
+Preferred mobile call after login + claim:
+
+```ts
+const { data, error } = await supabase.rpc("get_my_latest_vitals")
+// data.bloodPressure → "120/80"
+// data.heartRate → 72
+// null when no vitals recorded yet
+```
+
 ## Device tokens
 
 Table `patient_device_tokens`: register/upsert `{ patient_id | user_id, token, platform }`.  

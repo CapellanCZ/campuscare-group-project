@@ -1,133 +1,163 @@
 "use client"
 
 import Link from "next/link"
+import { useMemo, useState } from "react"
 import type { ComponentType } from "react"
 import {
-  IconBellRinging,
-  IconCertificate,
+  IconBellPlus,
   IconChartBar,
+  IconClipboardList,
+  IconDental,
+  IconHourglass,
   IconStethoscope,
   IconUsers,
+  IconUserCheck,
 } from "@tabler/icons-react"
 
 import { PageIntro } from "@/components/layout/panel-frame"
 import { StatCard } from "@/components/shared/stat-card"
+import { ReportChartCard } from "@/features/reports/components/report-chart-card"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import {
   adminElevatedCardClassName,
   adminPageShellClassName,
 } from "@/features/admin/lib/admin-surface"
+import type { AdminOpsSnapshot } from "@/features/admin/types/ops"
 import type { StaffAccess } from "@/lib/auth/types"
-import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
-import type { DashboardKpis } from "@/lib/health/types"
+import { cn } from "@/lib/utils"
 
-const KPI_ICONS: Record<
-  string,
-  ComponentType<{ className?: string; "aria-hidden"?: boolean }>
-> = {
-  staff: IconUsers,
-  announcements: IconBellRinging,
-  completed: IconStethoscope,
-  certs: IconCertificate,
+function formatLastLogin(iso: string | null) {
+  if (!iso) return "Never signed in"
+  return new Date(iso).toLocaleString("en-PH", {
+    timeZone: "Asia/Manila",
+    dateStyle: "medium",
+    timeStyle: "short",
+  })
 }
 
-function kpiCard(kpis: DashboardKpis, key: string) {
-  return kpis.cards.find((c) => c.key === key)
+function roleLabel(role: string) {
+  if (role === "nurse") return "Nurse"
+  if (role === "physician") return "Physician"
+  if (role === "dentist") return "Dentist"
+  return role
 }
 
-function SectionHeader({
-  title,
-  href,
-  icon: Icon,
-}: {
-  title: string
-  href: string
-  icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <div className="flex min-w-0 items-center gap-2">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-          <Icon className="size-4" aria-hidden />
-        </span>
-        <h2 className="truncate text-base font-semibold tracking-tight">
-          {title}
-        </h2>
-      </div>
-      <Button
-        size="sm"
-        variant="outline"
-        render={<Link href={href} />}
-        nativeButton={false}
-      >
-        Open
-      </Button>
-    </div>
-  )
+function statusVariant(
+  status: "active" | "invited" | "inactive"
+): "default" | "secondary" | "outline" {
+  if (status === "active") return "default"
+  if (status === "invited") return "secondary"
+  return "outline"
 }
 
 export function AdminDashboardView({
   access,
-  kpis,
-  summary,
+  ops,
 }: {
   access: StaffAccess
-  kpis: DashboardKpis
-  summary: RoleDashboardSummary
+  ops: AdminOpsSnapshot
 }) {
   const firstName = access.fullName.split(" ")[0] || access.fullName
-  const staff = summary.staffSummary
-  const clinicStaffTotal =
-    (staff?.nurses ?? 0) + (staff?.physicians ?? 0) + (staff?.dentists ?? 0)
+  const [trendMode, setTrendMode] = useState<"daily" | "weekly" | "monthly">(
+    "daily"
+  )
 
-  const reportCards = [
-    kpiCard(kpis, "completed"),
-    kpiCard(kpis, "certs"),
-    kpiCard(kpis, "announcements"),
-  ].filter((c): c is NonNullable<typeof c> => Boolean(c))
+  const deltaConsult =
+    ops.summary.consultationsToday - ops.summary.consultationsYesterday
 
-  const announcementStats = summary.announcements.stats ?? {
-    published: summary.announcements.publishedCount,
-    scheduled: 0,
-    drafts: 0,
-    total: summary.announcements.publishedCount,
-  }
+  const trendSeries = useMemo(() => {
+    const points =
+      trendMode === "weekly"
+        ? ops.consultationTrend.weekly
+        : trendMode === "monthly"
+          ? ops.consultationTrend.monthly
+          : ops.consultationTrend.daily
+    return {
+      key: "consult_overview",
+      title: "Consultation overview",
+      description: "Medical vs dental volume",
+      kind: "multiline" as const,
+      points,
+    }
+  }, [ops.consultationTrend, trendMode])
 
-  /** Same four cards as Announcements tab (Visible Now / Upcoming / Unpublished / All). */
-  const announcementCards = [
+  const summaryCards: Array<{
+    key: string
+    label: string
+    value: string
+    description?: string
+    delta?: number
+    icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>
+  }> = [
     {
-      key: "published",
-      label: "Published",
-      value: String(announcementStats.published),
-      description: "Visible now",
+      key: "consults",
+      label: "Consultations today",
+      value: String(ops.summary.consultationsToday),
+      description: "All recorded visits",
+      delta: deltaConsult,
+      icon: IconStethoscope,
     },
     {
-      key: "scheduled",
-      label: "Scheduled",
-      value: String(announcementStats.scheduled),
-      description: "Upcoming",
+      key: "served",
+      label: "Patients served today",
+      value: String(ops.summary.patientsServedToday),
+      description: "Completed queue tickets",
+      icon: IconUserCheck,
     },
     {
-      key: "draft",
-      label: "Drafts",
-      value: String(announcementStats.drafts),
-      description: "Unpublished",
+      key: "pending",
+      label: "Pending requests",
+      value: String(ops.summary.pendingRequests),
+      description: "Awaiting nurse action",
+      icon: IconClipboardList,
     },
     {
-      key: "total",
-      label: "Total",
-      value: String(announcementStats.total),
-      description: "All notices",
+      key: "queue",
+      label: "Patients in queue",
+      value: String(ops.summary.patientsInQueue),
+      description: "Currently waiting",
+      icon: IconHourglass,
+    },
+    {
+      key: "medical",
+      label: "Medical consultations",
+      value: String(ops.summary.medicalToday),
+      description: "Physician visits today",
+      icon: IconStethoscope,
+    },
+    {
+      key: "dental",
+      label: "Dental consultations",
+      value: String(ops.summary.dentalToday),
+      description: "Dentist visits today",
+      icon: IconDental,
     },
   ]
 
   return (
     <div className={adminPageShellClassName("gap-8")}>
-      <PageIntro title={`Welcome back, ${firstName}`} />
+      <PageIntro
+        title={`Welcome back, ${firstName}`}
+        description="Live HSO operations overview — aggregated clinic metrics only."
+      />
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {kpis.cards.slice(0, 4).map((card) => {
-          const Icon = KPI_ICONS[card.key] ?? IconUsers
+      {ops.error ? (
+        <p className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {ops.error}
+        </p>
+      ) : null}
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {summaryCards.map((card) => {
+          const Icon = card.icon
           return (
             <StatCard
               key={card.key}
@@ -135,6 +165,7 @@ export function AdminDashboardView({
               label={card.label}
               value={card.value}
               description={card.description}
+              delta={card.delta}
               icon={<Icon className="size-4" aria-hidden />}
             />
           )
@@ -142,85 +173,174 @@ export function AdminDashboardView({
       </section>
 
       <section className="flex flex-col gap-3">
-        <SectionHeader
-          title="Reports"
-          href="/admin/reports"
-          icon={IconChartBar}
-        />
-        <div className="grid gap-4 sm:grid-cols-3">
-          {reportCards.map((card) => {
-            const Icon = KPI_ICONS[card.key] ?? IconChartBar
-            return (
-              <StatCard
-                key={`reports-${card.key}`}
-                className={adminElevatedCardClassName}
-                label={card.label}
-                value={card.value}
-                description={card.description}
-                href="/admin/reports"
-                icon={<Icon className="size-4" aria-hidden />}
-              />
-            )
-          })}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-base font-semibold tracking-tight">
+            Consultation overview
+          </h2>
+          <div className="flex flex-wrap gap-1 rounded-lg border p-1">
+            {(["daily", "weekly", "monthly"] as const).map((mode) => (
+              <Button
+                key={mode}
+                size="sm"
+                variant={trendMode === mode ? "default" : "ghost"}
+                className="capitalize"
+                onClick={() => setTrendMode(mode)}
+              >
+                {mode}
+              </Button>
+            ))}
+          </div>
         </div>
+        <ReportChartCard series={trendSeries} elevated />
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <ReportChartCard
+          elevated
+          series={{
+            key: "patient_type",
+            title: "Patient type distribution",
+            description: "Patients served today",
+            kind: "pie",
+            points: ops.patientType,
+          }}
+        />
+        <ReportChartCard
+          elevated
+          series={{
+            key: "utilization",
+            title: "Medical vs dental utilization",
+            description: "Consultations recorded today",
+            kind: "hbar",
+            points: ops.utilization,
+          }}
+        />
       </section>
 
       <section className="flex flex-col gap-3">
-        <SectionHeader
-          title="Announcements"
-          href="/admin/announcements"
-          icon={IconBellRinging}
-        />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {announcementCards.map((card) => (
-            <StatCard
-              key={`announcements-${card.key}`}
-              className={adminElevatedCardClassName}
-              label={card.label}
-              value={card.value}
-              description={card.description}
-              href="/admin/announcements"
-            />
-          ))}
+        <h2 className="text-base font-semibold tracking-tight">Queue overview</h2>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            className={adminElevatedCardClassName}
+            label="Average waiting time"
+            value={`${ops.queue.avgWaitMinutes} min`}
+          />
+          <StatCard
+            className={adminElevatedCardClassName}
+            label="Average service time"
+            value={`${ops.queue.avgServiceMinutes} min`}
+          />
+          <StatCard
+            className={adminElevatedCardClassName}
+            label="Patients waiting"
+            value={String(ops.queue.waiting)}
+          />
+          <StatCard
+            className={adminElevatedCardClassName}
+            label="Patients served"
+            value={String(ops.queue.served)}
+          />
         </div>
+        <ReportChartCard
+          elevated
+          series={{
+            key: "hourly_queue",
+            title: "Queue volume by hour",
+            description: ops.queue.peakHourLabel
+              ? `Peak around ${ops.queue.peakHourLabel}`
+              : "Tickets created today (Manila time)",
+            kind: "bar",
+            points: ops.queue.hourlyVolume,
+          }}
+        />
       </section>
 
       <section className="flex flex-col gap-3">
-        <SectionHeader
-          title="Clinic Staff"
-          href="/admin/user-management/staff"
-          icon={IconStethoscope}
+        <h2 className="text-base font-semibold tracking-tight">
+          Consultation request status
+        </h2>
+        <ReportChartCard
+          elevated
+          series={{
+            key: "request_status",
+            title: "Request status volume",
+            description: "Mapped from appointment workflow statuses",
+            kind: "bar",
+            points: ops.requestStatus,
+          }}
         />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard
-            className={adminElevatedCardClassName}
-            label="Staff accounts"
-            value={String(clinicStaffTotal)}
-            description="Nurses, physicians, dentists"
-            href="/admin/user-management/staff"
-            icon={<IconStethoscope className="size-4" aria-hidden />}
-          />
-          <StatCard
-            className={adminElevatedCardClassName}
-            label="Active"
-            value={String(staff?.active ?? 0)}
-            description="Signed in across roles"
-            href="/admin/user-management/staff"
-          />
-          <StatCard
-            className={adminElevatedCardClassName}
-            label="Invited"
-            value={String(staff?.invited ?? 0)}
-            description="Invite pending"
-            href="/admin/user-management/staff"
-          />
-          <StatCard
-            className={adminElevatedCardClassName}
-            label="By role"
-            value={`${staff?.nurses ?? 0} / ${staff?.physicians ?? 0} / ${staff?.dentists ?? 0}`}
-            description="Nurse · Physician · Dentist"
-            href="/admin/user-management/staff"
-          />
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-base font-semibold tracking-tight">
+            Clinic staff status
+          </h2>
+          <Button
+            size="sm"
+            variant="outline"
+            render={<Link href="/admin/user-management/staff" />}
+            nativeButton={false}
+          >
+            Manage staff
+          </Button>
+        </div>
+        {ops.staff.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No clinic staff accounts found.
+          </p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {ops.staff.map((person) => (
+              <Card
+                key={person.id}
+                className={cn(adminElevatedCardClassName, "shadow-none")}
+              >
+                <CardHeader className="pb-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <CardTitle className="truncate text-base">
+                        {person.fullName}
+                      </CardTitle>
+                      <CardDescription>{roleLabel(person.role)}</CardDescription>
+                    </div>
+                    <Badge variant={statusVariant(person.status)} className="capitalize">
+                      {person.status}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="text-sm text-muted-foreground">
+                  Last login: {formatLastLogin(person.lastSignInAt)}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-base font-semibold tracking-tight">Quick actions</h2>
+        <div className="flex flex-wrap gap-2">
+          <Button render={<Link href="/admin/reports" />} nativeButton={false}>
+            <IconChartBar className="size-4" />
+            View Reports
+          </Button>
+          <Button
+            variant="outline"
+            render={<Link href="/admin/user-management/staff" />}
+            nativeButton={false}
+          >
+            <IconUsers className="size-4" />
+            Manage Clinic Staff
+          </Button>
+          <Button
+            variant="outline"
+            render={<Link href="/admin/announcements" />}
+            nativeButton={false}
+          >
+            <IconBellPlus className="size-4" />
+            Create Announcement
+          </Button>
         </div>
       </section>
     </div>

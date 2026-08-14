@@ -2,13 +2,8 @@ import "server-only"
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import {
-  listEnrolledStudents,
-  lookupEnrolledStudentById,
-  normalizeStudentId,
-} from "@/lib/students/enrolled-dataset"
-import { enrolledToPatientRecord } from "@/lib/students/map-enrolled-student"
 import { PATIENT_RECORD_SELECT_COLUMNS } from "@/lib/students/patient-record-select"
+import { normalizeStudentId } from "@/lib/students/enrolled-dataset"
 import { NO_STUDENT_FOUND } from "@/lib/students/types"
 import { createClient } from "@/lib/supabase/server"
 import {
@@ -42,6 +37,23 @@ function mapClinical(row: PatientRow): PatientRecord {
     consultations_count: consultationCount(row.consultations ?? null),
     documents_count: 0,
   })
+}
+
+function matchesQuery(patient: PatientRecord, query: string): boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  const haystack = [
+    patient.firstName,
+    patient.middleName ?? "",
+    patient.lastName,
+    patient.studentId ?? "",
+    patient.employeeId ?? "",
+    patient.course ?? "",
+    patient.patientType,
+  ]
+    .join(" ")
+    .toLowerCase()
+  return haystack.includes(q)
 }
 
 function comparePatients(
@@ -110,34 +122,9 @@ async function attachEditorNames(
   }))
 }
 
-async function loadClinicalByStudentId(
-  client: SupabaseClient
-): Promise<Map<string, PatientRecord>> {
-  const { data, error } = await client
-    .from("patient_records")
-    .select(`${PATIENT_RECORD_SELECT_COLUMNS}, consultations(count)`)
-    .eq("patient_type", "student")
-
-  if (error) {
-    throw new PatientRecordServiceError(
-      "database",
-      error.message || "Could not load clinical patient records."
-    )
-  }
-
-  const mapped = ((data ?? []) as PatientRow[]).map(mapClinical)
-  const withNames = await attachEditorNames(mapped, client)
-  const map = new Map<string, PatientRecord>()
-  for (const clinical of withNames) {
-    const studentId = clinical.studentId?.trim()
-    if (studentId) map.set(studentId, clinical)
-  }
-  return map
-}
-
 /**
- * Patient directory: enrolled CSV students only (faculty / non-teaching out of scope).
- * Optional query = Student ID partial match (includes) while typing.
+ * Patient directory from `patient_records` (imported roster).
+ * Optional query matches campus ID / name / course.
  */
 export async function listDirectoryPatientRecords(
   params: PatientRecordListParams = {},
@@ -146,30 +133,45 @@ export async function listDirectoryPatientRecords(
   const supabase = client ?? (await createClient())
   const page = Math.max(1, params.page ?? 1)
   const pageSize = Math.min(50, Math.max(1, params.pageSize ?? DEFAULT_PAGE_SIZE))
-  const query = normalizeStudentId(params.query ?? "")
+  const query = (params.query ?? "").trim()
+  const patientTypeFilter = params.patientType ?? "all"
   const sortBy = params.sortBy ?? "patient"
   const sortDir = params.sortDir ?? "asc"
 
-  const [enrolledAll, clinicalMap] = await Promise.all([
-    listEnrolledStudents(),
-    loadClinicalByStudentId(supabase),
-  ])
+  const { data, error } = await supabase
+    .from("patient_records")
+    .select(`${PATIENT_RECORD_SELECT_COLUMNS}, consultations(count)`)
+    .order("last_name", { ascending: true })
+    .order("first_name", { ascending: true })
 
-  const enrolled = query
-    ? enrolledAll.filter((student) => student.studentId.includes(query))
-    : enrolledAll
-
-  if (query && enrolled.length === 0) {
-    throw new PatientRecordServiceError("not_found", NO_STUDENT_FOUND)
+  if (error) {
+    throw new PatientRecordServiceError(
+      "database",
+      error.message || "Could not load patient records."
+    )
   }
 
-  let items = enrolled.map((student) =>
-    enrolledToPatientRecord(student, clinicalMap.get(student.studentId) ?? null)
-  )
+  let items = ((data ?? []) as PatientRow[]).map(mapClinical)
+  items = await attachEditorNames(items, supabase)
+
+  if (patientTypeFilter !== "all") {
+    items = items.filter((item) => item.patientType === patientTypeFilter)
+  }
+  if (query) {
+    const normalizedId = normalizeStudentId(query)
+    items = items.filter(
+      (item) =>
+        matchesQuery(item, query) ||
+        (normalizedId &&
+          (item.studentId?.includes(normalizedId) ||
+            item.employeeId?.includes(normalizedId)))
+    )
+  }
+
   items = [...items].sort((a, b) => comparePatients(a, b, sortBy, sortDir))
 
   const total = items.length
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1)
   const safePage = Math.min(page, totalPages)
   const start = (safePage - 1) * pageSize
 
@@ -188,22 +190,32 @@ export async function getDirectoryPatientRecordStats(
   const supabase = client ?? (await createClient())
   const { start, end } = manilaMonthBounds()
 
-  const [enrolled, visitedResult, allergiesResult] = await Promise.all([
-    listEnrolledStudents(),
-    supabase
-      .from("patient_records")
-      .select("id", { count: "exact", head: true })
-      .eq("patient_type", "student")
-      .gte("last_visit", start)
-      .lt("last_visit", end),
-    supabase
-      .from("patient_records")
-      .select("id", { count: "exact", head: true })
-      .eq("patient_type", "student")
-      .not("allergies", "is", null)
-      .neq("allergies", ""),
-  ])
+  const [allResult, visitedResult, allergiesResult, documentsResult] =
+    await Promise.all([
+      supabase
+        .from("patient_records")
+        .select("id", { count: "exact", head: true }),
+      supabase
+        .from("patient_records")
+        .select("id", { count: "exact", head: true })
+        .gte("last_visit", start)
+        .lt("last_visit", end),
+      supabase
+        .from("patient_records")
+        .select("id", { count: "exact", head: true })
+        .not("allergies", "is", null)
+        .neq("allergies", ""),
+      supabase
+        .from("medical_certificates")
+        .select("id", { count: "exact", head: true }),
+    ])
 
+  if (allResult.error) {
+    throw new PatientRecordServiceError(
+      "database",
+      allResult.error.message || "Could not load patient stats."
+    )
+  }
   if (visitedResult.error) {
     throw new PatientRecordServiceError(
       "database",
@@ -216,39 +228,37 @@ export async function getDirectoryPatientRecordStats(
       allergiesResult.error.message || "Could not load allergy stats."
     )
   }
+  if (documentsResult.error) {
+    throw new PatientRecordServiceError(
+      "database",
+      documentsResult.error.message || "Could not load document stats."
+    )
+  }
 
   return {
-    patientsOnFile: enrolled.length,
+    patientsOnFile: allResult.count ?? 0,
     visitedThisMonth: visitedResult.count ?? 0,
     flaggedAllergies: allergiesResult.count ?? 0,
-    documents: 0,
+    documents: documentsResult.count ?? 0,
   }
 }
 
+/** Options for pickers — from imported patient_records only. */
 export async function listEnrolledPatientOptions(
   query = "",
   client?: SupabaseClient
 ): Promise<PatientRecord[]> {
-  const id = normalizeStudentId(query)
-  if (!id) {
-    const result = await listDirectoryPatientRecords(
-      { page: 1, pageSize: 50, patientType: "student" },
-      client
-    )
-    return result.items
-  }
-
-  const enrolled = await lookupEnrolledStudentById(id)
-  if (!enrolled) {
+  const result = await listDirectoryPatientRecords(
+    {
+      page: 1,
+      pageSize: 50,
+      query,
+      patientType: "all",
+    },
+    client
+  )
+  if (query.trim() && result.items.length === 0) {
     throw new PatientRecordServiceError("not_found", NO_STUDENT_FOUND)
   }
-
-  const supabase = client ?? (await createClient())
-  const clinicalMap = await loadClinicalByStudentId(supabase)
-  return [
-    enrolledToPatientRecord(
-      enrolled,
-      clinicalMap.get(enrolled.studentId) ?? null
-    ),
-  ]
+  return result.items
 }

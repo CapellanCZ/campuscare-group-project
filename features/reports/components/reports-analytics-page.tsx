@@ -8,6 +8,7 @@ import { AdminReportsView } from "@/features/reports/components/admin-reports-vi
 import { ReportChartCard } from "@/features/reports/components/report-chart-card"
 import { ReportDataTable } from "@/features/reports/components/report-data-table"
 import { ReportsFilterBar } from "@/features/reports/components/reports-filter-bar"
+import type { AdminReportsAggregates } from "@/features/admin/types/ops"
 import {
   PageIntro,
   PanelCell,
@@ -47,14 +48,34 @@ export function ReportsAnalyticsPage({
   access,
   initialBundle,
   initialAnnouncements,
+  initialAdminFilters,
+  initialAdminAggregates,
 }: {
   access: StaffAccess
-  initialBundle: ReportsBundle
+  initialBundle?: ReportsBundle
   initialAnnouncements?: AnnouncementListResult
+  initialAdminFilters?: ReportFilters
+  initialAdminAggregates?: AdminReportsAggregates
 }) {
-  if (access.designation === "admin") {
+  if (
+    access.designation === "admin" &&
+    initialAdminFilters &&
+    initialAdminAggregates
+  ) {
     return (
-      <AdminReportsView access={access} initialBundle={initialBundle} />
+      <AdminReportsView
+        access={access}
+        initialFilters={initialAdminFilters}
+        initialAggregates={initialAdminAggregates}
+      />
+    )
+  }
+
+  if (!initialBundle) {
+    return (
+      <p className="p-6 text-sm text-muted-foreground">
+        Reports data is unavailable.
+      </p>
     )
   }
 

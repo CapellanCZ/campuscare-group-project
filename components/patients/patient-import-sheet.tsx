@@ -124,7 +124,9 @@ export function PatientImportSheet({
         <SheetHeader>
           <SheetTitle>Import patients</SheetTitle>
           <SheetDescription>
-            Upload an Excel roster of students and faculty into Patient Records.
+            Upload an Excel or CSV roster. Rows upsert into Patient Records and
+            the operational patients table by student/employee ID. NU campus
+            student datasets (BASIC INFORMATION header) are supported.
           </SheetDescription>
         </SheetHeader>
         <form
@@ -132,12 +134,13 @@ export function PatientImportSheet({
           onSubmit={onSubmit}
         >
           <p className="text-sm text-muted-foreground">
-            Columns:{" "}
+            Template columns:{" "}
             <span className="font-medium text-foreground">
               patient_type, student_id, employee_id, first_name, last_name,
               course
             </span>{" "}
-            (student | faculty)
+            (student | faculty). Campus rosters with Student ID Number / First
+            Name / Last Name also work.
           </p>
           <Button
             type="button"
