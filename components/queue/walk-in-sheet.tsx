@@ -18,6 +18,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet"
 import { CONSULTATION_TYPE_OPTIONS } from "@/lib/health/form-options"
+import { formatStudentIdInput } from "@/lib/students/student-id-input"
 import { actionRegisterWalkIn } from "@/lib/health/queue-server-actions"
 import { IconUserPlus } from "@tabler/icons-react"
 
@@ -131,10 +132,12 @@ export function WalkInSheet({
             <Input
               id="walkin-campus"
               value={campusId}
-              onChange={(e) => setCampusId(e.target.value)}
+              onChange={(e) => setCampusId(formatStudentIdInput(e.target.value))}
               placeholder="2023-171863"
               disabled={pending}
               autoComplete="off"
+              inputMode="numeric"
+              maxLength={11}
             />
           </Field>
           <SelectWithOtherField

@@ -242,7 +242,7 @@ export async function getConsultationStats(
   const supabase = await getClient(client)
   const { startIso, endIso } = manilaDayBounds()
 
-  const [openResult, awaitingResult, inProgressResult, completedResult] =
+  const [openResult, waitingResult, ongoingResult, completedResult] =
     await Promise.all([
       supabase
         .from("consultations")
@@ -252,28 +252,28 @@ export async function getConsultationStats(
       supabase
         .from("consultations")
         .select("id", { count: "exact", head: true })
-        .eq("status", "Awaiting Assessment"),
+        .eq("status", "waiting"),
       supabase
         .from("consultations")
         .select("id", { count: "exact", head: true })
-        .eq("status", "In Progress"),
+        .eq("status", "ongoing"),
       supabase
         .from("consultations")
         .select("id", { count: "exact", head: true })
-        .eq("status", "Completed")
+        .eq("status", "completed")
         .gte("updated_at", startIso)
         .lte("updated_at", endIso),
     ])
 
   if (openResult.error) mapError(openResult.error)
-  if (awaitingResult.error) mapError(awaitingResult.error)
-  if (inProgressResult.error) mapError(inProgressResult.error)
+  if (waitingResult.error) mapError(waitingResult.error)
+  if (ongoingResult.error) mapError(ongoingResult.error)
   if (completedResult.error) mapError(completedResult.error)
 
   return {
     openToday: openResult.count ?? 0,
-    awaitingAssessment: awaitingResult.count ?? 0,
-    inProgress: inProgressResult.count ?? 0,
+    awaitingAssessment: waitingResult.count ?? 0,
+    inProgress: ongoingResult.count ?? 0,
     completedToday: completedResult.count ?? 0,
   }
 }

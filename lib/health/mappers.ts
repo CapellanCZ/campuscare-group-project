@@ -47,6 +47,7 @@ export type RawQueueTicket = {
   intake_notes: string | null
   intake_completed_at: string | null
   consultation_request_id?: string | null
+  consultation_id?: string | null
   provider_type?: string | null
   patients?:
     | {
@@ -121,8 +122,9 @@ export function patientTypeLabel(type: PatientType | null | undefined) {
 }
 
 export function ticketLabel(queueNumber: number | null, ticketCode: string) {
+  if (/^[MD]-\d+$/i.test(ticketCode)) return ticketCode
   if (queueNumber != null) {
-    return String(queueNumber).padStart(4, "0")
+    return String(queueNumber).padStart(3, "0")
   }
   return ticketCode
 }
@@ -204,6 +206,7 @@ export function mapTicketRow(
     intakeNotes: raw.intake_notes,
     priority: "normal",
     consultationRequestId: raw.consultation_request_id ?? null,
+    consultationId: raw.consultation_id ?? null,
     providerType,
   }
 }

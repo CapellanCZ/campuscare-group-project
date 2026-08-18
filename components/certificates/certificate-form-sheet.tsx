@@ -14,6 +14,7 @@ import {
 } from "@/features/patients/actions"
 import { certificateStatusLabel } from "@/features/certificates/lib/format"
 import { isEnrolledVirtualId } from "@/lib/students/virtual-id"
+import { formatStudentIdInput } from "@/lib/students/student-id-input"
 import { NO_STUDENT_FOUND } from "@/lib/students/types"
 import { DENTIST_PATIENT_SEARCH_PLACEHOLDER } from "@/lib/students/patient-search-copy"
 import { useOptionalStaffAccess } from "@/components/staff-access-provider"
@@ -256,7 +257,7 @@ function PatientSearchSelect({
           <CommandInput
             placeholder={searchPlaceholder}
             value={query}
-            onValueChange={setQuery}
+            onValueChange={(value) => setQuery(formatStudentIdInput(value))}
           />
           <CommandList>
             <CommandEmpty>

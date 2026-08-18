@@ -587,7 +587,7 @@ export function ConsultationsPage({
                             </Button>
                           ) : null}
                           {can(d, "consultations.create_record") &&
-                          row.status !== "Completed" ? (
+                          row.status !== "completed" ? (
                             <Button
                               type="button"
                               size="xs"
@@ -640,14 +640,14 @@ export function ConsultationsPage({
                             </Button>
                           ) : null}
                           {can(d, "consultations.complete") &&
-                          row.status !== "Completed" ? (
+                          row.status !== "completed" ? (
                             <Button
                               size="xs"
                               variant="secondary"
                               onClick={() =>
                                 void patchConsultation(
                                   row,
-                                  { status: "Completed" },
+                                  { status: "completed" },
                                   "Consultation completed."
                                 )
                               }

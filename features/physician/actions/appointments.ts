@@ -189,8 +189,9 @@ export async function startConsultation(
     .update({ status: "in_progress" })
     .eq("id", appointmentId)
 
+  // Check if consultation already exists for this appointment
   const { data: existing } = await supabase
-    .from("appointment_consultations")
+    .from("consultations")
     .select("id")
     .eq("appointment_id", appointmentId)
     .maybeSingle()
@@ -201,14 +202,22 @@ export async function startConsultation(
     return { ok: true, consultationId: existing.id }
   }
 
+  // Create consultation record as source of truth
   const { data: created, error } = await supabase
-    .from("appointment_consultations")
+    .from("consultations")
     .insert({
       appointment_id: appointmentId,
-      clinic_id: appointment.clinic_id,
-      doctor_id: access.userId,
       patient_id: appointment.patient_id,
-      started_at: new Date().toISOString(),
+      provider_type: "physician",
+      status: "ongoing",
+      priority: "Normal",
+      chief_complaint: "",
+      symptoms: "",
+      assessment: "",
+      diagnosis: "",
+      treatment: "",
+      prescription: "",
+      consultation_date: new Date().toISOString(),
     })
     .select("id")
     .single()
@@ -237,21 +246,21 @@ export async function saveConsultation(input: {
 
   const supabase = await createClient()
 
+  // Update the consultation record in the consultations table
   const payload = {
     symptoms: input.symptoms.trim(),
+    assessment: input.clinicalNotes.trim(),
     diagnosis: input.diagnosis.trim(),
-    clinical_notes: input.clinicalNotes.trim(),
+    treatment: input.prescription.trim(),
     prescription: input.prescription.trim(),
-    ...(input.complete
-      ? { completed_at: new Date().toISOString() }
-      : {}),
+    status: input.complete ? "completed" : "ongoing",
+    updated_at: new Date().toISOString(),
   }
 
   const { error } = await supabase
-    .from("appointment_consultations")
+    .from("consultations")
     .update(payload)
     .eq("appointment_id", input.appointmentId)
-    .eq("doctor_id", access.userId)
 
   if (error) {
     return { ok: false, error: error.message }

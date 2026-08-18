@@ -589,21 +589,39 @@ export async function StaffSettingsPage() {
     const { getClinicCapacities } = await import(
       "@/services/consultation-capacity"
     )
+    const { getClinicHours, getStaffWeeklyHours } = await import(
+      "@/lib/availability/queries"
+    )
     const { ConsultationCapacitySettings } = await import(
       "@/features/admin/components/consultation-capacity-settings"
     )
-    const capacities = await getClinicCapacities()
+    const { StaffSchedulePage } = await import(
+      "@/features/availability/components/staff-schedule-page"
+    )
+    const [capacities, availability, clinicHours] = await Promise.all([
+      getClinicCapacities(),
+      getStaffWeeklyHours(access.userId),
+      getClinicHours(),
+    ])
     return (
-      <ProfileSettingsPage
-        profile={profile}
-        preferences={preferences}
-        rightColumnExtras={
-          <ConsultationCapacitySettings
-            initial={capacities}
-            elevated={false}
-          />
-        }
-      />
+      <div className="flex flex-1 flex-col gap-8">
+        <ProfileSettingsPage
+          profile={profile}
+          preferences={preferences}
+          rightColumnExtras={
+            <ConsultationCapacitySettings
+              initial={capacities}
+              elevated={false}
+            />
+          }
+        />
+        <StaffSchedulePage
+          doctorName={access.fullName}
+          availability={availability}
+          clinicHours={clinicHours}
+          embeddedInSettings
+        />
+      </div>
     )
   }
 

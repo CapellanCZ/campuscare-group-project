@@ -171,22 +171,23 @@ export async function loadPhysicianWorkspace(): Promise<PhysicianWorkspace> {
     })) ?? []
 
   const { data: consultationRows } = await supabase
-    .from("appointment_consultations")
+    .from("consultations")
     .select(
       `
       id,
       appointment_id,
       patient_id,
       symptoms,
+      assessment,
       diagnosis,
-      clinical_notes,
+      treatment,
       prescription,
-      started_at,
-      completed_at,
+      status,
+      created_at,
       patients ( full_name )
     `
     )
-    .eq("doctor_id", access.userId)
+    .eq("provider_type", "physician")
     .order("created_at", { ascending: false })
 
   const consultations: PhysicianConsultation[] =
@@ -196,15 +197,15 @@ export async function loadPhysicianWorkspace(): Promise<PhysicianWorkspace> {
       )
       return {
         id: c.id,
-        appointmentId: c.appointment_id,
+        appointmentId: c.appointment_id ?? "",
         patientId: c.patient_id,
         patientName: patient?.full_name ?? "Unknown patient",
         symptoms: c.symptoms ?? "",
         diagnosis: c.diagnosis ?? "",
-        clinicalNotes: c.clinical_notes ?? "",
+        clinicalNotes: c.assessment ?? "",
         prescription: c.prescription ?? "",
-        startedAt: c.started_at,
-        completedAt: c.completed_at,
+        startedAt: c.created_at,
+        completedAt: c.status === "completed" ? c.created_at : null,
       }
     }) ?? []
 

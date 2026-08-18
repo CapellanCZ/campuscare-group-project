@@ -386,6 +386,26 @@ export async function completeNurseIntakeAndAssign(params: {
     .eq("id", ticket.id)
 
   if (error) return { ok: false, error: error.message }
+
+  // Update consultation status to ongoing when nurse completes intake
+  if (ticket.consultation_request_id) {
+    const { data: consultation } = await supabase
+      .from("consultations")
+      .select("id")
+      .eq("consultation_request_id", ticket.consultation_request_id)
+      .maybeSingle()
+    
+    if (consultation) {
+      await supabase
+        .from("consultations")
+        .update({
+          status: "ongoing",
+          updated_at: now,
+        })
+        .eq("id", consultation.id)
+    }
+  }
+
   return {
     ok: true,
     message: `Intake saved. Assigned to ${toStation} queue.`,
@@ -579,6 +599,9 @@ export async function releaseConsultationReservation(params: {
 /**
  * Nurse approves a consultation request that already holds a reserved queue
  * number from patient submit. Does not create a second ticket.
+ * 
+ * NEW BEHAVIOR: Creates a consultation record in the consultations table with
+ * status='waiting' when the request is approved.
  */
 export async function approveConsultationRequest(params: {
   designation: ClinicDesignation
@@ -603,7 +626,7 @@ export async function approveConsultationRequest(params: {
   const { data: request } = await supabase
     .from("consultation_requests")
     .select(
-      "id, status, queue_ticket_id, queue_number, provider_type, service, preferred_date"
+      "id, status, queue_ticket_id, queue_number, provider_type, service, preferred_date, patient_record_id, reason, student_id"
     )
     .eq("id", params.requestId)
     .maybeSingle()
@@ -640,6 +663,50 @@ export async function approveConsultationRequest(params: {
   }
 
   const now = new Date().toISOString()
+  
+  // Get the patient_record_id - use existing or look up from student_id
+  let patientRecordId = request.patient_record_id as string | null
+  if (!patientRecordId && request.student_id) {
+    const { data: patientRecord } = await supabase
+      .from("patient_records")
+      .select("id")
+      .eq("student_id", request.student_id)
+      .maybeSingle()
+    patientRecordId = patientRecord?.id ?? null
+  }
+
+  // Create consultation record if patient_record_id exists
+  if (patientRecordId) {
+    const { error: consultationError } = await supabase
+      .from("consultations")
+      .insert({
+        patient_id: patientRecordId,
+        chief_complaint: (request.reason as string | null) ?? null,
+        status: "waiting",
+        provider_type: suggestedSpecialty,
+        consultation_date: now,
+        priority: "Normal",
+        consultation_request_id: request.id,
+        queue_ticket_id: ticket.id,
+      })
+    
+    if (consultationError) {
+      console.error("Failed to create consultation record:", consultationError)
+      // Don't fail the approval just because consultation creation failed
+      // Log it but continue with queue ticket update
+    }
+  }
+
+  // Update consultation request status to approved
+  await supabase
+    .from("consultation_requests")
+    .update({
+      status: "approved",
+      updated_at: now,
+    })
+    .eq("id", params.requestId)
+
+  // Update queue ticket
   await supabase
     .from("health_queue_tickets")
     .update({
@@ -655,7 +722,7 @@ export async function approveConsultationRequest(params: {
     ticketCode: ticket.ticket_code as string,
     suggestedSpecialty,
     queueNumber: (ticket.queue_number as number | null) ?? request.queue_number,
-    message: `Request approved. Reserved queue #${ticket.queue_number ?? request.queue_number} kept (${ticket.ticket_code}).`,
+    message: `Request approved. Consultation record created. Reserved queue #${ticket.queue_number ?? request.queue_number} kept (${ticket.ticket_code}).`,
   }
 }
 

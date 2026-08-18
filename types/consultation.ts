@@ -1,8 +1,8 @@
 export const CONSULTATION_STATUSES = [
-  "Awaiting Assessment",
-  "In Progress",
-  "Completed",
-  "Cancelled",
+  "waiting",
+  "ongoing",
+  "completed",
+  "cancelled",
 ] as const
 
 export const CONSULTATION_PRIORITIES = [
@@ -52,6 +52,9 @@ export type Consultation = {
   notes: string | null
   queueTicketId: string | null
   consultationRequestId: string | null
+  appointmentId: string | null
+  providerType: "physician" | "dentist" | null
+  vitals: Record<string, unknown>
   createdAt: string
   updatedAt: string
   patient: ConsultationPatient
@@ -76,6 +79,9 @@ export type ConsultationJson = {
   notes: string | null
   queue_ticket_id?: string | null
   consultation_request_id?: string | null
+  appointment_id?: string | null
+  provider_type?: string | null
+  vitals?: Record<string, unknown> | null
   created_at: string
   updated_at: string
   patient_records?:
@@ -143,6 +149,8 @@ export type CreateConsultationInput = {
   notes?: string | null
   queueTicketId?: string | null
   consultationRequestId?: string | null
+  appointmentId?: string | null
+  providerType?: "physician" | "dentist" | null
 }
 
 export type UpdateConsultationInput = CreateConsultationInput & {
@@ -208,13 +216,19 @@ export function consultationFromJson(json: ConsultationJson): Consultation {
     providerName: json.provider_name,
     providerRole: json.provider_role,
     station: json.station,
-    status: json.status,
+    status: normalizeConsultationStatus(json.status),
     priority: json.priority,
     consultationDate: json.consultation_date,
     followUpDate: json.follow_up_date,
     notes: json.notes,
     queueTicketId: json.queue_ticket_id ?? null,
     consultationRequestId: json.consultation_request_id ?? null,
+    appointmentId: json.appointment_id ?? null,
+    providerType:
+      json.provider_type === "dentist" || json.provider_type === "physician"
+        ? json.provider_type
+        : null,
+    vitals: json.vitals ?? {},
     createdAt: json.created_at,
     updatedAt: json.updated_at,
     patient: {
@@ -243,13 +257,15 @@ export function consultationToJson(
     provider_name: emptyToNull(input.providerName),
     provider_role: emptyToNull(input.providerRole),
     station: emptyToNull(input.station),
-    status: input.status ?? "Awaiting Assessment",
+    status: normalizeConsultationStatus(input.status ?? "waiting"),
     priority: input.priority ?? "Normal",
     consultation_date: emptyToNull(input.consultationDate) ?? new Date().toISOString(),
     follow_up_date: emptyToNull(input.followUpDate),
     notes: emptyToNull(input.notes),
     queue_ticket_id: emptyToNull(input.queueTicketId),
     consultation_request_id: emptyToNull(input.consultationRequestId),
+    appointment_id: emptyToNull(input.appointmentId),
+    provider_type: input.providerType ?? null,
   }
 }
 
@@ -260,8 +276,29 @@ export function consultationCopyWith(
   return { ...consultation, ...patch }
 }
 
+export function normalizeConsultationStatus(value: string): ConsultationStatus {
+  switch (value) {
+    case "Awaiting Assessment":
+    case "waiting":
+      return "waiting"
+    case "In Progress":
+    case "ongoing":
+      return "ongoing"
+    case "Completed":
+    case "completed":
+      return "completed"
+    case "Cancelled":
+    case "cancelled":
+      return "cancelled"
+    default:
+      return "waiting"
+  }
+}
+
 function isStatus(value: string): value is ConsultationStatus {
-  return (CONSULTATION_STATUSES as readonly string[]).includes(value)
+  return (CONSULTATION_STATUSES as readonly string[]).includes(
+    normalizeConsultationStatus(value)
+  )
 }
 
 function isPriority(value: string): value is ConsultationPriority {

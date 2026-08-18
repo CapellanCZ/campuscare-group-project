@@ -39,22 +39,37 @@ function SheetOverlay({ className, ...props }: SheetPrimitive.Backdrop.Props) {
 function SheetContent({
   className,
   children,
-  side: _side = "center",
+  side: _side = "left",
   showCloseButton = true,
   ...props
 }: SheetPrimitive.Popup.Props & {
-  /** @deprecated Sheets are centered; kept for call-site compatibility. */
-  side?: "top" | "right" | "bottom" | "left" | "center"
+  /** Side where the sheet slides in from. Defaults to left for mobile. */
+  side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
 }) {
-  void _side
+  const sideStyles = {
+    top: "inset-x-0 top-0 max-h-[50vh] rounded-b-4xl",
+    right: "inset-y-0 right-0 w-full max-w-[85vw] sm:max-w-lg rounded-l-4xl",
+    bottom: "inset-x-0 bottom-0 max-h-[50vh] rounded-t-4xl",
+    left: "inset-y-0 left-0 w-full max-w-[85vw] sm:max-w-lg rounded-r-4xl",
+  }
+
+  const animationStyles = {
+    top: "data-open:slide-in-from-top data-closed:slide-out-to-top",
+    right: "data-open:slide-in-from-right data-closed:slide-out-to-right",
+    bottom: "data-open:slide-in-from-bottom data-closed:slide-out-to-bottom",
+    left: "data-open:slide-in-from-left data-closed:slide-out-to-left",
+  }
+
   return (
     <SheetPortal>
       <SheetOverlay />
       <SheetPrimitive.Popup
         data-slot="sheet-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 flex w-full max-h-[min(92vh,960px)] max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-4xl bg-popover bg-clip-padding text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/5 duration-100 outline-none sm:max-w-lg data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed z-50 flex max-h-[min(92vh,960px)] flex-col overflow-hidden bg-popover bg-clip-padding text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/5 duration-100 outline-none data-open:animate-in data-closed:animate-out data-closed:fade-out-0",
+          sideStyles[_side],
+          animationStyles[_side],
           className
         )}
         {...props}

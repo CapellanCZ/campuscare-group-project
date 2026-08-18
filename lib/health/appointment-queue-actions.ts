@@ -6,6 +6,10 @@ import { canApproveConsultationRequest } from "@/lib/health/roles"
 import type { HealthActionResult, SpecialtyStationId } from "@/lib/health/types"
 import { createClient } from "@/lib/supabase/server"
 import { nextReservedQueueNumber } from "@/services/consultation-capacity"
+import {
+  ensureConsultationFromAppointment,
+  formatClinicQueueCode,
+} from "@/lib/health/consultation-lifecycle"
 
 function manilaDateTimeToIso(date: string, time: string): string {
   const t = time.length === 5 ? `${time}:00` : time
@@ -65,7 +69,7 @@ async function createAndLinkQueueTicket(params: {
         .maybeSingle()
     : { data: null }
 
-  const ticketCode = `CR-${String(nextNumber).padStart(4, "0")}`
+  const ticketCode = formatClinicQueueCode(providerType, nextNumber)
   const now = new Date().toISOString()
   const patientName = patient?.full_name || "Patient"
   const campusId = patient?.student_id ?? patient?.employee_id ?? null
@@ -216,6 +220,10 @@ export async function approveAppointmentReservation(params: {
     createdOnApprove = true
   }
 
+  if (!ticketId) {
+    return { ok: false, error: "Could not assign a queue ticket." }
+  }
+
   const { data: ticket } = await supabase
     .from("health_queue_tickets")
     .select("id, ticket_code, queue_number, status")
@@ -237,14 +245,17 @@ export async function approveAppointmentReservation(params: {
       forceOverCapacity: true,
     })
     if (!created.ok) return { ok: false, error: created.error }
-    return {
-      ok: true,
-      ticketCode: created.ticketCode,
-      queueNumber: created.queueNumber,
-      suggestedSpecialty: specialty,
-      message: `Appointment confirmed. Assigned queue #${created.queueNumber}.`,
-    }
+    ticketId = created.ticketId
+    ticketCode = created.ticketCode
+    queueNumber = created.queueNumber
+    createdOnApprove = true
   }
+
+  const { data: resolvedTicket } = await supabase
+    .from("health_queue_tickets")
+    .select("id, ticket_code, queue_number, status")
+    .eq("id", ticketId)
+    .maybeSingle()
 
   const now = new Date().toISOString()
   await supabase
@@ -252,22 +263,47 @@ export async function approveAppointmentReservation(params: {
     .update({
       assigned_staff_name: params.staffName,
       intake_notes: `Approved appointment ${params.appointmentId}. Specialty: ${specialty}.`,
-      status: ticket.status === "expired" ? "waiting" : ticket.status,
+      status:
+        resolvedTicket?.status === "expired"
+          ? "waiting"
+          : resolvedTicket?.status ?? "waiting",
       updated_at: now,
     })
-    .eq("id", ticket.id)
+    .eq("id", ticketId)
+
+  await supabase
+    .from("appointments")
+    .update({
+      status: "confirmed",
+      updated_at: now,
+    })
+    .eq("id", params.appointmentId)
 
   const finalNumber =
-    (ticket.queue_number as number | null) ?? queueNumber
+    (resolvedTicket?.queue_number as number | null) ?? queueNumber
+
+  const ensured = await ensureConsultationFromAppointment({
+    appointmentId: params.appointmentId,
+    ticketId,
+    queueNumber: finalNumber,
+    staffName: params.staffName,
+    client: supabase,
+  })
+  if ("error" in ensured) {
+    return { ok: false, error: ensured.error }
+  }
+
+  const displayCode =
+    ticketCode ?? (resolvedTicket?.ticket_code as string | undefined) ?? "queue"
 
   return {
     ok: true,
-    ticketCode: ticketCode ?? (ticket.ticket_code as string),
+    ticketCode: displayCode,
     queueNumber: finalNumber,
     suggestedSpecialty: specialty,
     message: createdOnApprove
-      ? `Appointment confirmed. Assigned queue #${finalNumber}.`
-      : `Appointment confirmed. Reserved queue #${finalNumber} kept.`,
+      ? `Appointment confirmed. Assigned ${displayCode}.`
+      : `Appointment confirmed. Reserved ${displayCode} kept.`,
   }
 }
 
@@ -315,17 +351,28 @@ export async function admitWaitlistedAppointment(params: {
   await supabase
     .from("appointments")
     .update({
-      status: "pending",
+      status: "confirmed",
       waitlisted_at: null,
       updated_at: now,
     })
     .eq("id", appt.id)
 
+  const ensured = await ensureConsultationFromAppointment({
+    appointmentId: appt.id as string,
+    ticketId: created.ticketId,
+    queueNumber: created.queueNumber,
+    staffName: params.staffName,
+    client: supabase,
+  })
+  if ("error" in ensured) {
+    return { ok: false, error: ensured.error }
+  }
+
   return {
     ok: true,
     ticketCode: created.ticketCode,
     queueNumber: created.queueNumber,
-    message: `Admitted as ${created.ticketCode} (queue #${created.queueNumber}).`,
+    message: `Admitted as ${created.ticketCode}.`,
   }
 }
 

@@ -13,6 +13,7 @@ import {
   listPatientOptionsAction,
 } from "@/features/patients/actions"
 import { isEnrolledVirtualId } from "@/lib/students/virtual-id"
+import { formatStudentIdInput } from "@/lib/students/student-id-input"
 import { NO_STUDENT_FOUND } from "@/lib/students/types"
 import { DENTIST_PATIENT_SEARCH_PLACEHOLDER } from "@/lib/students/patient-search-copy"
 import { SelectWithOtherField } from "@/components/shared/select-with-other-field"
@@ -113,7 +114,7 @@ const emptyForm: FormState = {
   providerName: "",
   providerRole: "",
   station: "nurse",
-  status: "Awaiting Assessment",
+  status: "waiting",
   priority: "Normal",
   consultationDate: "",
   followUpDate: "",
@@ -158,8 +159,8 @@ function toForm(
       providerRole: defaults?.providerRole ?? "",
       status:
         defaults?.station === "dentist" || defaults?.station === "physician"
-          ? "In Progress"
-          : "Awaiting Assessment",
+          ? "ongoing"
+          : "waiting",
     }
   }
   const exam = parseDentalAssessment(consultation.assessment)
@@ -346,7 +347,7 @@ export function ConsultationFormSheet({
 
   function handleSubmit(complete = false) {
     const nextForm = complete
-      ? { ...form, status: "Completed" as ConsultationStatus }
+      ? { ...form, status: "completed" as ConsultationStatus }
       : form
     const input = toInput(nextForm, dentalMode, { mode, access })
     if (!input.patientId.trim()) {
@@ -434,7 +435,7 @@ export function ConsultationFormSheet({
                           : "Search by Student ID Number"
                       }
                       value={patientQuery}
-                      onValueChange={setPatientQuery}
+                      onValueChange={(value) => setPatientQuery(formatStudentIdInput(value))}
                     />
                     <CommandList>
                       <CommandEmpty>

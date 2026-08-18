@@ -44,6 +44,9 @@ const TICKET_SELECT = `
   vitals_spo2,
   intake_notes,
   intake_completed_at,
+  consultation_request_id,
+  consultation_id,
+  provider_type,
   patients (
     id,
     full_name,

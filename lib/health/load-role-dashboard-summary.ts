@@ -208,7 +208,7 @@ async function loadRecentConsultations(
       page: 1,
       pageSize: 20,
       station: station ?? "all",
-      status: "Completed",
+      status: "completed",
     })
     return list.items.slice(0, limit).map((c) => ({
       id: c.id,

@@ -54,6 +54,7 @@ export type QueueTicketRow = {
   intakeNotes: string | null
   priority: "normal" | "urgent"
   consultationRequestId: string | null
+  consultationId: string | null
   providerType: SpecialtyStationId | null
 }
 
