@@ -42,11 +42,15 @@ const TICKET_SELECT = `
   vitals_heart_rate,
   vitals_temperature_c,
   vitals_spo2,
+  vitals_height_cm,
+  vitals_weight_kg,
+  vitals_respiratory_rate,
   intake_notes,
   intake_completed_at,
   consultation_request_id,
   consultation_id,
   provider_type,
+  patient_type,
   patients (
     id,
     full_name,
@@ -381,4 +385,105 @@ export async function getPublicQueueSnapshot(): Promise<{
     totalWaiting: tickets.filter((t) => t.status === "waiting").length,
     clinicBreak,
   }
+}
+
+function ticketHasAnyVitals(row: {
+  vitals_bp_systolic: number | null
+  vitals_bp_diastolic: number | null
+  vitals_heart_rate: number | null
+  vitals_temperature_c: number | null
+  vitals_spo2: number | null
+  vitals_height_cm: number | null
+  vitals_weight_kg: number | null
+  vitals_respiratory_rate: number | null
+}): boolean {
+  return (
+    row.vitals_bp_systolic != null ||
+    row.vitals_bp_diastolic != null ||
+    row.vitals_heart_rate != null ||
+    row.vitals_temperature_c != null ||
+    row.vitals_spo2 != null ||
+    row.vitals_height_cm != null ||
+    row.vitals_weight_kg != null ||
+    row.vitals_respiratory_rate != null
+  )
+}
+
+/** Prior intake vitals for a patient from real queue tickets (newest first). */
+export async function getPatientVitalsHistory(
+  patientId: string,
+  options?: { excludeTicketId?: string; limit?: number }
+): Promise<import("@/lib/health/types").PatientVitalsRecord[]> {
+  if (!patientId.trim()) return []
+
+  const supabase = await createClient()
+  const limit = Math.min(50, Math.max(1, options?.limit ?? 20))
+
+  let query = supabase
+    .from("health_queue_tickets")
+    .select(
+      `
+      id,
+      ticket_code,
+      queue_number,
+      intake_completed_at,
+      created_at,
+      updated_at,
+      chief_complaint,
+      vitals_bp_systolic,
+      vitals_bp_diastolic,
+      vitals_heart_rate,
+      vitals_temperature_c,
+      vitals_spo2,
+      vitals_height_cm,
+      vitals_weight_kg,
+      vitals_respiratory_rate
+    `
+    )
+    .eq("patient_id", patientId)
+    .not("intake_completed_at", "is", null)
+    .order("intake_completed_at", { ascending: false })
+    .limit(limit)
+
+  if (options?.excludeTicketId) {
+    query = query.neq("id", options.excludeTicketId)
+  }
+
+  const { data, error } = await query
+  if (error) {
+    const msg = error.message.toLowerCase()
+    if (
+      msg.includes("schema cache") ||
+      msg.includes("does not exist") ||
+      msg.includes("could not find the table")
+    ) {
+      return []
+    }
+    throw new Error(error.message)
+  }
+
+  return (data ?? [])
+    .filter((row) => ticketHasAnyVitals(row))
+    .map((row) => ({
+      ticketId: row.id,
+      recordedAt: row.intake_completed_at ?? row.updated_at ?? row.created_at,
+      ticketCode: row.ticket_code,
+      queueNumber: row.queue_number,
+      chiefComplaint: row.chief_complaint,
+      vitals: {
+        bpSystolic: row.vitals_bp_systolic,
+        bpDiastolic: row.vitals_bp_diastolic,
+        heartRate: row.vitals_heart_rate,
+        temperatureC:
+          row.vitals_temperature_c == null
+            ? null
+            : Number(row.vitals_temperature_c),
+        spo2: row.vitals_spo2,
+        heightCm:
+          row.vitals_height_cm == null ? null : Number(row.vitals_height_cm),
+        weightKg:
+          row.vitals_weight_kg == null ? null : Number(row.vitals_weight_kg),
+        respiratoryRate: row.vitals_respiratory_rate ?? null,
+      },
+    }))
 }

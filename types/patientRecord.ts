@@ -1,4 +1,11 @@
-export type PatientType = "student" | "faculty"
+export type PatientType = "student" | "faculty" | "employee" | "visitor"
+
+export const PATIENT_TYPES: PatientType[] = [
+  "student",
+  "faculty",
+  "employee",
+  "visitor",
+]
 
 /** Family Background from the enrolled-students CSV → Emergency Contact Details */
 export type PatientFamilyBackground = {
@@ -159,6 +166,7 @@ export type PatientRecordJson = {
   updated_at: string
   consultations_count?: number | null
   documents_count?: number | null
+  family_background?: PatientFamilyBackground | Record<string, unknown> | null
 }
 
 export type PatientRecordStats = {
@@ -215,6 +223,7 @@ export type CreatePatientRecordInput = {
   medicalConditions?: string | null
   notes?: string | null
   lastVisit?: string | null
+  familyBackground?: PatientFamilyBackground | null
 }
 
 export type UpdatePatientRecordInput = CreatePatientRecordInput & {
@@ -250,8 +259,28 @@ export function normalizePatientType(
   value?: string | null
 ): PatientType | null {
   const raw = (value ?? "").trim().toLowerCase()
-  if (raw === "student" || raw === "faculty") return raw
+  if (
+    raw === "student" ||
+    raw === "faculty" ||
+    raw === "employee" ||
+    raw === "visitor"
+  ) {
+    return raw
+  }
   return null
+}
+
+/** Campus / Student ID required for all types except visitor. */
+export function patientTypeRequiresCampusId(type: PatientType): boolean {
+  return type !== "visitor"
+}
+
+export function patientTypeLabel(type: PatientType | null | undefined): string {
+  if (type === "faculty") return "Faculty"
+  if (type === "employee") return "Employee"
+  if (type === "visitor") return "Visitor"
+  if (type === "student") return "Student"
+  return "—"
 }
 
 export function patientFullName(patient: {
@@ -271,7 +300,9 @@ export function patientCampusId(patient: {
   employeeId?: string | null
 }): string | null {
   const value =
-    patient.patientType === "faculty" ? patient.employeeId : patient.studentId
+    patient.patientType === "faculty" || patient.patientType === "employee"
+      ? patient.employeeId
+      : patient.studentId
   const trimmed = value?.trim()
   return trimmed ? trimmed : null
 }
@@ -340,6 +371,29 @@ export function parsePhysicalExam(
   }
 }
 
+export function parseFamilyBackground(
+  value: PatientFamilyBackground | Record<string, unknown> | null | undefined
+): PatientFamilyBackground | null {
+  if (!value || typeof value !== "object") return null
+  const v = value as Record<string, unknown>
+  const str = (key: string) => {
+    const raw = v[key]
+    if (raw == null) return null
+    const trimmed = String(raw).trim()
+    return trimmed ? trimmed : null
+  }
+  const parsed: PatientFamilyBackground = {
+    guardianName: str("guardianName"),
+    relationship: str("relationship"),
+    occupation: str("occupation"),
+    address: str("address"),
+    mobile: str("mobile"),
+    email: str("email"),
+  }
+  const hasAny = Object.values(parsed).some(Boolean)
+  return hasAny ? parsed : null
+}
+
 export function allergiesSummaryFromHistory(history: MedicalHistory): string | null {
   if (!history.allergy) return null
   return "Allergy noted on medical history"
@@ -380,18 +434,26 @@ export function patientRecordFromJson(json: PatientRecordJson): PatientRecord {
     updatedAt: json.updated_at,
     consultationsCount: json.consultations_count ?? 0,
     documentsCount: json.documents_count ?? 0,
-    familyBackground: null,
+    familyBackground: parseFamilyBackground(json.family_background),
   }
 }
 
 export function patientRecordToJson(
   patient: CreatePatientRecordInput | UpdatePatientRecordInput
-): Record<string, string | null> {
+): Record<string, string | null | PatientFamilyBackground | undefined> {
   const patientType = patient.patientType
+  const requiresId = patientTypeRequiresCampusId(patientType)
+  const usesEmployeeId =
+    patientType === "faculty" || patientType === "employee"
   const studentId =
     patientType === "student" ? emptyToNull(patient.studentId) : null
-  const employeeId =
-    patientType === "faculty" ? emptyToNull(patient.employeeId) : null
+  const employeeId = usesEmployeeId
+    ? emptyToNull(patient.employeeId)
+    : null
+
+  if (requiresId && patientType === "student" && !studentId) {
+    // validation happens upstream; keep payload consistent
+  }
 
   return {
     patient_type: patientType,
@@ -417,6 +479,7 @@ export function patientRecordToJson(
     medical_conditions: emptyToNull(patient.medicalConditions),
     notes: emptyToNull(patient.notes),
     last_visit: emptyToNull(patient.lastVisit),
+    family_background: patient.familyBackground ?? null,
   }
 }
 

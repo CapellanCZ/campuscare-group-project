@@ -33,9 +33,11 @@ import {
   type UpdatePatientRecordInput,
 } from "@/types/patientRecord"
 import {
+  getConsultationVisitDetail,
   getConsultationsByPatientId,
 } from "@/services/consultations"
 import { getMedicalCertificatesForPatientRecord } from "@/services/medicalCertificates"
+import type { QueueVitals } from "@/lib/health/types"
 import type { Consultation } from "@/types/consultation"
 import type {
   MedicalCertificate,
@@ -137,16 +139,18 @@ export async function ensurePatientRecordAction(
   patient: PatientRecord
 ): Promise<PatientRecordActionResult<PatientRecord>> {
   try {
-    if (!isEnrolledVirtualId(patient.id)) {
-      return { ok: true, data: patient }
-    }
     const studentId =
       studentIdFromVirtualId(patient.id) ?? patient.studentId?.trim() ?? ""
-    const ensured = await ensurePatientFromStudentId(studentId)
-    if (!ensured) {
-      return { ok: false, error: NO_STUDENT_FOUND, code: "not_found" }
+    if (studentId) {
+      const ensured = await ensurePatientFromStudentId(studentId)
+      if (ensured) {
+        return { ok: true, data: ensured.clinical }
+      }
+      if (isEnrolledVirtualId(patient.id)) {
+        return { ok: false, error: NO_STUDENT_FOUND, code: "not_found" }
+      }
     }
-    return { ok: true, data: ensured.clinical }
+    return { ok: true, data: patient }
   } catch (error) {
     return toErrorResult(error)
   }
@@ -285,6 +289,22 @@ export async function fetchPatientConsultationHistoryAction(
 ): Promise<PatientRecordActionResult<Consultation[]>> {
   try {
     const data = await getConsultationsByPatientId(patientId)
+    return { ok: true, data }
+  } catch (error) {
+    return toErrorResult(error)
+  }
+}
+
+export async function fetchConsultationVisitDetailAction(
+  consultationId: string
+): Promise<
+  PatientRecordActionResult<{
+    consultation: Consultation
+    ticketVitals: QueueVitals | null
+  }>
+> {
+  try {
+    const data = await getConsultationVisitDetail(consultationId)
     return { ok: true, data }
   } catch (error) {
     return toErrorResult(error)

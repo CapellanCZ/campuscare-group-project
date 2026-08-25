@@ -5,9 +5,15 @@ export type NurseQueueLane = "needs_intake" | "at_specialty" | "exceptions"
 export function needsNurseIntake(row: QueueTicketRow): boolean {
   return (
     row.station === "nurse" &&
+    Boolean(row.checkedInAt) &&
     !row.intakeCompletedAt &&
     (row.status === "waiting" || row.status === "called")
   )
+}
+
+/** Patient was called and still needs check-in verification. */
+export function needsCheckInVerify(row: QueueTicketRow): boolean {
+  return row.status === "called" && !row.checkedInAt
 }
 
 export function isAtSpecialtyAfterIntake(row: QueueTicketRow): boolean {

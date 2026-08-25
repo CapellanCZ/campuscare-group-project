@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
 import { ModuleSnapshot } from "@/components/dashboard/module-snapshot"
-import { ConsultationRequestDetailSheet } from "@/components/requests/consultation-request-detail-sheet"
+import { ApproveRequestDialog } from "@/components/requests/approve-request-dialog"
+import { DeclineRequestDialog } from "@/components/requests/decline-request-dialog"
+import { RescheduleRequestDialog } from "@/components/requests/reschedule-request-dialog"
+import { ViewRequestDialog } from "@/components/requests/view-request-dialog"
+import type { RequestDialogMode } from "@/components/requests/consultation-request-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -61,11 +65,13 @@ export function NurseRequestsPanel({
   const [pendingView, startView] = useTransition()
   const [selectedRequest, setSelectedRequest] =
     useState<AppointmentRequest | null>(null)
-  const [sheetOpen, setSheetOpen] = useState(false)
+  const [dialogMode, setDialogMode] = useState<RequestDialogMode | null>(null)
 
-  const rows = summary.requests.recent.slice(0, DASHBOARD_LIMIT)
+  const rows = summary.requests.recent
+    .filter((row) => row.status !== "confirmed")
+    .slice(0, DASHBOARD_LIMIT)
 
-  function openRequestView(requestId: string) {
+  function openRequest(requestId: string, mode: RequestDialogMode) {
     startView(async () => {
       const result = await fetchConsultationRequestByIdAction(requestId)
       if (!result.ok) {
@@ -73,8 +79,12 @@ export function NurseRequestsPanel({
         return
       }
       setSelectedRequest(result.data)
-      setSheetOpen(true)
+      setDialogMode(mode)
     })
+  }
+
+  function closeDialog() {
+    setDialogMode(null)
   }
 
   return (
@@ -136,7 +146,7 @@ export function NurseRequestsPanel({
                             size="xs"
                             variant="ghost"
                             disabled={pendingView}
-                            onClick={() => openRequestView(row.id)}
+                            onClick={() => openRequest(row.id, "view")}
                           >
                             View
                           </Button>
@@ -146,7 +156,7 @@ export function NurseRequestsPanel({
                             type="button"
                             size="xs"
                             disabled={pendingView}
-                            onClick={() => openRequestView(row.id)}
+                            onClick={() => openRequest(row.id, "approve")}
                           >
                             Approve
                           </Button>
@@ -156,20 +166,21 @@ export function NurseRequestsPanel({
                             type="button"
                             size="xs"
                             disabled={pendingView}
-                            onClick={() => openRequestView(row.id)}
+                            onClick={() => openRequest(row.id, "admit")}
                           >
                             Admit
                           </Button>
                         ) : null}
                         {canReschedule &&
                         (row.status === "pending" ||
-                          row.status === "waitlisted") ? (
+                          row.status === "waitlisted" ||
+                          row.status === "rescheduled") ? (
                           <Button
                             type="button"
                             size="xs"
                             variant="outline"
                             disabled={pendingView}
-                            onClick={() => openRequestView(row.id)}
+                            onClick={() => openRequest(row.id, "reschedule")}
                           >
                             Reschedule
                           </Button>
@@ -182,7 +193,7 @@ export function NurseRequestsPanel({
                             size="xs"
                             variant="destructive"
                             disabled={pendingView}
-                            onClick={() => openRequestView(row.id)}
+                            onClick={() => openRequest(row.id, "decline")}
                           >
                             Decline
                           </Button>
@@ -197,18 +208,54 @@ export function NurseRequestsPanel({
         )}
       </ModuleSnapshot>
 
-      <ConsultationRequestDetailSheet
+      <ViewRequestDialog
         request={selectedRequest}
-        open={sheetOpen}
+        open={dialogMode === "view"}
         onOpenChange={(open) => {
-          setSheetOpen(open)
-          if (!open) setSelectedRequest(null)
+          if (!open) {
+            closeDialog()
+            setSelectedRequest(null)
+          }
         }}
-        canApprove={canApprove}
-        canDecline={canDecline}
-        canReschedule={canReschedule}
-        onUpdated={(request) => {
-          setSelectedRequest(request)
+      />
+      <ApproveRequestDialog
+        request={selectedRequest}
+        open={dialogMode === "approve" || dialogMode === "admit"}
+        mode={dialogMode === "admit" ? "admit" : "approve"}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeDialog()
+            setSelectedRequest(null)
+          }
+        }}
+        onUpdated={() => {
+          router.refresh()
+        }}
+      />
+      <RescheduleRequestDialog
+        request={selectedRequest}
+        open={dialogMode === "reschedule"}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeDialog()
+            setSelectedRequest(null)
+          }
+        }}
+        onUpdated={() => {
+          router.refresh()
+        }}
+      />
+      <DeclineRequestDialog
+        requestId={selectedRequest?.id ?? null}
+        patientName={selectedRequest?.patientName}
+        open={dialogMode === "decline"}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeDialog()
+            setSelectedRequest(null)
+          }
+        }}
+        onDeclined={() => {
           router.refresh()
         }}
       />

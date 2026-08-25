@@ -10,15 +10,15 @@ import { Button } from "@/components/ui/button"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet"
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 
 const TEMPLATE_HEADERS = [
   "patient_type",
@@ -101,14 +101,14 @@ export function PatientImportSheet({
   }
 
   return (
-    <Sheet
+    <Dialog
       open={open}
       onOpenChange={(next) => {
         setOpen(next)
         if (!next) setError(null)
       }}
     >
-      <SheetTrigger
+      <DialogTrigger
         render={
           <Button
             variant="outline"
@@ -119,18 +119,18 @@ export function PatientImportSheet({
       >
         <IconUpload data-icon="inline-start" aria-hidden="true" />
         Import patients
-      </SheetTrigger>
-      <SheetContent className="flex flex-col gap-0 sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle>Import patients</SheetTitle>
-          <SheetDescription>
+      </DialogTrigger>
+      <DialogContent className="flex max-h-[min(90vh,640px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
+        <DialogHeader className="border-b px-6 py-5 text-left">
+          <DialogTitle>Import patients</DialogTitle>
+          <DialogDescription>
             Upload an Excel or CSV roster. Rows upsert into Patient Records and
             the operational patients table by student/employee ID. NU campus
             student datasets (BASIC INFORMATION header) are supported.
-          </SheetDescription>
-        </SheetHeader>
+          </DialogDescription>
+        </DialogHeader>
         <form
-          className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-4"
+          className="flex min-h-0 flex-1 flex-col gap-4 px-6 py-4"
           onSubmit={onSubmit}
         >
           <p className="text-sm text-muted-foreground">
@@ -139,8 +139,9 @@ export function PatientImportSheet({
               patient_type, student_id, employee_id, first_name, last_name,
               course
             </span>{" "}
-            (student | faculty). Campus rosters with Student ID Number / First
-            Name / Last Name also work.
+            (student | faculty | employee | visitor). Campus rosters with Student
+            ID Number / First Name / Last Name also work and import civil status,
+            religion, and guardian details when present.
           </p>
           <Button
             type="button"
@@ -177,17 +178,17 @@ export function PatientImportSheet({
               {error}
             </p>
           ) : null}
-          <SheetFooter className="mt-auto px-0">
+          <DialogFooter className="mt-auto px-0">
             <Button type="submit" disabled={pending} className="w-full">
               <IconFileSpreadsheet data-icon="inline-start" aria-hidden="true" />
               {pending ? "Importing…" : "Import roster"}
             </Button>
-            <SheetClose render={<Button type="button" variant="outline" />}>
+            <DialogClose render={<Button type="button" variant="outline" />}>
               Cancel
-            </SheetClose>
-          </SheetFooter>
+            </DialogClose>
+          </DialogFooter>
         </form>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   )
 }

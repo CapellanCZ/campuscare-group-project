@@ -20,8 +20,10 @@ import {
 import type {
   HealthActionResult,
   NurseIntakeInput,
+  PatientVitalsRecord,
   StationId,
 } from "@/lib/health/types"
+import { getPatientVitalsHistory } from "@/lib/health/queue-queries"
 
 function revalidateQueueSurfaces() {
   for (const role of STAFF_ROUTE_ROLES) {
@@ -145,9 +147,41 @@ export async function actionCompleteNurseIntake(
   )
 }
 
+export async function actionFetchPatientVitalsHistory(
+  patientId: string,
+  excludeTicketId?: string
+): Promise<
+  | { ok: true; data: PatientVitalsRecord[] }
+  | { ok: false; error: string }
+> {
+  const access = await getStaffAccess()
+  if (!access?.hasClinicMembership) {
+    return { ok: false, error: "Sign in with an approved clinic account." }
+  }
+  if (access.designation !== "nurse" && access.designation !== "admin") {
+    return { ok: false, error: "Only nurses can view vitals history." }
+  }
+  try {
+    const data = await getPatientVitalsHistory(patientId, {
+      excludeTicketId,
+      limit: 30,
+    })
+    return { ok: true, data }
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to load vitals history.",
+    }
+  }
+}
+
 export async function actionRegisterWalkIn(input: {
   patientName: string
   studentId?: string
+  patientType?: import("@/lib/health/types").PatientType
   consultationType: string
   providerQueue: StationId
 }) {
@@ -156,6 +190,7 @@ export async function actionRegisterWalkIn(input: {
       designation: access.designation,
       patientName: input.patientName,
       studentId: input.studentId,
+      patientType: input.patientType,
       consultationType: input.consultationType,
       providerQueue: input.providerQueue,
       staffName: access.fullName,

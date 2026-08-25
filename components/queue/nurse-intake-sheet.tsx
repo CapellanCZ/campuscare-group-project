@@ -5,23 +5,35 @@ import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 
 import { SelectWithOtherField } from "@/components/shared/select-with-other-field"
-import { actionCompleteNurseIntake } from "@/lib/health/queue-server-actions"
+import { VitalsHistoryDialog } from "@/components/queue/vitals-history-dialog"
+import {
+  formatVitalsLine,
+  hasRecordedVitals,
+} from "@/components/queue/vitals-strip"
+import {
+  actionCompleteNurseIntake,
+  actionFetchPatientVitalsHistory,
+} from "@/lib/health/queue-server-actions"
 import { CHIEF_COMPLAINT_OPTIONS } from "@/lib/health/form-options"
-import type { QueueTicketRow, SpecialtyStationId } from "@/lib/health/types"
+import type {
+  PatientVitalsRecord,
+  QueueTicketRow,
+  SpecialtyStationId,
+} from "@/lib/health/types"
 import { ticketLabel } from "@/lib/health/mappers"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 
@@ -84,6 +96,14 @@ export function NurseIntakeSheet({
   const [toStation, setToStation] = useState<SpecialtyStationId>("physician")
   const [error, setError] = useState<string | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const [latestVitals, setLatestVitals] = useState<PatientVitalsRecord | null>(
+    null
+  )
+  const [historyRecords, setHistoryRecords] = useState<PatientVitalsRecord[]>(
+    []
+  )
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
 
   useEffect(() => {
     if (!open || !ticket) return
@@ -124,6 +144,47 @@ export function NurseIntakeSheet({
     )
     setError(null)
     setStatusMessage(null)
+    setLatestVitals(null)
+    setHistoryRecords([])
+    setHistoryOpen(false)
+
+    if (!ticket.patientId) return
+
+    let cancelled = false
+    void actionFetchPatientVitalsHistory(
+      ticket.patientId,
+      ticket.ticketId
+    ).then((result) => {
+      if (cancelled) return
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      setHistoryRecords(result.data)
+      setLatestVitals(result.data[0] ?? null)
+
+      const currentHasVitals = hasRecordedVitals(ticket.vitals)
+      const latest = result.data[0]
+      if (!currentHasVitals && latest && hasRecordedVitals(latest.vitals)) {
+        const v = latest.vitals
+        setBpSystolic(v.bpSystolic != null ? String(v.bpSystolic) : "")
+        setBpDiastolic(v.bpDiastolic != null ? String(v.bpDiastolic) : "")
+        setHeartRate(v.heartRate != null ? String(v.heartRate) : "")
+        setTemperatureC(
+          v.temperatureC != null ? String(v.temperatureC) : ""
+        )
+        setSpo2(v.spo2 != null ? String(v.spo2) : "")
+        setHeightCm(v.heightCm != null ? String(v.heightCm) : "")
+        setWeightKg(v.weightKg != null ? String(v.weightKg) : "")
+        setRespiratoryRate(
+          v.respiratoryRate != null ? String(v.respiratoryRate) : ""
+        )
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
   }, [open, ticket])
 
   function reset() {
@@ -140,6 +201,27 @@ export function NurseIntakeSheet({
     setToStation("physician")
     setError(null)
     setStatusMessage(null)
+    setLatestVitals(null)
+    setHistoryRecords([])
+    setHistoryOpen(false)
+  }
+
+  function openHistory() {
+    setHistoryOpen(true)
+    if (!ticket?.patientId || historyRecords.length > 0) return
+    setHistoryLoading(true)
+    void actionFetchPatientVitalsHistory(
+      ticket.patientId,
+      ticket.ticketId
+    ).then((result) => {
+      setHistoryLoading(false)
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      setHistoryRecords(result.data)
+      setLatestVitals(result.data[0] ?? null)
+    })
   }
 
   function onSubmit(event: React.FormEvent) {
@@ -181,245 +263,288 @@ export function NurseIntakeSheet({
     })
   }
 
+  const latestLine =
+    latestVitals && hasRecordedVitals(latestVitals.vitals)
+      ? formatVitalsLine(latestVitals.vitals)
+      : hasRecordedVitals(ticket?.vitals ?? {
+          bpSystolic: null,
+          bpDiastolic: null,
+          heartRate: null,
+          temperatureC: null,
+          spo2: null,
+          heightCm: null,
+          weightKg: null,
+          respiratoryRate: null,
+        })
+        ? formatVitalsLine(ticket!.vitals)
+        : null
+
   return (
-    <Sheet
-      open={open}
-      onOpenChange={(next) => {
-        onOpenChange(next)
-        if (!next) reset()
-      }}
-    >
-      <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
-        <SheetHeader className="gap-1 border-b px-4 py-3 text-left">
-          <div className="flex flex-wrap items-center gap-2 pr-8">
-            <SheetTitle className="leading-none">Intake</SheetTitle>
-            {ticket ? (
-              <>
-                <span className="font-semibold tabular-nums text-foreground">
-                  {ticketLabel(ticket.queueNumber, ticket.ticketCode)}
-                </span>
-                <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
-                  {ticket.status}
-                </Badge>
-              </>
-            ) : null}
-          </div>
-          <SheetDescription className="text-xs">
-            {ticket
-              ? `${ticket.patientName}${ticket.campusId ? ` · ${ticket.campusId}` : ""}`
-              : "Record vitals, then send to specialty."}
-          </SheetDescription>
-        </SheetHeader>
-
-        <form className="flex min-h-0 flex-1 flex-col" onSubmit={onSubmit}>
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
-            <SelectWithOtherField
-              key={ticket?.ticketId ?? "intake-closed"}
-              id="intake-complaint"
-              label="Chief complaint"
-              labelClassName="text-[11px]"
-              options={CHIEF_COMPLAINT_OPTIONS}
-              value={chiefComplaint}
-              onValueChange={setChiefComplaint}
-              placeholder="Select complaint"
-              otherPlaceholder="Describe the complaint…"
-              disabled={pending}
-            />
-
-            <div className="rounded-xl border border-border/70 bg-muted/25 p-2.5">
-              <p className="mb-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-                Vitals
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <VitalField
-                  label="BP"
-                  htmlFor="intake-sys"
-                  className="col-span-2"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <Input
-                      id="intake-sys"
-                      inputMode="numeric"
-                      aria-label="BP systolic"
-                      placeholder="120"
-                      value={bpSystolic}
-                      onChange={(e) => setBpSystolic(e.target.value)}
-                      disabled={pending}
-                      className="h-9 tabular-nums"
-                    />
-                    <span className="text-muted-foreground" aria-hidden>
-                      /
-                    </span>
-                    <Input
-                      id="intake-dia"
-                      inputMode="numeric"
-                      aria-label="BP diastolic"
-                      placeholder="80"
-                      value={bpDiastolic}
-                      onChange={(e) => setBpDiastolic(e.target.value)}
-                      disabled={pending}
-                      className="h-9 tabular-nums"
-                    />
-                  </div>
-                </VitalField>
-                <VitalField label="HR" htmlFor="intake-hr">
-                  <Input
-                    id="intake-hr"
-                    inputMode="numeric"
-                    placeholder="72"
-                    value={heartRate}
-                    onChange={(e) => setHeartRate(e.target.value)}
-                    disabled={pending}
-                    className="h-9 tabular-nums"
-                  />
-                </VitalField>
-                <VitalField label="Temp °C" htmlFor="intake-temp">
-                  <Input
-                    id="intake-temp"
-                    inputMode="decimal"
-                    placeholder="36.8"
-                    value={temperatureC}
-                    onChange={(e) => setTemperatureC(e.target.value)}
-                    disabled={pending}
-                    className="h-9 tabular-nums"
-                  />
-                </VitalField>
-                <VitalField
-                  label="SpO₂ %"
-                  htmlFor="intake-spo2"
-                >
-                  <Input
-                    id="intake-spo2"
-                    inputMode="numeric"
-                    placeholder="98"
-                    value={spo2}
-                    onChange={(e) => setSpo2(e.target.value)}
-                    disabled={pending}
-                    className="h-9 tabular-nums"
-                  />
-                </VitalField>
-                <VitalField label="Height cm" htmlFor="intake-height">
-                  <Input
-                    id="intake-height"
-                    inputMode="decimal"
-                    placeholder="165"
-                    value={heightCm}
-                    onChange={(e) => setHeightCm(e.target.value)}
-                    disabled={pending}
-                    className="h-9 tabular-nums"
-                  />
-                </VitalField>
-                <VitalField label="Weight kg" htmlFor="intake-weight">
-                  <Input
-                    id="intake-weight"
-                    inputMode="decimal"
-                    placeholder="60"
-                    value={weightKg}
-                    onChange={(e) => setWeightKg(e.target.value)}
-                    disabled={pending}
-                    className="h-9 tabular-nums"
-                  />
-                </VitalField>
-                <VitalField
-                  label="RR"
-                  htmlFor="intake-rr"
-                  className="col-span-2"
-                >
-                  <Input
-                    id="intake-rr"
-                    inputMode="numeric"
-                    placeholder="16"
-                    value={respiratoryRate}
-                    onChange={(e) => setRespiratoryRate(e.target.value)}
-                    disabled={pending}
-                    className="h-9 tabular-nums"
-                  />
-                </VitalField>
-              </div>
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          onOpenChange(next)
+          if (!next) reset()
+        }}
+      >
+        <DialogContent className="flex max-h-[min(90vh,760px)] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
+          <DialogHeader className="gap-1 border-b px-6 py-4 text-left">
+            <div className="flex flex-wrap items-center gap-2 pr-8">
+              <DialogTitle className="leading-none">Intake</DialogTitle>
+              {ticket ? (
+                <>
+                  <span className="font-semibold tabular-nums text-foreground">
+                    {ticketLabel(ticket.queueNumber, ticket.ticketCode)}
+                  </span>
+                  <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                    {ticket.status}
+                  </Badge>
+                </>
+              ) : null}
             </div>
+            <DialogDescription className="text-xs">
+              {ticket
+                ? `${ticket.patientName}${ticket.campusId ? ` · ${ticket.campusId}` : ""}`
+                : "Record vitals, then send to specialty."}
+            </DialogDescription>
+          </DialogHeader>
 
-            <Field className="gap-1">
-              <FieldLabel htmlFor="intake-notes" className="text-[11px]">
-                Notes
-              </FieldLabel>
-              <Textarea
-                id="intake-notes"
-                value={intakeNotes}
-                onChange={(e) => setIntakeNotes(e.target.value)}
+          <form className="flex min-h-0 flex-1 flex-col" onSubmit={onSubmit}>
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-4">
+              <SelectWithOtherField
+                key={ticket?.ticketId ?? "intake-closed"}
+                id="intake-complaint"
+                label="Chief complaint"
+                labelClassName="text-[11px]"
+                options={CHIEF_COMPLAINT_OPTIONS}
+                value={chiefComplaint}
+                onValueChange={setChiefComplaint}
+                placeholder="Select complaint"
+                otherPlaceholder="Describe the complaint…"
                 disabled={pending}
-                placeholder="Optional for clinician"
-                className="min-h-16"
               />
-            </Field>
 
-            <div className="space-y-1.5">
-              <p className="text-[11px] font-medium text-muted-foreground">
-                Send to
-                {ticket?.providerType
-                  ? ` (auto: ${ticket.providerType})`
-                  : ""}
-              </p>
-              <div
-                role="radiogroup"
-                aria-label="Specialty station"
-                className="grid grid-cols-2 gap-1.5"
-              >
-                {(
-                  [
-                    ["physician", "Physician"],
-                    ["dentist", "Dentist"],
-                  ] as const
-                ).map(([value, label]) => {
-                  const selected = toStation === value
-                  return (
-                    <Button
-                      key={value}
-                      type="button"
-                      size="sm"
-                      variant={selected ? "default" : "outline"}
-                      aria-checked={selected}
-                      role="radio"
-                      disabled={pending}
-                      onClick={() => setToStation(value)}
-                    >
-                      {label}
-                    </Button>
-                  )
-                })}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                    Latest vital signs
+                  </p>
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="ghost"
+                    disabled={!ticket?.patientId}
+                    onClick={openHistory}
+                  >
+                    View All Records
+                  </Button>
+                </div>
+                <p className="text-sm text-foreground">
+                  {latestLine ?? "No prior vitals on record."}
+                </p>
               </div>
+
+              <div className="space-y-2">
+                <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                  This visit
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <VitalField
+                    label="BP"
+                    htmlFor="intake-sys"
+                    className="col-span-2"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        id="intake-sys"
+                        inputMode="numeric"
+                        aria-label="BP systolic"
+                        placeholder="120"
+                        value={bpSystolic}
+                        onChange={(e) => setBpSystolic(e.target.value)}
+                        disabled={pending}
+                        className="h-9 tabular-nums"
+                      />
+                      <span className="text-muted-foreground" aria-hidden>
+                        /
+                      </span>
+                      <Input
+                        id="intake-dia"
+                        inputMode="numeric"
+                        aria-label="BP diastolic"
+                        placeholder="80"
+                        value={bpDiastolic}
+                        onChange={(e) => setBpDiastolic(e.target.value)}
+                        disabled={pending}
+                        className="h-9 tabular-nums"
+                      />
+                    </div>
+                  </VitalField>
+                  <VitalField label="HR" htmlFor="intake-hr">
+                    <Input
+                      id="intake-hr"
+                      inputMode="numeric"
+                      placeholder="72"
+                      value={heartRate}
+                      onChange={(e) => setHeartRate(e.target.value)}
+                      disabled={pending}
+                      className="h-9 tabular-nums"
+                    />
+                  </VitalField>
+                  <VitalField label="Temp °C" htmlFor="intake-temp">
+                    <Input
+                      id="intake-temp"
+                      inputMode="decimal"
+                      placeholder="36.8"
+                      value={temperatureC}
+                      onChange={(e) => setTemperatureC(e.target.value)}
+                      disabled={pending}
+                      className="h-9 tabular-nums"
+                    />
+                  </VitalField>
+                  <VitalField label="SpO₂ %" htmlFor="intake-spo2">
+                    <Input
+                      id="intake-spo2"
+                      inputMode="numeric"
+                      placeholder="98"
+                      value={spo2}
+                      onChange={(e) => setSpo2(e.target.value)}
+                      disabled={pending}
+                      className="h-9 tabular-nums"
+                    />
+                  </VitalField>
+                  <VitalField label="Height cm" htmlFor="intake-height">
+                    <Input
+                      id="intake-height"
+                      inputMode="decimal"
+                      placeholder="165"
+                      value={heightCm}
+                      onChange={(e) => setHeightCm(e.target.value)}
+                      disabled={pending}
+                      className="h-9 tabular-nums"
+                    />
+                  </VitalField>
+                  <VitalField label="Weight kg" htmlFor="intake-weight">
+                    <Input
+                      id="intake-weight"
+                      inputMode="decimal"
+                      placeholder="60"
+                      value={weightKg}
+                      onChange={(e) => setWeightKg(e.target.value)}
+                      disabled={pending}
+                      className="h-9 tabular-nums"
+                    />
+                  </VitalField>
+                  <VitalField
+                    label="RR"
+                    htmlFor="intake-rr"
+                    className="col-span-2"
+                  >
+                    <Input
+                      id="intake-rr"
+                      inputMode="numeric"
+                      placeholder="16"
+                      value={respiratoryRate}
+                      onChange={(e) => setRespiratoryRate(e.target.value)}
+                      disabled={pending}
+                      className="h-9 tabular-nums"
+                    />
+                  </VitalField>
+                </div>
+              </div>
+
+              <Field className="gap-1">
+                <FieldLabel htmlFor="intake-notes" className="text-[11px]">
+                  Notes
+                </FieldLabel>
+                <Textarea
+                  id="intake-notes"
+                  value={intakeNotes}
+                  onChange={(e) => setIntakeNotes(e.target.value)}
+                  disabled={pending}
+                  placeholder="Optional for clinician"
+                  className="min-h-16"
+                />
+              </Field>
+
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-medium text-muted-foreground">
+                  Send to
+                  {ticket?.providerType
+                    ? ` (auto: ${ticket.providerType})`
+                    : ""}
+                </p>
+                <div
+                  role="radiogroup"
+                  aria-label="Specialty station"
+                  className="grid grid-cols-2 gap-1.5"
+                >
+                  {(
+                    [
+                      ["physician", "Physician"],
+                      ["dentist", "Dentist"],
+                    ] as const
+                  ).map(([value, label]) => {
+                    const selected = toStation === value
+                    return (
+                      <Button
+                        key={value}
+                        type="button"
+                        size="sm"
+                        variant={selected ? "default" : "outline"}
+                        aria-checked={selected}
+                        role="radio"
+                        disabled={pending}
+                        onClick={() => setToStation(value)}
+                      >
+                        {label}
+                      </Button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {error ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {error}
+                </p>
+              ) : null}
+              {statusMessage ? (
+                <p role="status" className="text-xs text-muted-foreground">
+                  {statusMessage}
+                </p>
+              ) : null}
             </div>
 
-            {error ? (
-              <p role="alert" className="text-sm text-destructive">
-                {error}
-              </p>
-            ) : null}
-            {statusMessage ? (
-              <p role="status" className="text-xs text-muted-foreground">
-                {statusMessage}
-              </p>
-            ) : null}
-          </div>
+            <DialogFooter className="mt-auto gap-2 border-t px-6 py-3 sm:flex-row">
+              <DialogClose
+                render={<Button type="button" size="sm" variant="outline" />}
+              >
+                Cancel
+              </DialogClose>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={pending || !ticket}
+                className="sm:flex-1"
+              >
+                {pending
+                  ? "Sending…"
+                  : `Send to ${toStation === "dentist" ? "dentist" : "physician"}`}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-          <SheetFooter className="mt-auto gap-2 border-t px-4 py-3 sm:flex-row">
-            <SheetClose
-              render={<Button type="button" size="sm" variant="outline" />}
-            >
-              Cancel
-            </SheetClose>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={pending || !ticket}
-              className="sm:flex-1"
-            >
-              {pending
-                ? "Sending…"
-                : `Send to ${toStation === "dentist" ? "dentist" : "physician"}`}
-            </Button>
-          </SheetFooter>
-        </form>
-      </SheetContent>
-    </Sheet>
+      <VitalsHistoryDialog
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        patientName={ticket?.patientName}
+        records={historyRecords}
+        loading={historyLoading}
+      />
+    </>
   )
 }

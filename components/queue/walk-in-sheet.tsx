@@ -6,23 +6,46 @@ import { useRouter } from "next/navigation"
 
 import { SelectWithOtherField } from "@/components/shared/select-with-other-field"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet"
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { CONSULTATION_TYPE_OPTIONS } from "@/lib/health/form-options"
 import { formatStudentIdInput } from "@/lib/students/student-id-input"
 import { actionRegisterWalkIn } from "@/lib/health/queue-server-actions"
+import {
+  PATIENT_TYPES,
+  patientTypeLabel,
+  patientTypeRequiresCampusId,
+  type PatientType,
+} from "@/types/patientRecord"
 import { IconUserPlus } from "@tabler/icons-react"
 
 const DEFAULT_CONSULTATION = "Walk-in consultation"
+
+function campusIdLabel(type: PatientType): string {
+  if (type === "faculty" || type === "employee") {
+    return patientTypeRequiresCampusId(type)
+      ? "Employee / Faculty ID"
+      : "Employee / Faculty ID (optional)"
+  }
+  if (type === "visitor") return "Student ID Number (optional)"
+  return "Student ID Number"
+}
 
 export function WalkInSheet({
   open: controlledOpen,
@@ -39,13 +62,17 @@ export function WalkInSheet({
   const setOpen = onOpenChange ?? setUncontrolledOpen
   const [pending, startTransition] = useTransition()
   const [patientName, setPatientName] = useState("")
+  const [patientType, setPatientType] = useState<PatientType>("student")
   const [campusId, setCampusId] = useState("")
   const [consultationType, setConsultationType] = useState(DEFAULT_CONSULTATION)
   const [error, setError] = useState<string | null>(null)
   const [formKey, setFormKey] = useState(0)
 
+  const idRequired = patientTypeRequiresCampusId(patientType)
+
   function resetForm() {
     setPatientName("")
+    setPatientType("student")
     setCampusId("")
     setConsultationType(DEFAULT_CONSULTATION)
     setError(null)
@@ -60,6 +87,14 @@ export function WalkInSheet({
       setError("Enter the patient name.")
       return
     }
+    if (idRequired && !campusId.trim()) {
+      setError(
+        patientType === "student"
+          ? "Student ID is required for students."
+          : "ID is required for faculty and employees."
+      )
+      return
+    }
     if (!consultationType.trim()) {
       setError("Choose a consultation type, or specify Other.")
       return
@@ -68,7 +103,8 @@ export function WalkInSheet({
     startTransition(async () => {
       const result = await actionRegisterWalkIn({
         patientName,
-        studentId: campusId || undefined,
+        studentId: campusId.trim() || undefined,
+        patientType,
         consultationType: consultationType.trim(),
         providerQueue: "nurse",
       })
@@ -87,7 +123,7 @@ export function WalkInSheet({
   }
 
   return (
-    <Sheet
+    <Dialog
       open={open}
       onOpenChange={(next) => {
         setOpen(next)
@@ -95,22 +131,22 @@ export function WalkInSheet({
       }}
     >
       {hideTrigger ? null : (
-        <SheetTrigger render={<Button variant="outline" />}>
+        <DialogTrigger render={<Button variant="outline" />}>
           <IconUserPlus data-icon="inline-start" aria-hidden />
           Register walk-in
-        </SheetTrigger>
+        </DialogTrigger>
       )}
-      <SheetContent className="flex flex-col gap-0 p-0 sm:max-w-md">
-        <SheetHeader className="gap-1 border-b px-4 py-3 text-left">
-          <SheetTitle>Register walk-in</SheetTitle>
-          <SheetDescription className="text-xs">
+      <DialogContent className="flex max-h-[min(90vh,640px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
+        <DialogHeader className="gap-1 border-b px-6 py-4 text-left">
+          <DialogTitle>Register walk-in</DialogTitle>
+          <DialogDescription className="text-xs">
             Check-in starts at the nurse station for vitals and specialty
             assignment.
-          </SheetDescription>
-        </SheetHeader>
+          </DialogDescription>
+        </DialogHeader>
         <form
           key={formKey}
-          className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-4"
+          className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-4"
           onSubmit={onSubmit}
         >
           <Field data-invalid={error ? true : undefined}>
@@ -125,21 +161,56 @@ export function WalkInSheet({
               autoComplete="name"
             />
           </Field>
+
+          <Field>
+            <FieldLabel htmlFor="walkin-patient-type">Patient type</FieldLabel>
+            <Select
+              value={patientType}
+              onValueChange={(value) => {
+                const next = (value ?? "student") as PatientType
+                setPatientType(next)
+                if (!patientTypeRequiresCampusId(next)) {
+                  // keep any typed ID but no longer required
+                }
+              }}
+              disabled={pending}
+            >
+              <SelectTrigger id="walkin-patient-type" className="w-full">
+                <SelectValue placeholder="Select patient type" />
+              </SelectTrigger>
+              <SelectContent>
+                {PATIENT_TYPES.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {patientTypeLabel(type)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
           <Field>
             <FieldLabel htmlFor="walkin-campus">
-              Student ID Number (optional)
+              {campusIdLabel(patientType)}
+              {idRequired ? "" : ""}
             </FieldLabel>
             <Input
               id="walkin-campus"
               value={campusId}
               onChange={(e) => setCampusId(formatStudentIdInput(e.target.value))}
-              placeholder="2023-171863"
+              placeholder={
+                patientType === "faculty" || patientType === "employee"
+                  ? "Employee ID"
+                  : "2023-171863"
+              }
               disabled={pending}
               autoComplete="off"
+              required={idRequired}
+              aria-required={idRequired}
               inputMode="numeric"
-              maxLength={11}
+              maxLength={32}
             />
           </Field>
+
           <SelectWithOtherField
             id="walkin-type"
             label="Consultation type"
@@ -156,13 +227,13 @@ export function WalkInSheet({
               {error}
             </p>
           ) : null}
-          <SheetFooter className="mt-auto px-0">
+          <DialogFooter className="mt-auto px-0 sm:justify-stretch">
             <Button type="submit" disabled={pending} className="w-full">
               {pending ? "Registering…" : "Register to nurse queue"}
             </Button>
-          </SheetFooter>
+          </DialogFooter>
         </form>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   )
 }

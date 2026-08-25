@@ -10,7 +10,7 @@ export type StationId = "nurse" | "physician" | "dentist"
 
 export type SpecialtyStationId = Exclude<StationId, "nurse">
 
-export type PatientType = "student" | "faculty"
+export type PatientType = "student" | "faculty" | "employee" | "visitor"
 
 export type QueueVitals = {
   bpSystolic: number | null
@@ -21,6 +21,15 @@ export type QueueVitals = {
   heightCm: number | null
   weightKg: number | null
   respiratoryRate: number | null
+}
+
+export type PatientVitalsRecord = {
+  ticketId: string
+  recordedAt: string
+  ticketCode: string
+  queueNumber: number | null
+  vitals: QueueVitals
+  chiefComplaint: string | null
 }
 
 export type QueueTicketRow = {

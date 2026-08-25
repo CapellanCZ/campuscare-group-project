@@ -170,7 +170,7 @@ function validateRequired(input: CreatePatientRecordInput) {
   if (!patientType) {
     throw new PatientRecordServiceError(
       "validation",
-      "Choose student or faculty."
+      "Choose a valid patient type."
     )
   }
   if (!input.firstName.trim()) {
@@ -178,6 +178,9 @@ function validateRequired(input: CreatePatientRecordInput) {
   }
   if (!input.lastName.trim()) {
     throw new PatientRecordServiceError("validation", "Last name is required.")
+  }
+  if (patientType === "visitor") {
+    return
   }
   if (patientType === "student") {
     if (!input.studentId?.trim()) {
@@ -347,9 +350,11 @@ export async function upsertPatientRecord(
   const campusId =
     patientType === "student"
       ? (input.studentId ?? "").trim()
-      : (input.employeeId ?? "").trim()
+      : patientType === "visitor"
+        ? ""
+        : (input.employeeId ?? "").trim()
 
-  if (!campusId) {
+  if (patientType !== "visitor" && !campusId) {
     throw new PatientRecordServiceError(
       "validation",
       patientType === "student"
@@ -358,17 +363,21 @@ export async function upsertPatientRecord(
     )
   }
 
-  let existingQuery = supabase
-    .from("patient_records")
-    .select(`${SELECT_COLUMNS}, consultations(count)`)
+  let existing: PatientRow | null = null
+  if (patientType !== "visitor" && campusId) {
+    let existingQuery = supabase
+      .from("patient_records")
+      .select(`${SELECT_COLUMNS}, consultations(count)`)
 
-  existingQuery =
-    patientType === "student"
-      ? existingQuery.eq("student_id", campusId)
-      : existingQuery.eq("employee_id", campusId)
+    existingQuery =
+      patientType === "student"
+        ? existingQuery.eq("student_id", campusId)
+        : existingQuery.eq("employee_id", campusId)
 
-  const { data: existing, error: findError } = await existingQuery.maybeSingle()
-  if (findError) mapError(findError)
+    const { data, error: findError } = await existingQuery.maybeSingle()
+    if (findError) mapError(findError)
+    existing = data as PatientRow | null
+  }
 
   if (existing) {
     const { data, error } = await supabase
@@ -384,12 +393,19 @@ export async function upsertPatientRecord(
         year_level: payload.year_level,
         gender: payload.gender,
         birth_date: payload.birth_date,
+        civil_status: payload.civil_status,
+        religion: payload.religion,
+        nationality: payload.nationality,
         phone: payload.phone,
         email: payload.email,
         address: payload.address,
         emergency_contact_name: payload.emergency_contact_name,
         emergency_contact_phone: payload.emergency_contact_phone,
         blood_type: payload.blood_type,
+        family_background:
+          payload.family_background ??
+          (existing as PatientRow).family_background ??
+          null,
         // Keep existing allergies / medical_conditions / notes / chart unless provided
         allergies: payload.allergies ?? (existing as PatientRow).allergies,
         medical_conditions:
@@ -424,7 +440,10 @@ async function upsertOperationalPatient(clinical: PatientRecord) {
   const fullName = patientFullName(clinical)
   const isStudent = clinical.patientType === "student"
   const studentId = isStudent ? clinical.studentId : null
-  const employeeId = isStudent ? null : clinical.employeeId
+  const employeeId =
+    clinical.patientType === "faculty" || clinical.patientType === "employee"
+      ? clinical.employeeId
+      : null
 
   let existing: { id: string } | null = null
   if (studentId) {
@@ -458,6 +477,10 @@ async function upsertOperationalPatient(clinical: PatientRecord) {
     student_id: studentId,
     employee_id: employeeId,
     updated_at: new Date().toISOString(),
+  }
+
+  if (clinical.patientType === "visitor" && !studentId && !employeeId) {
+    return
   }
 
   if (existing?.id) {
@@ -666,6 +689,28 @@ export async function importPatientRecordsFromExcel(
     const employeeId = (row.employee_id || row.id_number || "").trim()
 
     try {
+      const familyBackground = {
+        guardianName:
+          (
+            row.emergency_contact_name ||
+            row.parent_guardian_name ||
+            row.guardian_name ||
+            ""
+          ).trim() || null,
+        relationship:
+          (row.guardian_relationship || row.relationship || "").trim() || null,
+        occupation: (row.guardian_occupation || row.occupation || "").trim() || null,
+        address: (row.guardian_address || "").trim() || null,
+        mobile:
+          (
+            row.emergency_contact_phone ||
+            row.guardian_mobile ||
+            ""
+          ).trim() || null,
+        email: (row.guardian_email || "").trim().toLowerCase() || null,
+      }
+      const hasFamily = Object.values(familyBackground).some(Boolean)
+
       const result = await upsertPatientRecord(
         {
           patientType,
@@ -674,7 +719,7 @@ export async function importPatientRecordsFromExcel(
               ? studentId || employeeId
               : studentId || null,
           employeeId:
-            patientType === "faculty"
+            patientType === "faculty" || patientType === "employee"
               ? employeeId || studentId
               : employeeId || null,
           firstName,
@@ -690,6 +735,9 @@ export async function importPatientRecordsFromExcel(
               row.dob ||
               ""
             ).trim() || null,
+          civilStatus: (row.civil_status || "").trim() || null,
+          religion: (row.religion || "").trim() || null,
+          nationality: (row.nationality || "").trim() || null,
           bloodType: (row.blood_type || "").trim() || null,
           allergies: (row.allergies || "").trim() || null,
           phone: (
@@ -706,21 +754,12 @@ export async function importPatientRecordsFromExcel(
             .trim()
             .toLowerCase() || null,
           address: (row.address || row.present_address || "").trim() || null,
-          emergencyContactName:
-            (
-              row.emergency_contact_name ||
-              row.parent_guardian_name ||
-              ""
-            ).trim() || null,
-          emergencyContactPhone:
-            (
-              row.emergency_contact_phone ||
-              row.guardian_mobile ||
-              ""
-            ).trim() || null,
+          emergencyContactName: familyBackground.guardianName,
+          emergencyContactPhone: familyBackground.mobile,
           medicalConditions: (row.medical_conditions || "").trim() || null,
           notes: (row.notes || "").trim() || null,
           lastVisit: (row.last_visit || "").trim() || null,
+          familyBackground: hasFamily ? familyBackground : null,
         },
         client
       )

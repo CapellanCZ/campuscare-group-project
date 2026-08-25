@@ -3,16 +3,18 @@
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
+import { CertificatePreviewDialog } from "@/components/certificates/certificate-preview-dialog"
 import { fetchPatientDocumentsAction } from "@/features/patients/actions"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Button } from "@/components/ui/button"
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Skeleton } from "@/components/ui/skeleton"
 import type { MedicalCertificate } from "@/types/medicalCertificate"
 import { patientFullName, type PatientRecord } from "@/types/patientRecord"
 
@@ -39,6 +41,8 @@ export function PatientDocumentsSheet({
 }) {
   const [rows, setRows] = useState<MedicalCertificate[]>([])
   const [loading, setLoading] = useState(false)
+  const [preview, setPreview] = useState<MedicalCertificate | null>(null)
+  const [previewOpen, setPreviewOpen] = useState(false)
 
   useEffect(() => {
     if (!open || !patient) return
@@ -63,32 +67,47 @@ export function PatientDocumentsSheet({
   }, [open, patient])
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-full flex-col sm:max-w-lg">
-        <SheetHeader>
-          <SheetTitle>Medical documents</SheetTitle>
-          <SheetDescription>
-            {patient
-              ? `Certificates on file for ${patientFullName(patient)}`
-              : "Patient certificates"}
-          </SheetDescription>
-        </SheetHeader>
-        <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-6">
-          {loading ? (
-            Array.from({ length: 4 }).map((_, index) => (
-              <Skeleton key={index} className="h-16 w-full" />
-            ))
-          ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No medical certificates found for this patient yet.
-            </p>
-          ) : (
-            rows.map((row) => (
-              <div
-                key={row.id}
-                className="rounded-lg border border-border/70 px-3 py-3"
-              >
-                <div className="flex items-start justify-between gap-3">
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          onOpenChange(next)
+          if (!next) {
+            setPreviewOpen(false)
+            setPreview(null)
+          }
+        }}
+      >
+        <DialogContent className="flex max-h-[min(90vh,720px)] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+          <DialogHeader className="border-b px-6 py-5 text-left">
+            <DialogTitle>Medical documents</DialogTitle>
+            <DialogDescription>
+              {patient
+                ? `Certificates on file for ${patientFullName(patient)}. Select one to preview.`
+                : "Patient certificates"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4 pb-6">
+            {loading ? (
+              Array.from({ length: 4 }).map((_, index) => (
+                <Skeleton key={index} className="h-16 w-full" />
+              ))
+            ) : rows.length === 0 ? (
+              <p className="px-2 text-sm text-muted-foreground">
+                No medical certificates found for this patient yet.
+              </p>
+            ) : (
+              rows.map((row) => (
+                <Button
+                  key={row.id}
+                  type="button"
+                  variant="outline"
+                  className="h-auto w-full items-start justify-between gap-3 rounded-xl px-3 py-3 text-left whitespace-normal"
+                  onClick={() => {
+                    setPreview(row)
+                    setPreviewOpen(true)
+                  }}
+                >
                   <div className="min-w-0 space-y-1">
                     <p className="truncate text-sm font-medium">
                       {row.certificateType}
@@ -112,12 +131,18 @@ export function PatientDocumentsSheet({
                   <Badge variant="outline" className="shrink-0 capitalize">
                     {row.status}
                   </Badge>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </SheetContent>
-    </Sheet>
+                </Button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <CertificatePreviewDialog
+        certificate={preview}
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+      />
+    </>
   )
 }

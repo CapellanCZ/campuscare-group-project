@@ -55,11 +55,21 @@ export type AppointmentRequestStats = {
   total: number
 }
 
+/** Statuses shown on the nurse Consultation Requests tab (excludes Approved/confirmed). */
+export const NURSE_REQUEST_TAB_STATUSES: AppointmentRequestStatus[] = [
+  "pending",
+  "waitlisted",
+  "rescheduled",
+  "cancelled",
+]
+
 export type AppointmentRequestListParams = {
   query?: string
   page?: number
   pageSize?: number
   status?: AppointmentRequestStatus | "all"
+  /** When status is "all", restrict to these statuses (e.g. nurse tab excludes confirmed). */
+  statuses?: AppointmentRequestStatus[]
 }
 
 export type AppointmentRequestListResult = {

@@ -73,6 +73,7 @@ import {
 import type { StaffAccess } from "@/lib/auth/types"
 import { ticketLabel, patientTypeLabel } from "@/lib/health/mappers"
 import {
+  needsCheckInVerify,
   needsNurseIntake,
   ticketsInNurseLane,
   type NurseQueueLane,
@@ -606,6 +607,30 @@ export function QueuePage({
                                     >
                                       Faculty
                                     </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setPatientTypeFilter("employee")
+                                        setPage(0)
+                                      }}
+                                      className={cn(
+                                        patientTypeFilter === "employee" &&
+                                          "bg-accent"
+                                      )}
+                                    >
+                                      Employee
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setPatientTypeFilter("visitor")
+                                        setPage(0)
+                                      }}
+                                      className={cn(
+                                        patientTypeFilter === "visitor" &&
+                                          "bg-accent"
+                                      )}
+                                    >
+                                      Visitor
+                                    </DropdownMenuItem>
                                   </>
                                 }
                               />
@@ -880,6 +905,11 @@ export function QueuePage({
                     <TableBody>
                       {pageRows.map((row) => {
                         const showIntake = isNurse && needsNurseIntake(row)
+                        const showVerify = isNurse && needsCheckInVerify(row)
+                        const showVerified =
+                          isNurse &&
+                          Boolean(row.checkedInAt) &&
+                          !row.intakeCompletedAt
                         return (
                           <TableRow className="h-12" key={row.ticketId}>
                             <TableCell className="pl-6 font-semibold tabular-nums">
@@ -963,6 +993,27 @@ export function QueuePage({
                             {!readOnly ? (
                               <TableCell className="pr-6">
                                 <div className="flex items-center justify-end gap-1">
+                                  {showVerify ? (
+                                    <Button
+                                      size="sm"
+                                      disabled={pending}
+                                      onClick={() =>
+                                        run(() =>
+                                          actionVerifyCheckIn(row.ticketId)
+                                        )
+                                      }
+                                    >
+                                      Verify
+                                    </Button>
+                                  ) : null}
+                                  {showVerified ? (
+                                    <Badge
+                                      variant="outline"
+                                      className="h-7 px-2 text-[11px]"
+                                    >
+                                      Verified
+                                    </Badge>
+                                  ) : null}
                                   {showIntake ? (
                                     <Button
                                       size="sm"
@@ -989,17 +1040,19 @@ export function QueuePage({
                                     <DropdownMenuContent align="end">
                                       {isNurse ? (
                                         <>
-                                          <DropdownMenuItem
-                                            onClick={() =>
-                                              run(() =>
-                                                actionVerifyCheckIn(
-                                                  row.ticketId
+                                          {showVerify ? null : !row.checkedInAt ? (
+                                            <DropdownMenuItem
+                                              onClick={() =>
+                                                run(() =>
+                                                  actionVerifyCheckIn(
+                                                    row.ticketId
+                                                  )
                                                 )
-                                              )
-                                            }
-                                          >
-                                            Verify check-in
-                                          </DropdownMenuItem>
+                                              }
+                                            >
+                                              Verify check-in
+                                            </DropdownMenuItem>
+                                          ) : null}
                                           {needsNurseIntake(row) ? (
                                             <DropdownMenuItem
                                               onClick={() =>

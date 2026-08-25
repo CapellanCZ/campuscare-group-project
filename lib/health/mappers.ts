@@ -49,6 +49,7 @@ export type RawQueueTicket = {
   consultation_request_id?: string | null
   consultation_id?: string | null
   provider_type?: string | null
+  patient_type?: string | null
   patients?:
     | {
         id: string
@@ -111,12 +112,21 @@ export function formatPatientName(
 }
 
 function asPatientType(value: string | null | undefined): PatientType | null {
-  if (value === "student" || value === "faculty") return value
+  if (
+    value === "student" ||
+    value === "faculty" ||
+    value === "employee" ||
+    value === "visitor"
+  ) {
+    return value
+  }
   return null
 }
 
 export function patientTypeLabel(type: PatientType | null | undefined) {
   if (type === "faculty") return "Faculty"
+  if (type === "employee") return "Employee"
+  if (type === "visitor") return "Visitor"
   if (type === "student") return "Student"
   return "—"
 }
@@ -181,7 +191,9 @@ export function mapTicketRow(
     createdAt: raw.created_at,
     patientId: raw.patient_id ?? patient?.id ?? null,
     patientName,
-    patientType: asPatientType(patient?.patient_type),
+    patientType:
+      asPatientType(patient?.patient_type) ??
+      asPatientType(raw.patient_type),
     studentId: campusId,
     campusId,
     consultationType: raw.consultation_type ?? "Consultation",

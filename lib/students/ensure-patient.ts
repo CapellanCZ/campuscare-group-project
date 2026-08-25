@@ -56,7 +56,33 @@ async function upsertPatientRecord(
   client: SupabaseClient
 ): Promise<PatientRecord> {
   const input = enrolledToCreateInput(student)
-  const payload = patientRecordToJson(input)
+  const base = patientRecordToJson(input)
+  const payload = {
+    patient_type: base.patient_type,
+    student_id: base.student_id,
+    employee_id: base.employee_id,
+    first_name: base.first_name,
+    middle_name: base.middle_name,
+    last_name: base.last_name,
+    course: base.course,
+    year_level: base.year_level,
+    gender: base.gender,
+    birth_date: base.birth_date,
+    civil_status: base.civil_status,
+    religion: base.religion,
+    nationality: base.nationality,
+    blood_type: base.blood_type,
+    allergies: base.allergies,
+    phone: base.phone,
+    email: base.email,
+    address: base.address,
+    emergency_contact_name: base.emergency_contact_name,
+    emergency_contact_phone: base.emergency_contact_phone,
+    medical_conditions: base.medical_conditions,
+    notes: base.notes,
+    last_visit: base.last_visit,
+    family_background: student.familyBackground,
+  }
 
   const { data: existing, error: findError } = await client
     .from("patient_records")
@@ -89,6 +115,7 @@ async function upsertPatientRecord(
         address: payload.address,
         emergency_contact_name: payload.emergency_contact_name,
         emergency_contact_phone: payload.emergency_contact_phone,
+        family_background: student.familyBackground,
         patient_type: "student",
         employee_id: null,
       })

@@ -9,14 +9,14 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { updatePatientMedicalRecordAction } from "@/features/patients/actions"
 import {
@@ -137,19 +137,19 @@ export function PatientMedicalSheet({
 
   return (
     <>
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="flex w-full flex-col sm:max-w-3xl">
-          <SheetHeader className="gap-2 border-b">
-            <SheetTitle className="pr-8 text-lg">
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="flex max-h-[min(90vh,900px)] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
+          <DialogHeader className="gap-2 border-b px-6 py-5 text-left">
+            <DialogTitle className="pr-8 text-lg">
               {patient
                 ? `Medical record · ${patientFullName(patient)}`
                 : "Medical record"}
-            </SheetTitle>
-            <SheetDescription className="leading-relaxed">
+            </DialogTitle>
+            <DialogDescription className="leading-relaxed">
               Identity fields are locked from enrollment. Update medical history
               and physical examination only.
-            </SheetDescription>
-          </SheetHeader>
+            </DialogDescription>
+          </DialogHeader>
 
           {patient ? (
             <div className="min-h-0 flex-1 space-y-10 overflow-y-auto px-6 py-6 pb-8">
@@ -326,10 +326,10 @@ export function PatientMedicalSheet({
             </div>
           ) : null}
 
-          <SheetFooter className="sm:flex-row">
-            <SheetClose render={<Button type="button" variant="outline" />}>
+          <DialogFooter className="border-t px-6 py-4 sm:flex-row">
+            <DialogClose render={<Button type="button" variant="outline" />}>
               Cancel
-            </SheetClose>
+            </DialogClose>
             <Button
               type="button"
               disabled={!patient || !studentId || pending}
@@ -337,9 +337,9 @@ export function PatientMedicalSheet({
             >
               Save medical record
             </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {studentId ? (
         <PatientMedicalConfirmDialog

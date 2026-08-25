@@ -1,4 +1,5 @@
 import type { ClinicDesignation } from "@/lib/auth/types"
+import { CAMPUS_CLINIC_ID } from "@/lib/auth/campus-clinic"
 import { assertCanAccommodate } from "@/lib/availability/queries"
 import {
   canApproveConsultationRequest,
@@ -451,6 +452,7 @@ export async function registerWalkIn(params: {
   designation: ClinicDesignation
   patientName: string
   studentId?: string
+  patientType?: import("@/lib/health/types").PatientType
   consultationType: string
   providerQueue: StationId
   staffName: string
@@ -467,15 +469,28 @@ export async function registerWalkIn(params: {
   const name = params.patientName.trim()
   if (!name) return { ok: false, error: "Enter a patient name." }
 
+  const patientType = params.patientType ?? "student"
+  const campusId = params.studentId?.trim() || null
+  const idRequired = patientType !== "visitor"
+
+  if (idRequired && !campusId) {
+    return {
+      ok: false,
+      error:
+        patientType === "student"
+          ? "Student ID is required for students."
+          : "ID is required for faculty and employees.",
+    }
+  }
+
   const supabase = await createClient()
   const { ymd } = manilaDayBounds()
-  const campusId = params.studentId?.trim() || null
 
   let patientId: string | null = null
   let resolvedName = name
   let resolvedCampusId = campusId
 
-  if (campusId) {
+  if (campusId && patientType === "student") {
     const enrolled = await lookupEnrolledStudentById(campusId)
     if (enrolled) {
       try {
@@ -493,20 +508,61 @@ export async function registerWalkIn(params: {
         }
       }
     } else {
-      const { data: byEmployee } = await supabase
+      const { data: byStudent } = await supabase
         .from("patients")
         .select("id, full_name, student_id, employee_id, patient_type")
-        .eq("employee_id", campusId)
+        .eq("student_id", campusId)
         .limit(1)
         .maybeSingle()
 
-      if (byEmployee) {
-        patientId = byEmployee.id
-        resolvedName = byEmployee.full_name
-        resolvedCampusId = byEmployee.employee_id
+      if (byStudent) {
+        patientId = byStudent.id
+        resolvedName = byStudent.full_name
+        resolvedCampusId = byStudent.student_id
       } else {
         return { ok: false, error: NO_STUDENT_FOUND }
       }
+    }
+  } else if (
+    campusId &&
+    (patientType === "faculty" || patientType === "employee")
+  ) {
+    const { data: byEmployee } = await supabase
+      .from("patients")
+      .select("id, full_name, student_id, employee_id, patient_type")
+      .eq("employee_id", campusId)
+      .limit(1)
+      .maybeSingle()
+
+    if (byEmployee) {
+      patientId = byEmployee.id
+      resolvedName = byEmployee.full_name
+      resolvedCampusId = byEmployee.employee_id
+    } else {
+      const now = new Date().toISOString()
+      const { data: created, error: createError } = await supabase
+        .from("patients")
+        .insert({
+          full_name: name,
+          patient_type: patientType,
+          affiliation: patientType,
+          employee_id: campusId,
+          student_id: null,
+          clinic_id: CAMPUS_CLINIC_ID,
+          updated_at: now,
+        })
+        .select("id, full_name, employee_id")
+        .single()
+
+      if (createError || !created) {
+        return {
+          ok: false,
+          error: createError?.message || "Could not create staff patient.",
+        }
+      }
+      patientId = created.id
+      resolvedName = created.full_name
+      resolvedCampusId = created.employee_id
     }
   }
 
@@ -534,6 +590,7 @@ export async function registerWalkIn(params: {
     patient_id: patientId,
     patient_name: resolvedName,
     campus_id: resolvedCampusId,
+    patient_type: patientType,
     consultation_type: params.consultationType || "Walk-in consultation",
     assigned_staff_name: params.staffName,
     provider_type: providerType,

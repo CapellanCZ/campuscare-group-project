@@ -60,7 +60,6 @@ import {
 import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { DemoStat } from "@/lib/demo/types"
-import { isEnrolledVirtualId } from "@/lib/students/virtual-id"
 import { NO_STUDENT_FOUND } from "@/lib/students/types"
 import { createClient } from "@/lib/supabase/client"
 import {
@@ -305,10 +304,6 @@ export function PatientsPage({
     patient: PatientRecord,
     then: (ensured: PatientRecord) => void
   ) {
-    if (!isEnrolledVirtualId(patient.id)) {
-      then(patient)
-      return
-    }
     setLoading(true)
     try {
       const result = await ensurePatientRecordAction(patient)
@@ -319,7 +314,11 @@ export function PatientsPage({
       setList((prev) => ({
         ...prev,
         items: prev.items.map((item) =>
-          item.studentId === result.data.studentId ? result.data : item
+          item.id === result.data.id ||
+          (result.data.studentId != null &&
+            item.studentId === result.data.studentId)
+            ? result.data
+            : item
         ),
       }))
       then(result.data)

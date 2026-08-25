@@ -36,6 +36,7 @@ import {
 } from "@/services/medicalCertificates"
 import {
   AppointmentRequestServiceError,
+  NURSE_REQUEST_TAB_STATUSES,
   type AppointmentRequestListResult,
   type AppointmentRequestStats,
 } from "@/types/appointmentRequest"
@@ -180,7 +181,15 @@ export async function StaffRequestsPage() {
 
   try {
     const [nextList, nextStats] = await Promise.all([
-      getAppointmentRequests({ page: 1, pageSize: 50, status: "all" }),
+      getAppointmentRequests({
+        page: 1,
+        pageSize: 50,
+        status: "all",
+        statuses:
+          access.designation === "nurse"
+            ? NURSE_REQUEST_TAB_STATUSES
+            : undefined,
+      }),
       getAppointmentRequestStats(),
     ])
     list = nextList

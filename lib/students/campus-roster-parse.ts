@@ -157,11 +157,17 @@ export function mapCampusRosterRowToImportFields(
     department: student.department ?? "",
     birth_date: student.birthDate ?? "",
     gender: student.gender ?? "",
+    civil_status: student.civilStatus ?? "",
+    religion: student.religion ?? "",
     phone: student.mobile ?? "",
     email: student.email ?? "",
     address: student.presentAddress ?? "",
     emergency_contact_name: student.familyBackground.guardianName ?? "",
     emergency_contact_phone: student.familyBackground.mobile ?? "",
+    guardian_relationship: student.familyBackground.relationship ?? "",
+    guardian_occupation: student.familyBackground.occupation ?? "",
+    guardian_address: student.familyBackground.address ?? "",
+    guardian_email: student.familyBackground.email ?? "",
   }
 }
 

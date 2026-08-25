@@ -1,12 +1,12 @@
 "use client"
 
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   patientAgeYears,
   patientCampusId,
@@ -105,16 +105,16 @@ export function PatientProfileSheet({
   const age = patient ? patientAgeYears(patient.birthDate) : null
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-full flex-col sm:max-w-xl">
-        <SheetHeader className="gap-2 border-b pb-5">
-          <SheetTitle className="pr-8 text-lg">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[min(90vh,800px)] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+        <DialogHeader className="gap-2 border-b px-6 py-5 text-left">
+          <DialogTitle className="pr-8 text-lg">
             {patient ? patientFullName(patient) : "Patient profile"}
-          </SheetTitle>
-          <SheetDescription>
+          </DialogTitle>
+          <DialogDescription>
             Student medical record from CampusCare.
-          </SheetDescription>
-        </SheetHeader>
+          </DialogDescription>
+        </DialogHeader>
         {patient ? (
           <dl className="min-h-0 flex-1 space-y-8 overflow-y-auto px-6 py-6">
             <div className="space-y-1">
@@ -192,7 +192,7 @@ export function PatientProfileSheet({
             </div>
           </dl>
         ) : null}
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   )
 }

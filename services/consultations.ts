@@ -35,6 +35,11 @@ const SELECT_WITH_PATIENT = `
   consultation_date,
   follow_up_date,
   notes,
+  queue_ticket_id,
+  consultation_request_id,
+  appointment_id,
+  provider_type,
+  vitals,
   created_at,
   updated_at,
   patient_records (
@@ -234,6 +239,60 @@ export async function getConsultationsByPatientId(
 
   if (error) mapError(error)
   return ((data ?? []) as ConsultationJson[]).map(consultationFromJson)
+}
+
+export async function getConsultationVisitDetail(
+  consultationId: string,
+  client?: SupabaseClient
+): Promise<{
+  consultation: Consultation
+  ticketVitals: import("@/lib/health/types").QueueVitals | null
+}> {
+  const consultation = await getConsultationById(consultationId, client)
+  if (!consultation.queueTicketId) {
+    return { consultation, ticketVitals: null }
+  }
+
+  const supabase = await getClient(client)
+  const { data, error } = await supabase
+    .from("health_queue_tickets")
+    .select(
+      `
+      vitals_bp_systolic,
+      vitals_bp_diastolic,
+      vitals_heart_rate,
+      vitals_temperature_c,
+      vitals_spo2,
+      vitals_height_cm,
+      vitals_weight_kg,
+      vitals_respiratory_rate
+    `
+    )
+    .eq("id", consultation.queueTicketId)
+    .maybeSingle()
+
+  if (error || !data) {
+    return { consultation, ticketVitals: null }
+  }
+
+  return {
+    consultation,
+    ticketVitals: {
+      bpSystolic: data.vitals_bp_systolic,
+      bpDiastolic: data.vitals_bp_diastolic,
+      heartRate: data.vitals_heart_rate,
+      temperatureC:
+        data.vitals_temperature_c == null
+          ? null
+          : Number(data.vitals_temperature_c),
+      spo2: data.vitals_spo2,
+      heightCm:
+        data.vitals_height_cm == null ? null : Number(data.vitals_height_cm),
+      weightKg:
+        data.vitals_weight_kg == null ? null : Number(data.vitals_weight_kg),
+      respiratoryRate: data.vitals_respiratory_rate ?? null,
+    },
+  }
 }
 
 export async function getConsultationStats(

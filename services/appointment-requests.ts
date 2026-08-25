@@ -254,6 +254,8 @@ export async function getAppointmentRequests(
 
   if (status !== "all") {
     request = request.eq("status", status)
+  } else if (params.statuses?.length) {
+    request = request.in("status", params.statuses)
   }
 
   const { data, error } = await request

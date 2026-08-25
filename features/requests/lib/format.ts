@@ -1,8 +1,21 @@
 export function consultationRequestStatusLabel(status: string): string {
-  return status
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ")
+  switch (status) {
+    case "confirmed":
+      return "Approved"
+    case "cancelled":
+      return "Declined"
+    case "pending":
+      return "Pending"
+    case "rescheduled":
+      return "Rescheduled"
+    case "waitlisted":
+      return "Waitlisted"
+    default:
+      return status
+        .split("_")
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ")
+  }
 }
 
 export function formatRequestDateTime(value: string | null | undefined): string {

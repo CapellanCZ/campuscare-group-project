@@ -50,7 +50,10 @@ import {
   actionSkipTicket,
   actionVerifyCheckIn,
 } from "@/lib/health/queue-server-actions"
-import { needsNurseIntake } from "@/lib/health/nurse-queue"
+import {
+  needsCheckInVerify,
+  needsNurseIntake,
+} from "@/lib/health/nurse-queue"
 import { canMutateQueue, canRegisterWalkIn } from "@/lib/health/roles"
 import { patientTypeLabel, ticketLabel } from "@/lib/health/mappers"
 import type { QueueTicketRow, TicketStatus } from "@/lib/health/types"
@@ -262,6 +265,28 @@ export function NurseTodayQueue({
                     </TableCell>
                     <TableCell className="pr-6 text-right">
                       <div className="flex flex-wrap justify-end gap-1">
+                        {canVerify && needsCheckInVerify(row) ? (
+                          <Button
+                            type="button"
+                            size="xs"
+                            disabled={pending}
+                            onClick={() =>
+                              runAction("Check-in verified", () =>
+                                actionVerifyCheckIn(row.ticketId)
+                              )
+                            }
+                          >
+                            Verify
+                          </Button>
+                        ) : null}
+                        {row.checkedInAt && !row.intakeCompletedAt ? (
+                          <Badge
+                            variant="outline"
+                            className="h-6 px-1.5 text-[10px]"
+                          >
+                            Verified
+                          </Badge>
+                        ) : null}
                         {needsNurseIntake(row) ? (
                           <Button
                             type="button"
@@ -288,17 +313,6 @@ export function NurseTodayQueue({
                               <IconDots className="size-3.5" aria-hidden />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              {canVerify && !row.checkedInAt ? (
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    runAction("Check-in verified", () =>
-                                      actionVerifyCheckIn(row.ticketId)
-                                    )
-                                  }
-                                >
-                                  Verify check-in
-                                </DropdownMenuItem>
-                              ) : null}
                               <DropdownMenuItem
                                 render={
                                   <Link

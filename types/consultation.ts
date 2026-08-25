@@ -29,7 +29,7 @@ export type ConsultationPatient = {
   /** Campus ID shown in lists (student or employee). */
   studentId: string
   employeeId: string | null
-  patientType: "student" | "faculty"
+  patientType: "student" | "faculty" | "employee" | "visitor"
   fullName: string
 }
 
@@ -182,11 +182,17 @@ export function consultationFromJson(json: ConsultationJson): Consultation {
 
   const firstName = joined?.first_name ?? ""
   const lastName = joined?.last_name ?? ""
+  const patientTypeRaw = (joined?.patient_type ?? "student").toLowerCase()
   const patientType =
-    joined?.patient_type === "faculty" ? "faculty" : "student"
+    patientTypeRaw === "faculty" ||
+    patientTypeRaw === "employee" ||
+    patientTypeRaw === "visitor" ||
+    patientTypeRaw === "student"
+      ? patientTypeRaw
+      : "student"
   const employeeId = joined?.employee_id ?? null
   const studentId =
-    patientType === "faculty"
+    patientType === "faculty" || patientType === "employee"
       ? (employeeId ?? joined?.student_id ?? "")
       : (joined?.student_id ?? "")
   const fullName = [firstName, lastName].filter(Boolean).join(" ") || "Unknown patient"
