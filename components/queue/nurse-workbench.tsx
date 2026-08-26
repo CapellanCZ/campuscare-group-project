@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/card"
 import { panelCardClassName } from "@/components/layout/panel-frame"
 import { ticketLabel } from "@/lib/health/mappers"
-import { nextNurseIntakeTicket } from "@/lib/health/nurse-queue"
+import { needsNurseIntake, nextNurseIntakeTicket } from "@/lib/health/nurse-queue"
 import type { QueueTicketRow } from "@/lib/health/types"
 import { cn } from "@/lib/utils"
 import { IconHeartbeat } from "@tabler/icons-react"
@@ -78,12 +78,7 @@ export function NurseWorkbench({
   variant?: "embedded" | "panel"
 }) {
   const next = nextNurseIntakeTicket(tickets)
-  const waitingCount = tickets.filter(
-    (row) =>
-      row.station === "nurse" &&
-      !row.intakeCompletedAt &&
-      (row.status === "waiting" || row.status === "called")
-  ).length
+  const waitingCount = tickets.filter(needsNurseIntake).length
 
   if (variant === "panel") {
     return (

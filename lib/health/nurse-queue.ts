@@ -2,12 +2,18 @@ import type { QueueTicketRow } from "@/lib/health/types"
 
 export type NurseQueueLane = "needs_intake" | "at_specialty" | "exceptions"
 
+/**
+ * Nurse-station patients who still need vitals / specialty assign.
+ * Do not require checkedInAt: appointment/waitlist tickets arrive unchecked-in,
+ * and verifyCheckIn moves status to ongoing while intake is still pending.
+ */
 export function needsNurseIntake(row: QueueTicketRow): boolean {
   return (
     row.station === "nurse" &&
-    Boolean(row.checkedInAt) &&
     !row.intakeCompletedAt &&
-    (row.status === "waiting" || row.status === "called")
+    (row.status === "waiting" ||
+      row.status === "called" ||
+      row.status === "ongoing")
   )
 }
 
@@ -20,7 +26,7 @@ export function isAtSpecialtyAfterIntake(row: QueueTicketRow): boolean {
   return (
     Boolean(row.intakeCompletedAt) &&
     (row.station === "physician" || row.station === "dentist") &&
-    (row.status === "waiting" || row.status === "called")
+    (row.status === "waiting" || row.status === "called" || row.status === "ongoing")
   )
 }
 
@@ -31,6 +37,7 @@ export function isNurseQueueException(row: QueueTicketRow): boolean {
 export function nurseLaneForTicket(row: QueueTicketRow): NurseQueueLane {
   if (needsNurseIntake(row)) return "needs_intake"
   if (isNurseQueueException(row)) return "exceptions"
+  if (isAtSpecialtyAfterIntake(row)) return "at_specialty"
   return "at_specialty"
 }
 
