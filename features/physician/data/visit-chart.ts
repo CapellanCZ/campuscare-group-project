@@ -85,19 +85,124 @@ async function loadPatientRecordByCampusId(
   return patientRecordFromJson(data)
 }
 
+export function nurseVitalsFromConsultationJson(
+  vitals: Record<string, unknown> | null | undefined
+): NurseVisitVitals {
+  if (!vitals || Object.keys(vitals).length === 0) {
+    return nurseVitalsFromTicket(null)
+  }
+  const sys = vitals.bpSystolic as number | null | undefined
+  const dia = vitals.bpDiastolic as number | null | undefined
+  let bloodPressure = ""
+  if (sys != null && dia != null) bloodPressure = `${sys}/${dia}`
+  else if (sys != null) bloodPressure = String(sys)
+
+  return {
+    bloodPressure,
+    pulseRate: fmtNum(vitals.heartRate as number | null | undefined),
+    temperature: fmtNum(vitals.temperatureC as number | null | undefined),
+    weight: fmtNum(vitals.weightKg as number | null | undefined, " kg"),
+    height: fmtNum(vitals.heightCm as number | null | undefined, " cm"),
+    o2: fmtNum(vitals.spo2 as number | null | undefined, "%"),
+  }
+}
+
+/**
+ * Medical chart for a clinical visit by consultation id.
+ */
+export async function loadVisitMedicalChartByConsultation(
+  consultationId: string
+): Promise<VisitMedicalChartData> {
+  const supabase = await createClient()
+  const { data: row } = await supabase
+    .from("consultations")
+    .select(
+      `
+      vitals,
+      queue_ticket_id,
+      appointment_id,
+      patient_records (
+        student_id,
+        employee_id,
+        patient_type
+      )
+    `
+    )
+    .eq("id", consultationId)
+    .maybeSingle()
+
+  let nurseVitals = nurseVitalsFromConsultationJson(
+    row?.vitals as Record<string, unknown> | null
+  )
+
+  if (
+    !nurseVitals.bloodPressure &&
+    !nurseVitals.pulseRate &&
+    row?.queue_ticket_id
+  ) {
+    const { data: vitalsRow } = await supabase
+      .from("health_queue_tickets")
+      .select(
+        `
+        vitals_bp_systolic,
+        vitals_bp_diastolic,
+        vitals_heart_rate,
+        vitals_temperature_c,
+        vitals_spo2,
+        vitals_height_cm,
+        vitals_weight_kg
+      `
+      )
+      .eq("id", row.queue_ticket_id)
+      .maybeSingle()
+    nurseVitals = nurseVitalsFromTicket(vitalsRow)
+  }
+
+  const patientJoin = Array.isArray(row?.patient_records)
+    ? row?.patient_records[0]
+    : row?.patient_records
+  const campusId =
+    patientJoin?.patient_type === "faculty"
+      ? ((patientJoin?.employee_id as string | null) ??
+        (patientJoin?.student_id as string | null))
+      : ((patientJoin?.student_id as string | null) ?? null)
+
+  const record = await loadPatientRecordByCampusId(campusId)
+
+  if (record) {
+    return {
+      record: {
+        ...record,
+        physicalExam: mergeNurseVitalsIntoExam(
+          record.physicalExam ?? { ...EMPTY_PHYSICAL_EXAM },
+          nurseVitals
+        ),
+      },
+      nurseVitals,
+    }
+  }
+
+  return { record: null, nurseVitals }
+}
+
 /**
  * Medical chart for a physician visit: enrollment demographics + nurse vitals.
  */
 export async function loadVisitMedicalChart(input: {
-  appointmentId: string
+  appointmentId?: string
+  consultationId?: string
   campusId: string | null
 }): Promise<VisitMedicalChartData> {
+  if (input.consultationId) {
+    return loadVisitMedicalChartByConsultation(input.consultationId)
+  }
+
   const supabase = await createClient()
 
   const { data: appointment } = await supabase
     .from("appointments")
     .select("queue_ticket_id, patient_id")
-    .eq("id", input.appointmentId)
+    .eq("id", input.appointmentId ?? "")
     .maybeSingle()
 
   let ticketId = (appointment?.queue_ticket_id as string | null) ?? null

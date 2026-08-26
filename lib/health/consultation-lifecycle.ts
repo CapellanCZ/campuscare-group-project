@@ -315,7 +315,7 @@ export async function saveConsultationVitals(params: {
       chief_complaint: params.chiefComplaint || undefined,
       notes: params.notes || undefined,
       station: params.station,
-      status: "ongoing",
+      status: "waiting",
       provider_name: params.staffName,
       provider_role: "nurse",
       updated_at: new Date().toISOString(),
@@ -333,6 +333,8 @@ export async function completeConsultationVisit(params: {
   notes?: string | null
   prescription?: string | null
   assessment?: string | null
+  treatment?: string | null
+  followUpDate?: string | null
   providerName?: string
   providerRole?: "physician" | "dentist"
   client?: SupabaseClient
@@ -358,6 +360,8 @@ export async function completeConsultationVisit(params: {
       notes: params.notes ?? undefined,
       prescription: params.prescription ?? undefined,
       assessment: params.assessment ?? undefined,
+      treatment: params.treatment ?? undefined,
+      follow_up_date: params.followUpDate ?? undefined,
       status: "completed",
       station: params.providerRole ?? undefined,
       provider_name: params.providerName,
@@ -385,7 +389,70 @@ export async function completeConsultationVisit(params: {
   return { ok: true }
 }
 
-async function linkTicketAndConsultation(params: {
+export async function resolveConsultationIdForTicket(
+  ticketId: string,
+  client?: SupabaseClient
+): Promise<string | null> {
+  const supabase = client ?? (await createClient())
+
+  const { data: ticket } = await supabase
+    .from("health_queue_tickets")
+    .select("consultation_id, consultation_request_id, appointment_id")
+    .eq("id", ticketId)
+    .maybeSingle()
+
+  if (ticket?.consultation_id) return ticket.consultation_id as string
+
+  const { data: byTicket } = await supabase
+    .from("consultations")
+    .select("id")
+    .eq("queue_ticket_id", ticketId)
+    .maybeSingle()
+  if (byTicket?.id) {
+    await linkTicketAndConsultation({
+      supabase,
+      ticketId,
+      consultationId: byTicket.id as string,
+    })
+    return byTicket.id as string
+  }
+
+  if (ticket?.consultation_request_id) {
+    const { data: byRequest } = await supabase
+      .from("consultations")
+      .select("id")
+      .eq("consultation_request_id", ticket.consultation_request_id)
+      .maybeSingle()
+    if (byRequest?.id) {
+      await linkTicketAndConsultation({
+        supabase,
+        ticketId,
+        consultationId: byRequest.id as string,
+      })
+      return byRequest.id as string
+    }
+  }
+
+  if (ticket?.appointment_id) {
+    const { data: byAppointment } = await supabase
+      .from("consultations")
+      .select("id")
+      .eq("appointment_id", ticket.appointment_id)
+      .maybeSingle()
+    if (byAppointment?.id) {
+      await linkTicketAndConsultation({
+        supabase,
+        ticketId,
+        consultationId: byAppointment.id as string,
+      })
+      return byAppointment.id as string
+    }
+  }
+
+  return null
+}
+
+export async function linkTicketAndConsultation(params: {
   supabase: SupabaseClient
   ticketId: string
   consultationId: string

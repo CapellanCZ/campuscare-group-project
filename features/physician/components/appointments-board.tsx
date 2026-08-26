@@ -285,7 +285,16 @@ export function AppointmentsBoard({
                   async () => {
                     const result = await startConsultation(id)
                     if (result.ok) {
-                      router.push(`/physician/consultation/${id}`)
+                      if (!result.consultationId) {
+                        return {
+                          ok: false,
+                          error:
+                            "No consultation record for this appointment. Nurse must approve first.",
+                        }
+                      }
+                      router.push(
+                        `/physician/consultation/${result.consultationId}`
+                      )
                     }
                     return result
                   })
@@ -340,7 +349,16 @@ export function AppointmentsBoard({
                 async () => {
                   const result = await startConsultation(id)
                   if (result.ok) {
-                    router.push(`/physician/consultation/${id}`)
+                    if (!result.consultationId) {
+                      return {
+                        ok: false,
+                        error:
+                          "No consultation record for this appointment. Nurse must approve first.",
+                      }
+                    }
+                    router.push(
+                      `/physician/consultation/${result.consultationId}`
+                    )
                   }
                   return result
                 })

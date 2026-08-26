@@ -39,19 +39,21 @@ function SheetOverlay({ className, ...props }: SheetPrimitive.Backdrop.Props) {
 function SheetContent({
   className,
   children,
-  side: _side = "left",
+  side = "center",
   showCloseButton = true,
   ...props
 }: SheetPrimitive.Popup.Props & {
-  /** Side where the sheet slides in from. Defaults to left for mobile. */
-  side?: "top" | "right" | "bottom" | "left"
+  /** Side where the sheet slides in from. Defaults to center for form modals. */
+  side?: "top" | "right" | "bottom" | "left" | "center"
   showCloseButton?: boolean
 }) {
   const sideStyles = {
     top: "inset-x-0 top-0 max-h-[50vh] rounded-b-4xl",
-    right: "inset-y-0 right-0 w-full max-w-[85vw] sm:max-w-lg rounded-l-4xl",
+    right: "inset-y-0 right-0 h-full w-full max-w-[85vw] sm:max-w-lg rounded-l-4xl",
     bottom: "inset-x-0 bottom-0 max-h-[50vh] rounded-t-4xl",
-    left: "inset-y-0 left-0 w-full max-w-[85vw] sm:max-w-lg rounded-r-4xl",
+    left: "inset-y-0 left-0 h-full w-full max-w-[85vw] sm:max-w-lg rounded-r-4xl",
+    center:
+      "top-1/2 left-1/2 w-[min(100vw-1.5rem,36rem)] max-h-[min(92vh,960px)] -translate-x-1/2 -translate-y-1/2 rounded-2xl",
   }
 
   const animationStyles = {
@@ -59,6 +61,7 @@ function SheetContent({
     right: "data-open:slide-in-from-right data-closed:slide-out-to-right",
     bottom: "data-open:slide-in-from-bottom data-closed:slide-out-to-bottom",
     left: "data-open:slide-in-from-left data-closed:slide-out-to-left",
+    center: "data-open:zoom-in-95 data-closed:zoom-out-95",
   }
 
   return (
@@ -68,8 +71,8 @@ function SheetContent({
         data-slot="sheet-content"
         className={cn(
           "fixed z-50 flex max-h-[min(92vh,960px)] flex-col overflow-hidden bg-popover bg-clip-padding text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/5 duration-100 outline-none data-open:animate-in data-closed:animate-out data-closed:fade-out-0",
-          sideStyles[_side],
-          animationStyles[_side],
+          sideStyles[side],
+          animationStyles[side],
           className
         )}
         {...props}

@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { CONSULTATION_TYPE_OPTIONS } from "@/lib/health/form-options"
-import { formatStudentIdInput } from "@/lib/students/student-id-input"
+import { CampusIdInput } from "@/components/shared/campus-id-input"
 import { actionRegisterWalkIn } from "@/lib/health/queue-server-actions"
 import {
   PATIENT_TYPES,
@@ -193,21 +193,17 @@ export function WalkInSheet({
               {campusIdLabel(patientType)}
               {idRequired ? "" : ""}
             </FieldLabel>
-            <Input
+            <CampusIdInput
               id="walkin-campus"
               value={campusId}
-              onChange={(e) => setCampusId(formatStudentIdInput(e.target.value))}
+              onChange={setCampusId}
               placeholder={
                 patientType === "faculty" || patientType === "employee"
                   ? "Employee ID"
                   : "2023-171863"
               }
+              aria-label={campusIdLabel(patientType)}
               disabled={pending}
-              autoComplete="off"
-              required={idRequired}
-              aria-required={idRequired}
-              inputMode="numeric"
-              maxLength={32}
             />
           </Field>
 

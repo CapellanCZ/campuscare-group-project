@@ -19,7 +19,9 @@ import {
 } from "@/services/announcements"
 import {
   getConsultations,
+  getConsultationsForClinician,
   getConsultationStats,
+  getConsultationStatsForClinician,
   listConsultationFilterOptions,
 } from "@/services/consultations"
 import {
@@ -282,18 +284,31 @@ export async function StaffConsultationsPage() {
   let initialError: string | null = null
 
   try {
+    const isClinician =
+      access.designation === "dentist" || access.designation === "physician"
+    const clinicianRole =
+      access.designation === "dentist" ? "dentist" : "physician"
+
     const [nextList, nextStats, options] = await Promise.all([
-      getConsultations({
-        page: 1,
-        pageSize: 20,
-        station:
-          access.designation === "dentist"
-            ? "dentist"
-            : access.designation === "physician"
-              ? "physician"
-              : "all",
-      }),
-      getConsultationStats(),
+      isClinician
+        ? getConsultationsForClinician(clinicianRole, {
+            page: 1,
+            pageSize: 20,
+            status: "waiting",
+          })
+        : getConsultations({
+            page: 1,
+            pageSize: 20,
+            station:
+              access.designation === "dentist"
+                ? "dentist"
+                : access.designation === "physician"
+                  ? "physician"
+                  : "all",
+          }),
+      isClinician
+        ? getConsultationStatsForClinician(clinicianRole)
+        : getConsultationStats(),
       listConsultationFilterOptions(),
     ])
     list = nextList

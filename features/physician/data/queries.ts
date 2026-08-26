@@ -46,7 +46,10 @@ function patientJoin<T extends { full_name: string }>(
   return Array.isArray(value) ? (value[0] ?? null) : value
 }
 
-function mapAppointment(row: AppointmentRow): PhysicianAppointment {
+function mapAppointment(
+  row: AppointmentRow,
+  consultationId: string | null = null
+): PhysicianAppointment {
   const patient = patientJoin(row.patients)
   const campusId =
     patient?.patient_type === "faculty"
@@ -66,6 +69,7 @@ function mapAppointment(row: AppointmentRow): PhysicianAppointment {
     location: row.location,
     cancellationReason: row.cancellation_reason,
     timezone: patient?.timezone ?? "Asia/Manila",
+    consultationId,
   }
 }
 
@@ -143,9 +147,30 @@ export async function loadPhysicianWorkspace(): Promise<PhysicianWorkspace> {
     return emptyWorkspace(access.fullName, access.email, access.userId)
   }
 
-  const appointments =
-    (appointmentRows as unknown as AppointmentRow[] | null)?.map(mapAppointment) ??
+  const appointmentIds =
+    (appointmentRows as unknown as AppointmentRow[] | null)?.map((r) => r.id) ??
     []
+
+  const consultationByAppointment = new Map<string, string>()
+  if (appointmentIds.length > 0) {
+    const { data: linkedConsultations } = await supabase
+      .from("consultations")
+      .select("id, appointment_id")
+      .in("appointment_id", appointmentIds)
+    for (const row of linkedConsultations ?? []) {
+      if (row.appointment_id && row.id) {
+        consultationByAppointment.set(
+          row.appointment_id as string,
+          row.id as string
+        )
+      }
+    }
+  }
+
+  const appointments =
+    (appointmentRows as unknown as AppointmentRow[] | null)?.map((row) =>
+      mapAppointment(row, consultationByAppointment.get(row.id) ?? null)
+    ) ?? []
 
   const { data: patientRows } = await supabase
     .from("patients")

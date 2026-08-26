@@ -14,6 +14,14 @@ function isDentalStation(station: string | null | undefined): boolean {
   return v.includes("dent")
 }
 
+function isDentalConsultation(row: {
+  station?: string | null
+  provider_type?: string | null
+}): boolean {
+  if (row.provider_type === "dentist") return true
+  return isDentalStation(row.station as string | null)
+}
+
 function manilaYmd(iso: string | null | undefined): string | null {
   if (!iso) return null
   return new Intl.DateTimeFormat("en-CA", {
@@ -113,7 +121,7 @@ export async function loadAdminReportsAggregates(
     const [consultRes, ticketRes, apptRes, certRes] = await Promise.all([
       supabase
         .from("consultations")
-        .select("id, station, status, consultation_date, patient_id")
+        .select("id, station, status, consultation_date, patient_id, provider_type")
         .gte("consultation_date", fromBounds.startIso)
         .lte("consultation_date", toBounds.endIso),
       supabase
@@ -200,12 +208,8 @@ export async function loadAdminReportsAggregates(
       return inDateRange(ymd, dateFrom, dateTo)
     })
 
-    const medical = consults.filter(
-      (c) => !isDentalStation(c.station as string)
-    ).length
-    const dental = consults.filter((c) =>
-      isDentalStation(c.station as string)
-    ).length
+    const medical = consults.filter((c) => !isDentalConsultation(c)).length
+    const dental = consults.filter((c) => isDentalConsultation(c)).length
     const completedTickets = tickets.filter((t) => t.status === "completed")
 
     let student = 0
@@ -258,7 +262,7 @@ export async function loadAdminReportsAggregates(
       const ymd = manilaYmd(c.consultation_date as string)
       if (!ymd || !dayMap.has(ymd)) continue
       const row = dayMap.get(ymd)!
-      if (isDentalStation(c.station as string)) row.dental += 1
+      if (isDentalConsultation(c)) row.dental += 1
       else row.medical += 1
     }
     for (const t of tickets) {

@@ -270,6 +270,154 @@ export async function ensurePatientFromStudentId(
   return ensurePatientFromEnrollment(student, client)
 }
 
+/**
+ * Resolve either a `patients.id` or `patient_records.id` to an operational
+ * `patients` row (required for medical_certificates FK).
+ */
+export async function ensureOperationalPatientForCertificateId(
+  patientId: string
+): Promise<{
+  id: string
+  fullName: string
+  studentId: string | null
+  email: string | null
+}> {
+  const id = patientId.trim()
+  if (!id) {
+    throw new PatientRecordServiceError("validation", "Patient is required.")
+  }
+
+  const admin = createAdminClient()
+
+  const { data: existingPatient, error: patientError } = await admin
+    .from("patients")
+    .select("id, full_name, student_id, employee_id, email")
+    .eq("id", id)
+    .maybeSingle()
+
+  if (patientError) {
+    throw new PatientRecordServiceError(
+      "database",
+      patientError.message || "Could not look up patient."
+    )
+  }
+
+  if (existingPatient?.id) {
+    return {
+      id: existingPatient.id as string,
+      fullName: existingPatient.full_name as string,
+      studentId:
+        (existingPatient.student_id as string | null) ??
+        (existingPatient.employee_id as string | null),
+      email: (existingPatient.email as string | null) ?? null,
+    }
+  }
+
+  const { data: record, error: recordError } = await admin
+    .from("patient_records")
+    .select(
+      "id, patient_type, student_id, employee_id, first_name, middle_name, last_name, email, phone, birth_date, gender"
+    )
+    .eq("id", id)
+    .maybeSingle()
+
+  if (recordError) {
+    throw new PatientRecordServiceError(
+      "database",
+      recordError.message || "Could not look up patient record."
+    )
+  }
+
+  if (!record) {
+    throw new PatientRecordServiceError("not_found", "Patient not found.")
+  }
+
+  const isFaculty = record.patient_type === "faculty"
+  const campusId = isFaculty
+    ? ((record.employee_id as string | null)?.trim() ?? null)
+    : ((record.student_id as string | null)?.trim() ?? null)
+
+  if (campusId) {
+    const byCampus = isFaculty
+      ? await admin
+          .from("patients")
+          .select("id, full_name, student_id, employee_id, email")
+          .eq("employee_id", campusId)
+          .limit(1)
+          .maybeSingle()
+      : await admin
+          .from("patients")
+          .select("id, full_name, student_id, employee_id, email")
+          .eq("student_id", campusId)
+          .limit(1)
+          .maybeSingle()
+
+    if (byCampus.error) {
+      throw new PatientRecordServiceError(
+        "database",
+        byCampus.error.message || "Could not look up operational patient."
+      )
+    }
+
+    if (byCampus.data?.id) {
+      return {
+        id: byCampus.data.id as string,
+        fullName: byCampus.data.full_name as string,
+        studentId:
+          (byCampus.data.student_id as string | null) ??
+          (byCampus.data.employee_id as string | null),
+        email: (byCampus.data.email as string | null) ?? null,
+      }
+    }
+
+    // Prefer enrollment sync when the campus ID is in the roster.
+    const fromEnrollment = await ensurePatientFromStudentId(campusId)
+    if (fromEnrollment) {
+      return fromEnrollment.operational
+    }
+  }
+
+  const fullName = [record.first_name, record.middle_name, record.last_name]
+    .map((part) => (typeof part === "string" ? part.trim() : ""))
+    .filter(Boolean)
+    .join(" ")
+    .trim() || "Patient"
+
+  const { data: created, error: createError } = await admin
+    .from("patients")
+    .insert({
+      clinic_id: CAMPUS_CLINIC_ID,
+      full_name: fullName,
+      email: (record.email as string | null) ?? null,
+      student_id: isFaculty ? null : campusId,
+      employee_id: isFaculty ? campusId : null,
+      phone: (record.phone as string | null) ?? null,
+      date_of_birth: (record.birth_date as string | null) ?? null,
+      sex: (record.gender as string | null) ?? null,
+      patient_type: isFaculty ? "faculty" : "student",
+      affiliation: isFaculty ? "faculty" : "student",
+      timezone: "Asia/Manila",
+    })
+    .select("id, full_name, student_id, employee_id, email")
+    .single()
+
+  if (createError || !created?.id) {
+    throw new PatientRecordServiceError(
+      "database",
+      createError?.message || "Could not create operational patient."
+    )
+  }
+
+  return {
+    id: created.id as string,
+    fullName: created.full_name as string,
+    studentId:
+      (created.student_id as string | null) ??
+      (created.employee_id as string | null),
+    email: (created.email as string | null) ?? null,
+  }
+}
+
 export function clinicalName(patient: PatientRecord): string {
   return patientFullName(patient)
 }

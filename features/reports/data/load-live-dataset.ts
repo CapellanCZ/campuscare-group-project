@@ -133,6 +133,7 @@ export async function loadLiveReportsDataset(): Promise<{
         diagnosis,
         provider_name,
         station,
+        provider_type,
         status,
         consultation_date,
         follow_up_date,
@@ -368,8 +369,20 @@ export async function loadLiveReportsDataset(): Promise<{
       const patientName =
         [firstName, lastName].filter(Boolean).join(" ") || "Unknown patient"
       const date = manilaYmd(row.consultation_date as string)
-      const station = stationOf(row.station as string | null)
-      const consultationType = consultationTypeOf(row.station as string | null)
+      const providerType = row.provider_type as string | null
+      const station = stationOf(
+        providerType === "dentist"
+          ? "dentist"
+          : providerType === "physician"
+            ? "physician"
+            : (row.station as string | null)
+      )
+      const consultationType =
+        providerType === "dentist"
+          ? "dental"
+          : providerType === "physician"
+            ? "medical"
+            : consultationTypeOf(row.station as string | null)
       const notes = ((row.notes as string | null) ?? "").toLowerCase()
       return {
         id: row.id as string,

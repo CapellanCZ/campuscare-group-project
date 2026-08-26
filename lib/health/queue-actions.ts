@@ -21,6 +21,19 @@ import { createClient } from "@/lib/supabase/server"
 import { lookupEnrolledStudentById } from "@/lib/students/enrolled-dataset"
 import { ensurePatientFromEnrollment } from "@/lib/students/ensure-patient"
 import { NO_STUDENT_FOUND } from "@/lib/students/types"
+import {
+  ensureConsultationFromAppointment,
+  ensureWalkInConsultation,
+  formatClinicQueueCode,
+  hasRequiredNurseVitals,
+  linkTicketAndConsultation,
+  resolveConsultationIdForTicket,
+  saveConsultationVitals,
+  setConsultationStatus,
+  vitalsFromIntake,
+  type ConsultationVitals,
+} from "@/lib/health/consultation-lifecycle"
+import type { ConsultationProviderType } from "@/lib/health/consultation-workflow"
 
 async function requireMutable(designation: ClinicDesignation) {
   if (isReadOnlyQueue(designation) || !canMutateQueue(designation)) {
@@ -144,11 +157,172 @@ export async function startConsultation(params: {
   const station = stationForDesignation(params.designation)
   const { data: ticket } = await supabase
     .from("health_queue_tickets")
-    .select("id, status, station")
+    .select(
+      `
+      id,
+      status,
+      station,
+      consultation_id,
+      appointment_id,
+      patient_id,
+      provider_type,
+      chief_complaint,
+      patient_name,
+      intake_completed_at,
+      vitals_bp_systolic,
+      vitals_bp_diastolic,
+      vitals_heart_rate,
+      vitals_temperature_c,
+      vitals_spo2,
+      vitals_height_cm,
+      vitals_weight_kg,
+      vitals_respiratory_rate,
+      intake_notes
+    `
+    )
     .eq("id", params.ticketId)
     .maybeSingle()
 
   if (!ticket) return { ok: false, error: "Ticket not found." }
+
+  if (
+    (station === "physician" || station === "dentist") &&
+    ticket.station !== station
+  ) {
+    return {
+      ok: false,
+      error: "Patient is not in your queue yet.",
+    }
+  }
+
+  const ticketVitals: ConsultationVitals = {
+    bpSystolic: (ticket.vitals_bp_systolic as number | null) ?? null,
+    bpDiastolic: (ticket.vitals_bp_diastolic as number | null) ?? null,
+    heartRate: (ticket.vitals_heart_rate as number | null) ?? null,
+    temperatureC:
+      ticket.vitals_temperature_c == null
+        ? null
+        : Number(ticket.vitals_temperature_c),
+    spo2: (ticket.vitals_spo2 as number | null) ?? null,
+    heightCm:
+      ticket.vitals_height_cm == null ? null : Number(ticket.vitals_height_cm),
+    weightKg:
+      ticket.vitals_weight_kg == null ? null : Number(ticket.vitals_weight_kg),
+    respiratoryRate: (ticket.vitals_respiratory_rate as number | null) ?? null,
+  }
+  const intakeDone =
+    Boolean(ticket.intake_completed_at) || hasRequiredNurseVitals(ticketVitals)
+
+  let consultationId: string | null =
+    (ticket.consultation_id as string | null) ??
+    (await resolveConsultationIdForTicket(params.ticketId, supabase))
+
+  if (!consultationId && ticket.appointment_id) {
+    const ensured = await ensureConsultationFromAppointment({
+      appointmentId: ticket.appointment_id as string,
+      ticketId: params.ticketId,
+      staffName: params.staffName,
+      client: supabase,
+    })
+    if ("error" in ensured) {
+      return { ok: false, error: ensured.error }
+    }
+    consultationId = ensured.id
+  }
+
+  // Walk-ins / legacy tickets: nurse already finished intake on the ticket but
+  // no consultations row was linked — create one now so the doctor can open the visit.
+  if (
+    !consultationId &&
+    (station === "physician" || station === "dentist") &&
+    intakeDone
+  ) {
+    const providerType: ConsultationProviderType =
+      station === "dentist" || ticket.provider_type === "dentist"
+        ? "dentist"
+        : "physician"
+    const ensured = await ensureWalkInConsultation({
+      operationalPatientId: (ticket.patient_id as string | null) ?? null,
+      providerType,
+      patientName: (ticket.patient_name as string | null) ?? "Patient",
+      chiefComplaint: (ticket.chief_complaint as string | null) ?? null,
+      staffName: params.staffName,
+      client: supabase,
+    })
+    if ("error" in ensured) {
+      return { ok: false, error: ensured.error }
+    }
+    consultationId = ensured.id
+    await linkTicketAndConsultation({
+      supabase,
+      ticketId: params.ticketId,
+      consultationId,
+    })
+    await saveConsultationVitals({
+      consultationId,
+      vitals: ticketVitals,
+      chiefComplaint: ticket.chief_complaint as string | null,
+      notes: ticket.intake_notes as string | null,
+      station,
+      staffName: params.staffName,
+      client: supabase,
+    })
+  }
+
+  if (station === "physician" || station === "dentist") {
+    if (!consultationId) {
+      return {
+        ok: false,
+        error: "No consultation record. Nurse must complete intake first.",
+      }
+    }
+
+    const { data: consultation } = await supabase
+      .from("consultations")
+      .select("vitals")
+      .eq("id", consultationId)
+      .maybeSingle()
+    let vitals = (consultation?.vitals ?? {}) as Record<string, unknown>
+
+    // Hydrate consultation vitals from ticket if nurse saved them only on the ticket.
+    if (
+      (vitals.bpSystolic == null ||
+        vitals.bpDiastolic == null ||
+        vitals.heartRate == null) &&
+      hasRequiredNurseVitals(ticketVitals)
+    ) {
+      await saveConsultationVitals({
+        consultationId,
+        vitals: ticketVitals,
+        chiefComplaint: ticket.chief_complaint as string | null,
+        notes: ticket.intake_notes as string | null,
+        station,
+        staffName: params.staffName,
+        client: supabase,
+      })
+      vitals = ticketVitals as unknown as Record<string, unknown>
+    }
+
+    if (
+      vitals.bpSystolic == null ||
+      vitals.bpDiastolic == null ||
+      vitals.heartRate == null
+    ) {
+      return {
+        ok: false,
+        error: "Nurse vitals must be recorded before starting consultation.",
+      }
+    }
+
+    await setConsultationStatus({
+      consultationId,
+      status: "ongoing",
+      station,
+      providerName: params.staffName,
+      providerRole: station,
+      client: supabase,
+    })
+  }
 
   const patch: Record<string, unknown> = {
     status: params.designation === "dentist" ? "ongoing" : "called",
@@ -160,6 +334,9 @@ export async function startConsultation(params: {
   if (station && station !== "nurse") {
     patch.station = station
   }
+  if (consultationId) {
+    patch.consultation_id = consultationId
+  }
 
   const { error } = await supabase
     .from("health_queue_tickets")
@@ -167,7 +344,11 @@ export async function startConsultation(params: {
     .eq("id", ticket.id)
 
   if (error) return { ok: false, error: error.message }
-  return { ok: true, message: "Consultation started." }
+  return {
+    ok: true,
+    message: "Consultation started.",
+    ...(consultationId ? { consultationId } : {}),
+  }
 }
 
 export async function completeTicket(params: {
@@ -308,6 +489,20 @@ export async function verifyCheckIn(params: {
     .eq("id", params.ticketId)
 
   if (error) return { ok: false, error: error.message }
+
+  const consultationId = await resolveConsultationIdForTicket(
+    params.ticketId,
+    supabase
+  )
+  if (consultationId) {
+    await setConsultationStatus({
+      consultationId,
+      status: "ongoing",
+      station: "nurse",
+      client: supabase,
+    })
+  }
+
   return { ok: true, message: "Check-in verified — patient is in the nurse queue." }
 }
 
@@ -326,10 +521,20 @@ export async function completeNurseIntakeAndAssign(params: {
     return { ok: false, error: openCheck.error }
   }
 
+  const vitals = vitalsFromIntake(params.intake)
+  if (!hasRequiredNurseVitals(vitals)) {
+    return {
+      ok: false,
+      error: "Blood pressure (systolic/diastolic) and heart rate are required.",
+    }
+  }
+
   const supabase = await createClient()
   const { data: ticket } = await supabase
     .from("health_queue_tickets")
-    .select("id, station, status, provider_type, consultation_request_id")
+    .select(
+      "id, station, status, provider_type, consultation_request_id, consultation_id, appointment_id, patient_id, patient_name, chief_complaint"
+    )
     .eq("id", params.ticketId)
     .maybeSingle()
 
@@ -359,6 +564,58 @@ export async function completeNurseIntakeAndAssign(params: {
     return { ok: false, error: "Assign physician or dentist only." }
   }
 
+  let consultationId =
+    (ticket.consultation_id as string | null) ??
+    (await resolveConsultationIdForTicket(params.ticketId, supabase))
+
+  if (!consultationId && ticket.appointment_id) {
+    const ensured = await ensureConsultationFromAppointment({
+      appointmentId: ticket.appointment_id as string,
+      ticketId: params.ticketId,
+      staffName: params.staffName,
+      client: supabase,
+    })
+    if ("error" in ensured) {
+      return { ok: false, error: ensured.error }
+    }
+    consultationId = ensured.id
+  }
+
+  if (!consultationId) {
+    const providerType: ConsultationProviderType =
+      toStation === "dentist" ? "dentist" : "physician"
+    const ensured = await ensureWalkInConsultation({
+      operationalPatientId: (ticket.patient_id as string | null) ?? null,
+      providerType,
+      patientName: (ticket.patient_name as string | null) ?? "Patient",
+      chiefComplaint:
+        params.intake.chiefComplaint?.trim() ||
+        (ticket.chief_complaint as string | null),
+      staffName: params.staffName,
+      client: supabase,
+    })
+    if ("error" in ensured) {
+      return { ok: false, error: ensured.error }
+    }
+    consultationId = ensured.id
+    await linkTicketAndConsultation({
+      supabase,
+      ticketId: params.ticketId,
+      consultationId,
+    })
+  }
+
+  const saved = await saveConsultationVitals({
+    consultationId,
+    vitals,
+    chiefComplaint: params.intake.chiefComplaint,
+    notes: params.intake.intakeNotes,
+    station: toStation,
+    staffName: params.staffName,
+    client: supabase,
+  })
+  if (!saved.ok) return { ok: false, error: saved.error }
+
   const { nextPos } = await nextQueueSlot(supabase)
   const now = new Date().toISOString()
 
@@ -382,34 +639,17 @@ export async function completeNurseIntakeAndAssign(params: {
       intake_notes: params.intake.intakeNotes?.trim() || null,
       intake_completed_at: now,
       estimated_wait_minutes: nextPos * 10,
+      consultation_id: consultationId,
       updated_at: now,
     })
     .eq("id", ticket.id)
 
   if (error) return { ok: false, error: error.message }
 
-  // Update consultation status to ongoing when nurse completes intake
-  if (ticket.consultation_request_id) {
-    const { data: consultation } = await supabase
-      .from("consultations")
-      .select("id")
-      .eq("consultation_request_id", ticket.consultation_request_id)
-      .maybeSingle()
-    
-    if (consultation) {
-      await supabase
-        .from("consultations")
-        .update({
-          status: "ongoing",
-          updated_at: now,
-        })
-        .eq("id", consultation.id)
-    }
-  }
-
   return {
     ok: true,
     message: `Intake saved. Assigned to ${toStation} queue.`,
+    consultationId,
   }
 }
 
@@ -566,40 +806,69 @@ export async function registerWalkIn(params: {
     }
   }
 
-  const station: StationId =
-    params.providerQueue === "physician" || params.providerQueue === "dentist"
-      ? params.providerQueue
-      : "nurse"
+  const consultationTypeLower = (
+    params.consultationType || "Walk-in consultation"
+  ).toLowerCase()
+  const providerType: ConsultationProviderType =
+    consultationTypeLower.includes("dental") ||
+    consultationTypeLower.includes("dentist") ||
+    consultationTypeLower.includes("tooth")
+      ? "dentist"
+      : "physician"
+
+  const ensured = await ensureWalkInConsultation({
+    operationalPatientId: patientId,
+    providerType,
+    patientName: resolvedName,
+    chiefComplaint: params.consultationType || "Walk-in consultation",
+    staffName: params.staffName,
+    client: supabase,
+  })
+  if ("error" in ensured) {
+    return { ok: false, error: ensured.error }
+  }
 
   const { nextPos, nextNum } = await nextQueueSlot(supabase)
-  const ticketCode = `WI-${String(nextNum).padStart(4, "0")}`
+  const ticketCode = formatClinicQueueCode(providerType, nextNum)
   const now = new Date().toISOString()
-  const providerType: SpecialtyStationId | null =
-    station === "physician" || station === "dentist" ? station : null
 
-  const { error } = await supabase.from("health_queue_tickets").insert({
-    ticket_code: ticketCode,
-    queue_position: nextPos,
-    queue_number: nextNum,
-    estimated_wait_minutes: nextPos * 10,
-    status: "waiting",
-    station,
-    checked_in_at: now,
-    expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-    service_date: ymd,
-    patient_id: patientId,
-    patient_name: resolvedName,
-    campus_id: resolvedCampusId,
-    patient_type: patientType,
-    consultation_type: params.consultationType || "Walk-in consultation",
-    assigned_staff_name: params.staffName,
-    provider_type: providerType,
-  })
+  const { data: ticket, error } = await supabase
+    .from("health_queue_tickets")
+    .insert({
+      ticket_code: ticketCode,
+      queue_position: nextPos,
+      queue_number: nextNum,
+      estimated_wait_minutes: nextPos * 10,
+      status: "waiting",
+      station: "nurse",
+      checked_in_at: now,
+      expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      service_date: ymd,
+      patient_id: patientId,
+      patient_name: resolvedName,
+      campus_id: resolvedCampusId,
+      patient_type: patientType,
+      consultation_type: params.consultationType || "Walk-in consultation",
+      assigned_staff_name: params.staffName,
+      provider_type: providerType,
+      consultation_id: ensured.id,
+    })
+    .select("id")
+    .single()
 
   if (error) return { ok: false, error: error.message }
+
+  await supabase
+    .from("consultations")
+    .update({
+      queue_ticket_id: ticket.id,
+      updated_at: now,
+    })
+    .eq("id", ensured.id)
+
   return {
     ok: true,
-    message: `Walk-in registered as ${ticketCode} in the ${station} queue.`,
+    message: `Walk-in registered as ${ticketCode} in the nurse queue.`,
   }
 }
 
@@ -734,7 +1003,7 @@ export async function approveConsultationRequest(params: {
 
   // Create consultation record if patient_record_id exists
   if (patientRecordId) {
-    const { error: consultationError } = await supabase
+    const { data: createdConsultation, error: consultationError } = await supabase
       .from("consultations")
       .insert({
         patient_id: patientRecordId,
@@ -745,12 +1014,21 @@ export async function approveConsultationRequest(params: {
         priority: "Normal",
         consultation_request_id: request.id,
         queue_ticket_id: ticket.id,
+        station: "nurse",
       })
-    
+      .select("id")
+      .single()
+
     if (consultationError) {
       console.error("Failed to create consultation record:", consultationError)
       // Don't fail the approval just because consultation creation failed
       // Log it but continue with queue ticket update
+    } else if (createdConsultation?.id) {
+      await linkTicketAndConsultation({
+        supabase,
+        ticketId: ticket.id as string,
+        consultationId: createdConsultation.id as string,
+      })
     }
   }
 

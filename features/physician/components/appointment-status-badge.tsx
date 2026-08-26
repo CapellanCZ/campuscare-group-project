@@ -22,7 +22,7 @@ const STATUS_LABEL: Record<AppointmentStatus, string> = {
   in_progress: "In progress",
   completed: "Completed",
   cancelled: "Cancelled",
-  no_show: "No-show",
+  no_show: "No Show",
   waitlisted: "Waitlisted",
 }
 

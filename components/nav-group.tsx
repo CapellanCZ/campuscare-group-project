@@ -16,11 +16,21 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import type { SidebarNavGroup, SidebarNavItem } from "@/components/app-shared"
 import { IconChevronRight } from "@tabler/icons-react"
 
+function useCloseMobileSidebar() {
+  const { isMobile, setOpenMobile } = useSidebar()
+  return () => {
+    if (isMobile) setOpenMobile(false)
+  }
+}
+
 export function NavGroup({ label, items }: SidebarNavGroup) {
+  const closeMobile = useCloseMobileSidebar()
+
   return (
     <SidebarGroup>
       {label && <SidebarGroupLabel>{label}</SidebarGroupLabel>}
@@ -32,7 +42,9 @@ export function NavGroup({ label, items }: SidebarNavGroup) {
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton
                 isActive={item.isActive}
-                render={<Link href={item.path ?? "#"} />}
+                render={
+                  <Link href={item.path ?? "#"} onClick={closeMobile} />
+                }
               >
                 {item.icon}
                 <span>{item.title}</span>
@@ -46,6 +58,7 @@ export function NavGroup({ label, items }: SidebarNavGroup) {
 }
 
 function CollapsibleNavItem({ item }: { item: SidebarNavItem }) {
+  const closeMobile = useCloseMobileSidebar()
   const shouldOpen =
     !!item.isActive || !!item.subItems?.some((sub) => !!sub.isActive)
   const [open, setOpen] = useState(shouldOpen)
@@ -74,7 +87,9 @@ function CollapsibleNavItem({ item }: { item: SidebarNavItem }) {
             <SidebarMenuSubItem key={subItem.title}>
               <SidebarMenuSubButton
                 isActive={subItem.isActive}
-                render={<Link href={subItem.path ?? "#"} />}
+                render={
+                  <Link href={subItem.path ?? "#"} onClick={closeMobile} />
+                }
               >
                 {subItem.icon}
                 <span>{subItem.title}</span>

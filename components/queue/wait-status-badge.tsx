@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge"
+import { ticketStatusLabel } from "@/lib/health/mappers"
 import type { TicketStatus } from "@/lib/health/types"
 import { cn } from "@/lib/utils"
 
@@ -38,19 +39,18 @@ export function WaitStatusBadge({
       ? waitUrgencyFromMinutes(waitMinutes)
       : null
 
+  const statusText = ticketStatusLabel(status)
   const label =
-    status === "ongoing"
-      ? "Ongoing"
-      : waitMinutes != null &&
-          (status === "waiting" || status === "called" || status === "ongoing")
-        ? `${status} · ${waitMinutes}m`
-        : status
+    waitMinutes != null &&
+    (status === "waiting" || status === "called" || status === "ongoing")
+      ? `${statusText} · ${waitMinutes}m`
+      : statusText
 
   return (
     <Badge
       variant="outline"
       className={cn(
-        "gap-1.5 capitalize tabular-nums",
+        "gap-1.5 tabular-nums",
         urgency ? badgeClass[urgency] : undefined,
         status === "ongoing" &&
           "border-primary/30 bg-primary/10 text-primary",

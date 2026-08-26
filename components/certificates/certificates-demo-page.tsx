@@ -19,6 +19,11 @@ import { CertificatePrintView } from "@/components/certificates/certificate-prin
 import { StudentIdSearchInput } from "@/components/shared/student-id-search-input"
 import { DENTIST_PATIENT_SEARCH_PLACEHOLDER } from "@/lib/students/patient-search-copy"
 import { DemoPageHeader, DemoStatGrid } from "@/components/demo/demo-page"
+import {
+  certificateStatusLabel,
+  formatCertificateDate,
+  formatCertificateDateTime,
+} from "@/features/certificates/lib/format"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -50,10 +55,6 @@ import {
   searchMedicalCertificatesAction,
   updateMedicalCertificateAction,
 } from "@/features/certificates/actions"
-import {
-  formatCertificateDate,
-  formatCertificateDateTime,
-} from "@/features/certificates/lib/format"
 import { can, canMutate, getAccessLevel } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { DemoStat } from "@/lib/demo/types"
@@ -428,7 +429,7 @@ export function CertificatesPage({
                       </TableCell>
                       <TableCell>
                         <Badge variant={statusVariant(row.status)}>
-                          {row.status}
+                          {certificateStatusLabel(row.status)}
                         </Badge>
                       </TableCell>
                       <TableCell>

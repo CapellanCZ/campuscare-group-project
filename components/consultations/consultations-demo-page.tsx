@@ -8,10 +8,12 @@ import {
   useState,
   useTransition,
 } from "react"
+import Link from "next/link"
 import { toast } from "sonner"
 
 import { ConsultationDeleteDialog } from "@/components/consultations/consultation-delete-dialog"
 import { ConsultationFormSheet } from "@/components/consultations/consultation-form-sheet"
+import { ConsultationStatusBadge } from "@/components/consultations/consultation-status-badge"
 import { StudentIdSearchInput } from "@/components/shared/student-id-search-input"
 import { DENTIST_PATIENT_SEARCH_PLACEHOLDER } from "@/lib/students/patient-search-copy"
 import { DemoPageHeader, DemoStatGrid } from "@/components/demo/demo-page"
@@ -65,6 +67,7 @@ import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
 import {
   CONSULTATION_STATUSES,
+  consultationStatusLabel,
   type Consultation,
   type ConsultationListResult,
   type ConsultationStats,
@@ -75,7 +78,66 @@ import { IconStethoscope } from "@tabler/icons-react"
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 300
 
-function toStatCards(stats: ConsultationStats): DemoStat[] {
+function toStatCards(
+  stats: ConsultationStats,
+  mode: "nurse" | "clinician" | "default" = "default"
+): DemoStat[] {
+  if (mode === "nurse") {
+    return [
+      {
+        key: "open",
+        label: "Open today",
+        value: String(stats.openToday),
+        description: "Consultations created today",
+      },
+      {
+        key: "assessment",
+        label: "In nurse queue",
+        value: String(stats.awaitingAssessment),
+        description: "Waiting for vitals",
+      },
+      {
+        key: "in_progress",
+        label: "Vitals in progress",
+        value: String(stats.inProgress),
+        description: "Until doctor starts",
+      },
+      {
+        key: "done",
+        label: "Completed today",
+        value: String(stats.completedToday),
+        description: "Doctor finished",
+      },
+    ]
+  }
+  if (mode === "clinician") {
+    return [
+      {
+        key: "open",
+        label: "Queued today",
+        value: String(stats.openToday),
+        description: "Post-vitals patients",
+      },
+      {
+        key: "assessment",
+        label: "Waiting to be called",
+        value: String(stats.awaitingAssessment),
+        description: "Ready for consultation",
+      },
+      {
+        key: "in_progress",
+        label: "In consultation",
+        value: String(stats.inProgress),
+        description: "Ongoing with you",
+      },
+      {
+        key: "done",
+        label: "Completed today",
+        value: String(stats.completedToday),
+        description: "Sessions finished",
+      },
+    ]
+  }
   return [
     {
       key: "open",
@@ -138,7 +200,9 @@ export function ConsultationsPage({
   const [query, setQuery] = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<ConsultationStatus | "all">(
-    "all"
+    access.designation === "physician" || access.designation === "dentist"
+      ? "waiting"
+      : "all"
   )
   const [providerFilter, setProviderFilter] = useState("all")
   const [stationFilter, setStationFilter] = useState(
@@ -278,7 +342,17 @@ export function ConsultationsPage({
     }
   }, [debouncedQuery, loadPage])
 
-  const statCards = useMemo(() => toStatCards(stats), [stats])
+  const isClinician = isPhysician || isDentist
+  const rolePath = isDentist ? "dentist" : "physician"
+
+  const statCards = useMemo(
+    () =>
+      toStatCards(
+        stats,
+        isNurse ? "nurse" : isClinician ? "clinician" : "default"
+      ),
+    [stats, isNurse, isClinician]
+  )
   const showSkeleton = loading || isPending
   const rows = list.items
 
@@ -340,8 +414,9 @@ export function ConsultationsPage({
             <Button type="button" size="sm" variant="outline" onClick={refresh}>
               Refresh
             </Button>
-            {can(d, "consultations.create_record") ||
-            can(d, "consultations.record_initial_assessment") ? (
+            {!(isPhysician || isDentist) &&
+            (can(d, "consultations.create_record") ||
+              can(d, "consultations.record_initial_assessment")) ? (
               <Button
                 size="sm"
                 onClick={() => {
@@ -423,7 +498,7 @@ export function ConsultationsPage({
                 <SelectItem value="all">All statuses</SelectItem>
                 {CONSULTATION_STATUSES.map((status) => (
                   <SelectItem key={status} value={status}>
-                    {status}
+                    {consultationStatusLabel(status)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -546,7 +621,7 @@ export function ConsultationsPage({
                         {row.station || "—"}
                       </TableCell>
                       <TableCell className={isDentist ? "px-4" : undefined}>
-                        <Badge variant="outline">{row.status}</Badge>
+                        <ConsultationStatusBadge status={row.status} />
                       </TableCell>
                       <TableCell
                         className={cn(
@@ -558,6 +633,38 @@ export function ConsultationsPage({
                       </TableCell>
                       <TableCell className={isDentist ? "px-4" : undefined}>
                         <div className="flex flex-wrap justify-end gap-1">
+                          {isClinician ? (
+                            <>
+                              <Button
+                                type="button"
+                                size="xs"
+                                render={
+                                  <Link
+                                    href={`/${rolePath}/consultation/${row.id}`}
+                                  />
+                                }
+                                nativeButton={false}
+                              >
+                                Open
+                              </Button>
+                              {row.status !== "completed" ? (
+                                <Button
+                                  size="xs"
+                                  variant="secondary"
+                                  onClick={() =>
+                                    void patchConsultation(
+                                      row,
+                                      { status: "completed" },
+                                      "Consultation completed."
+                                    )
+                                  }
+                                >
+                                  Complete
+                                </Button>
+                              ) : null}
+                            </>
+                          ) : (
+                            <>
                           {can(d, "consultations.view_patient") ? (
                             <Button
                               type="button"
@@ -677,6 +784,8 @@ export function ConsultationsPage({
                               Delete
                             </Button>
                           ) : null}
+                            </>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

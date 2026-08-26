@@ -12,6 +12,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import { NavGroup } from "@/components/nav-group"
 import {
@@ -25,8 +26,12 @@ import { staffBasePath } from "@/lib/auth/home-path"
 export function AppSidebar() {
   const pathname = usePathname()
   const { primaryRole, designation } = useStaffAccess()
+  const { isMobile, setOpenMobile } = useSidebar()
   const role = primaryRole ?? designation
   const base = staffBasePath(role)
+  const closeMobile = () => {
+    if (isMobile) setOpenMobile(false)
+  }
 
   const groups = getNavGroupsForRole(role, pathname)
   const footerNavLinks = getFooterNavLinks(role)
@@ -42,7 +47,7 @@ export function AppSidebar() {
       variant="sidebar"
     >
       <SidebarHeader className="h-14 justify-center border-b px-2">
-        <SidebarMenuButton render={<Link href={base} />}>
+        <SidebarMenuButton render={<Link href={base} onClick={closeMobile} />}>
           <CampusCareLogo className="size-5" width={20} height={20} alt="" />
           <span className="font-medium text-foreground!">CampusCare</span>
         </SidebarMenuButton>
@@ -60,7 +65,7 @@ export function AppSidebar() {
                 <SidebarMenuButton
                   className="text-muted-foreground"
                   size="sm"
-                  render={<Link href={item.path ?? base} />}
+                  render={<Link href={item.path ?? base} onClick={closeMobile} />}
                 >
                   {item.icon}
                   <span className="font-medium">{item.title}</span>

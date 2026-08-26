@@ -79,7 +79,7 @@ export async function actionStartConsultation(ticketId: string) {
       ticketId,
       staffName: access.fullName,
     })
-  )
+  ) as Promise<HealthActionResult>
 }
 
 export async function actionCompleteTicket(ticketId: string) {

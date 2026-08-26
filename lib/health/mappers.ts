@@ -15,6 +15,25 @@ const TICKET_STATUSES: TicketStatus[] = [
   "no_show",
 ]
 
+export function ticketStatusLabel(status: string): string {
+  switch (status) {
+    case "no_show":
+      return "No Show"
+    case "waiting":
+      return "Waiting"
+    case "called":
+      return "Called"
+    case "ongoing":
+      return "Ongoing"
+    case "completed":
+      return "Completed"
+    case "expired":
+      return "Expired"
+    default:
+      return status.replace(/_/g, " ")
+  }
+}
+
 export type RawQueueTicket = {
   id: string
   ticket_code: string

@@ -189,50 +189,41 @@ export async function startConsultation(
     .update({ status: "in_progress" })
     .eq("id", appointmentId)
 
-  // Check if consultation already exists for this appointment
+  // Open existing consultation — do not insert a duplicate row
   const { data: existing } = await supabase
     .from("consultations")
-    .select("id")
+    .select("id, status, vitals")
     .eq("appointment_id", appointmentId)
     .maybeSingle()
 
-  if (existing) {
+  if (existing?.id) {
+    const vitals = (existing.vitals ?? {}) as Record<string, unknown>
+    if (
+      existing.status === "waiting" &&
+      vitals.bpSystolic != null &&
+      vitals.bpDiastolic != null &&
+      vitals.heartRate != null
+    ) {
+      await supabase
+        .from("consultations")
+        .update({
+          status: "ongoing",
+          station: "physician",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id)
+    }
     revalidatePhysician()
-    revalidatePath(`/physician/consultation/${appointmentId}`)
-    return { ok: true, consultationId: existing.id }
+    revalidatePath(`/physician/consultation/${existing.id}`)
+    return { ok: true, consultationId: existing.id as string }
   }
 
-  // Create consultation record as source of truth
-  const { data: created, error } = await supabase
-    .from("consultations")
-    .insert({
-      appointment_id: appointmentId,
-      patient_id: appointment.patient_id,
-      provider_type: "physician",
-      status: "ongoing",
-      priority: "Normal",
-      chief_complaint: "",
-      symptoms: "",
-      assessment: "",
-      diagnosis: "",
-      treatment: "",
-      prescription: "",
-      consultation_date: new Date().toISOString(),
-    })
-    .select("id")
-    .single()
-
-  if (error) {
-    return { ok: false, error: error.message }
-  }
-
-  revalidatePhysician()
-  revalidatePath(`/physician/consultation/${appointmentId}`)
-  return { ok: true, consultationId: created.id }
+  return { ok: false, error: "No consultation record for this appointment. Nurse must approve first." }
 }
 
 export async function saveConsultation(input: {
-  appointmentId: string
+  consultationId?: string
+  appointmentId?: string
   symptoms: string
   diagnosis: string
   clinicalNotes: string
@@ -246,36 +237,31 @@ export async function saveConsultation(input: {
 
   const supabase = await createClient()
 
-  // Update the consultation record in the consultations table
-  const payload = {
-    symptoms: input.symptoms.trim(),
-    assessment: input.clinicalNotes.trim(),
-    diagnosis: input.diagnosis.trim(),
-    treatment: input.prescription.trim(),
-    prescription: input.prescription.trim(),
-    status: input.complete ? "completed" : "ongoing",
-    updated_at: new Date().toISOString(),
+  let consultationId = input.consultationId
+  if (!consultationId && input.appointmentId) {
+    const { data: row } = await supabase
+      .from("consultations")
+      .select("id")
+      .eq("appointment_id", input.appointmentId)
+      .maybeSingle()
+    consultationId = row?.id as string | undefined
   }
 
-  const { error } = await supabase
-    .from("consultations")
-    .update(payload)
-    .eq("appointment_id", input.appointmentId)
-
-  if (error) {
-    return { ok: false, error: error.message }
+  if (!consultationId) {
+    return { ok: false, error: "Consultation not found." }
   }
 
-  if (input.complete) {
-    await supabase
-      .from("appointments")
-      .update({ status: "completed" })
-      .eq("id", input.appointmentId)
-      .eq("doctor_id", access.userId)
-  }
-
-  revalidatePhysician()
-  revalidatePath(`/physician/consultation/${input.appointmentId}`)
-  return { ok: true }
+  const { saveClinicalVisit } = await import(
+    "@/features/clinical/actions/consultation-visit"
+  )
+  return saveClinicalVisit({
+    consultationId,
+    role: "physician",
+    symptoms: input.symptoms,
+    diagnosis: input.diagnosis,
+    clinicalNotes: input.clinicalNotes,
+    prescription: input.prescription,
+    complete: input.complete,
+  })
 }
 

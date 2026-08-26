@@ -12,8 +12,6 @@ import {
   ensureCertificatePatientByStudentIdAction,
   listEnrolledCertificatePatientsAction,
 } from "@/features/patients/actions"
-import { certificateStatusLabel } from "@/features/certificates/lib/format"
-import { isEnrolledVirtualId } from "@/lib/students/virtual-id"
 import { formatStudentIdInput } from "@/lib/students/student-id-input"
 import { NO_STUDENT_FOUND } from "@/lib/students/types"
 import { DENTIST_PATIENT_SEARCH_PLACEHOLDER } from "@/lib/students/patient-search-copy"
@@ -54,7 +52,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { CERTIFICATE_PURPOSE_OPTIONS } from "@/lib/health/form-options"
 import { cn } from "@/lib/utils"
 import {
-  MEDICAL_CERTIFICATE_STATUSES,
   type MedicalCertificate,
   type MedicalCertificatePatient,
   type MedicalCertificateStatus,
@@ -140,17 +137,8 @@ function validateForm(form: FormState, mode: "create" | "edit"): string | null {
   if (mode === "edit" && !form.certificateNumber.trim()) {
     return "Certificate number is required."
   }
-  if (
-    (form.status === "issued" || form.status === "printed") &&
-    !form.doctorName.trim()
-  ) {
-    return "Doctor name is required for issued or printed certificates."
-  }
-  if (
-    (form.status === "issued" || form.status === "printed") &&
-    !form.issuedAt.trim()
-  ) {
-    return "Issue date is required for issued or printed certificates."
+  if (!form.doctorName.trim()) {
+    return "Doctor name is required."
   }
   if (form.issuedAt && Number.isNaN(new Date(form.issuedAt).getTime())) {
     return "Issue date is invalid."
@@ -199,30 +187,27 @@ function PatientSearchSelect({
   }, [patients, query])
 
   async function selectPatient(patient: MedicalCertificatePatient) {
-    if (!isEnrolledVirtualId(patient.id)) {
-      setResolved(patient)
-      onChange(patient)
-      setOpen(false)
-      return
-    }
-    const studentId = patient.studentId?.trim()
-    if (!studentId) {
-      toast.error(NO_STUDENT_FOUND)
-      return
-    }
-    setResolving(true)
-    try {
-      const result = await ensureCertificatePatientByStudentIdAction(studentId)
-      if (!result.ok) {
-        toast.error(result.error)
-        return
+    const campusId = patient.studentId?.trim()
+    // Directory returns patient_records IDs; certificates FK patients.
+    if (campusId) {
+      setResolving(true)
+      try {
+        const result = await ensureCertificatePatientByStudentIdAction(campusId)
+        if (result.ok) {
+          setResolved(result.data)
+          onChange(result.data)
+          setOpen(false)
+          return
+        }
+        // Still select the record — create will resolve to patients.id.
+      } finally {
+        setResolving(false)
       }
-      setResolved(result.data)
-      onChange(result.data)
-      setOpen(false)
-    } finally {
-      setResolving(false)
     }
+
+    setResolved(patient)
+    onChange(patient)
+    setOpen(false)
   }
 
   return (
@@ -371,10 +356,7 @@ function CertificateFormBody({
     setError(null)
     startTransition(async () => {
       let issuedAt = fromDatetimeLocalValue(form.issuedAt)
-      if (
-        (form.status === "issued" || form.status === "printed") &&
-        !issuedAt
-      ) {
+      if (!issuedAt) {
         issuedAt = new Date().toISOString()
       }
 
@@ -386,7 +368,6 @@ function CertificateFormBody({
           purpose: form.purpose.trim() || null,
           doctorName: doctorName || null,
           remarks: form.remarks.trim() || null,
-          status: form.status,
           issuedAt,
           validUntil: form.validUntil.trim() || null,
         })
@@ -416,7 +397,6 @@ function CertificateFormBody({
         purpose: form.purpose.trim() || null,
         doctorName: doctorName || null,
         remarks: form.remarks.trim() || null,
-        status: form.status,
         issuedAt,
         validUntil: form.validUntil.trim() || null,
       })
@@ -550,31 +530,6 @@ function CertificateFormBody({
               }
               disabled={pending}
             />
-          </Field>
-
-          <Field>
-            <FieldLabel>Status</FieldLabel>
-            <Select
-              value={form.status}
-              onValueChange={(value) =>
-                updateField(
-                  "status",
-                  (value as MedicalCertificateStatus) ?? "draft"
-                )
-              }
-              disabled={pending}
-            >
-              <SelectTrigger className="w-full" aria-label="Status">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MEDICAL_CERTIFICATE_STATUSES.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {certificateStatusLabel(status)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </Field>
 
           {mode === "edit" ? (

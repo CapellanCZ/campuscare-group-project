@@ -7,7 +7,7 @@ import {
   createPatientRecordAction,
   updatePatientRecordAction,
 } from "@/features/patients/actions"
-import { formatStudentIdInput } from "@/lib/students/student-id-input"
+import { CampusIdInput } from "@/components/shared/campus-id-input"
 import { Button } from "@/components/ui/button"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -220,27 +220,21 @@ export function PatientFormSheet({
             {isStudent ? (
               <Field>
                 <FieldLabel htmlFor="studentId">Student ID *</FieldLabel>
-                <Input
+                <CampusIdInput
                   id="studentId"
                   value={form.studentId}
-                  onChange={(e) => update("studentId", formatStudentIdInput(e.target.value))}
+                  onChange={(value) => update("studentId", value)}
                   placeholder="2021-04521"
-                  autoComplete="off"
-                  inputMode="numeric"
-                  maxLength={11}
                 />
               </Field>
             ) : (
               <Field>
                 <FieldLabel htmlFor="employeeId">Employee ID *</FieldLabel>
-                <Input
+                <CampusIdInput
                   id="employeeId"
                   value={form.employeeId}
-                  onChange={(e) => update("employeeId", formatStudentIdInput(e.target.value))}
+                  onChange={(value) => update("employeeId", value)}
                   placeholder="FAC-0124"
-                  autoComplete="off"
-                  inputMode="numeric"
-                  maxLength={11}
                 />
               </Field>
             )}

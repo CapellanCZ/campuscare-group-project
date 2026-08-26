@@ -79,10 +79,15 @@ export function VisitMedicalChart({
   record,
   nurseVitals,
   readOnly = false,
+  onChartChange,
 }: {
   record: PatientRecord | null
   nurseVitals: NurseVisitVitals
   readOnly?: boolean
+  onChartChange?: (chart: {
+    medicalHistory: MedicalHistory
+    physicalExam: PhysicalExam
+  }) => void
 }) {
   const [history, setHistory] = useState<MedicalHistory>({
     ...EMPTY_MEDICAL_HISTORY,
@@ -104,6 +109,14 @@ export function VisitMedicalChart({
       )
     )
   }, [record, nurseVitals])
+
+  useEffect(() => {
+    if (!onChartChange) return
+    onChartChange({
+      medicalHistory: history,
+      physicalExam: mergeNurseVitalsIntoExam(exam, nurseVitals),
+    })
+  }, [history, exam, nurseVitals, onChartChange])
 
   if (!record) {
     return (

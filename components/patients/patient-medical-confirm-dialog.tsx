@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Field, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
+import { CampusIdInput } from "@/components/shared/campus-id-input"
 
 function normalizeStudentId(value: string): string {
   return value.trim()
@@ -52,12 +52,12 @@ export function PatientMedicalConfirmDialog({
         </DialogHeader>
         <Field>
           <FieldLabel htmlFor="confirm-student-id">Student ID Number</FieldLabel>
-          <Input
+          <CampusIdInput
             id="confirm-student-id"
             value={typedId}
-            onChange={(e) => setTypedId(e.target.value)}
+            onChange={setTypedId}
             placeholder={expected}
-            autoComplete="off"
+            aria-label="Student ID Number"
             disabled={pending}
           />
         </Field>

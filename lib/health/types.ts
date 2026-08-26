@@ -118,7 +118,7 @@ export type DashboardKpis = {
 }
 
 export type HealthActionResult =
-  | { ok: true; message?: string }
+  | { ok: true; message?: string; consultationId?: string }
   | { ok: false; error: string }
 
 export type NurseIntakeInput = {

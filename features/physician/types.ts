@@ -39,6 +39,7 @@ export type PhysicianAppointment = {
   location: string | null
   cancellationReason: string | null
   timezone: string
+  consultationId: string | null
 }
 
 export type PhysicianConsultation = {

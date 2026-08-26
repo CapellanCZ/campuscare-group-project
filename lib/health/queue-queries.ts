@@ -4,7 +4,7 @@ import {
   getClinicBreakStatus,
 } from "@/lib/availability/queries"
 import type { BreakStatus } from "@/lib/availability/types"
-import { mapTicketRow, ticketLabel, type RawQueueTicket } from "@/lib/health/mappers"
+import { mapTicketRow, ticketLabel, ticketStatusLabel, type RawQueueTicket } from "@/lib/health/mappers"
 import { stationLabel } from "@/lib/health/roles"
 import { manilaDayBounds } from "@/lib/health/time"
 import type {
@@ -287,7 +287,7 @@ export async function getQueueActivity(
       id: t.ticketId,
       title: t.patientName || t.campusId || "Patient",
       description: `${ticketLabel(t.queueNumber, t.ticketCode)} · ${stationLabel(t.station)}`,
-      statusLabel: t.status,
+      statusLabel: ticketStatusLabel(t.status),
       at: t.updatedAt ?? t.createdAt ?? new Date().toISOString(),
     }))
 }

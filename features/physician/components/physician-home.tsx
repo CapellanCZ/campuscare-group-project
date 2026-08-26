@@ -122,16 +122,26 @@ export function PhysicianHome({ workspace }: PhysicianHomeProps) {
                     {apt.reason ?? "No reason listed"}
                   </p>
                 </div>
-                <Button
-                  size="sm"
-                  variant={apt.status === "in_progress" ? "default" : "outline"}
-                  render={
-                    <Link href={`/physician/consultation/${apt.id}`} />
-                  }
-                  nativeButton={false}
-                >
-                  {apt.status === "in_progress" ? "Continue" : "Open"}
-                </Button>
+                {apt.consultationId ? (
+                  <Button
+                    size="sm"
+                    variant={
+                      apt.status === "in_progress" ? "default" : "outline"
+                    }
+                    render={
+                      <Link
+                        href={`/physician/consultation/${apt.consultationId}`}
+                      />
+                    }
+                    nativeButton={false}
+                  >
+                    {apt.status === "in_progress" ? "Continue" : "Open"}
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="outline" disabled>
+                    Awaiting intake
+                  </Button>
+                )}
               </div>
             ))
           )}

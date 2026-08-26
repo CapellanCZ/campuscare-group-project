@@ -1,11 +1,14 @@
 "use server"
 
+import { getStaffAccess } from "@/lib/auth/access"
 import {
   createConsultation,
   deleteConsultation,
   getConsultationById,
   getConsultations,
+  getConsultationsForClinician,
   getConsultationStats,
+  getConsultationStatsForClinician,
   listConsultationFilterOptions,
   searchConsultations,
   updateConsultation,
@@ -50,11 +53,22 @@ function toErrorResult(error: unknown): ConsultationActionResult<never> {
   }
 }
 
+async function listForCurrentStaff(params: ConsultationListParams) {
+  const access = await getStaffAccess()
+  if (
+    access?.primaryRole === "physician" ||
+    access?.primaryRole === "dentist"
+  ) {
+    return getConsultationsForClinician(access.primaryRole, params)
+  }
+  return getConsultations(params)
+}
+
 export async function fetchConsultationsAction(
   params: ConsultationListParams = {}
 ): Promise<ConsultationActionResult<ConsultationListResult>> {
   try {
-    const data = await getConsultations(params)
+    const data = await listForCurrentStaff(params)
     return { ok: true, data }
   } catch (error) {
     return toErrorResult(error)
@@ -66,6 +80,17 @@ export async function searchConsultationsAction(
   params: Omit<ConsultationListParams, "query"> = {}
 ): Promise<ConsultationActionResult<ConsultationListResult>> {
   try {
+    const access = await getStaffAccess()
+    if (
+      access?.primaryRole === "physician" ||
+      access?.primaryRole === "dentist"
+    ) {
+      const data = await getConsultationsForClinician(access.primaryRole, {
+        ...params,
+        query,
+      })
+      return { ok: true, data }
+    }
     const data = await searchConsultations(query, params)
     return { ok: true, data }
   } catch (error) {
@@ -88,6 +113,14 @@ export async function fetchConsultationStatsAction(): Promise<
   ConsultationActionResult<ConsultationStats>
 > {
   try {
+    const access = await getStaffAccess()
+    if (
+      access?.primaryRole === "physician" ||
+      access?.primaryRole === "dentist"
+    ) {
+      const data = await getConsultationStatsForClinician(access.primaryRole)
+      return { ok: true, data }
+    }
     const data = await getConsultationStats()
     return { ok: true, data }
   } catch (error) {

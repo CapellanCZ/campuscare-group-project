@@ -3,6 +3,7 @@ import "server-only"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { createClient } from "@/lib/supabase/server"
+import { ensureOperationalPatientForCertificateId } from "@/lib/students/ensure-patient"
 import {
   MEDICAL_CERTIFICATE_STATUSES,
   MedicalCertificateServiceError,
@@ -16,6 +17,7 @@ import {
   type MedicalCertificateStatus,
   type UpdateMedicalCertificateInput,
 } from "@/types/medicalCertificate"
+import { PatientRecordServiceError } from "@/types/patientRecord"
 
 type PatientJoin = {
   id: string
@@ -365,22 +367,47 @@ export async function createMedicalCertificate(
     )
   }
 
-  const status = input.status ?? "draft"
+  const hasDoctor = Boolean(input.doctorName?.trim())
+  const hasType = Boolean(input.certificateType.trim())
+  const status =
+    hasDoctor && hasType
+      ? ("issued" as const)
+      : ("draft" as const)
   const certificateNumber =
     input.certificateNumber?.trim() ||
     (await generateCertificateNumber(supabase))
 
+  const issuedAt =
+    status === "issued"
+      ? (input.issuedAt ?? new Date().toISOString())
+      : (input.issuedAt ?? null)
+
+  let operationalPatientId = input.patientId.trim()
+  try {
+    const operational = await ensureOperationalPatientForCertificateId(
+      operationalPatientId
+    )
+    operationalPatientId = operational.id
+  } catch (error) {
+    if (error instanceof PatientRecordServiceError) {
+      const code =
+        error.code === "duplicate" ? "validation" : error.code
+      throw new MedicalCertificateServiceError(code, error.message)
+    }
+    throw error
+  }
+
   const { data, error } = await supabase
     .from("medical_certificates")
     .insert({
-      patient_id: input.patientId,
+      patient_id: operationalPatientId,
       certificate_number: certificateNumber,
       certificate_type: input.certificateType.trim(),
       purpose: input.purpose?.trim() || null,
       doctor_name: input.doctorName?.trim() || null,
       remarks: input.remarks?.trim() || null,
       status,
-      issued_at: input.issuedAt ?? null,
+      issued_at: issuedAt,
       valid_until: input.validUntil ?? null,
     })
     .select(SELECT_WITH_PATIENT)
@@ -404,7 +431,21 @@ export async function updateMedicalCertificate(
   }
 
   const patch: Record<string, string | null> = {}
-  if (input.patientId !== undefined) patch.patient_id = input.patientId
+  if (input.patientId !== undefined) {
+    try {
+      const operational = await ensureOperationalPatientForCertificateId(
+        input.patientId
+      )
+      patch.patient_id = operational.id
+    } catch (error) {
+      if (error instanceof PatientRecordServiceError) {
+        const code =
+          error.code === "duplicate" ? "validation" : error.code
+        throw new MedicalCertificateServiceError(code, error.message)
+      }
+      throw error
+    }
+  }
   if (input.certificateNumber !== undefined) {
     patch.certificate_number = input.certificateNumber.trim()
   }
@@ -420,9 +461,31 @@ export async function updateMedicalCertificate(
   if (input.remarks !== undefined) {
     patch.remarks = input.remarks?.trim() || null
   }
-  if (input.status !== undefined) patch.status = input.status
   if (input.issuedAt !== undefined) patch.issued_at = input.issuedAt
   if (input.validUntil !== undefined) patch.valid_until = input.validUntil
+
+  // Derive status server-side unless explicitly printing.
+  if (input.status === "printed") {
+    patch.status = "printed"
+  } else {
+    const doctorName =
+      input.doctorName !== undefined
+        ? input.doctorName?.trim() || null
+        : undefined
+    const certificateType =
+      input.certificateType !== undefined
+        ? input.certificateType.trim()
+        : undefined
+    if (
+      (doctorName !== undefined && doctorName) ||
+      (certificateType !== undefined && certificateType)
+    ) {
+      patch.status = "issued"
+      if (!patch.issued_at) {
+        patch.issued_at = input.issuedAt ?? new Date().toISOString()
+      }
+    }
+  }
 
   const { data, error } = await supabase
     .from("medical_certificates")

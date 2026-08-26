@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { DemoPageHeader } from "@/components/demo/demo-page"
 import { useTheme } from "@/components/theme-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -23,6 +24,7 @@ import { createClient } from "@/lib/supabase/client"
 import type { StaffProfile, UserPreferences } from "@/services/staff-profile"
 import { adminElevatedCardClassName } from "@/features/admin/lib/admin-surface"
 import { cn } from "@/lib/utils"
+import { IconEye, IconEyeOff } from "@tabler/icons-react"
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -214,20 +216,30 @@ export function ProfileSettingsPage({
                   <dt className="text-sm text-muted-foreground">
                     Professional License Number
                   </dt>
-                  <dd
-                    className="text-sm font-medium text-foreground tabular-nums"
-                    tabIndex={0}
-                    title={
-                      license
-                        ? "Hover or focus to reveal full license number"
-                        : undefined
-                    }
-                    onMouseEnter={() => setLicenseRevealed(true)}
-                    onMouseLeave={() => setLicenseRevealed(false)}
-                    onFocus={() => setLicenseRevealed(true)}
-                    onBlur={() => setLicenseRevealed(false)}
-                  >
-                    {maskLicense(license, licenseRevealed)}
+                  <dd className="flex items-center gap-2 text-sm font-medium text-foreground tabular-nums">
+                    <span aria-live="polite">
+                      {maskLicense(license, licenseRevealed)}
+                    </span>
+                    {license ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={
+                          licenseRevealed
+                            ? "Hide license number"
+                            : "Reveal license number"
+                        }
+                        aria-pressed={licenseRevealed}
+                        onClick={() => setLicenseRevealed((v) => !v)}
+                      >
+                        {licenseRevealed ? (
+                          <IconEyeOff className="size-4" />
+                        ) : (
+                          <IconEye className="size-4" />
+                        )}
+                      </Button>
+                    ) : null}
                   </dd>
                 </div>
               </div>

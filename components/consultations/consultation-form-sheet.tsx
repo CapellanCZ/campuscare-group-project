@@ -65,6 +65,7 @@ import type { StaffAccess } from "@/lib/auth/types"
 import {
   CONSULTATION_PRIORITIES,
   CONSULTATION_STATUSES,
+  consultationStatusLabel,
   type Consultation,
   type ConsultationPriority,
   type ConsultationStatus,
@@ -683,26 +684,28 @@ export function ConsultationFormSheet({
                   </SelectContent>
                 </Select>
               </Field>
-              <Field>
-                <FieldLabel>Status</FieldLabel>
-                <Select
-                  value={form.status}
-                  onValueChange={(value) => {
-                    if (value) update("status", value as ConsultationStatus)
-                  }}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CONSULTATION_STATUSES.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {status}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
+              {access?.designation !== "nurse" ? (
+                <Field>
+                  <FieldLabel>Status</FieldLabel>
+                  <Select
+                    value={form.status}
+                    onValueChange={(value) => {
+                      if (value) update("status", value as ConsultationStatus)
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CONSULTATION_STATUSES.map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {consultationStatusLabel(status)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              ) : null}
             </div>
 
             {dentalMode ? null : (

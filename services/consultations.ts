@@ -337,6 +337,109 @@ export async function getConsultationStats(
   }
 }
 
+function hasPostNurseVitals(vitals: Record<string, unknown> | null | undefined) {
+  if (!vitals) return false
+  return (
+    vitals.bpSystolic != null &&
+    vitals.bpDiastolic != null &&
+    vitals.heartRate != null
+  )
+}
+
+/** Physician/dentist board: post-vitals consultations at their station only. */
+export async function getConsultationsForClinician(
+  role: "physician" | "dentist",
+  params: ConsultationListParams = {},
+  client?: SupabaseClient
+): Promise<ConsultationListResult> {
+  const supabase = await getClient(client)
+  const page = Math.max(1, params.page ?? 1)
+  const pageSize = Math.min(50, Math.max(1, params.pageSize ?? DEFAULT_PAGE_SIZE))
+  const query = params.query?.trim() ?? ""
+  const { isoDate } = manilaDayBounds()
+  const consultationDate =
+    params.consultationDate && params.consultationDate !== "all"
+      ? params.consultationDate
+      : isoDate
+
+  const { data, error } = await supabase
+    .from("consultations")
+    .select(SELECT_WITH_PATIENT)
+    .eq("provider_type", role)
+    .in("station", [role])
+    .order("consultation_date", { ascending: false })
+
+  if (error) mapError(error)
+
+  let items = ((data ?? []) as ConsultationJson[])
+    .map(consultationFromJson)
+    .filter((item) => hasPostNurseVitals(item.vitals))
+    .filter((item) => item.station !== "nurse")
+
+  if (query) {
+    items = items.filter((item) => matchesQuery(item, query))
+  }
+  items = items.filter((item) =>
+    matchesFilters(item, {
+      ...params,
+      station: role,
+      consultationDate,
+    })
+  )
+
+  const total = items.length
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const safePage = Math.min(page, totalPages)
+  const start = (safePage - 1) * pageSize
+
+  return {
+    items: items.slice(start, start + pageSize),
+    total,
+    page: safePage,
+    pageSize,
+    totalPages,
+  }
+}
+
+export async function getConsultationStatsForClinician(
+  role: "physician" | "dentist",
+  client?: SupabaseClient
+): Promise<ConsultationStats> {
+  const supabase = await getClient(client)
+  const { startIso, endIso, isoDate } = manilaDayBounds()
+
+  const { data, error } = await supabase
+    .from("consultations")
+    .select("id, status, station, vitals, consultation_date, updated_at")
+    .eq("provider_type", role)
+    .in("station", [role])
+
+  if (error) mapError(error)
+
+  const rows = (data ?? []).filter((row) =>
+    hasPostNurseVitals(row.vitals as Record<string, unknown> | null)
+  )
+
+  const waiting = rows.filter((r) => r.status === "waiting").length
+  const ongoing = rows.filter((r) => r.status === "ongoing").length
+  const completedToday = rows.filter((r) => {
+    if (r.status !== "completed") return false
+    const updated = (r.updated_at as string | null) ?? ""
+    return updated >= startIso && updated <= endIso
+  }).length
+  const openToday = rows.filter((r) => {
+    const day = String(r.consultation_date ?? "").slice(0, 10)
+    return day === isoDate && r.status !== "completed"
+  }).length
+
+  return {
+    openToday,
+    awaitingAssessment: waiting,
+    inProgress: ongoing,
+    completedToday,
+  }
+}
+
 export async function createConsultation(
   input: CreateConsultationInput,
   client?: SupabaseClient
@@ -427,7 +530,7 @@ export async function completeConsultationVisit(
   const { data, error } = await supabase
     .from("consultations")
     .update({
-      status: "Completed",
+      status: "completed",
       queue_ticket_id: input.queueTicketId ?? undefined,
       consultation_request_id: input.consultationRequestId ?? undefined,
       updated_at: now,

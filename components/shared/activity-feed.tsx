@@ -38,7 +38,7 @@ export function ActivityFeed({
                 <span className="shrink-0 text-right text-xs text-muted-foreground tabular-nums">
                   {item.statusLabel ? (
                     <>
-                      <span className="capitalize">{item.statusLabel}</span>
+                      <span>{item.statusLabel}</span>
                       {" · "}
                     </>
                   ) : null}

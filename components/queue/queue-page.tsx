@@ -116,7 +116,7 @@ const STATUS_OPTIONS: Array<{ value: TicketStatus | "all"; label: string }> = [
   { value: "waiting", label: "Waiting" },
   { value: "called", label: "Called" },
   { value: "completed", label: "Completed" },
-  { value: "no_show", label: "No-show" },
+  { value: "no_show", label: "No Show" },
   { value: "expired", label: "Expired" },
 ]
 
@@ -1098,21 +1098,7 @@ export function QueuePage({
                                       </DropdownMenuItem>
                                       <DropdownMenuItem
                                         onClick={() => {
-                                          if (isDentist) {
-                                            setLocalTickets((prev) =>
-                                              prev.map((ticket) =>
-                                                ticket.ticketId === row.ticketId
-                                                  ? {
-                                                      ...ticket,
-                                                      status: "ongoing" as const,
-                                                      assignedPersonnel:
-                                                        access.fullName,
-                                                    }
-                                                  : ticket
-                                              )
-                                            )
-                                          }
-                                          if (isPhysician && row.appointmentId) {
+                                          if (isPhysician || isDentist) {
                                             startTransition(async () => {
                                               const result =
                                                 await actionStartConsultation(
@@ -1124,11 +1110,39 @@ export function QueuePage({
                                                 )
                                                 return
                                               }
+                                              const consultationId =
+                                                result.consultationId
+                                              if (!consultationId) {
+                                                toast.error(
+                                                  "No consultation record. Nurse must complete intake first."
+                                                )
+                                                return
+                                              }
+                                              if (isDentist) {
+                                                setLocalTickets((prev) =>
+                                                  prev.map((ticket) =>
+                                                    ticket.ticketId ===
+                                                    row.ticketId
+                                                      ? {
+                                                          ...ticket,
+                                                          status:
+                                                            "ongoing" as const,
+                                                          assignedPersonnel:
+                                                            access.fullName,
+                                                          consultationId,
+                                                        }
+                                                      : ticket
+                                                  )
+                                                )
+                                              }
                                               toast.success(
                                                 result.message ?? "Updated"
                                               )
+                                              const rolePath = isDentist
+                                                ? "dentist"
+                                                : "physician"
                                               router.push(
-                                                `/physician/consultation/${row.appointmentId}`
+                                                `/${rolePath}/consultation/${consultationId}`
                                               )
                                               router.refresh()
                                             })

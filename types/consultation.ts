@@ -301,6 +301,21 @@ export function normalizeConsultationStatus(value: string): ConsultationStatus {
   }
 }
 
+export function consultationStatusLabel(status: string): string {
+  switch (normalizeConsultationStatus(status)) {
+    case "waiting":
+      return "Waiting"
+    case "ongoing":
+      return "Ongoing"
+    case "completed":
+      return "Completed"
+    case "cancelled":
+      return "Cancelled"
+    default:
+      return status
+  }
+}
+
 function isStatus(value: string): value is ConsultationStatus {
   return (CONSULTATION_STATUSES as readonly string[]).includes(
     normalizeConsultationStatus(value)
