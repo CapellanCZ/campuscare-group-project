@@ -192,28 +192,29 @@ async function getClient(client?: SupabaseClient) {
 async function generateCertificateNumber(
   client: SupabaseClient
 ): Promise<string> {
-  const { year } = manilaDateParts()
-  const prefix = `MC-${year}-`
+  const { data, error } = await client.rpc("next_medical_certificate_number")
 
-  const { data, error } = await client
-    .from("medical_certificates")
-    .select("certificate_number")
-    .like("certificate_number", `${prefix}%`)
-    .order("certificate_number", { ascending: false })
-    .limit(1)
-
-  if (error) mapError(error)
-
-  const latest = data?.[0]?.certificate_number as string | undefined
-  const next = latest
-    ? Number.parseInt(latest.slice(prefix.length), 10) + 1
-    : 1
-
-  if (!Number.isFinite(next) || next < 1) {
-    return `${prefix}${String(Date.now()).slice(-4)}`
+  if (!error && typeof data === "string" && data.trim()) {
+    return data.trim()
   }
 
-  return `${prefix}${String(next).padStart(4, "0")}`
+  // Fallback if RPC is unavailable: still prefer unique-ish value over colliding "0001".
+  const { year } = manilaDateParts()
+  const prefix = `MC-${year}-`
+  const stamp = String(Date.now()).slice(-6)
+  return `${prefix}${stamp}`
+}
+
+function isUniqueCertificateNumberViolation(error: {
+  message: string
+  code?: string
+}): boolean {
+  const message = error.message.toLowerCase()
+  return (
+    error.code === "23505" ||
+    message.includes("medical_certificates_certificate_number_key") ||
+    (message.includes("duplicate key") && message.includes("certificate_number"))
+  )
 }
 
 export async function getMedicalCertificates(
@@ -388,9 +389,7 @@ export async function createMedicalCertificate(
     hasDoctor && hasType
       ? ("issued" as const)
       : ("draft" as const)
-  const certificateNumber =
-    input.certificateNumber?.trim() ||
-    (await generateCertificateNumber(supabase))
+  const providedNumber = input.certificateNumber?.trim() || null
 
   const issuedAt =
     status === "issued"
@@ -412,25 +411,45 @@ export async function createMedicalCertificate(
     throw error
   }
 
-  const { data, error } = await supabase
-    .from("medical_certificates")
-    .insert({
-      patient_id: operationalPatientId,
-      certificate_number: certificateNumber,
-      certificate_type: input.certificateType.trim(),
-      purpose: input.purpose?.trim() || null,
-      doctor_name: input.doctorName?.trim() || null,
-      remarks: input.remarks?.trim() || null,
-      status,
-      issued_at: issuedAt,
-      valid_until: input.validUntil ?? null,
-      issued_by: input.issuedBy.trim(),
-    })
-    .select(SELECT_WITH_PATIENT)
-    .single()
+  const maxAttempts = providedNumber ? 1 : 3
+  let lastError: { message: string; code?: string } | null = null
 
-  if (error) mapError(error)
-  return mapCertificate(data as CertificateRow)
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const certificateNumber =
+      providedNumber ?? (await generateCertificateNumber(supabase))
+
+    const { data, error } = await supabase
+      .from("medical_certificates")
+      .insert({
+        patient_id: operationalPatientId,
+        certificate_number: certificateNumber,
+        certificate_type: input.certificateType.trim(),
+        purpose: input.purpose?.trim() || null,
+        doctor_name: input.doctorName?.trim() || null,
+        remarks: input.remarks?.trim() || null,
+        status,
+        issued_at: issuedAt,
+        valid_until: input.validUntil ?? null,
+        issued_by: input.issuedBy.trim(),
+      })
+      .select(SELECT_WITH_PATIENT)
+      .single()
+
+    if (!error) {
+      return mapCertificate(data as CertificateRow)
+    }
+
+    lastError = error
+    if (providedNumber || !isUniqueCertificateNumberViolation(error)) {
+      mapError(error)
+    }
+  }
+
+  if (lastError) mapError(lastError)
+  throw new MedicalCertificateServiceError(
+    "database",
+    "Could not allocate a unique certificate number. Please try again."
+  )
 }
 
 export async function updateMedicalCertificate(
