@@ -28,6 +28,7 @@ export type MedicalCertificate = {
   status: MedicalCertificateStatus
   issuedAt: string | null
   validUntil: string | null
+  issuedBy: string | null
   createdAt: string
   updatedAt: string
   patient: MedicalCertificatePatient
@@ -58,6 +59,8 @@ export type MedicalCertificateListParams = {
   sortBy?: MedicalCertificateSortField
   sortDirection?: MedicalCertificateSortDirection
   status?: MedicalCertificateStatus | "all"
+  /** When set, only certificates issued by this staff user id. */
+  issuedBy?: string | null
 }
 
 export type MedicalCertificateListResult = {
@@ -78,6 +81,8 @@ export type CreateMedicalCertificateInput = {
   status?: MedicalCertificateStatus
   issuedAt?: string | null
   validUntil?: string | null
+  /** Staff user id of the issuer (required for create). */
+  issuedBy: string
 }
 
 export type UpdateMedicalCertificateInput = {

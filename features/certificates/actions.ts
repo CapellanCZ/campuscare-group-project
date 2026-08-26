@@ -12,6 +12,7 @@ import {
   searchMedicalCertificates,
   updateMedicalCertificate,
 } from "@/services/medicalCertificates"
+import type { StaffAccess } from "@/lib/auth/types"
 import {
   MedicalCertificateServiceError,
   type CreateMedicalCertificateInput,
@@ -22,6 +23,29 @@ import {
   type MedicalCertificateStats,
   type UpdateMedicalCertificateInput,
 } from "@/types/medicalCertificate"
+
+/** Physicians/dentists only see certificates they issued; nurse/admin see all. */
+function issuerScopeUserId(access: StaffAccess): string | null {
+  if (
+    access.designation === "physician" ||
+    access.designation === "dentist"
+  ) {
+    return access.userId
+  }
+  return null
+}
+
+function withIssuerScope(
+  access: StaffAccess,
+  params: MedicalCertificateListParams = {}
+): MedicalCertificateListParams {
+  const issuedBy = issuerScopeUserId(access)
+  if (issuedBy) {
+    return { ...params, issuedBy }
+  }
+  const { issuedBy: _ignored, ...rest } = params
+  return rest
+}
 
 export type MedicalCertificateActionResult<T> =
   | { ok: true; data: T }
@@ -92,7 +116,9 @@ export async function fetchMedicalCertificatesAction(
   const auth = await requireCertificateAccess(false)
   if (!auth.ok) return auth
   try {
-    const data = await getMedicalCertificates(params)
+    const data = await getMedicalCertificates(
+      withIssuerScope(auth.access, params)
+    )
     return { ok: true, data }
   } catch (error) {
     return toErrorResult(error)
@@ -106,7 +132,10 @@ export async function searchMedicalCertificatesAction(
   const auth = await requireCertificateAccess(false)
   if (!auth.ok) return auth
   try {
-    const data = await searchMedicalCertificates(query, params)
+    const data = await searchMedicalCertificates(
+      query,
+      withIssuerScope(auth.access, params)
+    )
     return { ok: true, data }
   } catch (error) {
     return toErrorResult(error)
@@ -132,7 +161,9 @@ export async function fetchMedicalCertificateStatsAction(): Promise<
   const auth = await requireCertificateAccess(false)
   if (!auth.ok) return auth
   try {
-    const data = await getMedicalCertificateStats()
+    const data = await getMedicalCertificateStats(
+      issuerScopeUserId(auth.access)
+    )
     return { ok: true, data }
   } catch (error) {
     return toErrorResult(error)
@@ -153,13 +184,16 @@ export async function listCertificatePatientsAction(): Promise<
 }
 
 export async function createMedicalCertificateAction(
-  input: CreateMedicalCertificateInput
+  input: Omit<CreateMedicalCertificateInput, "issuedBy">
 ): Promise<MedicalCertificateActionResult<MedicalCertificate>> {
   const auth = await requireCertificateAccess(true)
   if (!auth.ok) return auth
   try {
     const { status: _status, ...rest } = input
-    const data = await createMedicalCertificate(rest)
+    const data = await createMedicalCertificate({
+      ...rest,
+      issuedBy: auth.access.userId,
+    })
     return { ok: true, data }
   } catch (error) {
     return toErrorResult(error)

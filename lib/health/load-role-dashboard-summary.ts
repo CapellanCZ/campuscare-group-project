@@ -276,7 +276,7 @@ export async function loadRoleDashboardSummary(input: {
       : getConsultationStats().catch(() => emptyConsultationStats),
     isNurse || isAdmin
       ? Promise.resolve(emptyCertificateStats)
-      : getMedicalCertificateStats().catch(() => emptyCertificateStats),
+      : getMedicalCertificateStats(userId).catch(() => emptyCertificateStats),
     isSpecialty
       ? getDirectoryPatientRecordStats().catch(() => null)
       : Promise.resolve(null),

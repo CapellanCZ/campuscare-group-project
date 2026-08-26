@@ -37,6 +37,7 @@ type CertificateRow = {
   status: string
   issued_at: string | null
   valid_until: string | null
+  issued_by?: string | null
   created_at: string
   updated_at: string
   patients: PatientJoin | PatientJoin[] | null
@@ -54,6 +55,7 @@ const SELECT_WITH_PATIENT = `
   status,
   issued_at,
   valid_until,
+  issued_by,
   created_at,
   updated_at,
   patients (
@@ -128,6 +130,7 @@ function mapCertificate(row: CertificateRow): MedicalCertificate {
     status: row.status,
     issuedAt: row.issued_at,
     validUntil: row.valid_until,
+    issuedBy: row.issued_by ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     patient: {
@@ -230,6 +233,9 @@ export async function getMedicalCertificates(
   if (status !== "all") {
     request = request.eq("status", status)
   }
+  if (params.issuedBy) {
+    request = request.eq("issued_by", params.issuedBy)
+  }
 
   const { data, error } = await request
 
@@ -299,12 +305,15 @@ export async function getMedicalCertificateById(
 }
 
 export async function getMedicalCertificateStats(
+  issuedBy?: string | null,
   client?: SupabaseClient
 ): Promise<MedicalCertificateStats> {
   const supabase = await getClient(client)
-  const { data, error } = await supabase
-    .from("medical_certificates")
-    .select("status, issued_at")
+  let request = supabase.from("medical_certificates").select("status, issued_at")
+  if (issuedBy) {
+    request = request.eq("issued_by", issuedBy)
+  }
+  const { data, error } = await request
 
   if (error) mapError(error)
 
@@ -360,6 +369,12 @@ export async function createMedicalCertificate(
       "A patient is required to create a certificate."
     )
   }
+  if (!input.issuedBy?.trim()) {
+    throw new MedicalCertificateServiceError(
+      "validation",
+      "Issuer is required to create a certificate."
+    )
+  }
   if (!input.certificateType.trim()) {
     throw new MedicalCertificateServiceError(
       "validation",
@@ -409,6 +424,7 @@ export async function createMedicalCertificate(
       status,
       issued_at: issuedAt,
       valid_until: input.validUntil ?? null,
+      issued_by: input.issuedBy.trim(),
     })
     .select(SELECT_WITH_PATIENT)
     .single()

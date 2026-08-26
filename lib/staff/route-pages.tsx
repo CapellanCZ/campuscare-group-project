@@ -355,6 +355,11 @@ export async function StaffCertificatesPage() {
   let stats = emptyStats
   let initialError: string | null = null
 
+  const issuedBy =
+    access.designation === "physician" || access.designation === "dentist"
+      ? access.userId
+      : null
+
   try {
     const [nextList, nextStats] = await Promise.all([
       getMedicalCertificates({
@@ -362,8 +367,9 @@ export async function StaffCertificatesPage() {
         pageSize: 10,
         sortBy: "issued_at",
         sortDirection: "desc",
+        ...(issuedBy ? { issuedBy } : {}),
       }),
-      getMedicalCertificateStats(),
+      getMedicalCertificateStats(issuedBy),
     ])
     list = nextList
     stats = nextStats

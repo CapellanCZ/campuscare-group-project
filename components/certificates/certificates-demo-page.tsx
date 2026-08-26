@@ -313,9 +313,11 @@ export function CertificatesPage({
         <DemoPageHeader
           title="Medical Certificates"
           description={
-            d === "nurse" || d === "physician" || d === "dentist"
-              ? ""
-              : "Browse history and generate printable certificates"
+            d === "physician" || d === "dentist"
+              ? "Certificates you issued"
+              : d === "nurse"
+                ? ""
+                : "Browse history and generate printable certificates"
           }
           designation={d}
           showDemoBanner={false}
@@ -389,7 +391,9 @@ export function CertificatesPage({
                 </EmptyMedia>
                 <EmptyTitle>No medical certificates found.</EmptyTitle>
                 <EmptyDescription>
-                  No medical certificates available.
+                  {d === "physician" || d === "dentist"
+                    ? "You have not issued any medical certificates yet."
+                    : "No medical certificates available."}
                 </EmptyDescription>
               </EmptyHeader>
               {canManage ? (
