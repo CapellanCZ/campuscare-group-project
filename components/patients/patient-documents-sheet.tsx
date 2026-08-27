@@ -3,8 +3,13 @@
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
-import { CertificatePreviewDialog } from "@/components/certificates/certificate-preview-dialog"
+import { DocumentPreviewDialog } from "@/components/medical-documents/document-preview-dialog"
+import {
+  certificateToDocument,
+  documentTypeLabel,
+} from "@/components/medical-documents/document-print-view"
 import { fetchPatientDocumentsAction } from "@/features/patients/actions"
+import { documentStatusLabel } from "@/features/medical-documents/lib/document-status"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,6 +21,7 @@ import {
 } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { MedicalCertificate } from "@/types/medicalCertificate"
+import type { MedicalDocument } from "@/types/medicalDocument"
 import { patientFullName, type PatientRecord } from "@/types/patientRecord"
 
 function formatDate(value: string | null) {
@@ -41,7 +47,7 @@ export function PatientDocumentsSheet({
 }) {
   const [rows, setRows] = useState<MedicalCertificate[]>([])
   const [loading, setLoading] = useState(false)
-  const [preview, setPreview] = useState<MedicalCertificate | null>(null)
+  const [preview, setPreview] = useState<MedicalDocument | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
 
   useEffect(() => {
@@ -94,7 +100,7 @@ export function PatientDocumentsSheet({
               ))
             ) : rows.length === 0 ? (
               <p className="px-2 text-sm text-muted-foreground">
-                No medical certificates found for this patient yet.
+                No medical documents found for this patient yet.
               </p>
             ) : (
               rows.map((row) => (
@@ -104,13 +110,13 @@ export function PatientDocumentsSheet({
                   variant="outline"
                   className="h-auto w-full items-start justify-between gap-3 rounded-xl px-3 py-3 text-left whitespace-normal"
                   onClick={() => {
-                    setPreview(row)
+                    setPreview(certificateToDocument(row))
                     setPreviewOpen(true)
                   }}
                 >
                   <div className="min-w-0 space-y-1">
                     <p className="truncate text-sm font-medium">
-                      {row.certificateType}
+                      {documentTypeLabel(certificateToDocument(row))}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {row.certificateNumber}
@@ -128,8 +134,8 @@ export function PatientDocumentsSheet({
                       </p>
                     ) : null}
                   </div>
-                  <Badge variant="outline" className="shrink-0 capitalize">
-                    {row.status}
+                  <Badge variant="outline" className="shrink-0">
+                    {documentStatusLabel(row.status)}
                   </Badge>
                 </Button>
               ))
@@ -138,8 +144,8 @@ export function PatientDocumentsSheet({
         </DialogContent>
       </Dialog>
 
-      <CertificatePreviewDialog
-        certificate={preview}
+      <DocumentPreviewDialog
+        document={preview}
         open={previewOpen}
         onOpenChange={setPreviewOpen}
       />

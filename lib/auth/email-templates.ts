@@ -35,14 +35,15 @@ function greetingName(fullName: string, email?: string) {
 export function buildActivationEmail(input: {
   fullName: string
   role: string
-  loginUrl: string
+  /** Magic link that completes activation (clears invite_pending). */
+  activationUrl: string
   email?: string
 }): AuthEmailPayload {
   const name = greetingName(input.fullName, input.email)
   const role = roleLabel(input.role)
   const safeName = escapeHtml(name)
   const safeRole = escapeHtml(role)
-  const safeUrl = escapeHtml(input.loginUrl)
+  const safeUrl = escapeHtml(input.activationUrl)
 
   const contentHtml = [
     emailBodyParagraph(`Hi ${safeName},`),
@@ -50,9 +51,9 @@ export function buildActivationEmail(input: {
       `You've been invited as <strong style="color:#3730A3;">${safeRole}</strong> on CampusCare for the NU Dasmariñas Health Services Office.`
     ),
     emailBodyParagraph(
-      `Click below to open the staff login page and finish activating your account with a one-time code sent to this email.`
+      `Click below to activate your account. After activation, return to the login page and sign in with a one-time code sent to this email.`
     ),
-    emailPrimaryButton(input.loginUrl, "Activate Account"),
+    emailPrimaryButton(input.activationUrl, "Activate Account"),
     emailBodyParagraph(
       `If the button doesn't work, copy and paste this link into your browser:`
     ),
@@ -75,7 +76,8 @@ export function buildActivationEmail(input: {
     `Hi ${name},`,
     "",
     `You've been invited as ${role} on CampusCare (NU Dasmariñas HSO).`,
-    `Open this link to sign in and activate: ${input.loginUrl}`,
+    `Open this link to activate your account: ${input.activationUrl}`,
+    "After activating, sign in at the login page with a one-time code.",
     "",
     "If you didn't expect this invite, ignore this email.",
     `Help: ${EMAIL_SUPPORT}`,

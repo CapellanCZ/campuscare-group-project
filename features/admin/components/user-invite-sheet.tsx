@@ -8,6 +8,7 @@ import { IconUserPlus } from "@tabler/icons-react"
 import { createStaffUser } from "@/features/admin/actions/user-management"
 import type { DirectoryConfig } from "@/features/admin/lib/user-directory-config"
 import type { ManagedRole } from "@/features/admin/types/user-management"
+import { isLicensedProfessionalRole } from "@/features/admin/types/user-management"
 import { Button } from "@/components/ui/button"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -47,12 +48,16 @@ export function UserInviteSheet({
   const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
   const [role, setRole] = useState<ManagedRole>(config.defaultCreateRole)
+  const [licenseNumber, setLicenseNumber] = useState("")
   const [error, setError] = useState<string | null>(null)
+
+  const showLicenseNumber = isLicensedProfessionalRole(role)
 
   function resetForm() {
     setFullName("")
     setEmail("")
     setRole(config.defaultCreateRole)
+    setLicenseNumber("")
     setError(null)
   }
 
@@ -65,6 +70,7 @@ export function UserInviteSheet({
         fullName,
         email,
         role,
+        licenseNumber: showLicenseNumber ? licenseNumber : null,
         allowedRoles: [...config.roles],
       })
 
@@ -156,6 +162,19 @@ export function UserInviteSheet({
                     <SelectItem value="dentist">Dentist</SelectItem>
                   </SelectContent>
                 </Select>
+              </Field>
+            ) : null}
+            {showLicenseNumber ? (
+              <Field>
+                <FieldLabel htmlFor="invite-license">Licensed number</FieldLabel>
+                <Input
+                  id="invite-license"
+                  value={licenseNumber}
+                  onChange={(event) => setLicenseNumber(event.target.value)}
+                  placeholder="PRC license no."
+                  disabled={pending}
+                  autoComplete="off"
+                />
               </Field>
             ) : null}
           </FieldGroup>

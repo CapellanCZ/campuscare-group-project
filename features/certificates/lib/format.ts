@@ -38,5 +38,6 @@ export function formatCertificateDate(value: string | null | undefined) {
 }
 
 export function certificateStatusLabel(status: MedicalCertificateStatus) {
+  if (status === "printed") return "Issued"
   return status.charAt(0).toUpperCase() + status.slice(1)
 }

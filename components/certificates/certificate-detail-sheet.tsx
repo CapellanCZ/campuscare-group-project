@@ -28,7 +28,7 @@ function statusVariant(
   status: MedicalCertificateStatus
 ): "default" | "secondary" | "outline" {
   if (status === "issued") return "default"
-  if (status === "printed") return "secondary"
+  if (status === "printed") return "default"
   return "outline"
 }
 

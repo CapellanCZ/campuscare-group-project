@@ -349,14 +349,43 @@
   }
 
   #medical-certificate-print,
-  #medical-certificate-print * {
+  #medical-certificate-print *,
+  #medical-document-print,
+  #medical-document-print * {
     visibility: visible !important;
   }
 
-  #medical-certificate-print {
-    position: absolute;
-    inset: 0;
-    width: 100%;
+  #medical-certificate-print,
+  #medical-document-print {
+    display: block !important;
+    position: static !important;
+    inset: auto !important;
+    width: 8.5in !important;
+    height: 5.5in !important;
+    margin: 0 !important;
+    padding: 0 !important;
     background: white;
+    overflow: hidden !important;
+    page-break-after: avoid !important;
+    break-after: avoid-page !important;
+  }
+
+  #medical-document-print article,
+  #medical-certificate-print article {
+    margin: 0 !important;
+    box-shadow: none !important;
+    width: 8.5in !important;
+    height: 5.5in !important;
+    max-height: 5.5in !important;
+    min-height: 0 !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  #medical-document-print .hso-form-preview-frame,
+  #medical-document-print .hso-form-preview-frame > div {
+    box-shadow: none !important;
+    border: none !important;
+    ring: unset !important;
   }
 }

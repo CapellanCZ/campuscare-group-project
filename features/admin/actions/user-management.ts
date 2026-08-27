@@ -24,6 +24,7 @@ import {
   type UpdateStaffUserInput,
   type UpdateStaffUserRoleInput,
   type UserStatusFilter,
+  isLicensedProfessionalRole,
 } from "@/features/admin/types/user-management"
 
 type StaffProfileRow = {
@@ -39,6 +40,11 @@ type AdminClient = ReturnType<typeof createAdminClient>
 
 type ImportStaffUsersOptions = {
   allowedRoles?: ManagedRole[]
+}
+
+function normalizeLicenseNumber(value: string | null | undefined): string | null {
+  const trimmed = value?.trim() ?? ""
+  return trimmed || null
 }
 
 function normalizeSearch(input?: string): string {
@@ -489,6 +495,9 @@ export async function createStaffUser(
       primary_role: input.role,
       is_active: true,
       invite_pending: true,
+      license_number: isLicensedProfessionalRole(input.role)
+        ? normalizeLicenseNumber(input.licenseNumber)
+        : null,
     },
     { onConflict: "id" }
   )
@@ -710,7 +719,7 @@ export async function getStaffUserForEdit(
 
   const { data: profile, error } = await adminClient
     .from("users")
-    .select("id, full_name, email, primary_role, is_active")
+    .select("id, full_name, email, primary_role, is_active, license_number")
     .eq("id", id)
     .in("primary_role", MANAGED_ROLES)
     .maybeSingle()
@@ -734,6 +743,7 @@ export async function getStaffUserForEdit(
       email: profile.email,
       role: profile.primary_role as ManagedRole,
       isActive: profile.is_active !== false,
+      licenseNumber: (profile.license_number as string | null) ?? null,
       scheduleSlots: (slots ?? []).map((slot) => ({
         id: slot.id,
         dayOfWeek: slot.day_of_week,
@@ -837,6 +847,9 @@ export async function updateStaffUser(
       full_name: fullName,
       email,
       primary_role: input.role,
+      license_number: isLicensedProfessionalRole(input.role)
+        ? normalizeLicenseNumber(input.licenseNumber)
+        : null,
     })
     .eq("id", userId)
 

@@ -30,6 +30,7 @@ import {
   visitDentalValueFromWorkspace,
   type VisitDentalFormValue,
 } from "@/features/clinical/components/visit-dental-form"
+import { ConsultationDocumentsPanel } from "@/components/medical-documents/consultation-documents-panel"
 import { PageHeader } from "@/features/common/components/page-header"
 import { VisitMedicalChart } from "@/features/physician/components/visit-medical-chart"
 import { consultationStatusLabel } from "@/types/consultation"
@@ -194,6 +195,7 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
           </div>
         ) : null
       ) : (
+        <>
         <Card className="rounded-2xl border-border/70 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Encounter workflow</CardTitle>
@@ -312,7 +314,13 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
             ) : null}
           </CardContent>
         </Card>
+        </>
       )}
+
+      <ConsultationDocumentsPanel
+        workspace={workspace}
+        canIssue={workspace.canIssueDocuments && !readOnly}
+      />
     </div>
   )
 }

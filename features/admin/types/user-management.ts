@@ -79,6 +79,7 @@ export type CreateStaffUserInput = {
   fullName: string
   email: string
   role: ManagedRole
+  licenseNumber?: string | null
   /** When set, create is rejected if role is outside this list. */
   allowedRoles?: ManagedRole[]
 }
@@ -106,6 +107,7 @@ export type UpdateStaffUserInput = {
   fullName: string
   email: string
   role: ManagedRole
+  licenseNumber?: string | null
   allowedRoles?: ManagedRole[]
   /** When provided (clinic staff), replaces weekly office hours. */
   scheduleSlots?: StaffScheduleSlotInput[]
@@ -117,6 +119,7 @@ export type StaffUserEditData = {
   email: string
   role: ManagedRole
   isActive: boolean
+  licenseNumber: string | null
   scheduleSlots: Array<{
     id: string
     dayOfWeek: number
@@ -124,6 +127,16 @@ export type StaffUserEditData = {
     endTime: string
     isActive: boolean
   }>
+}
+
+export const LICENSED_PROFESSIONAL_ROLES: ManagedRole[] = [
+  "physician",
+  "dentist",
+  "nurse",
+]
+
+export function isLicensedProfessionalRole(role: ManagedRole): boolean {
+  return (LICENSED_PROFESSIONAL_ROLES as readonly string[]).includes(role)
 }
 
 export type AssignClinicMembershipInput = {

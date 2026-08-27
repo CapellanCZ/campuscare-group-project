@@ -127,7 +127,8 @@ function mapCertificate(row: CertificateRow): MedicalCertificate {
     purpose: row.purpose,
     doctorName: row.doctor_name,
     remarks: row.remarks,
-    status: row.status,
+    status:
+      row.status === "printed" ? "issued" : row.status,
     issuedAt: row.issued_at,
     validUntil: row.valid_until,
     issuedBy: row.issued_by ?? null,
@@ -499,27 +500,27 @@ export async function updateMedicalCertificate(
   if (input.issuedAt !== undefined) patch.issued_at = input.issuedAt
   if (input.validUntil !== undefined) patch.valid_until = input.validUntil
 
-  // Derive status server-side unless explicitly printing.
-  if (input.status === "printed") {
-    patch.status = "printed"
-  } else {
-    const doctorName =
-      input.doctorName !== undefined
-        ? input.doctorName?.trim() || null
-        : undefined
-    const certificateType =
-      input.certificateType !== undefined
-        ? input.certificateType.trim()
-        : undefined
-    if (
-      (doctorName !== undefined && doctorName) ||
-      (certificateType !== undefined && certificateType)
-    ) {
-      patch.status = "issued"
-      if (!patch.issued_at) {
-        patch.issued_at = input.issuedAt ?? new Date().toISOString()
-      }
+  // Derive status server-side when completing a certificate.
+  const doctorName =
+    input.doctorName !== undefined
+      ? input.doctorName?.trim() || null
+      : undefined
+  const certificateType =
+    input.certificateType !== undefined
+      ? input.certificateType.trim()
+      : undefined
+  if (
+    (doctorName !== undefined && doctorName) ||
+    (certificateType !== undefined && certificateType)
+  ) {
+    patch.status = "issued"
+    if (!patch.issued_at) {
+      patch.issued_at = input.issuedAt ?? new Date().toISOString()
     }
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return getMedicalCertificateById(input.id, supabase)
   }
 
   const { data, error } = await supabase

@@ -141,6 +141,13 @@ export function LandingFooter() {
               >
                 {footerContact.phone}
               </a>
+
+              <a
+                href={`tel:${footerContact.phoneTel}`}
+                className="transition-colors hover:text-foreground"
+              >
+                {footerContact.phoneTel}
+              </a>
             </li>
           </ul>
         </Reveal>

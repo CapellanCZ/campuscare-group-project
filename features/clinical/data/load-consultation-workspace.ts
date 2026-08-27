@@ -3,6 +3,7 @@ import "server-only"
 import { notFound } from "next/navigation"
 
 import { getStaffAccess } from "@/lib/auth/access"
+import { can } from "@/lib/auth/permissions"
 import { assignClinicDoctorId } from "@/lib/health/consultation-lifecycle"
 import { createClient } from "@/lib/supabase/server"
 import { PATIENT_RECORD_SELECT_COLUMNS } from "@/lib/students/patient-record-select"
@@ -37,6 +38,7 @@ export type ClinicalVisitWorkspace = {
   medicalRecord: PatientRecord | null
   nurseVitals: NurseVisitVitals
   dashboardPath: string
+  canIssueDocuments: boolean
 }
 
 export async function loadConsultationWorkspace(
@@ -183,5 +185,6 @@ export async function loadConsultationWorkspace(
     medicalRecord,
     nurseVitals,
     dashboardPath: role === "dentist" ? "/dentist/dashboard" : "/physician/dashboard",
+    canIssueDocuments: can(access.designation, "certificates.generate"),
   }
 }

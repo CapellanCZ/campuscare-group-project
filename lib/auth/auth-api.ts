@@ -27,6 +27,7 @@ function normalizeAuthResult(
       "error" in result ? result.error : undefined,
       fallback
     ),
+    ...("code" in result && result.code ? { code: result.code } : {}),
   }
 }
 

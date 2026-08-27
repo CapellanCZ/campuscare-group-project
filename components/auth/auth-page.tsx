@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { IconChevronLeft } from "@tabler/icons-react"
 
+import { AuthActivateStep } from "@/components/auth/auth-activate-step"
 import { AuthEmailStep } from "@/components/auth/auth-email-step"
 import { AuthOtpStep } from "@/components/auth/auth-otp-step"
 import { CampusCareLogo } from "@/components/campuscare-logo"
@@ -18,23 +19,33 @@ import {
 import { asErrorMessage } from "@/lib/auth/errors"
 import { isValidEmail } from "@/lib/auth/email"
 
-type AuthStep = "email" | "otp"
+type AuthStep = "email" | "otp" | "activate"
 
 const DISPLAY_LOGIN_CLICK_WINDOW_MS = 800
 const DISPLAY_LOGIN_CLICKS_REQUIRED = 3
 
 export function AuthPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [step, setStep] = useState<AuthStep>("email")
   const [email, setEmail] = useState("")
   const [otp, setOtp] = useState("")
   const [emailError, setEmailError] = useState<string | null>(null)
   const [otpError, setOtpError] = useState<string | null>(null)
+  const [emailNotice, setEmailNotice] = useState<string | null>(null)
   const [isSendingOtp, setIsSendingOtp] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
   const [resendSeconds, setResendSeconds] = useState(0)
   const displayLoginClicks = useRef(0)
   const displayLoginTimer = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (searchParams.get("activated") === "1") {
+      setEmailNotice(
+        "Your account is activated. Enter your email to receive a one-time code."
+      )
+    }
+  }, [searchParams])
 
   useEffect(() => {
     if (resendSeconds <= 0) return
@@ -101,6 +112,12 @@ export function AuthPage() {
     setIsSendingOtp(false)
 
     if (!result.ok) {
+      if (result.code === "account_not_activated") {
+        setEmail(trimmedEmail)
+        setEmailError(null)
+        setStep("activate")
+        return
+      }
       setEmailError(
         asErrorMessage(result.error, "Could not send sign-in email.")
       )
@@ -109,6 +126,7 @@ export function AuthPage() {
 
     setEmail(trimmedEmail)
     setOtp("")
+    setEmailNotice(null)
     setStep("otp")
     setResendSeconds(RESEND_COOLDOWN_SECONDS)
   }
@@ -197,21 +215,24 @@ export function AuthPage() {
           <div className="absolute top-0 right-0 h-320 w-60 -translate-y-87.5 rounded-full bg-[radial-gradient(50%_50%_at_50%_50%,--theme(--color-foreground/.04)_0,--theme(--color-foreground/.01)_80%,transparent_100%)]" />
         </div>
 
-        <Button
-          className="absolute top-7 left-5"
-          variant="ghost"
-          render={<Link href="/" />}
-          nativeButton={false}
-        >
-          <IconChevronLeft data-icon="inline-start" />
-          Home
-        </Button>
+        {step !== "activate" ? (
+          <Button
+            className="absolute top-7 left-5"
+            variant="ghost"
+            render={<Link href="/" />}
+            nativeButton={false}
+          >
+            <IconChevronLeft data-icon="inline-start" />
+            Home
+          </Button>
+        ) : null}
 
         <div className="mx-auto w-full max-w-sm space-y-4">
           {step === "email" ? (
             <AuthEmailStep
               email={email}
               emailError={emailError}
+              emailNotice={emailNotice}
               isSendingOtp={isSendingOtp}
               onEmailChange={(value) => {
                 setEmail(value)
@@ -240,23 +261,27 @@ export function AuthPage() {
             />
           ) : null}
 
-          <p className="mt-8 text-sm text-muted-foreground">
-            By clicking continue, you agree to our{" "}
-            <Link
-              className="underline underline-offset-4 hover:text-primary"
-              href="/terms"
-            >
-              Terms of Service
-            </Link>{" "}
-            and{" "}
-            <Link
-              className="underline underline-offset-4 hover:text-primary"
-              href="/privacy"
-            >
-              Privacy Policy
-            </Link>
-            .
-          </p>
+          {step === "activate" ? <AuthActivateStep /> : null}
+
+          {step !== "activate" ? (
+            <p className="mt-8 text-sm text-muted-foreground">
+              By clicking continue, you agree to our{" "}
+              <Link
+                className="underline underline-offset-4 hover:text-primary"
+                href="/terms"
+              >
+                Terms of Service
+              </Link>{" "}
+              and{" "}
+              <Link
+                className="underline underline-offset-4 hover:text-primary"
+                href="/privacy"
+              >
+                Privacy Policy
+              </Link>
+              .
+            </p>
+          ) : null}
         </div>
       </div>
     </main>

@@ -62,7 +62,7 @@ export function LandingHero() {
               size="lg"
               variant="outline"
               className="w-full sm:w-auto"
-              render={<Link href="/login" />}
+              render={<Link href="/login/login" />}
               nativeButton={false}
             >
               Login

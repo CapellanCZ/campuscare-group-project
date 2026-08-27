@@ -32,10 +32,8 @@ import {
   getAppointmentRequests,
   getAppointmentRequestStats,
 } from "@/services/appointment-requests"
-import {
-  getMedicalCertificates,
-  getMedicalCertificateStats,
-} from "@/services/medicalCertificates"
+import { getMedicalDocuments } from "@/services/medicalDocuments"
+import { getMedicalCertificateStats } from "@/services/medicalCertificates"
 import {
   AppointmentRequestServiceError,
   NURSE_REQUEST_TAB_STATUSES,
@@ -54,9 +52,12 @@ import {
 } from "@/types/consultation"
 import {
   MedicalCertificateServiceError,
-  type MedicalCertificateListResult,
   type MedicalCertificateStats,
 } from "@/types/medicalCertificate"
+import {
+  MedicalDocumentServiceError,
+  type MedicalDocumentListResult,
+} from "@/types/medicalDocument"
 import {
   PatientRecordServiceError,
   type PatientRecordListResult,
@@ -337,7 +338,7 @@ export async function StaffConsultationsPage() {
 export async function StaffCertificatesPage() {
   const access = await requireStaffModule("medical_certificates")
 
-  const emptyList: MedicalCertificateListResult = {
+  const emptyList: MedicalDocumentListResult = {
     items: [],
     total: 0,
     page: 1,
@@ -362,11 +363,9 @@ export async function StaffCertificatesPage() {
 
   try {
     const [nextList, nextStats] = await Promise.all([
-      getMedicalCertificates({
+      getMedicalDocuments({
         page: 1,
         pageSize: 10,
-        sortBy: "issued_at",
-        sortDirection: "desc",
         ...(issuedBy ? { issuedBy } : {}),
       }),
       getMedicalCertificateStats(issuedBy),
@@ -375,9 +374,10 @@ export async function StaffCertificatesPage() {
     stats = nextStats
   } catch (error) {
     initialError =
+      error instanceof MedicalDocumentServiceError ||
       error instanceof MedicalCertificateServiceError
         ? error.message
-        : "Could not load medical certificates. Please try again."
+        : "Could not load medical documents. Please try again."
   }
 
   return (

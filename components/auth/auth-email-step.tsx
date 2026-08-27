@@ -13,6 +13,7 @@ import {
 type AuthEmailStepProps = {
   email: string
   emailError: string | null
+  emailNotice?: string | null
   isSendingOtp: boolean
   onEmailChange: (value: string) => void
   onSendOtp: (event: React.FormEvent<HTMLFormElement>) => void
@@ -21,6 +22,7 @@ type AuthEmailStepProps = {
 export function AuthEmailStep({
   email,
   emailError,
+  emailNotice = null,
   isSendingOtp,
   onEmailChange,
   onSendOtp,
@@ -32,6 +34,11 @@ export function AuthEmailStep({
         <p className="text-base text-muted-foreground">
           Enter your work email and we&apos;ll send a one-time password.
         </p>
+        {emailNotice ? (
+          <p className="text-sm text-foreground" role="status">
+            {emailNotice}
+          </p>
+        ) : null}
       </div>
 
       <form className="space-y-4" onSubmit={onSendOtp} noValidate>

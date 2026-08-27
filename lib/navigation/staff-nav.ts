@@ -131,7 +131,7 @@ const staffNavGroupTemplates: NavGroupTemplate[] = [
       },
       {
         id: "certificates",
-        title: "Medical Certificates",
+        title: "Medical Documents",
         suffix: "/certificates",
         icon: "certificates",
         module: "medical_certificates",

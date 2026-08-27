@@ -17,10 +17,25 @@ export async function sendOtpEmail(email: string): Promise<AuthResult> {
     await sendLoginOtpEmail(trimmed)
     return { ok: true }
   } catch (error) {
+    const authError = error as {
+      message?: string
+      status?: number
+      name?: string
+      code?: string
+    }
+    if (authError.code === "account_not_activated") {
+      return {
+        ok: false,
+        error:
+          authError.message ||
+          "Activate your account using the invite email link before signing in with a one-time code.",
+        code: "account_not_activated",
+      }
+    }
     return {
       ok: false,
       error: mapAuthError(
-        error as { message?: string; status?: number; name?: string },
+        authError,
         asErrorMessage(error, "Could not send sign-in email.")
       ),
     }

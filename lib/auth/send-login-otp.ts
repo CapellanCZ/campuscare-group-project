@@ -14,7 +14,7 @@ export async function sendLoginOtpEmail(email: string): Promise<void> {
 
   const { data: userRow, error: userError } = await admin
     .from("users")
-    .select("id, is_active, primary_role")
+    .select("id, is_active, primary_role, invite_pending")
     .eq("email", email)
     .maybeSingle()
 
@@ -36,6 +36,16 @@ export async function sendLoginOtpEmail(email: string): Promise<void> {
     )
     ;(inactive as Error & { status?: number }).status = 403
     throw inactive
+  }
+
+  if (userRow.invite_pending === true) {
+    const notActivated = new Error(
+      "Activate your account using the invite email link before signing in with a one-time code."
+    )
+    ;(notActivated as Error & { status?: number; code?: string }).status = 403
+    ;(notActivated as Error & { status?: number; code?: string }).code =
+      "account_not_activated"
+    throw notActivated
   }
 
   const role = String(userRow.primary_role ?? "").toLowerCase()

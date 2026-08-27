@@ -18,6 +18,7 @@ import type {
   ManagedStaffUser,
   StaffScheduleSlotInput,
 } from "@/features/admin/types/user-management"
+import { isLicensedProfessionalRole } from "@/features/admin/types/user-management"
 import { Button } from "@/components/ui/button"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -66,6 +67,7 @@ export function UserEditSheet({
   const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
   const [role, setRole] = useState<ManagedRole>(config.defaultCreateRole)
+  const [licenseNumber, setLicenseNumber] = useState("")
   const [slots, setSlots] = useState<DraftSlot[]>([])
   const [dayOfWeek, setDayOfWeek] = useState("1")
   const [startTime, setStartTime] = useState("09:00")
@@ -73,6 +75,7 @@ export function UserEditSheet({
   const [error, setError] = useState<string | null>(null)
 
   const showSchedule = role !== "admin"
+  const showLicenseNumber = isLicensedProfessionalRole(role)
 
   useEffect(() => {
     if (!open || !user) return
@@ -80,6 +83,7 @@ export function UserEditSheet({
     setFullName(user.fullName)
     setEmail(user.email)
     setRole(user.role)
+    setLicenseNumber("")
     setError(null)
     setLoading(true)
 
@@ -94,6 +98,7 @@ export function UserEditSheet({
       setFullName(result.data.fullName)
       setEmail(result.data.email)
       setRole(result.data.role)
+      setLicenseNumber(result.data.licenseNumber ?? "")
       setSlots(
         result.data.scheduleSlots.map((slot) => ({
           key: slot.id,
@@ -135,6 +140,7 @@ export function UserEditSheet({
         fullName,
         email,
         role,
+        licenseNumber: showLicenseNumber ? licenseNumber : null,
         allowedRoles: [...config.roles],
         scheduleSlots: showSchedule
           ? slots.map(({ dayOfWeek: dow, startTime: start, endTime: end, isActive }) => ({
@@ -172,6 +178,7 @@ export function UserEditSheet({
           <SheetDescription>
             Update name, email
             {config.allowRoleChange ? ", role" : ""}
+            {showLicenseNumber ? ", licensed number" : ""}
             {showSchedule ? ", and weekly schedule" : ""}.
           </SheetDescription>
         </SheetHeader>
@@ -232,6 +239,19 @@ export function UserEditSheet({
                 <Input value={roleLabel(role)} disabled readOnly />
               </Field>
             )}
+            {showLicenseNumber ? (
+              <Field>
+                <FieldLabel htmlFor="edit-license">Licensed number</FieldLabel>
+                <Input
+                  id="edit-license"
+                  value={licenseNumber}
+                  onChange={(event) => setLicenseNumber(event.target.value)}
+                  placeholder="PRC license no."
+                  disabled={pending || loading}
+                  autoComplete="off"
+                />
+              </Field>
+            ) : null}
           </FieldGroup>
 
           {showSchedule ? (

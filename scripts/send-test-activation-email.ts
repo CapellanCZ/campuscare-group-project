@@ -43,11 +43,11 @@ async function main() {
   const { sendResendEmail } = await import("../lib/auth/resend-client")
 
   const to = (process.argv[2] || "achasgd.enyudi@gmail.com").trim()
-  const loginUrl = "https://campuscare-group-project.vercel.app/login"
+  const activationUrl = "https://campuscare-group-project.vercel.app/login"
   const msg = buildActivationEmail({
     fullName: "Alex",
     role: "nurse",
-    loginUrl,
+    activationUrl,
     email: to,
   })
 

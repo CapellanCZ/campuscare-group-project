@@ -195,10 +195,16 @@ export const faqs: FaqItem[] = [
     answer:
       "Clinic access is invite-based. Ask an HSO administrator to approve your staff profile, then sign in with your work email using a one-time password.",
   },
+  {
+    id: "Misrepresentation of identity",
+    question: "Can my friend get medicine from the school clinic on my behalf?",
+    answer:
+      "No. For safety and proper medical record management, the student who needs the medicine should be the one assessed by the school clinic. A friend should not pretend to be the patient or provide false information to obtain medicine. The clinic may refuse to dispense the medication and document the incident. The matter may also be referred to the appropriate school office for review in accordance with the university's existing policies.",
+  },
 ]
 
 export const footerContact = {
-  location: "National University Dasmarinas",
+  location: "NU Dasmariñas",
   locationDetail: "5th Floor, Health Services Office",
   mapsUrl:
     "https://www.google.com/maps/search/?api=1&query=National+University+Dasmarinas",
