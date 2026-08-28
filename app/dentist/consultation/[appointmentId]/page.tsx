@@ -29,6 +29,17 @@ async function resolveAppointmentId(
   if (direct) return appointmentId
 
   const supabase = await createClient()
+
+  const { data: consultation } = await supabase
+    .from("consultations")
+    .select("appointment_id")
+    .eq("id", appointmentId)
+    .maybeSingle()
+
+  if (consultation?.appointment_id) {
+    return consultation.appointment_id as string
+  }
+
   const { data: ticket } = await supabase
     .from("health_queue_tickets")
     .select("id")
@@ -44,6 +55,7 @@ async function resolveAppointmentId(
   const ensured = await ensureVisitAppointmentForTicket({
     ticketId: ticket.id as string,
     doctorId,
+    providerType: "dentist",
   })
   return ensured.ok ? ensured.appointmentId : null
 }
