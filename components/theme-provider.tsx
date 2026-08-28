@@ -18,6 +18,16 @@ if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
     ) {
       return
     }
+    // Browser extensions inject fdprocessedid on buttons/inputs before hydration.
+    const joined = args.map((arg) => String(arg)).join(" ")
+    if (
+      typeof first === "string" &&
+      first.includes("Hydration") &&
+      (joined.includes("native-dark-class") ||
+        joined.includes("fdprocessedid"))
+    ) {
+      return
+    }
     originalError.apply(console, args)
   }
 }

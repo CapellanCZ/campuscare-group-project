@@ -149,6 +149,7 @@ export async function startConsultation(params: {
   designation: ClinicDesignation
   ticketId: string
   staffName: string
+  staffUserId?: string
 }): Promise<HealthActionResult> {
   const denied = await requireMutable(params.designation)
   if (denied) return { ok: false, error: denied }
@@ -157,6 +158,7 @@ export async function startConsultation(params: {
   const station = stationForDesignation(params.designation)
   const { data: ticket } = await supabase
     .from("health_queue_tickets")
+<<<<<<< HEAD
     .select(
       `
       id,
@@ -180,11 +182,15 @@ export async function startConsultation(params: {
       intake_notes
     `
     )
+=======
+    .select("id, status, station, appointment_id")
+>>>>>>> 79f8c3b (Wire dentist consultation into queue and visit flow)
     .eq("id", params.ticketId)
     .maybeSingle()
 
   if (!ticket) return { ok: false, error: "Ticket not found." }
 
+<<<<<<< HEAD
   if (
     (station === "physician" || station === "dentist") &&
     ticket.station !== station
@@ -323,9 +329,13 @@ export async function startConsultation(params: {
       client: supabase,
     })
   }
+=======
+  const preferredStatus =
+    params.designation === "dentist" ? "ongoing" : "called"
+>>>>>>> 79f8c3b (Wire dentist consultation into queue and visit flow)
 
   const patch: Record<string, unknown> = {
-    status: params.designation === "dentist" ? "ongoing" : "called",
+    status: preferredStatus,
     assigned_staff_name: params.staffName,
     updated_at: new Date().toISOString(),
   }
@@ -338,16 +348,64 @@ export async function startConsultation(params: {
     patch.consultation_id = consultationId
   }
 
-  const { error } = await supabase
+  let { error } = await supabase
     .from("health_queue_tickets")
     .update(patch)
     .eq("id", ticket.id)
 
+  // Remote DBs that never applied 20260805_queue_ticket_status_ongoing still
+  // reject `ongoing` — fall back to `called` so Start consultation can proceed.
+  if (
+    error &&
+    preferredStatus === "ongoing" &&
+    error.message.includes("health_queue_tickets_status_check")
+  ) {
+    const retry = await supabase
+      .from("health_queue_tickets")
+      .update({ ...patch, status: "called" })
+      .eq("id", ticket.id)
+    error = retry.error
+  }
+
   if (error) return { ok: false, error: error.message }
+<<<<<<< HEAD
   return {
     ok: true,
     message: "Consultation started.",
     ...(consultationId ? { consultationId } : {}),
+=======
+
+  // Specialty visit charts need an appointments row owned by this clinician.
+  if (
+    (params.designation === "physician" ||
+      params.designation === "dentist") &&
+    params.staffUserId
+  ) {
+    const { ensureVisitAppointmentForTicket } = await import(
+      "@/features/physician/data/ensure-visit-appointment"
+    )
+    const ensured = await ensureVisitAppointmentForTicket({
+      ticketId: ticket.id,
+      doctorId: params.staffUserId,
+      providerType:
+        params.designation === "dentist" ? "dentist" : "physician",
+    })
+    if (!ensured.ok) return { ok: false, error: ensured.error }
+    return {
+      ok: true,
+      message: "Consultation started.",
+      appointmentId: ensured.appointmentId,
+    }
+  }
+
+  const appointmentId =
+    typeof ticket.appointment_id === "string" ? ticket.appointment_id : undefined
+
+  return {
+    ok: true,
+    message: "Consultation started.",
+    appointmentId,
+>>>>>>> 79f8c3b (Wire dentist consultation into queue and visit flow)
   }
 }
 
