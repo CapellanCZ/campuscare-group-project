@@ -158,7 +158,6 @@ export async function startConsultation(params: {
   const station = stationForDesignation(params.designation)
   const { data: ticket } = await supabase
     .from("health_queue_tickets")
-<<<<<<< HEAD
     .select(
       `
       id,
@@ -182,15 +181,11 @@ export async function startConsultation(params: {
       intake_notes
     `
     )
-=======
-    .select("id, status, station, appointment_id")
->>>>>>> 79f8c3b (Wire dentist consultation into queue and visit flow)
     .eq("id", params.ticketId)
     .maybeSingle()
 
   if (!ticket) return { ok: false, error: "Ticket not found." }
 
-<<<<<<< HEAD
   if (
     (station === "physician" || station === "dentist") &&
     ticket.station !== station
@@ -329,10 +324,9 @@ export async function startConsultation(params: {
       client: supabase,
     })
   }
-=======
+
   const preferredStatus =
     params.designation === "dentist" ? "ongoing" : "called"
->>>>>>> 79f8c3b (Wire dentist consultation into queue and visit flow)
 
   const patch: Record<string, unknown> = {
     status: preferredStatus,
@@ -368,17 +362,13 @@ export async function startConsultation(params: {
   }
 
   if (error) return { ok: false, error: error.message }
-<<<<<<< HEAD
-  return {
-    ok: true,
-    message: "Consultation started.",
-    ...(consultationId ? { consultationId } : {}),
-=======
+
+  let appointmentId =
+    typeof ticket.appointment_id === "string" ? ticket.appointment_id : undefined
 
   // Specialty visit charts need an appointments row owned by this clinician.
   if (
-    (params.designation === "physician" ||
-      params.designation === "dentist") &&
+    (params.designation === "physician" || params.designation === "dentist") &&
     params.staffUserId
   ) {
     const { ensureVisitAppointmentForTicket } = await import(
@@ -391,21 +381,14 @@ export async function startConsultation(params: {
         params.designation === "dentist" ? "dentist" : "physician",
     })
     if (!ensured.ok) return { ok: false, error: ensured.error }
-    return {
-      ok: true,
-      message: "Consultation started.",
-      appointmentId: ensured.appointmentId,
-    }
+    appointmentId = ensured.appointmentId
   }
-
-  const appointmentId =
-    typeof ticket.appointment_id === "string" ? ticket.appointment_id : undefined
 
   return {
     ok: true,
     message: "Consultation started.",
-    appointmentId,
->>>>>>> 79f8c3b (Wire dentist consultation into queue and visit flow)
+    ...(consultationId ? { consultationId } : {}),
+    ...(appointmentId ? { appointmentId } : {}),
   }
 }
 

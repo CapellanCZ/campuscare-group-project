@@ -1098,22 +1098,21 @@ export function QueuePage({
                                       </DropdownMenuItem>
                                       <DropdownMenuItem
                                         onClick={() => {
-<<<<<<< HEAD
                                           if (isPhysician || isDentist) {
-=======
-                                          if (isDentist) {
-                                            setLocalTickets((prev) =>
-                                              prev.map((ticket) =>
-                                                ticket.ticketId === row.ticketId
-                                                  ? {
-                                                      ...ticket,
-                                                      status: "ongoing" as const,
-                                                      assignedPersonnel:
-                                                        access.fullName,
-                                                    }
-                                                  : ticket
+                                            if (isDentist) {
+                                              setLocalTickets((prev) =>
+                                                prev.map((ticket) =>
+                                                  ticket.ticketId === row.ticketId
+                                                    ? {
+                                                        ...ticket,
+                                                        status: "ongoing" as const,
+                                                        assignedPersonnel:
+                                                          access.fullName,
+                                                      }
+                                                    : ticket
+                                                )
                                               )
-                                            )
+                                            }
                                             startTransition(async () => {
                                               const result =
                                                 await actionStartConsultation(
@@ -1139,74 +1138,11 @@ export function QueuePage({
                                                 router.refresh()
                                                 return
                                               }
-                                              router.push(
-                                                `/dentist/consultation/${visitId}`
-                                              )
-                                              router.refresh()
-                                            })
-                                            return
-                                          }
-                                          if (isPhysician) {
->>>>>>> 79f8c3b (Wire dentist consultation into queue and visit flow)
-                                            startTransition(async () => {
-                                              const result =
-                                                await actionStartConsultation(
-                                                  row.ticketId
-                                                )
-                                              if (!result.ok) {
-                                                toast.error(
-                                                  result.error ?? "Action failed"
-                                                )
-                                                return
-                                              }
-                                              const consultationId =
-                                                result.consultationId
-                                              if (!consultationId) {
-                                                toast.error(
-                                                  "No consultation record. Nurse must complete intake first."
-                                                )
-                                                return
-                                              }
-                                              if (isDentist) {
-                                                setLocalTickets((prev) =>
-                                                  prev.map((ticket) =>
-                                                    ticket.ticketId ===
-                                                    row.ticketId
-                                                      ? {
-                                                          ...ticket,
-                                                          status:
-                                                            "ongoing" as const,
-                                                          assignedPersonnel:
-                                                            access.fullName,
-                                                          consultationId,
-                                                        }
-                                                      : ticket
-                                                  )
-                                                )
-                                              }
-                                              toast.success(
-                                                result.message ?? "Updated"
-                                              )
-<<<<<<< HEAD
                                               const rolePath = isDentist
                                                 ? "dentist"
                                                 : "physician"
                                               router.push(
-                                                `/${rolePath}/consultation/${consultationId}`
-=======
-                                              const visitId =
-                                                result.appointmentId ??
-                                                row.appointmentId
-                                              if (!visitId) {
-                                                toast.error(
-                                                  "Consultation started, but no visit record was linked."
-                                                )
-                                                router.refresh()
-                                                return
-                                              }
-                                              router.push(
-                                                `/physician/consultation/${visitId}`
->>>>>>> 79f8c3b (Wire dentist consultation into queue and visit flow)
+                                                `/${rolePath}/consultation/${visitId}`
                                               )
                                               router.refresh()
                                             })

@@ -78,8 +78,9 @@ export async function actionStartConsultation(ticketId: string) {
       designation: access.designation,
       ticketId,
       staffName: access.fullName,
+      staffUserId: access.userId,
     })
-  ) as Promise<HealthActionResult>
+  )
 }
 
 export async function actionCompleteTicket(ticketId: string) {
