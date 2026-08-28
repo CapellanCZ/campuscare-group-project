@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, useTransition } from "react"
 import { IconFileText, IconPlus } from "@tabler/icons-react"
-import { toast } from "sonner"
+import { documentToasts } from "@/lib/feedback/toast-messages"
 
 import { IssueDocumentTypeDialog } from "@/components/medical-documents/issue-document-type-dialog"
 import { IssueDocumentWizard } from "@/components/medical-documents/issue-document-wizard"
@@ -52,7 +52,7 @@ export function ConsultationDocumentsPanel({
     )
     setLoading(false)
     if (!result.ok) {
-      toast.error(result.error)
+      documentToasts.failed(result.error)
       return
     }
     setDocuments(result.data)

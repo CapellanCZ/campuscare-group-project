@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { IdleSessionWarning } from "@/components/auth/idle-session-warning"
+import { SessionLockOverlay } from "@/components/auth/session-lock-overlay"
+import { cn } from "@/lib/utils"
 import {
-  absoluteDeadline,
   clearSessionStartedAt,
   getSessionTimeoutPhase,
-  idleDeadline,
+  isAbsoluteSessionExpired,
+  lockDeadline,
   readSessionStartedAt,
   secondsUntil,
   SESSION_CHECK_INTERVAL_MS,
@@ -23,8 +25,6 @@ const ACTIVITY_EVENTS = [
   "wheel",
 ] as const
 
-type LogoutReason = "idle" | "absolute"
-
 export function IdleSessionProvider({
   children,
 }: {
@@ -33,19 +33,21 @@ export function IdleSessionProvider({
   const lastActivityAtRef = useRef(Date.now())
   const sessionStartedAtRef = useRef<number | null>(null)
   const loggingOutRef = useRef(false)
+  const phaseRef = useRef<SessionTimeoutPhase>("active")
   const [phase, setPhase] = useState<SessionTimeoutPhase>("active")
   const [secondsRemaining, setSecondsRemaining] = useState(0)
 
-  const forceSignOut = useCallback((reason: LogoutReason) => {
+  const forceAbsoluteSignOut = useCallback(() => {
     if (loggingOutRef.current) return
     loggingOutRef.current = true
     clearSessionStartedAt(window.sessionStorage)
-    window.location.assign(`/auth/logout?reason=${reason}`)
+    window.location.assign("/auth/logout?reason=absolute")
   }, [])
 
-  const staySignedIn = useCallback(() => {
+  const continueSession = useCallback(() => {
     lastActivityAtRef.current = Date.now()
     setPhase("active")
+    phaseRef.current = "active"
     setSecondsRemaining(0)
   }, [])
 
@@ -59,8 +61,8 @@ export function IdleSessionProvider({
 
     const markActivity = () => {
       if (loggingOutRef.current) return
+      if (phaseRef.current !== "active") return
       const at = Date.now()
-      // Throttle noisy pointer events.
       if (at - lastActivityAtRef.current < 1000) return
       lastActivityAtRef.current = at
     }
@@ -74,6 +76,14 @@ export function IdleSessionProvider({
 
       const checkAt = Date.now()
       const sessionStartedAt = sessionStartedAtRef.current ?? checkAt
+
+      if (
+        isAbsoluteSessionExpired({ now: checkAt, sessionStartedAt })
+      ) {
+        forceAbsoluteSignOut()
+        return
+      }
+
       const nextPhase = getSessionTimeoutPhase({
         now: checkAt,
         lastActivityAt: lastActivityAtRef.current,
@@ -81,17 +91,12 @@ export function IdleSessionProvider({
       })
 
       setPhase(nextPhase)
+      phaseRef.current = nextPhase
 
       if (nextPhase === "warning") {
         setSecondsRemaining(
-          secondsUntil(idleDeadline(lastActivityAtRef.current), checkAt)
+          secondsUntil(lockDeadline(lastActivityAtRef.current), checkAt)
         )
-      }
-
-      if (nextPhase === "expired") {
-        const reason: LogoutReason =
-          checkAt >= absoluteDeadline(sessionStartedAt) ? "absolute" : "idle"
-        forceSignOut(reason)
       }
     }, SESSION_CHECK_INTERVAL_MS)
 
@@ -101,17 +106,28 @@ export function IdleSessionProvider({
       }
       window.clearInterval(intervalId)
     }
-  }, [forceSignOut])
+  }, [forceAbsoluteSignOut])
+
+  const isLocked = phase === "locked"
 
   return (
     <>
-      {children}
+      <div
+        className={cn(
+          isLocked && "pointer-events-none select-none",
+          "contents"
+        )}
+      >
+        {children}
+      </div>
       <IdleSessionWarning
         open={phase === "warning"}
         secondsRemaining={secondsRemaining}
-        onStaySignedIn={staySignedIn}
-        onSignOut={() => forceSignOut("idle")}
+        onContinueSession={continueSession}
       />
+      {isLocked ? (
+        <SessionLockOverlay onContinue={continueSession} />
+      ) : null}
     </>
   )
 }

@@ -14,11 +14,19 @@ import {
   getStaffWeeklyHours,
   listStaffForHoursEditor,
 } from "@/lib/availability/queries"
+import {
+  ensureStaffDutyRow,
+  getActiveDutyByRole,
+  getStaffDutyStatus,
+  hasActiveConsultationForUser,
+} from "@/lib/availability/duty-queries"
 import { normalizeTimeHm } from "@/lib/availability/rules"
 import type {
   BreakStatus,
   ClinicOfficeHour,
   DayOfWeek,
+  DutyStatusValue,
+  StaffDutyStatus,
   StaffHoursPerson,
   StaffWeeklyHour,
 } from "@/lib/availability/types"
@@ -79,6 +87,7 @@ export async function loadStaffHoursBundle(userId: string): Promise<{
 export async function loadMyBreakBundle(): Promise<{
   clinicBreak: BreakStatus
   staffBreak: BreakStatus
+  dutyStatus: StaffDutyStatus
   role: WebRole | null
 }> {
   const access = await requireAccess()
@@ -86,6 +95,12 @@ export async function loadMyBreakBundle(): Promise<{
     return {
       clinicBreak: { isOnBreak: false, resumesAt: null, setBy: null, updatedAt: null },
       staffBreak: { isOnBreak: false, resumesAt: null, setBy: null, updatedAt: null },
+      dutyStatus: {
+        status: "not_available",
+        dutyStartedAt: null,
+        dutyEndedAt: null,
+        updatedAt: null,
+      },
       role: null,
     }
   }
@@ -93,13 +108,157 @@ export async function loadMyBreakBundle(): Promise<{
   const supabase = await createClient()
   await clearExpiredClinicBreak(supabase)
   await clearExpiredStaffBreak(supabase, access.userId)
+  await ensureStaffDutyRow(access.userId, supabase)
 
-  const [clinicBreak, staffBreak] = await Promise.all([
+  const [clinicBreak, staffBreak, dutyStatus] = await Promise.all([
     getClinicBreakStatus(supabase),
     getStaffBreakStatus(access.userId, supabase),
+    getStaffDutyStatus(access.userId, supabase),
   ])
 
-  return { clinicBreak, staffBreak, role: access.primaryRole }
+  return { clinicBreak, staffBreak, dutyStatus, role: access.primaryRole }
+}
+
+export async function loadTeamDutyOverview(): Promise<
+  Array<{ role: "nurse" | "physician" | "dentist"; label: string; status: DutyStatusValue }>
+> {
+  const dutyByRole = await getActiveDutyByRole()
+  const roles = ["nurse", "physician", "dentist"] as const
+  return roles.map((role) => ({
+    role,
+    label: role === "nurse" ? "Nurse" : role === "physician" ? "Physician" : "Dentist",
+    status: dutyByRole[role]?.status ?? "not_available",
+  }))
+}
+
+export async function fetchTeamDutyOverviewAction(): Promise<
+  | {
+      ok: true
+      data: Array<{
+        role: "nurse" | "physician" | "dentist"
+        label: string
+        status: DutyStatusValue
+      }>
+    }
+  | { ok: false; error: string }
+> {
+  try {
+    const data = await loadTeamDutyOverview()
+    return { ok: true, data }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Unable to load duty overview.",
+    }
+  }
+}
+
+export async function startDutyAction(): Promise<AvailabilityActionResult> {
+  const access = await requireAccess()
+  if (!access) return { ok: false, error: "Unauthorized." }
+  if (
+    access.primaryRole !== "nurse" &&
+    access.primaryRole !== "physician" &&
+    access.primaryRole !== "dentist"
+  ) {
+    return { ok: false, error: "Only clinical staff can start duty." }
+  }
+
+  const supabase = await createClient()
+  const now = new Date().toISOString()
+
+  const { error: dutyError } = await supabase.from("staff_duty_status").upsert(
+    {
+      user_id: access.userId,
+      status: "available",
+      duty_started_at: now,
+      duty_ended_at: null,
+      updated_at: now,
+    },
+    { onConflict: "user_id" }
+  )
+
+  if (dutyError) return { ok: false, error: dutyError.message }
+
+  await supabase.from("staff_duty_sessions").insert({
+    user_id: access.userId,
+    started_at: now,
+  })
+
+  revalidateAvailability()
+  return { ok: true, message: "Duty started." }
+}
+
+export async function endDutyAction(): Promise<AvailabilityActionResult> {
+  const access = await requireAccess()
+  if (!access) return { ok: false, error: "Unauthorized." }
+  if (
+    access.primaryRole !== "nurse" &&
+    access.primaryRole !== "physician" &&
+    access.primaryRole !== "dentist"
+  ) {
+    return { ok: false, error: "Only clinical staff can end duty." }
+  }
+
+  const supabase = await createClient()
+
+  const hasActive = await hasActiveConsultationForUser(access.userId, supabase)
+  if (hasActive) {
+    return {
+      ok: false,
+      error:
+        "You still have an ongoing consultation. Please complete or properly manage the current consultation before ending your duty.",
+    }
+  }
+
+  const now = new Date().toISOString()
+
+  const { error: dutyError } = await supabase.from("staff_duty_status").upsert(
+    {
+      user_id: access.userId,
+      status: "not_available",
+      duty_ended_at: now,
+      updated_at: now,
+    },
+    { onConflict: "user_id" }
+  )
+
+  if (dutyError) return { ok: false, error: dutyError.message }
+
+  await supabase
+    .from("staff_duty_sessions")
+    .update({ ended_at: now })
+    .eq("user_id", access.userId)
+    .is("ended_at", null)
+
+  revalidateAvailability()
+  return { ok: true, message: "Duty ended." }
+}
+
+async function syncDutyOnBreak(userId: string, onBreak: boolean, client: Awaited<ReturnType<typeof createClient>>) {
+  const now = new Date().toISOString()
+  if (onBreak) {
+    await client.from("staff_duty_status").upsert(
+      {
+        user_id: userId,
+        status: "on_break",
+        updated_at: now,
+      },
+      { onConflict: "user_id" }
+    )
+  } else {
+    const current = await getStaffDutyStatus(userId, client)
+    if (current.status === "on_break") {
+      await client.from("staff_duty_status").upsert(
+        {
+          user_id: userId,
+          status: "available",
+          updated_at: now,
+        },
+        { onConflict: "user_id" }
+      )
+    }
+  }
 }
 
 export async function upsertClinicHoursDay(input: {
@@ -363,6 +522,7 @@ export async function setStaffBreak(
   })
 
   if (error) return { ok: false, error: error.message }
+  await syncDutyOnBreak(access.userId, true, supabase)
   revalidateAvailability()
   return { ok: true, message: "You are now on break." }
 }
@@ -381,6 +541,7 @@ export async function clearStaffBreak(): Promise<AvailabilityActionResult> {
   })
 
   if (error) return { ok: false, error: error.message }
+  await syncDutyOnBreak(access.userId, false, supabase)
   revalidateAvailability()
   return { ok: true, message: "Break ended." }
 }

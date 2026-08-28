@@ -4,6 +4,7 @@ import { useState } from "react"
 
 import { CertificatePreviewDialog } from "@/components/certificates/certificate-preview-dialog"
 import { CertificatePrintView } from "@/components/certificates/certificate-print-view"
+import { triggerMedicalDocumentPrint } from "@/lib/print/trigger-medical-document-print"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -70,7 +71,7 @@ export function CertificateDetailSheet({
 
   function handlePrint() {
     if (!certificate) return
-    window.print()
+    triggerMedicalDocumentPrint()
   }
 
   const showDocActions =
@@ -185,7 +186,7 @@ export function CertificateDetailSheet({
         canPrint={canPrint}
         onPrint={() => {
           setPreviewOpen(false)
-          window.setTimeout(() => window.print(), 100)
+          window.setTimeout(() => triggerMedicalDocumentPrint(), 100)
         }}
       />
 

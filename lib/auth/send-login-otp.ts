@@ -2,8 +2,30 @@ import "server-only"
 
 import { OTP_LENGTH } from "@/lib/auth/types"
 import { buildOtpEmail } from "@/lib/auth/email-templates"
+import { ensurePatientSignInByEmail } from "@/lib/patients/provision-patient-auth"
 import { sendResendEmail } from "@/lib/auth/resend-client"
 import { createAdminClient } from "@/lib/supabase/admin"
+
+type SignInUserRow = {
+  id: string
+  is_active: boolean | null
+  primary_role: string | null
+  invite_pending: boolean | null
+}
+
+async function loadSignInUserRow(
+  admin: ReturnType<typeof createAdminClient>,
+  email: string
+): Promise<SignInUserRow | null> {
+  const { data, error } = await admin
+    .from("users")
+    .select("id, is_active, primary_role, invite_pending")
+    .eq("email", email)
+    .maybeSingle()
+
+  if (error) throw error
+  return data
+}
 
 /**
  * Creates a Supabase email OTP without using Auth's mailer templates,
@@ -11,20 +33,18 @@ import { createAdminClient } from "@/lib/supabase/admin"
  */
 export async function sendLoginOtpEmail(email: string): Promise<void> {
   const admin = createAdminClient()
+  const normalizedEmail = email.trim().toLowerCase()
 
-  const { data: userRow, error: userError } = await admin
-    .from("users")
-    .select("id, is_active, primary_role, invite_pending")
-    .eq("email", email)
-    .maybeSingle()
+  let userRow = await loadSignInUserRow(admin, normalizedEmail)
 
-  if (userError) {
-    throw userError
+  if (!userRow) {
+    await ensurePatientSignInByEmail(normalizedEmail, admin)
+    userRow = await loadSignInUserRow(admin, normalizedEmail)
   }
 
   if (!userRow) {
     const notRegistered = new Error(
-      "This email is not registered as clinic staff. Ask an admin to import your account first."
+      "This email is not registered with CampusCare. Ask the clinic to import your patient record first."
     )
     ;(notRegistered as Error & { status?: number }).status = 400
     throw notRegistered
@@ -32,13 +52,15 @@ export async function sendLoginOtpEmail(email: string): Promise<void> {
 
   if (userRow.is_active === false) {
     const inactive = new Error(
-      "This account is inactive. Ask an admin to restore access."
+      "This account is inactive. Ask the clinic to restore access."
     )
     ;(inactive as Error & { status?: number }).status = 403
     throw inactive
   }
 
-  if (userRow.invite_pending === true) {
+  const role = String(userRow.primary_role ?? "").toLowerCase()
+
+  if (role !== "patient" && userRow.invite_pending === true) {
     const notActivated = new Error(
       "Activate your account using the invite email link before signing in with a one-time code."
     )
@@ -48,7 +70,6 @@ export async function sendLoginOtpEmail(email: string): Promise<void> {
     throw notActivated
   }
 
-  const role = String(userRow.primary_role ?? "").toLowerCase()
   if (role === "admin") {
     const { data: adminRow } = await admin
       .from("admin_accounts")
@@ -64,7 +85,7 @@ export async function sendLoginOtpEmail(email: string): Promise<void> {
       ;(pending as Error & { status?: number }).status = 403
       throw pending
     }
-  } else {
+  } else if (role !== "patient") {
     const { data: membership } = await admin
       .from("clinic_members")
       .select("user_id")
@@ -84,7 +105,7 @@ export async function sendLoginOtpEmail(email: string): Promise<void> {
 
   const { data, error } = await admin.auth.admin.generateLink({
     type: "magiclink",
-    email,
+    email: normalizedEmail,
   })
 
   if (error) {
@@ -98,10 +119,9 @@ export async function sendLoginOtpEmail(email: string): Promise<void> {
 
   const resendApiKey = process.env.RESEND_API_KEY?.trim()
   if (!resendApiKey) {
-    // Local/dev without Resend: print the OTP so sign-in still works.
     if (process.env.NODE_ENV === "development") {
       console.info(
-        `\n[CampusCare dev] OTP for ${email}: ${token}\n` +
+        `\n[CampusCare dev] OTP for ${normalizedEmail}: ${token}\n` +
           `Add RESEND_API_KEY to .env.local to send real emails.\n`
       )
       return
@@ -114,7 +134,7 @@ export async function sendLoginOtpEmail(email: string): Promise<void> {
   const message = buildOtpEmail(token)
 
   await sendResendEmail({
-    to: email,
+    to: normalizedEmail,
     subject: message.subject,
     html: message.html,
     text: message.text,

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
-import { toast } from "sonner"
+import { patientToasts } from "@/lib/feedback/toast-messages"
 import { IconSearch, IconUsers } from "@tabler/icons-react"
 
 import { PatientProfileSheet } from "@/components/patients/patient-profile-sheet"
@@ -57,7 +57,7 @@ export function QuickPatientSearch({ className }: { className?: string }) {
       })
       if (cancelled) return
       if (!result.ok) {
-        toast.error(result.error)
+        patientToasts.failed(result.error)
         setResults([])
         return
       }

@@ -3,6 +3,7 @@ import {
   getActiveStaffBreaksByRole,
   getClinicBreakStatus,
 } from "@/lib/availability/queries"
+import { getActiveDutyByRole } from "@/lib/availability/duty-queries"
 import type { BreakStatus } from "@/lib/availability/types"
 import { mapTicketRow, ticketLabel, ticketStatusLabel, type RawQueueTicket } from "@/lib/health/mappers"
 import { stationLabel } from "@/lib/health/roles"
@@ -167,9 +168,10 @@ export async function getStationBoards(
 async function applyBreakStatusToBoards(
   boards: StationBoard[]
 ): Promise<StationBoard[]> {
-  const [clinicBreak, staffByRole] = await Promise.all([
+  const [clinicBreak, staffByRole, dutyByRole] = await Promise.all([
     getClinicBreakStatus(),
     getActiveStaffBreaksByRole(),
+    getActiveDutyByRole(),
   ])
 
   return boards.map((board) => {
@@ -187,6 +189,13 @@ async function applyBreakStatusToBoards(
         status: "on_break",
         resumesAt: roleBreak.resumesAt,
       }
+    }
+    const roleDuty = dutyByRole[board.station]
+    if (!roleDuty || roleDuty.status === "not_available") {
+      return { ...board, status: "idle", resumesAt: null }
+    }
+    if (roleDuty.status === "on_break") {
+      return { ...board, status: "on_break", resumesAt: null }
     }
     return { ...board, resumesAt: null }
   })

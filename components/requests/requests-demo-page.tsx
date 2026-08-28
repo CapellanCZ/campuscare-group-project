@@ -8,7 +8,8 @@ import {
   useState,
   useTransition,
 } from "react"
-import { toast } from "sonner"
+import { requestToasts } from "@/lib/feedback/toast-messages"
+import { appToast } from "@/lib/feedback/app-toast"
 
 import {
   ConsultationRequestCard,
@@ -124,7 +125,7 @@ export function RequestsPage({
   const canViewDetails = can(access.designation, "requests.view_patient_details")
 
   useEffect(() => {
-    if (initialError) toast.error(initialError)
+    if (initialError) requestToasts.failed(initialError)
   }, [initialError])
 
   useEffect(() => {
@@ -157,17 +158,17 @@ export function RequestsPage({
           fetchConsultationRequestStatsAction(),
         ])
         if (!listResult.ok) {
-          toast.error(listResult.error)
+          requestToasts.failed(listResult.error)
           return
         }
         if (!statsResult.ok) {
-          toast.error(statsResult.error)
+          requestToasts.failed(statsResult.error)
           return
         }
         setList(listResult.data)
         setStats(statsResult.data)
       } catch {
-        toast.error(
+        requestToasts.failed(
           "Unable to reach the database. Check your connection and try again."
         )
       } finally {
@@ -209,7 +210,7 @@ export function RequestsPage({
     startTransition(async () => {
       const result = await fetchConsultationRequestByIdAction(row.id)
       if (!result.ok) {
-        toast.error(result.error)
+        requestToasts.failed(result.error)
         return
       }
       setSelected(result.data)

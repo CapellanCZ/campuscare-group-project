@@ -1,7 +1,9 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { toast } from "sonner"
+import { useConfirm } from "@/components/feedback/confirm-provider"
+import { appToast } from "@/lib/feedback/app-toast"
+import { requestToasts } from "@/lib/feedback/toast-messages"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -29,6 +31,7 @@ export function DeclineRequestDialog({
   patientName?: string | null
   onDeclined?: () => void
 }) {
+  const { confirmPreset } = useConfirm()
   const [reason, setReason] = useState("")
   const [pending, startTransition] = useTransition()
 
@@ -41,23 +44,30 @@ export function DeclineRequestDialog({
     if (!requestId) return
     const trimmed = reason.trim()
     if (!trimmed) {
-      toast.error("A decline reason is required.")
+      appToast.error({
+        title: "Decline Reason Required",
+        description: "A decline reason is required.",
+      })
       return
     }
 
-    startTransition(async () => {
-      const result = await declineConsultationRequestAction({
-        id: requestId,
-        reason: trimmed,
-      })
-      if (!result.ok) {
-        toast.error(result.error)
-        return
-      }
-      toast.success("Request declined.")
-      setReason("")
-      onOpenChange(false)
-      onDeclined?.()
+    void confirmPreset("decline", {
+      onConfirm: () => {
+        startTransition(async () => {
+          const result = await declineConsultationRequestAction({
+            id: requestId,
+            reason: trimmed,
+          })
+          if (!result.ok) {
+            requestToasts.failed(result.error)
+            return
+          }
+          requestToasts.declined()
+          setReason("")
+          onOpenChange(false)
+          onDeclined?.()
+        })
+      },
     })
   }
 

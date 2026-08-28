@@ -21,6 +21,7 @@ export const DIRECTORY_CONFIG = {
     importCardTitle: "Import admins",
     importRoleHint: "admin",
     templateFilename: "admins-import-template.xlsx",
+    templateHeaders: ["Full Name", "Email", "Role"] as const,
     templateSampleRows: [
       ["Alex Admin", "alex.admin@example.com", "admin"],
     ] as string[][],
@@ -40,14 +41,22 @@ export const DIRECTORY_CONFIG = {
     inviteDescription:
       "Name, email, and role. An invite email goes out for OTP sign-in.",
     importTitle: "Import staff",
-    importDescription: "Upload an Excel roster to invite clinic staff in bulk.",
+    importDescription:
+      "Upload an Excel roster to invite new clinic staff. Existing emails or employee IDs are skipped.",
     importCardTitle: "Import staff",
     importRoleHint: "nurse | physician | dentist",
     templateFilename: "staff-import-template.xlsx",
+    templateHeaders: [
+      "Full Name",
+      "Email",
+      "Employee ID",
+      "License No.",
+      "Role",
+    ] as const,
     templateSampleRows: [
-      ["Nora Nurse", "nora.nurse@example.com", "nurse"],
-      ["Pat Physician", "pat.physician@example.com", "physician"],
-      ["Dana Dentist", "dana.dentist@example.com", "dentist"],
+      ["Nora Nurse", "nora.nurse@example.com", "EMP-001", "", "nurse"],
+      ["Pat Physician", "pat.physician@example.com", "EMP-002", "1234567", "physician"],
+      ["Dana Dentist", "dana.dentist@example.com", "EMP-003", "7654321", "dentist"],
     ] as string[][],
     directoryTitle: "Clinic Members Directory",
     roles: STAFF_DIRECTORY_ROLES,

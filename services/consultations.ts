@@ -2,11 +2,16 @@ import "server-only"
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 
+import { consultationDateInRange } from "@/lib/date/consultation-date-range"
+import { patientMatchesSearchQuery } from "@/lib/clinical/record-scope"
 import { createClient } from "@/lib/supabase/server"
 import {
   ConsultationServiceError,
   consultationFromJson,
+  consultationMatchesProviderRole,
   consultationToJson,
+  normalizeConsultationStatus,
+  resolveConsultationProviderRole,
   type Consultation,
   type ConsultationJson,
   type ConsultationListParams,
@@ -124,17 +129,22 @@ function validateCreate(input: CreateConsultationInput) {
 }
 
 function matchesQuery(row: Consultation, query: string): boolean {
-  const q = query.trim().toLowerCase()
-  if (!q) return true
-  const studentId = (row.patient.studentId ?? "").toLowerCase()
-  return studentId.includes(q)
+  return patientMatchesSearchQuery(
+    row.patient.fullName,
+    row.patient.studentId,
+    query
+  )
 }
 
 function matchesFilters(
   row: Consultation,
   params: ConsultationListParams
 ): boolean {
-  if (params.status && params.status !== "all" && row.status !== params.status) {
+  if (
+    params.status &&
+    params.status !== "all" &&
+    normalizeConsultationStatus(row.status) !== params.status
+  ) {
     return false
   }
   if (
@@ -151,15 +161,94 @@ function matchesFilters(
   ) {
     return false
   }
+  if (
+    params.providerType &&
+    params.providerType !== "all" &&
+    resolveConsultationProviderRole(row) !== params.providerType
+  ) {
+    return false
+  }
   if (params.consultationDate && params.consultationDate !== "all") {
     const day = row.consultationDate.slice(0, 10)
     if (day !== params.consultationDate) return false
+  }
+  if (params.dateRange && params.dateRange !== "all_time") {
+    if (!consultationDateInRange(row.consultationDate, params.dateRange)) {
+      return false
+    }
   }
   return true
 }
 
 async function getClient(client?: SupabaseClient) {
   return client ?? (await createClient())
+}
+
+function mapConsultationsFromJson(rows: ConsultationJson[]): Consultation[] {
+  const items: Consultation[] = []
+  for (const row of rows) {
+    try {
+      items.push(consultationFromJson(row))
+    } catch {
+      /* skip legacy rows with invalid enum values */
+    }
+  }
+  return items
+}
+
+function formatQueueLabel(value: number | string | null | undefined): string | null {
+  if (value == null) return null
+  if (typeof value === "string" && value.trim()) return value.trim()
+  const n = Number(value)
+  if (!Number.isFinite(n)) return null
+  return String(n).padStart(3, "0")
+}
+
+async function attachQueueNumbers(
+  items: Consultation[],
+  supabase: SupabaseClient
+): Promise<Consultation[]> {
+  const ticketIds = [
+    ...new Set(items.map((i) => i.queueTicketId).filter(Boolean)),
+  ] as string[]
+  const appointmentIds = [
+    ...new Set(items.map((i) => i.appointmentId).filter(Boolean)),
+  ] as string[]
+
+  const ticketMap = new Map<string, string>()
+  const apptMap = new Map<string, string>()
+
+  if (ticketIds.length > 0) {
+    const { data } = await supabase
+      .from("health_queue_tickets")
+      .select("id, queue_number, ticket_code")
+      .in("id", ticketIds)
+    for (const row of data ?? []) {
+      const label =
+        (row.ticket_code as string | null) ??
+        formatQueueLabel(row.queue_number as number | null)
+      if (label) ticketMap.set(row.id as string, label)
+    }
+  }
+
+  if (appointmentIds.length > 0) {
+    const { data } = await supabase
+      .from("appointments")
+      .select("id, queue_number")
+      .in("id", appointmentIds)
+    for (const row of data ?? []) {
+      const label = formatQueueLabel(row.queue_number as number | null)
+      if (label) apptMap.set(row.id as string, label)
+    }
+  }
+
+  return items.map((item) => ({
+    ...item,
+    queueNumber:
+      (item.queueTicketId ? ticketMap.get(item.queueTicketId) : null) ??
+      (item.appointmentId ? apptMap.get(item.appointmentId) : null) ??
+      null,
+  }))
 }
 
 export async function getConsultations(
@@ -178,7 +267,8 @@ export async function getConsultations(
 
   if (error) mapError(error)
 
-  let items = ((data ?? []) as ConsultationJson[]).map(consultationFromJson)
+  let items = mapConsultationsFromJson((data ?? []) as ConsultationJson[])
+  items = await attachQueueNumbers(items, supabase)
 
   if (query) {
     items = items.filter((item) => matchesQuery(item, query))
@@ -228,6 +318,7 @@ export async function getConsultationById(
 
 export async function getConsultationsByPatientId(
   patientId: string,
+  options?: { stationFilter?: "dentist" | "physician" | "nurse" | "all" },
   client?: SupabaseClient
 ): Promise<Consultation[]> {
   const supabase = await getClient(client)
@@ -238,7 +329,14 @@ export async function getConsultationsByPatientId(
     .order("consultation_date", { ascending: false })
 
   if (error) mapError(error)
-  return ((data ?? []) as ConsultationJson[]).map(consultationFromJson)
+  let rows = mapConsultationsFromJson((data ?? []) as ConsultationJson[])
+  const stationFilter = options?.stationFilter
+  if (stationFilter && stationFilter !== "all" && stationFilter !== "nurse") {
+    rows = rows.filter((row) =>
+      consultationMatchesProviderRole(row, stationFilter)
+    )
+  }
+  return rows
 }
 
 export async function getConsultationVisitDetail(
@@ -337,16 +435,14 @@ export async function getConsultationStats(
   }
 }
 
-function hasPostNurseVitals(vitals: Record<string, unknown> | null | undefined) {
-  if (!vitals) return false
-  return (
-    vitals.bpSystolic != null &&
-    vitals.bpDiastolic != null &&
-    vitals.heartRate != null
-  )
+function matchesClinicianRole(
+  row: Consultation,
+  role: "physician" | "dentist"
+): boolean {
+  return consultationMatchesProviderRole(row, role)
 }
 
-/** Physician/dentist board: post-vitals consultations at their station only. */
+/** Physician/dentist board: all consultations for their role (any status). */
 export async function getConsultationsForClinician(
   role: "physician" | "dentist",
   params: ConsultationListParams = {},
@@ -356,25 +452,22 @@ export async function getConsultationsForClinician(
   const page = Math.max(1, params.page ?? 1)
   const pageSize = Math.min(50, Math.max(1, params.pageSize ?? DEFAULT_PAGE_SIZE))
   const query = params.query?.trim() ?? ""
-  const { isoDate } = manilaDayBounds()
   const consultationDate =
     params.consultationDate && params.consultationDate !== "all"
       ? params.consultationDate
-      : isoDate
+      : "all"
 
   const { data, error } = await supabase
     .from("consultations")
     .select(SELECT_WITH_PATIENT)
-    .eq("provider_type", role)
-    .in("station", [role])
     .order("consultation_date", { ascending: false })
 
   if (error) mapError(error)
 
-  let items = ((data ?? []) as ConsultationJson[])
-    .map(consultationFromJson)
-    .filter((item) => hasPostNurseVitals(item.vitals))
-    .filter((item) => item.station !== "nurse")
+  let items = mapConsultationsFromJson((data ?? []) as ConsultationJson[])
+    .filter((item) => matchesClinicianRole(item, role))
+
+  items = await attachQueueNumbers(items, supabase)
 
   if (query) {
     items = items.filter((item) => matchesQuery(item, query))
@@ -382,7 +475,7 @@ export async function getConsultationsForClinician(
   items = items.filter((item) =>
     matchesFilters(item, {
       ...params,
-      station: role,
+      station: "all",
       consultationDate,
     })
   )
@@ -410,26 +503,44 @@ export async function getConsultationStatsForClinician(
 
   const { data, error } = await supabase
     .from("consultations")
-    .select("id, status, station, vitals, consultation_date, updated_at")
-    .eq("provider_type", role)
-    .in("station", [role])
+    .select(
+      "id, status, station, provider_type, consultation_date, updated_at"
+    )
 
   if (error) mapError(error)
 
   const rows = (data ?? []).filter((row) =>
-    hasPostNurseVitals(row.vitals as Record<string, unknown> | null)
+    consultationMatchesProviderRole(
+      {
+        providerType:
+          row.provider_type === "dentist" || row.provider_type === "physician"
+            ? row.provider_type
+            : null,
+        station: row.station as string | null,
+      },
+      role
+    )
   )
 
-  const waiting = rows.filter((r) => r.status === "waiting").length
-  const ongoing = rows.filter((r) => r.status === "ongoing").length
+  const waiting = rows.filter(
+    (r) => normalizeConsultationStatus(String(r.status)) === "waiting"
+  ).length
+  const ongoing = rows.filter(
+    (r) => normalizeConsultationStatus(String(r.status)) === "ongoing"
+  ).length
   const completedToday = rows.filter((r) => {
-    if (r.status !== "completed") return false
+    if (normalizeConsultationStatus(String(r.status)) !== "completed") {
+      return false
+    }
     const updated = (r.updated_at as string | null) ?? ""
     return updated >= startIso && updated <= endIso
   }).length
   const openToday = rows.filter((r) => {
     const day = String(r.consultation_date ?? "").slice(0, 10)
-    return day === isoDate && r.status !== "completed"
+    return (
+      day === isoDate &&
+      normalizeConsultationStatus(String(r.status)) !== "completed"
+    )
   }).length
 
   return {

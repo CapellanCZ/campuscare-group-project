@@ -295,7 +295,7 @@ export async function StaffConsultationsPage() {
         ? getConsultationsForClinician(clinicianRole, {
             page: 1,
             pageSize: 20,
-            status: "waiting",
+            status: "all",
           })
         : getConsultations({
             page: 1,

@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { toast } from "sonner"
+import { useConfirm } from "@/components/feedback/confirm-provider"
+import { settingsToasts } from "@/lib/feedback/toast-messages"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -38,6 +39,7 @@ export function ConsultationCapacitySettings({
   initial: ClinicCapacityRow[]
   elevated?: boolean
 }) {
+  const { confirmPreset } = useConfirm()
   const [pending, startTransition] = useTransition()
   const initialSlots = slotsFromRows(initial)
   const [physicianSlots, setPhysicianSlots] = useState(
@@ -62,16 +64,24 @@ export function ConsultationCapacitySettings({
   )
 
   function onSave() {
-    startTransition(async () => {
-      const result = await saveClinicConsultationCapacityAction({
-        physician: Number(physicianSlots),
-        dentist: Number(dentistSlots),
-      })
-      if (!result.ok) {
-        toast.error(result.error)
-        return
-      }
-      toast.success("Consultation daily capacity saved.")
+    void confirmPreset("saveSettings", {
+      title: "Save queue capacity?",
+      description:
+        "Apply these daily consultation slot limits for physicians and dentists?",
+      confirmLabel: "Save capacity",
+      onConfirm: () => {
+        startTransition(async () => {
+          const result = await saveClinicConsultationCapacityAction({
+            physician: Number(physicianSlots),
+            dentist: Number(dentistSlots),
+          })
+          if (!result.ok) {
+            settingsToasts.failed(result.error)
+            return
+          }
+          settingsToasts.slotsUpdated()
+        })
+      },
     })
   }
 

@@ -1,7 +1,11 @@
 "use client"
 
 import { useEffect, useMemo, useState, useTransition } from "react"
-import { toast } from "sonner"
+import { appToast } from "@/lib/feedback/app-toast"
+import {
+  consultationToasts,
+  patientToasts,
+} from "@/lib/feedback/toast-messages"
 import { IconCheck, IconChevronDown } from "@tabler/icons-react"
 
 import {
@@ -300,10 +304,10 @@ export function ConsultationFormSheet({
       if (!result.ok) {
         if (result.error === NO_STUDENT_FOUND) {
           setPatients([])
-          toast.error(NO_STUDENT_FOUND)
+          patientToasts.failed(NO_STUDENT_FOUND)
           return
         }
-        toast.error(result.error)
+        consultationToasts.failed(result.error)
         return
       }
       setPatients(result.data)
@@ -326,7 +330,7 @@ export function ConsultationFormSheet({
     }
     const result = await ensurePatientRecordAction(patient)
     if (!result.ok) {
-      toast.error(result.error)
+      consultationToasts.failed(result.error)
       return
     }
     setPatients((prev) => {
@@ -352,11 +356,17 @@ export function ConsultationFormSheet({
       : form
     const input = toInput(nextForm, dentalMode, { mode, access })
     if (!input.patientId.trim()) {
-      toast.error("Patient is required.")
+      appToast.error({
+        title: "Patient is required.",
+        description: "Select a patient before saving this consultation.",
+      })
       return
     }
     if (!input.chiefComplaint?.trim()) {
-      toast.error("Chief complaint is required.")
+      appToast.error({
+        title: "Chief complaint is required.",
+        description: "Enter the chief complaint before saving this consultation.",
+      })
       return
     }
     startTransition(async () => {
@@ -366,17 +376,15 @@ export function ConsultationFormSheet({
           : await createConsultationAction(input)
 
       if (!result.ok) {
-        toast.error(result.error)
+        consultationToasts.failed(result.error)
         return
       }
 
-      toast.success(
-        complete
-          ? "Consultation completed."
-          : mode === "edit"
-            ? "Consultation updated."
-            : "Consultation saved."
-      )
+      if (complete) {
+        consultationToasts.completed()
+      } else {
+        consultationToasts.saved()
+      }
       onOpenChange(false)
       onSaved(result.data)
     })

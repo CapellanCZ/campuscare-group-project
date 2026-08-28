@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState, useTransition } from "react"
-import { toast } from "sonner"
+import { useConfirm } from "@/components/feedback/confirm-provider"
+import { consultationToasts, queueToasts } from "@/lib/feedback/toast-messages"
 import { useRouter } from "next/navigation"
 
 import {
@@ -136,6 +137,7 @@ export function QueuePage({
   activity: ActivityItem[]
 }) {
   const router = useRouter()
+  const { confirmPreset } = useConfirm()
   const [pending, startTransition] = useTransition()
   const [localTickets, setLocalTickets] = useState(tickets)
   useStaffRealtimeRouterRefresh(
@@ -274,15 +276,23 @@ export function QueuePage({
   const pageRows = filtered.slice(page * pageSize, page * pageSize + pageSize)
 
   function run(
-    action: () => Promise<{ ok: boolean; error?: string; message?: string }>
+    action: () => Promise<{ ok: boolean; error?: string; message?: string }>,
+    options?: {
+      successToast?: () => void
+      errorToast?: (message?: string) => void
+    }
   ) {
     startTransition(async () => {
       const result = await action()
       if (!result.ok) {
-        toast.error(result.error ?? "Action failed")
+        ;(options?.errorToast ?? queueToasts.failed)(result.error)
         return
       }
-      toast.success(result.message ?? "Updated")
+      if (options?.successToast) {
+        options.successToast()
+      } else if (result.message) {
+        queueToasts.updated()
+      }
       router.refresh()
     })
   }
@@ -1098,61 +1108,62 @@ export function QueuePage({
                                       </DropdownMenuItem>
                                       <DropdownMenuItem
                                         onClick={() => {
-                                          if (isPhysician || isDentist) {
-                                            if (isDentist) {
-                                              setLocalTickets((prev) =>
-                                                prev.map((ticket) =>
-                                                  ticket.ticketId === row.ticketId
-                                                    ? {
-                                                        ...ticket,
-                                                        status: "ongoing" as const,
-                                                        assignedPersonnel:
-                                                          access.fullName,
-                                                      }
-                                                    : ticket
-                                                )
-                                              )
-                                            }
-                                            startTransition(async () => {
-                                              const result =
-                                                await actionStartConsultation(
+                                          void confirmPreset("startConsultation", {
+                                            onConfirm: async () => {
+                                              if (isPhysician || isDentist) {
+                                                if (isDentist) {
+                                                  setLocalTickets((prev) =>
+                                                    prev.map((ticket) =>
+                                                      ticket.ticketId === row.ticketId
+                                                        ? {
+                                                            ...ticket,
+                                                            status: "ongoing" as const,
+                                                            assignedPersonnel:
+                                                              access.fullName,
+                                                          }
+                                                        : ticket
+                                                    )
+                                                  )
+                                                }
+                                                startTransition(async () => {
+                                                  const result =
+                                                    await actionStartConsultation(
+                                                      row.ticketId
+                                                    )
+                                                  if (!result.ok) {
+                                                    queueToasts.failed(result.error)
+                                                    router.refresh()
+                                                    return
+                                                  }
+                                                  consultationToasts.started()
+                                                  const visitId =
+                                                    result.appointmentId ??
+                                                    row.appointmentId
+                                                  if (!visitId) {
+                                                    queueToasts.failed(
+                                                      "Consultation started, but no visit record was linked."
+                                                    )
+                                                    router.refresh()
+                                                    return
+                                                  }
+                                                  const rolePath = isDentist
+                                                    ? "dentist"
+                                                    : "physician"
+                                                  router.push(
+                                                    `/${rolePath}/consultation/${visitId}`
+                                                  )
+                                                  router.refresh()
+                                                })
+                                                return
+                                              }
+                                              run(() =>
+                                                actionStartConsultation(
                                                   row.ticketId
-                                                )
-                                              if (!result.ok) {
-                                                toast.error(
-                                                  result.error ?? "Action failed"
-                                                )
-                                                router.refresh()
-                                                return
-                                              }
-                                              toast.success(
-                                                result.message ?? "Updated"
+                                                ),
+                                                { successToast: consultationToasts.started }
                                               )
-                                              const visitId =
-                                                result.appointmentId ??
-                                                row.appointmentId
-                                              if (!visitId) {
-                                                toast.error(
-                                                  "Consultation started, but no visit record was linked."
-                                                )
-                                                router.refresh()
-                                                return
-                                              }
-                                              const rolePath = isDentist
-                                                ? "dentist"
-                                                : "physician"
-                                              router.push(
-                                                `/${rolePath}/consultation/${visitId}`
-                                              )
-                                              router.refresh()
-                                            })
-                                            return
-                                          }
-                                          run(() =>
-                                            actionStartConsultation(
-                                              row.ticketId
-                                            )
-                                          )
+                                            },
+                                          })
                                         }}
                                       >
                                         Start consultation
@@ -1168,21 +1179,31 @@ export function QueuePage({
                                       </DropdownMenuItem>
                                       <DropdownMenuSeparator />
                                       <DropdownMenuItem
-                                        onClick={() =>
-                                          run(() =>
-                                            actionSkipTicket(row.ticketId)
-                                          )
-                                        }
+                                        onClick={() => {
+                                          void confirmPreset("skipPatient", {
+                                            onConfirm: async () => {
+                                              run(
+                                                () => actionSkipTicket(row.ticketId),
+                                                { successToast: queueToasts.skipped }
+                                              )
+                                            },
+                                          })
+                                        }}
                                       >
                                         Skip
                                       </DropdownMenuItem>
                                       <DropdownMenuItem
                                         disabled={row.callCount < 2}
-                                        onClick={() =>
-                                          run(() =>
-                                            actionNoShowTicket(row.ticketId)
-                                          )
-                                        }
+                                        onClick={() => {
+                                          void confirmPreset("removeFromQueue", {
+                                            onConfirm: async () => {
+                                              run(
+                                                () => actionNoShowTicket(row.ticketId),
+                                                { successToast: queueToasts.removed }
+                                              )
+                                            },
+                                          })
+                                        }}
                                       >
                                         Mark no-show
                                         {row.callCount < 2

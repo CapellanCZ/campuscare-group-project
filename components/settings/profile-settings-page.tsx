@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useRef, useState, useTransition } from "react"
-import { toast } from "sonner"
+import { appToast } from "@/lib/feedback/app-toast"
+import { settingsToasts } from "@/lib/feedback/toast-messages"
 
 import { DemoPageHeader } from "@/components/demo/demo-page"
 import { useTheme } from "@/components/theme-provider"
@@ -95,12 +96,12 @@ export function ProfileSettingsPage({
     startTransition(async () => {
       const result = await savePreferencesAction(patch)
       if (!result.ok) {
-        toast.error(result.error)
+        settingsToasts.failed(result.error)
         return
       }
       setPreferences(result.data)
       if (patch.theme) setTheme(patch.theme)
-      toast.success("Preferences saved.")
+      settingsToasts.updated()
       window.dispatchEvent(new Event("campuscare:notification-prefs"))
     })
   }
@@ -115,19 +116,22 @@ export function ProfileSettingsPage({
           .from("avatars")
           .upload(path, file, { upsert: true, contentType: file.type })
         if (uploadError) {
-          toast.error(uploadError.message)
+          settingsToasts.failed(uploadError.message)
           return
         }
         const { data } = supabase.storage.from("avatars").getPublicUrl(path)
         const result = await updateAvatarAction(data.publicUrl)
         if (!result.ok) {
-          toast.error(result.error)
+          settingsToasts.failed(result.error)
           return
         }
         setProfile(result.data)
-        toast.success("Profile picture updated.")
+        appToast.success({
+          title: "Profile picture updated.",
+          description: "Your profile picture has been saved.",
+        })
       } catch {
-        toast.error("Could not upload profile picture.")
+        settingsToasts.failed("Could not upload profile picture.")
       }
     })
   }

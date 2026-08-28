@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
-import { toast } from "sonner"
+import { useConfirm } from "@/components/feedback/confirm-provider"
+import { announcementToasts } from "@/lib/feedback/toast-messages"
 
 import {
   AnnouncementAttachmentPicker,
@@ -81,6 +82,7 @@ export function AnnouncementFormSheet({
   announcement: Announcement | null
   onSaved: (announcement: Announcement) => void
 }) {
+  const { confirmPreset } = useConfirm()
   const [form, setForm] = useState<FormState>(emptyForm)
   const [pendingFiles, setPendingFiles] = useState<PendingAttachment[]>([])
   const [removedIds, setRemovedIds] = useState<string[]>([])
@@ -107,14 +109,7 @@ export function AnnouncementFormSheet({
     setForm((current) => ({ ...current, [key]: value }))
   }
 
-  function handleSubmit(event: React.FormEvent) {
-    event.preventDefault()
-
-    if (pendingFiles.some((item) => item.status === "error")) {
-      toast.error("Remove invalid attachments before saving.")
-      return
-    }
-
+  function saveAnnouncement() {
     startTransition(async () => {
       const scheduledAt = fromDatetimeLocalValue(form.scheduledAt)
       const payload = {
@@ -147,16 +142,38 @@ export function AnnouncementFormSheet({
             )
 
       if (!result.ok) {
-        toast.error(result.error)
+        announcementToasts.failed(result.error)
         return
       }
 
-      toast.success(
-        mode === "edit" ? "Announcement updated." : "Announcement created."
-      )
+      if (form.status === "published") {
+        announcementToasts.published()
+      } else if (mode === "edit") {
+        announcementToasts.updated()
+      } else {
+        announcementToasts.updated()
+      }
       onOpenChange(false)
       onSaved(result.data)
     })
+  }
+
+  function handleSubmit(event: React.FormEvent) {
+    event.preventDefault()
+
+    if (pendingFiles.some((item) => item.status === "error")) {
+      announcementToasts.failed("Remove invalid attachments before saving.")
+      return
+    }
+
+    if (form.status === "published") {
+      void confirmPreset("publish", {
+        onConfirm: saveAnnouncement,
+      })
+      return
+    }
+
+    saveAnnouncement()
   }
 
   return (

@@ -7,48 +7,44 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
+  AlertDialogMedia,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Button } from "@/components/ui/button"
+import { IconClock } from "@tabler/icons-react"
 
 type IdleSessionWarningProps = {
   open: boolean
   secondsRemaining: number
-  onStaySignedIn: () => void
-  onSignOut: () => void
+  onContinueSession: () => void
 }
 
 export function IdleSessionWarning({
   open,
   secondsRemaining,
-  onStaySignedIn,
-  onSignOut,
+  onContinueSession,
 }: IdleSessionWarningProps) {
   return (
-    <AlertDialog
-      open={open}
-      onOpenChange={(nextOpen) => {
-        // Escape / dismiss = continue session, not silent logout.
-        if (!nextOpen) onStaySignedIn()
-      }}
-    >
-      <AlertDialogContent size="sm">
+    <AlertDialog open={open}>
+      <AlertDialogContent size="default" className="sm:max-w-md">
         <AlertDialogHeader>
-          <AlertDialogTitle>Still there?</AlertDialogTitle>
+          <AlertDialogMedia className="bg-warning/15 text-warning">
+            <IconClock className="size-8" aria-hidden />
+          </AlertDialogMedia>
+          <AlertDialogTitle>Session Inactivity Detected</AlertDialogTitle>
           <AlertDialogDescription>
-            You&apos;ll be signed out in{" "}
+            You have been inactive for a while. Would you like to continue your
+            session?
+            <br />
             <span className="font-medium text-foreground">
-              {secondsRemaining}s
-            </span>{" "}
-            for inactivity. Continue your session to stay signed in.
+              Session will be locked in{" "}
+              <span className="font-semibold">{secondsRemaining}</span>{" "}
+              {secondsRemaining === 1 ? "second" : "seconds"}.
+            </span>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <Button type="button" variant="outline" onClick={onSignOut}>
-            Sign out
-          </Button>
-          <AlertDialogAction onClick={onStaySignedIn}>
-            Stay signed in
+          <AlertDialogAction onClick={onContinueSession}>
+            Continue Session
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

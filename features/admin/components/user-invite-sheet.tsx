@@ -2,7 +2,9 @@
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { toast } from "sonner"
+import { useConfirm } from "@/components/feedback/confirm-provider"
+import { appToast } from "@/lib/feedback/app-toast"
+import { staffToasts } from "@/lib/feedback/toast-messages"
 import { IconUserPlus } from "@tabler/icons-react"
 
 import { createStaffUser } from "@/features/admin/actions/user-management"
@@ -43,10 +45,12 @@ export function UserInviteSheet({
   toolbar = false,
 }: UserInviteSheetProps) {
   const router = useRouter()
+  const { confirmPreset } = useConfirm()
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
+  const [employeeId, setEmployeeId] = useState("")
   const [role, setRole] = useState<ManagedRole>(config.defaultCreateRole)
   const [licenseNumber, setLicenseNumber] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -56,6 +60,7 @@ export function UserInviteSheet({
   function resetForm() {
     setFullName("")
     setEmail("")
+    setEmployeeId("")
     setRole(config.defaultCreateRole)
     setLicenseNumber("")
     setError(null)
@@ -65,27 +70,32 @@ export function UserInviteSheet({
     event.preventDefault()
     setError(null)
 
-    startTransition(async () => {
-      const result = await createStaffUser({
-        fullName,
-        email,
-        role,
-        licenseNumber: showLicenseNumber ? licenseNumber : null,
-        allowedRoles: [...config.roles],
-      })
+    void confirmPreset("createStaff", {
+      onConfirm: () => {
+        startTransition(async () => {
+          const result = await createStaffUser({
+            fullName,
+            email,
+            role,
+            employeeId: employeeId.trim() || null,
+            licenseNumber: showLicenseNumber ? licenseNumber : null,
+            allowedRoles: [...config.roles],
+          })
 
-      if (!result.ok) {
-        setError(result.error)
-        toast.error(result.error)
-        return
-      }
+          if (!result.ok) {
+            setError(result.error)
+            staffToasts.failed(result.error)
+            return
+          }
 
-      toast.success(result.message)
-      if (result.warning) toast.message(result.warning)
-      resetForm()
-      setOpen(false)
-      onCreated()
-      router.refresh()
+          appToast.success({ title: result.message })
+          if (result.warning) appToast.warning({ title: result.warning })
+          resetForm()
+          setOpen(false)
+          onCreated()
+          router.refresh()
+        })
+      },
     })
   }
 
@@ -145,6 +155,19 @@ export function UserInviteSheet({
             </Field>
             {config.showRoleFilter ? (
               <Field>
+                <FieldLabel htmlFor="invite-employee-id">Employee ID</FieldLabel>
+                <Input
+                  id="invite-employee-id"
+                  value={employeeId}
+                  onChange={(event) => setEmployeeId(event.target.value)}
+                  placeholder="EMP-001"
+                  disabled={pending}
+                  autoComplete="off"
+                />
+              </Field>
+            ) : null}
+            {config.showRoleFilter ? (
+              <Field>
                 <FieldLabel>Role</FieldLabel>
                 <Select
                   value={role}
@@ -166,7 +189,7 @@ export function UserInviteSheet({
             ) : null}
             {showLicenseNumber ? (
               <Field>
-                <FieldLabel htmlFor="invite-license">Licensed number</FieldLabel>
+                <FieldLabel htmlFor="invite-license">License No.</FieldLabel>
                 <Input
                   id="invite-license"
                   value={licenseNumber}

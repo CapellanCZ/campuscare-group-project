@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
-import { toast } from "sonner"
+import { patientToasts } from "@/lib/feedback/toast-messages"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert"
 import { Button } from "@/components/ui/button"
@@ -14,11 +14,13 @@ import { updatePatientMedicalRecordAction } from "@/features/patients/actions"
 import type { NurseVisitVitals } from "@/features/physician/types-visit"
 import { mergeNurseVitalsIntoExam } from "@/features/physician/lib/merge-nurse-vitals"
 import {
+  CAMPUS_ID_LABEL,
   EMPTY_MEDICAL_HISTORY,
   EMPTY_PHYSICAL_EXAM,
   patientAgeYears,
   patientCampusId,
   patientFullName,
+  patientTypeIsStudent,
   type MedicalHistory,
   type PatientRecord,
   type PhysicalExam,
@@ -156,10 +158,10 @@ export function VisitMedicalChart({
         physicalExam,
       })
       if (!result.ok) {
-        toast.error(result.error)
+        patientToasts.failed(result.error)
         return
       }
-      toast.success("Medical record saved.")
+      patientToasts.saved()
     })
   }
 
@@ -183,9 +185,13 @@ export function VisitMedicalChart({
             <ReadOnly label="Surname" value={record.lastName} />
             <ReadOnly label="Given name" value={record.firstName} />
             <ReadOnly label="Middle name" value={record.middleName} />
-            <ReadOnly label="Course" value={record.course} />
-            <ReadOnly label="Student ID No." value={campusId} />
-            <ReadOnly label="Year level" value={record.yearLevel} />
+            {patientTypeIsStudent(record.patientType) ? (
+              <>
+                <ReadOnly label="Course" value={record.course} />
+                <ReadOnly label="Year level" value={record.yearLevel} />
+              </>
+            ) : null}
+            <ReadOnly label={CAMPUS_ID_LABEL} value={campusId} />
             <ReadOnly label="Address" value={record.address} />
             <ReadOnly label="Contact No." value={record.phone} />
             <ReadOnly label="Birthdate" value={record.birthDate} />

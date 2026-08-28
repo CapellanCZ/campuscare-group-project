@@ -9,13 +9,24 @@ import {
   useTransition,
 } from "react"
 import Link from "next/link"
-import { toast } from "sonner"
+import { useConfirm } from "@/components/feedback/confirm-provider"
+import { appToast } from "@/lib/feedback/app-toast"
+import {
+  CONSULTATION_DATE_RANGE_LABELS,
+  type ConsultationDateRange,
+} from "@/lib/date/consultation-date-range"
+import { PATIENT_SEARCH_PLACEHOLDER } from "@/lib/students/patient-search-copy"
 
 import { ConsultationDeleteDialog } from "@/components/consultations/consultation-delete-dialog"
 import { ConsultationFormSheet } from "@/components/consultations/consultation-form-sheet"
+import {
+  ConsultationListCard,
+  formatConsultationTableDate,
+  providerLabel,
+  serviceLabel,
+} from "@/components/consultations/consultation-list-card"
 import { ConsultationStatusBadge } from "@/components/consultations/consultation-status-badge"
-import { StudentIdSearchInput } from "@/components/shared/student-id-search-input"
-import { DENTIST_PATIENT_SEARCH_PLACEHOLDER } from "@/lib/students/patient-search-copy"
+import { PatientVisitDetailDialog } from "@/components/patients/patient-visit-detail-dialog"
 import { DemoPageHeader, DemoStatGrid } from "@/components/demo/demo-page"
 import {
   PanelFrame,
@@ -62,11 +73,11 @@ import {
 import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { DemoStat } from "@/lib/demo/types"
-import { formatStudentIdInput } from "@/lib/students/student-id-input"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
 import {
   CONSULTATION_STATUSES,
+  CONSULTATION_TAB_STATUSES,
   consultationStatusLabel,
   type Consultation,
   type ConsultationListResult,
@@ -200,11 +211,12 @@ export function ConsultationsPage({
   const [query, setQuery] = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<ConsultationStatus | "all">(
-    access.designation === "physician" || access.designation === "dentist"
-      ? "waiting"
-      : "all"
+    "all"
   )
   const [providerFilter, setProviderFilter] = useState("all")
+  const [providerTypeFilter, setProviderTypeFilter] = useState<
+    "all" | "physician" | "dentist"
+  >("all")
   const [stationFilter, setStationFilter] = useState(
     access.designation === "dentist"
       ? "dentist"
@@ -212,7 +224,7 @@ export function ConsultationsPage({
         ? "physician"
         : "all"
   )
-  const [dateFilter, setDateFilter] = useState("")
+  const [dateRange, setDateRange] = useState<ConsultationDateRange>("all_time")
   const [providers, setProviders] = useState(initialProviders)
   const [stations, setStations] = useState(initialStations)
   const [list, setList] = useState(initialList)
@@ -222,7 +234,9 @@ export function ConsultationsPage({
   const [formMode, setFormMode] = useState<"create" | "edit">("create")
   const [editing, setEditing] = useState<Consultation | null>(null)
   const [deleting, setDeleting] = useState<Consultation | null>(null)
+  const [viewing, setViewing] = useState<Consultation | null>(null)
   const [isPending, startTransition] = useTransition()
+  const { confirmPreset } = useConfirm()
   const skipNextFetch = useRef(true)
   const d = access.designation
   const isPhysician = d === "physician"
@@ -230,7 +244,12 @@ export function ConsultationsPage({
   const isDentist = d === "dentist"
 
   useEffect(() => {
-    if (initialError) toast.error(initialError)
+    if (initialError) {
+      appToast.error({
+        title: "Unable to Load Consultations",
+        description: initialError,
+      })
+    }
   }, [initialError])
 
   useEffect(() => {
@@ -255,17 +274,19 @@ export function ConsultationsPage({
           : isNurse
             ? "all"
             : stationFilter,
-      consultationDate: dateFilter || "all",
-      studentIdOnly: isPhysician || isNurse,
+      providerType: isNurse ? providerTypeFilter : "all",
+      consultationDate: "all",
+      dateRange,
     }),
     [
       statusFilter,
       providerFilter,
       stationFilter,
-      dateFilter,
+      dateRange,
       isPhysician,
       isNurse,
       isDentist,
+      providerTypeFilter,
     ]
   )
 
@@ -279,11 +300,17 @@ export function ConsultationsPage({
           listConsultationFilterOptionsAction(),
         ])
         if (!listResult.ok) {
-          toast.error(listResult.error)
+          appToast.error({
+            title: "Unable to Load Consultations",
+            description: listResult.error,
+          })
           return
         }
         if (!statsResult.ok) {
-          toast.error(statsResult.error)
+          appToast.error({
+            title: "Unable to Load Consultation Summary",
+            description: statsResult.error,
+          })
           return
         }
         setList(listResult.data)
@@ -293,9 +320,11 @@ export function ConsultationsPage({
           setStations(optionsResult.data.stations)
         }
       } catch {
-        toast.error(
-          "Unable to reach the database. Check your connection and try again."
-        )
+        appToast.error({
+          title: "Unable to Load Consultations",
+          description:
+            "Unable to reach the database. Check your connection and try again.",
+        })
       } finally {
         setLoading(false)
       }
@@ -356,7 +385,7 @@ export function ConsultationsPage({
   const showSkeleton = loading || isPending
   const rows = list.items
 
-  async function patchConsultation(
+  async function applyConsultationPatch(
     row: Consultation,
     patch: Partial<{
       assessment: string
@@ -364,8 +393,7 @@ export function ConsultationsPage({
       treatment: string
       prescription: string
       status: ConsultationStatus
-    }>,
-    successMessage: string
+    }>
   ) {
     const result = await updateConsultationAction({
       id: row.id,
@@ -386,11 +414,25 @@ export function ConsultationsPage({
       notes: row.notes,
     })
     if (!result.ok) {
-      toast.error(result.error)
-      return
+      throw new Error(result.error)
     }
-    toast.success(successMessage)
     refresh()
+  }
+
+  async function completeConsultation(row: Consultation) {
+    await confirmPreset("completeConsultation", {
+      onConfirm: async () => {
+        await applyConsultationPatch(row, { status: "completed" })
+      },
+      successToast: {
+        title: "Consultation Completed",
+        description:
+          "The consultation has been marked as completed successfully.",
+      },
+      errorToast: {
+        title: "Unable to Complete Consultation",
+      },
+    })
   }
 
   return (
@@ -439,52 +481,20 @@ export function ConsultationsPage({
       <PanelFrame>
       <Card className={cn(panelCardClassName, "gap-0 py-0")}>
         <CardHeader className="gap-4 border-b px-6 py-5">
-          <CardTitle className="text-base">Today&apos;s consultations</CardTitle>
+          <CardTitle className="text-base">Consultations</CardTitle>
           <div
             className={cn(
               "flex flex-wrap items-center gap-2",
               isDentist && "gap-3"
             )}
           >
-            {isPhysician || isNurse ? (
-              <StudentIdSearchInput
-                className="w-full min-w-[12rem] sm:w-56"
-                value={query}
-                onChange={setQuery}
-                placeholder="Search by student ID number"
-                aria-label="Search by student ID number"
-              />
-            ) : (
-              <Input
-                className="w-full min-w-[12rem] sm:w-56"
-                placeholder={
-                  d === "dentist"
-                    ? DENTIST_PATIENT_SEARCH_PLACEHOLDER
-                    : "e.g. 2023-172065"
-                }
-                inputMode="numeric"
-                autoComplete="off"
-                maxLength={11}
-                value={query}
-                onChange={(e) => setQuery(formatStudentIdInput(e.target.value))}
-                onKeyDown={(e) => {
-                  if (
-                    e.key.length === 1 &&
-                    /[a-zA-Z]/.test(e.key) &&
-                    !e.ctrlKey &&
-                    !e.metaKey &&
-                    !e.altKey
-                  ) {
-                    e.preventDefault()
-                  }
-                }}
-                aria-label={
-                  d === "dentist"
-                    ? DENTIST_PATIENT_SEARCH_PLACEHOLDER
-                    : "Search by Student ID"
-                }
-              />
-            )}
+            <Input
+              className="w-full min-w-[12rem] sm:w-56"
+              placeholder={PATIENT_SEARCH_PLACEHOLDER}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              aria-label={PATIENT_SEARCH_PLACEHOLDER}
+            />
             <Select
               value={statusFilter}
               onValueChange={(value) =>
@@ -496,13 +506,32 @@ export function ConsultationsPage({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
-                {CONSULTATION_STATUSES.map((status) => (
+                {CONSULTATION_TAB_STATUSES.map((status) => (
                   <SelectItem key={status} value={status}>
                     {consultationStatusLabel(status)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {isNurse ? (
+              <Select
+                value={providerTypeFilter}
+                onValueChange={(value) =>
+                  setProviderTypeFilter(
+                    (value as "all" | "physician" | "dentist") ?? "all"
+                  )
+                }
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All providers</SelectItem>
+                  <SelectItem value="physician">Physician</SelectItem>
+                  <SelectItem value="dentist">Dentist</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : null}
             {!isPhysician && !isNurse && !isDentist ? (
               <>
                 <Select
@@ -539,12 +568,27 @@ export function ConsultationsPage({
                 </Select>
               </>
             ) : null}
-            <Input
-              type="date"
-              className="w-[160px]"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-            />
+            <Select
+              value={dateRange}
+              onValueChange={(value) =>
+                setDateRange((value as ConsultationDateRange) ?? "all_time")
+              }
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Date range" />
+              </SelectTrigger>
+              <SelectContent>
+                {(
+                  Object.keys(
+                    CONSULTATION_DATE_RANGE_LABELS
+                  ) as ConsultationDateRange[]
+                ).map((range) => (
+                  <SelectItem key={range} value={range}>
+                    {CONSULTATION_DATE_RANGE_LABELS[range]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
         <CardContent className="min-w-0 p-0">
@@ -558,12 +602,30 @@ export function ConsultationsPage({
                 </EmptyMedia>
                 <EmptyTitle>No consultations found</EmptyTitle>
                 <EmptyDescription>
-                  Adjust filters or create a consultation to get started.
+                  Consultations will appear here once approved consultation
+                  requests enter the consultation workflow.
                 </EmptyDescription>
               </EmptyHeader>
             </Empty>
           ) : (
-            <div className="min-w-0 overflow-x-auto">
+            <>
+            <div className="flex flex-col gap-3 p-4 md:hidden">
+              {rows.map((row) => (
+                <ConsultationListCard
+                  key={row.id}
+                  row={row}
+                  clinicianHref={
+                    isClinician ? `/${rolePath}/consultation/${row.id}` : undefined
+                  }
+                  onView={() => setViewing(row)}
+                  showComplete={
+                    isClinician && row.status !== "completed"
+                  }
+                  onComplete={() => void completeConsultation(row)}
+                />
+              ))}
+            </div>
+            <div className="hidden min-w-0 overflow-x-auto md:block">
             <Table>
               <TableHeader>
                 <TableRow className={isDentist ? "h-14" : undefined}>
@@ -572,14 +634,27 @@ export function ConsultationsPage({
                   </TableHead>
                   <TableHead
                     className={cn(
+                      "hidden lg:table-cell",
+                      isDentist && "px-4"
+                    )}
+                  >
+                    Patient ID
+                  </TableHead>
+                  <TableHead
+                    className={cn(
                       "hidden sm:table-cell",
                       isDentist && "px-4"
                     )}
                   >
-                    Station
+                    Service
                   </TableHead>
-                  <TableHead className={isDentist ? "px-4" : undefined}>
-                    Status
+                  <TableHead
+                    className={cn(
+                      "hidden sm:table-cell",
+                      isDentist && "px-4"
+                    )}
+                  >
+                    Provider
                   </TableHead>
                   <TableHead
                     className={cn(
@@ -587,7 +662,18 @@ export function ConsultationsPage({
                       isDentist && "px-4"
                     )}
                   >
-                    Provider
+                    Date
+                  </TableHead>
+                  <TableHead
+                    className={cn(
+                      "hidden lg:table-cell",
+                      isDentist && "px-4"
+                    )}
+                  >
+                    Queue #
+                  </TableHead>
+                  <TableHead className={isDentist ? "px-4" : undefined}>
+                    Status
                   </TableHead>
                   <TableHead
                     className={cn(
@@ -607,21 +693,30 @@ export function ConsultationsPage({
                     >
                       <TableCell className={isDentist ? "px-4" : undefined}>
                         <p className="font-medium">{row.patient.fullName}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {row.patient.studentId} ·{" "}
-                          {row.chiefComplaint || "No complaint"}
-                        </p>
                       </TableCell>
                       <TableCell
                         className={cn(
-                          "hidden capitalize sm:table-cell",
+                          "hidden lg:table-cell",
                           isDentist && "px-4"
                         )}
                       >
-                        {row.station || "—"}
+                        {row.patient.studentId || "—"}
                       </TableCell>
-                      <TableCell className={isDentist ? "px-4" : undefined}>
-                        <ConsultationStatusBadge status={row.status} />
+                      <TableCell
+                        className={cn(
+                          "hidden sm:table-cell",
+                          isDentist && "px-4"
+                        )}
+                      >
+                        {serviceLabel(row)}
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          "hidden sm:table-cell capitalize",
+                          isDentist && "px-4"
+                        )}
+                      >
+                        {providerLabel(row)}
                       </TableCell>
                       <TableCell
                         className={cn(
@@ -629,7 +724,18 @@ export function ConsultationsPage({
                           isDentist && "px-4"
                         )}
                       >
-                        {row.providerName || "—"}
+                        {formatConsultationTableDate(row.consultationDate)}
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          "hidden lg:table-cell",
+                          isDentist && "px-4"
+                        )}
+                      >
+                        {row.queueNumber ?? "—"}
+                      </TableCell>
+                      <TableCell className={isDentist ? "px-4" : undefined}>
+                        <ConsultationStatusBadge status={row.status} />
                       </TableCell>
                       <TableCell className={isDentist ? "px-4" : undefined}>
                         <div className="flex flex-wrap justify-end gap-1">
@@ -651,13 +757,7 @@ export function ConsultationsPage({
                                 <Button
                                   size="xs"
                                   variant="secondary"
-                                  onClick={() =>
-                                    void patchConsultation(
-                                      row,
-                                      { status: "completed" },
-                                      "Consultation completed."
-                                    )
-                                  }
+                                  onClick={() => void completeConsultation(row)}
                                 >
                                   Complete
                                 </Button>
@@ -665,15 +765,24 @@ export function ConsultationsPage({
                             </>
                           ) : (
                             <>
+                          <Button
+                            type="button"
+                            size="xs"
+                            variant="outline"
+                            onClick={() => setViewing(row)}
+                          >
+                            View
+                          </Button>
                           {can(d, "consultations.view_patient") ? (
                             <Button
                               type="button"
                               size="xs"
                               variant="outline"
                               onClick={() =>
-                                toast.info(
-                                  `${row.patient.fullName} · ${row.patient.studentId}`
-                                )
+                                appToast.info({
+                                  title: "Patient",
+                                  description: `${row.patient.fullName} · ${row.patient.studentId}`,
+                                })
                               }
                             >
                               Patient
@@ -751,13 +860,7 @@ export function ConsultationsPage({
                             <Button
                               size="xs"
                               variant="secondary"
-                              onClick={() =>
-                                void patchConsultation(
-                                  row,
-                                  { status: "completed" },
-                                  "Consultation completed."
-                                )
-                              }
+                              onClick={() => void completeConsultation(row)}
                             >
                               Complete
                             </Button>
@@ -767,9 +870,11 @@ export function ConsultationsPage({
                               size="xs"
                               variant="outline"
                               onClick={() =>
-                                toast.info(
-                                  "Open Medical Certificates to generate a certificate for this patient."
-                                )
+                                appToast.info({
+                                  title: "Medical Certificate",
+                                  description:
+                                    "Open Medical Certificates to generate a certificate for this patient.",
+                                })
                               }
                             >
                               Certificate
@@ -793,10 +898,20 @@ export function ConsultationsPage({
               </TableBody>
             </Table>
             </div>
+            </>
           )}
         </CardContent>
       </Card>
       </PanelFrame>
+
+      <PatientVisitDetailDialog
+        consultation={viewing}
+        patient={null}
+        open={Boolean(viewing)}
+        onOpenChange={(open) => {
+          if (!open) setViewing(null)
+        }}
+      />
 
       <ConsultationFormSheet
         open={formOpen}

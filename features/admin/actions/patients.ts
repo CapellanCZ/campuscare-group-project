@@ -8,7 +8,10 @@ import {
 import { parseExcelRows } from "@/features/admin/lib/excel"
 import { resolveCampusClinicId } from "@/lib/auth/campus-clinic"
 import {
+  CAMPUS_ID_LABEL,
+  campusIdsFromIdNumber,
   normalizePatientType,
+  patientCampusId,
   type PatientType,
 } from "@/types/patientRecord"
 
@@ -55,11 +58,17 @@ function campusIdsForType(input: {
   patientType: PatientType
   studentId?: string
   employeeId?: string
+  idNumber?: string
 }) {
+  const unified = input.idNumber?.trim()
+  if (unified) {
+    return campusIdsFromIdNumber(input.patientType, unified)
+  }
+
   if (input.patientType === "student") {
     const studentId = input.studentId?.trim() || ""
     if (!studentId) {
-      return { ok: false as const, error: "Enter the student ID." }
+      return { ok: false as const, error: `${CAMPUS_ID_LABEL} is required.` }
     }
     return {
       ok: true as const,
@@ -68,9 +77,9 @@ function campusIdsForType(input: {
     }
   }
 
-  const employeeId = input.employeeId?.trim() || ""
+  const employeeId = input.employeeId?.trim() || input.studentId?.trim() || ""
   if (!employeeId) {
-    return { ok: false as const, error: "Enter the employee / faculty ID." }
+    return { ok: false as const, error: `${CAMPUS_ID_LABEL} is required.` }
   }
   return {
     ok: true as const,
@@ -146,6 +155,7 @@ export async function createPatient(input: {
   email?: string
   studentId?: string
   employeeId?: string
+  idNumber?: string
   phone?: string
   dateOfBirth?: string
   sex?: string
@@ -170,6 +180,7 @@ export async function createPatient(input: {
     patientType,
     studentId: input.studentId,
     employeeId: input.employeeId,
+    idNumber: input.idNumber,
   })
   if (!ids.ok) return ids
 
@@ -206,6 +217,7 @@ export async function updatePatient(input: {
   email?: string
   studentId?: string
   employeeId?: string
+  idNumber?: string
   phone?: string
   dateOfBirth?: string
   sex?: string
@@ -231,6 +243,7 @@ export async function updatePatient(input: {
     patientType,
     studentId: input.studentId,
     employeeId: input.employeeId,
+    idNumber: input.idNumber,
   })
   if (!ids.ok) return ids
 
@@ -321,10 +334,17 @@ export async function importPatientsFromExcel(
       continue
     }
 
+    const idNumber = (
+      row.id_number ||
+      row.id_no ||
+      row.campus_id ||
+      ""
+    ).trim()
     const studentId = (row.student_id || "").trim()
-    const employeeId = (row.employee_id || row.id_number || "").trim()
+    const employeeId = (row.employee_id || "").trim()
     const ids = campusIdsForType({
       patientType,
+      idNumber: idNumber || undefined,
       studentId:
         patientType === "student"
           ? studentId || employeeId
@@ -365,7 +385,7 @@ export async function importPatientsFromExcel(
       ok: false,
       error:
         failures[0] ??
-        "No patients imported. Headers: full_name, email, student_id, employee_id, phone, date_of_birth, sex, patient_type",
+        "No patients imported. Headers: full_name, email, id_number, phone, date_of_birth, sex, patient_type",
     }
   }
 

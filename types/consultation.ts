@@ -54,6 +54,8 @@ export type Consultation = {
   consultationRequestId: string | null
   appointmentId: string | null
   providerType: "physician" | "dentist" | null
+  /** Display queue label from linked ticket or appointment. */
+  queueNumber: string | null
   vitals: Record<string, unknown>
   createdAt: string
   updatedAt: string
@@ -111,6 +113,13 @@ export type ConsultationStats = {
   completedToday: number
 }
 
+export const CONSULTATION_TAB_STATUSES = [
+  "waiting",
+  "ongoing",
+  "completed",
+  "cancelled",
+] as const
+
 export type ConsultationListParams = {
   query?: string
   /** When true, query matches campus/student ID only. */
@@ -119,8 +128,11 @@ export type ConsultationListParams = {
   pageSize?: number
   status?: ConsultationStatus | "all"
   provider?: string | "all"
+  providerType?: "physician" | "dentist" | "all"
   station?: string | "all"
+  /** @deprecated Prefer dateRange */
   consultationDate?: string | "all"
+  dateRange?: import("@/lib/date/consultation-date-range").ConsultationDateRange
 }
 
 export type ConsultationListResult = {
@@ -234,6 +246,7 @@ export function consultationFromJson(json: ConsultationJson): Consultation {
       json.provider_type === "dentist" || json.provider_type === "physician"
         ? json.provider_type
         : null,
+    queueNumber: null,
     vitals: json.vitals ?? {},
     createdAt: json.created_at,
     updatedAt: json.updated_at,
@@ -314,6 +327,26 @@ export function consultationStatusLabel(status: string): string {
     default:
       return status
   }
+}
+
+/** Authoritative medical vs dental specialty (provider_type wins over queue station). */
+export function resolveConsultationProviderRole(
+  row: Pick<Consultation, "providerType" | "station">
+): "physician" | "dentist" | null {
+  if (row.providerType === "physician" || row.providerType === "dentist") {
+    return row.providerType
+  }
+  if (row.station === "physician" || row.station === "dentist") {
+    return row.station
+  }
+  return null
+}
+
+export function consultationMatchesProviderRole(
+  row: Pick<Consultation, "providerType" | "station">,
+  role: "physician" | "dentist"
+): boolean {
+  return resolveConsultationProviderRole(row) === role
 }
 
 function isStatus(value: string): value is ConsultationStatus {

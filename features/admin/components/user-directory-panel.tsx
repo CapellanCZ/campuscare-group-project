@@ -2,7 +2,9 @@
 
 import { useDeferredValue, useEffect, useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { toast } from "sonner"
+import { useConfirm } from "@/components/feedback/confirm-provider"
+import { appToast } from "@/lib/feedback/app-toast"
+import { staffToasts } from "@/lib/feedback/toast-messages"
 import {
   IconDots,
   IconMailForward,
@@ -160,6 +162,11 @@ function statusRank(user: ManagedStaffUser) {
   return 2
 }
 
+function formatCell(value: string | null | undefined) {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : "—"
+}
+
 function formatLastSignIn(value: string | null) {
   if (!value) return "Never"
   const date = new Date(value)
@@ -178,6 +185,7 @@ export function UserDirectoryPanel({
   loadError,
 }: UserDirectoryPanelProps) {
   const router = useRouter()
+  const { confirmPreset } = useConfirm()
   const [users, setUsers] = useState(initialUsers)
   const [query, setQuery] = useState("")
   const [status, setStatus] = useState<StatusColumnFilter>("all")
@@ -220,7 +228,7 @@ export function UserDirectoryPanel({
       if (role !== "all" && user.role !== role) return false
       if (status !== "all" && user.status !== status) return false
       if (!deferredQuery) return true
-      return `${user.fullName} ${user.email} ${user.role}`
+      return `${user.fullName} ${user.email} ${user.employeeId ?? ""} ${user.licenseNumber ?? ""} ${user.role}`
         .toLowerCase()
         .includes(deferredQuery)
     })
@@ -311,12 +319,12 @@ export function UserDirectoryPanel({
 
       if (!result.ok) {
         setUsers(snapshot)
-        toast.error(result.error)
+        staffToasts.failed(result.error)
         return
       }
 
-      toast.success(result.message)
-      if (result.warning) toast.message(result.warning)
+      appToast.success({ title: result.message })
+      if (result.warning) appToast.warning({ title: result.warning })
       syncFromServer()
     })
   }
@@ -343,22 +351,74 @@ export function UserDirectoryPanel({
 
       if (failures.length > 0) {
         setUsers(snapshot)
-        toast.error(
+        staffToasts.failed(
           `Could not update ${failures.length} account${failures.length === 1 ? "" : "s"}.`
         )
         return
       }
 
       const noun = ids.length === 1 ? "account" : "accounts"
-      toast.success(
-        label === "activate"
-          ? `Activated ${ids.length} ${noun}.`
-          : label === "archive"
-            ? `Archived ${ids.length} ${noun}.`
-            : `Deactivated ${ids.length} ${noun}.`
-      )
+      appToast.success({
+        title:
+          label === "activate"
+            ? `Activated ${ids.length} ${noun}.`
+            : label === "archive"
+              ? `Archived ${ids.length} ${noun}.`
+              : `Deactivated ${ids.length} ${noun}.`,
+      })
       clearSelection()
       syncFromServer()
+    })
+  }
+
+  function requestBulkStatus(
+    isActive: boolean,
+    label: "activate" | "archive" | "deactivate" = isActive ? "activate" : "deactivate"
+  ) {
+    const ids = [...selectedIds]
+    if (ids.length === 0) return
+
+    const noun = ids.length === 1 ? "account" : "accounts"
+
+    if (isActive) {
+      void confirmPreset("enableStaff", {
+        description: `Enable ${ids.length} staff ${noun}?`,
+        onConfirm: () => runBulkStatus(true, label),
+      })
+      return
+    }
+
+    void confirmPreset("disableStaff", {
+      title:
+        label === "archive" ? "Archive Staff Accounts?" : "Disable Staff Accounts?",
+      description:
+        label === "archive"
+          ? `Archive ${ids.length} staff ${noun}? They will lose access until reactivated.`
+          : `Disable ${ids.length} staff ${noun}?`,
+      confirmLabel: label === "archive" ? "Archive" : "Disable Account",
+      onConfirm: () => runBulkStatus(false, label),
+    })
+  }
+
+  function requestToggleActive(user: ManagedStaffUser) {
+    const enabling = !user.isActive
+    void confirmPreset(enabling ? "enableStaff" : "disableStaff", {
+      description: enabling
+        ? `Enable ${user.fullName}'s account?`
+        : `Disable ${user.fullName}'s account?`,
+      onConfirm: () =>
+        runUserAction(
+          user.id,
+          (current) =>
+            current.map((row) =>
+              row.id === user.id ? withActiveFlag(row, !row.isActive) : row
+            ),
+          () =>
+            setStaffUserActive({
+              userId: user.id,
+              isActive: !user.isActive,
+            })
+        ),
     })
   }
 
@@ -385,15 +445,13 @@ export function UserDirectoryPanel({
 
       if (failures.length > 0) {
         setUsers(snapshot)
-        toast.error(
+        staffToasts.failed(
           `Could not delete ${failures.length} account${failures.length === 1 ? "" : "s"}. ${failures[0] ?? ""}`.trim()
         )
         return
       }
 
-      toast.success(
-        `Deleted ${ids.length} account${ids.length === 1 ? "" : "s"}.`
-      )
+      staffToasts.deleted()
       syncFromServer()
     })
   }
@@ -492,7 +550,7 @@ export function UserDirectoryPanel({
                 size="sm"
                 variant="outline"
                 disabled={bulkPending}
-                onClick={() => runBulkStatus(true, "activate")}
+                onClick={() => requestBulkStatus(true, "activate")}
               >
                 Activate
               </Button>
@@ -501,7 +559,7 @@ export function UserDirectoryPanel({
                 size="sm"
                 variant="outline"
                 disabled={bulkPending}
-                onClick={() => runBulkStatus(false, "deactivate")}
+                onClick={() => requestBulkStatus(false, "deactivate")}
               >
                 Deactivate
               </Button>
@@ -510,7 +568,7 @@ export function UserDirectoryPanel({
                 size="sm"
                 variant="outline"
                 disabled={bulkPending}
-                onClick={() => runBulkStatus(false, "archive")}
+                onClick={() => requestBulkStatus(false, "archive")}
               >
                 Archive
               </Button>
@@ -554,14 +612,31 @@ export function UserDirectoryPanel({
                   />
                 </TableHead>
                 <TableHead className="h-12 px-4">
-                  <DirectoryColumnHeader
-                    title="User"
-                    sortDirection={sortDirectionFor("user")}
-                    onSortAsc={() => setColumnSort("user", "asc")}
-                    onSortDesc={() => setColumnSort("user", "desc")}
-                    onClearSort={() => setColumnSort("user", "asc")}
-                  />
+                  {directory === "staff" ? (
+                    <DirectoryColumnLabel title="Full Name" />
+                  ) : (
+                    <DirectoryColumnHeader
+                      title="User"
+                      sortDirection={sortDirectionFor("user")}
+                      onSortAsc={() => setColumnSort("user", "asc")}
+                      onSortDesc={() => setColumnSort("user", "desc")}
+                      onClearSort={() => setColumnSort("user", "asc")}
+                    />
+                  )}
                 </TableHead>
+                {directory === "staff" ? (
+                  <>
+                    <TableHead className="h-12 px-4">
+                      <DirectoryColumnLabel title="Email" />
+                    </TableHead>
+                    <TableHead className="h-12 px-4">
+                      <DirectoryColumnLabel title="Employee ID" />
+                    </TableHead>
+                    <TableHead className="h-12 px-4">
+                      <DirectoryColumnLabel title="License No." />
+                    </TableHead>
+                  </>
+                ) : null}
                 <TableHead className="h-12 px-4">
                   <DirectoryColumnHeader
                     title="Role"
@@ -598,56 +673,60 @@ export function UserDirectoryPanel({
                     }
                   />
                 </TableHead>
-                <TableHead className="h-12 px-4">
-                  <DirectoryColumnHeader
-                    title="Status"
-                    sortDirection={sortDirectionFor("status")}
-                    onSortAsc={() => setColumnSort("status", "asc")}
-                    onSortDesc={() => setColumnSort("status", "desc")}
-                    onClearSort={() => {
-                      setColumnSort("user", "asc")
-                      setStatus("all")
-                    }}
-                    filterLabel="Status"
-                    filterItems={
-                      <>
-                        <DropdownMenuItem
-                          onClick={() => setStatus("all")}
-                          className={cn(status === "all" && "bg-accent")}
-                        >
-                          All statuses
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => setStatus("active")}
-                          className={cn(status === "active" && "bg-accent")}
-                        >
-                          Active
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => setStatus("invited")}
-                          className={cn(status === "invited" && "bg-accent")}
-                        >
-                          Invited
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => setStatus("inactive")}
-                          className={cn(status === "inactive" && "bg-accent")}
-                        >
-                          Inactive
-                        </DropdownMenuItem>
-                      </>
-                    }
-                  />
-                </TableHead>
-                <TableHead className="h-12 px-4">
-                  <DirectoryColumnHeader
-                    title="Last sign-in"
-                    sortDirection={sortDirectionFor("lastSignIn")}
-                    onSortAsc={() => setColumnSort("lastSignIn", "asc")}
-                    onSortDesc={() => setColumnSort("lastSignIn", "desc")}
-                    onClearSort={() => setColumnSort("user", "asc")}
-                  />
-                </TableHead>
+                {directory === "admins" ? (
+                  <>
+                    <TableHead className="h-12 px-4">
+                      <DirectoryColumnHeader
+                        title="Status"
+                        sortDirection={sortDirectionFor("status")}
+                        onSortAsc={() => setColumnSort("status", "asc")}
+                        onSortDesc={() => setColumnSort("status", "desc")}
+                        onClearSort={() => {
+                          setColumnSort("user", "asc")
+                          setStatus("all")
+                        }}
+                        filterLabel="Status"
+                        filterItems={
+                          <>
+                            <DropdownMenuItem
+                              onClick={() => setStatus("all")}
+                              className={cn(status === "all" && "bg-accent")}
+                            >
+                              All statuses
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setStatus("active")}
+                              className={cn(status === "active" && "bg-accent")}
+                            >
+                              Active
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setStatus("invited")}
+                              className={cn(status === "invited" && "bg-accent")}
+                            >
+                              Invited
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setStatus("inactive")}
+                              className={cn(status === "inactive" && "bg-accent")}
+                            >
+                              Inactive
+                            </DropdownMenuItem>
+                          </>
+                        }
+                      />
+                    </TableHead>
+                    <TableHead className="h-12 px-4">
+                      <DirectoryColumnHeader
+                        title="Last sign-in"
+                        sortDirection={sortDirectionFor("lastSignIn")}
+                        onSortAsc={() => setColumnSort("lastSignIn", "asc")}
+                        onSortDesc={() => setColumnSort("lastSignIn", "desc")}
+                        onClearSort={() => setColumnSort("user", "asc")}
+                      />
+                    </TableHead>
+                  </>
+                ) : null}
                 <TableHead className="h-12 px-4 text-right">
                   <DirectoryColumnLabel title="Actions" className="ml-auto" />
                 </TableHead>
@@ -674,20 +753,43 @@ export function UserDirectoryPanel({
                       />
                     </TableCell>
                     <TableCell className="px-4 py-3.5">
-                      <p className="text-sm font-medium">{user.fullName}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {user.email}
-                      </p>
+                      {directory === "staff" ? (
+                        <p className="text-sm font-medium">{user.fullName}</p>
+                      ) : (
+                        <>
+                          <p className="text-sm font-medium">{user.fullName}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {user.email}
+                          </p>
+                        </>
+                      )}
                     </TableCell>
+                    {directory === "staff" ? (
+                      <>
+                        <TableCell className="px-4 py-3.5 text-sm">
+                          {user.email}
+                        </TableCell>
+                        <TableCell className="px-4 py-3.5 text-sm">
+                          {formatCell(user.employeeId)}
+                        </TableCell>
+                        <TableCell className="px-4 py-3.5 text-sm">
+                          {formatCell(user.licenseNumber)}
+                        </TableCell>
+                      </>
+                    ) : null}
                     <TableCell className="px-4 py-3.5 text-sm capitalize">
                       {roleLabel(user.role)}
                     </TableCell>
-                    <TableCell className="px-4 py-3.5">
-                      {statusBadge(user)}
-                    </TableCell>
-                    <TableCell className="px-4 py-3.5 text-sm text-muted-foreground">
-                      {formatLastSignIn(user.lastSignInAt)}
-                    </TableCell>
+                    {directory === "admins" ? (
+                      <>
+                        <TableCell className="px-4 py-3.5">
+                          {statusBadge(user)}
+                        </TableCell>
+                        <TableCell className="px-4 py-3.5 text-sm text-muted-foreground">
+                          {formatLastSignIn(user.lastSignInAt)}
+                        </TableCell>
+                      </>
+                    ) : null}
                     <TableCell className="px-4 py-3.5 text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger
@@ -767,22 +869,7 @@ export function UserDirectoryPanel({
                           <DropdownMenuItem
                             variant={user.isActive ? "destructive" : "default"}
                             disabled={busy}
-                            onClick={() =>
-                              runUserAction(
-                                user.id,
-                                (current) =>
-                                  current.map((row) =>
-                                    row.id === user.id
-                                      ? withActiveFlag(row, !row.isActive)
-                                      : row
-                                  ),
-                                () =>
-                                  setStaffUserActive({
-                                    userId: user.id,
-                                    isActive: !user.isActive,
-                                  })
-                              )
-                            }
+                            onClick={() => requestToggleActive(user)}
                           >
                             {user.isActive ? (
                               <IconUserOff aria-hidden="true" />
@@ -800,7 +887,7 @@ export function UserDirectoryPanel({
               {visibleUsers.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={directory === "staff" ? 7 : 6}
                     className="py-10 text-center text-sm text-muted-foreground"
                   >
                     {loadError
@@ -835,7 +922,14 @@ export function UserDirectoryPanel({
         }}
         onSaved={(updated) => {
           setUsers((current) =>
-            current.map((row) => (row.id === updated.id ? updated : row))
+            current.map((row) =>
+              row.id === updated.id
+                ? {
+                    ...row,
+                    ...updated,
+                  }
+                : row
+            )
           )
           setEditingUser(null)
         }}

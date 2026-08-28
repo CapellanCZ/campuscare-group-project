@@ -3,13 +3,22 @@ import "server-only"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { CAMPUS_CLINIC_ID } from "@/lib/auth/campus-clinic"
+import {
+  createPatientAuthSyncContext,
+  provisionPatientAuthIfNeeded,
+  type PatientAuthSyncContext,
+} from "@/lib/patients/provision-patient-auth"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 import { PATIENT_RECORD_SELECT_COLUMNS } from "@/lib/students/patient-record-select"
 import {
   PatientRecordServiceError,
   allergiesSummaryFromHistory,
+  CAMPUS_ID_LABEL,
+  campusIdsFromIdNumber,
+  isPatientTypeRoleLabel,
   normalizePatientType,
+  resolveImportPatientType,
   patientFullName,
   patientRecordFromJson,
   patientRecordToJson,
@@ -186,7 +195,7 @@ function validateRequired(input: CreatePatientRecordInput) {
     if (!input.studentId?.trim()) {
       throw new PatientRecordServiceError(
         "validation",
-        "Student ID is required."
+        `${CAMPUS_ID_LABEL} is required.`
       )
     }
     if (!input.course?.trim()) {
@@ -195,7 +204,7 @@ function validateRequired(input: CreatePatientRecordInput) {
   } else if (!input.employeeId?.trim()) {
     throw new PatientRecordServiceError(
       "validation",
-      "Employee / faculty ID is required."
+      `${CAMPUS_ID_LABEL} is required.`
     )
   }
 }
@@ -341,7 +350,8 @@ export async function createPatientRecord(
  */
 export async function upsertPatientRecord(
   input: CreatePatientRecordInput,
-  client?: SupabaseClient
+  client?: SupabaseClient,
+  syncContext?: PatientAuthSyncContext
 ): Promise<{ record: PatientRecord; created: boolean }> {
   validateRequired(input)
   const supabase = await getClient(client)
@@ -357,9 +367,7 @@ export async function upsertPatientRecord(
   if (patientType !== "visitor" && !campusId) {
     throw new PatientRecordServiceError(
       "validation",
-      patientType === "student"
-        ? "Student ID is required."
-        : "Employee / faculty ID is required."
+      `${CAMPUS_ID_LABEL} is required.`
     )
   }
 
@@ -419,7 +427,7 @@ export async function upsertPatientRecord(
 
     if (error) mapError(error)
     const clinical = mapPatient(data as PatientRow)
-    await upsertOperationalPatient(clinical)
+    await upsertOperationalPatient(clinical, syncContext)
     return { record: clinical, created: false }
   }
 
@@ -431,11 +439,14 @@ export async function upsertPatientRecord(
 
   if (error) mapError(error)
   const clinical = mapPatient(data as PatientRow)
-  await upsertOperationalPatient(clinical)
+  await upsertOperationalPatient(clinical, syncContext)
   return { record: clinical, created: true }
 }
 
-async function upsertOperationalPatient(clinical: PatientRecord) {
+async function upsertOperationalPatient(
+  clinical: PatientRecord,
+  syncContext?: PatientAuthSyncContext
+) {
   const admin = createAdminClient()
   const fullName = patientFullName(clinical)
   const isStudent = clinical.patientType === "student"
@@ -445,11 +456,11 @@ async function upsertOperationalPatient(clinical: PatientRecord) {
       ? clinical.employeeId
       : null
 
-  let existing: { id: string } | null = null
+  let existing: { id: string; auth_user_id: string | null } | null = null
   if (studentId) {
     const { data, error } = await admin
       .from("patients")
-      .select("id")
+      .select("id, auth_user_id")
       .eq("student_id", studentId)
       .limit(1)
       .maybeSingle()
@@ -458,7 +469,7 @@ async function upsertOperationalPatient(clinical: PatientRecord) {
   } else if (employeeId) {
     const { data, error } = await admin
       .from("patients")
-      .select("id")
+      .select("id, auth_user_id")
       .eq("employee_id", employeeId)
       .limit(1)
       .maybeSingle()
@@ -483,18 +494,45 @@ async function upsertOperationalPatient(clinical: PatientRecord) {
     return
   }
 
+  let patientId = existing?.id ?? null
+
   if (existing?.id) {
     const { error } = await admin.from("patients").update(body).eq("id", existing.id)
     if (error) mapError(error)
+  } else {
+    const { data, error } = await admin
+      .from("patients")
+      .insert({
+        clinic_id: CAMPUS_CLINIC_ID,
+        timezone: "Asia/Manila",
+        ...body,
+      })
+      .select("id")
+      .single()
+    if (error) mapError(error)
+    patientId = data.id
+  }
+
+  const email = (clinical.email ?? "").trim()
+  if (!patientId || !email || existing?.auth_user_id) {
     return
   }
 
-  const { error } = await admin.from("patients").insert({
-    clinic_id: CAMPUS_CLINIC_ID,
-    timezone: "Asia/Manila",
-    ...body,
-  })
-  if (error) mapError(error)
+  try {
+    await provisionPatientAuthIfNeeded({
+      patientId,
+      email,
+      fullName,
+      syncContext,
+      admin: syncContext?.admin,
+      emailToUserId: syncContext?.emailToUserId,
+    })
+  } catch (error) {
+    console.error(
+      "Could not provision patient auth user:",
+      error instanceof Error ? error.message : error
+    )
+  }
 }
 
 export async function updatePatientRecord(
@@ -625,6 +663,7 @@ export type ImportPatientRecordsResult = {
   created: number
   updated: number
   failures: string[]
+  typeCounts: Record<PatientType, number>
 }
 
 function splitFullName(value: string): { firstName: string; lastName: string } {
@@ -661,12 +700,16 @@ export async function importPatientRecordsFromExcel(
   let created = 0
   let updated = 0
   const failures: string[] = []
+  const typeCounts: Record<PatientType, number> = {
+    student: 0,
+    faculty: 0,
+    employee: 0,
+    visitor: 0,
+  }
+  const authSyncContext = await createPatientAuthSyncContext()
 
   for (const [index, row] of rows.entries()) {
-    const patientType =
-      normalizePatientType(
-        row.patient_type || row.affiliation || row.type || row.category
-      ) ?? "student"
+    const patientType = resolveImportPatientType(row)
 
     const fromFullName = splitFullName(row.full_name || row.name || "")
     const firstName = (
@@ -680,13 +723,27 @@ export async function importPatientRecordsFromExcel(
       fromFullName.lastName
     ).trim()
     const middleName = (row.middle_name || row.middlename || "").trim()
+    const idNumber = (
+      row.id_number ||
+      row.id_no ||
+      row.campus_id ||
+      ""
+    ).trim()
     const studentId = (
       row.student_id ||
       row.student_id_number ||
       row.nu_quest_id ||
       ""
     ).trim()
-    const employeeId = (row.employee_id || row.id_number || "").trim()
+    const employeeId = (row.employee_id || "").trim()
+    const resolvedIds = campusIdsFromIdNumber(
+      patientType,
+      idNumber || (patientType === "student" ? studentId || employeeId : employeeId || studentId)
+    )
+    if (!resolvedIds.ok) {
+      failures.push(`Row ${index + 2}: ${resolvedIds.error}`)
+      continue
+    }
 
     try {
       const familyBackground = {
@@ -699,7 +756,13 @@ export async function importPatientRecordsFromExcel(
           ).trim() || null,
         relationship:
           (row.guardian_relationship || row.relationship || "").trim() || null,
-        occupation: (row.guardian_occupation || row.occupation || "").trim() || null,
+        occupation: (() => {
+          const guardian = (row.guardian_occupation || "").trim()
+          if (guardian) return guardian
+          const occupation = (row.occupation || "").trim()
+          if (occupation && isPatientTypeRoleLabel(occupation)) return null
+          return occupation || null
+        })(),
         address: (row.guardian_address || "").trim() || null,
         mobile:
           (
@@ -714,19 +777,17 @@ export async function importPatientRecordsFromExcel(
       const result = await upsertPatientRecord(
         {
           patientType,
-          studentId:
-            patientType === "student"
-              ? studentId || employeeId
-              : studentId || null,
-          employeeId:
-            patientType === "faculty" || patientType === "employee"
-              ? employeeId || studentId
-              : employeeId || null,
+          studentId: resolvedIds.studentId ?? "",
+          employeeId: resolvedIds.employeeId ?? "",
           firstName,
           middleName: middleName || null,
           lastName,
-          course: (row.course || "").trim() || null,
-          yearLevel: (row.year_level || "").trim() || null,
+          course:
+            patientType === "student" ? (row.course || "").trim() || null : null,
+          yearLevel:
+            patientType === "student"
+              ? (row.year_level || "").trim() || null
+              : null,
           gender: (row.gender || row.sex || "").trim() || null,
           birthDate:
             (
@@ -761,10 +822,12 @@ export async function importPatientRecordsFromExcel(
           lastVisit: (row.last_visit || "").trim() || null,
           familyBackground: hasFamily ? familyBackground : null,
         },
-        client
+        client,
+        authSyncContext
       )
       if (result.created) created += 1
       else updated += 1
+      typeCounts[patientType] += 1
     } catch (error) {
       const message =
         error instanceof PatientRecordServiceError
@@ -780,11 +843,11 @@ export async function importPatientRecordsFromExcel(
     throw new PatientRecordServiceError(
       "validation",
       failures[0] ??
-        "No patients imported. Headers: patient_type, student_id, employee_id, first_name, last_name, course, phone, email"
+        "No patients imported. Headers: patient_type, id_number, first_name, last_name, course, phone, email"
     )
   }
 
-  return { created, updated, failures }
+  return { created, updated, failures, typeCounts }
 }
 
 export type { PatientType }

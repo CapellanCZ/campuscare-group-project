@@ -51,10 +51,7 @@ export function HsoFormTreatmentLine({
 
 export function HsoFormRule() {
   return (
-    <div
-      className="my-3 border-b border-black print:my-1"
-      aria-hidden
-    />
+    <div className="my-3 border-b border-black" aria-hidden />
   )
 }
 

@@ -34,6 +34,8 @@ type StaffProfileRow = {
   primary_role: ManagedRole
   is_active: boolean
   invite_pending: boolean
+  employee_id: string | null
+  license_number: string | null
 }
 
 type AdminClient = ReturnType<typeof createAdminClient>
@@ -43,6 +45,11 @@ type ImportStaffUsersOptions = {
 }
 
 function normalizeLicenseNumber(value: string | null | undefined): string | null {
+  const trimmed = value?.trim() ?? ""
+  return trimmed || null
+}
+
+function normalizeEmployeeId(value: string | null | undefined): string | null {
   const trimmed = value?.trim() ?? ""
   return trimmed || null
 }
@@ -97,6 +104,117 @@ function getAdminClientSafe() {
         "Admin user management is not configured yet. Set SUPABASE_SERVICE_ROLE_KEY in your environment.",
     }
   }
+}
+
+function formatAdminError(error: unknown, fallback: string): string {
+  if (!error || typeof error !== "object") {
+    return typeof error === "string" && error.trim() ? error.trim() : fallback
+  }
+
+  const record = error as Record<string, unknown>
+  const parts: string[] = []
+
+  if (typeof record.message === "string" && record.message.trim()) {
+    parts.push(record.message.trim())
+  }
+  if (typeof record.code === "string" && record.code.trim()) {
+    parts.push(`code: ${record.code.trim()}`)
+  }
+  if (typeof record.status === "number") {
+    parts.push(`status: ${record.status}`)
+  }
+
+  if (parts.length > 0) return parts.join(" · ")
+
+  try {
+    const serialized = JSON.stringify(error)
+    return serialized === "{}" ? fallback : serialized
+  } catch {
+    return fallback
+  }
+}
+
+function isMissingAuthUserError(error: unknown): boolean {
+  const message = formatAdminError(error, "").toLowerCase()
+  return (
+    /user not found|not found|does not exist|404/.test(message) ||
+    (typeof error === "object" &&
+      error !== null &&
+      (error as { status?: number }).status === 404)
+  )
+}
+
+/** Clear rows that block auth/public user deletion (RESTRICT FKs, etc.). */
+async function purgeStaffUserDependencies(
+  adminClient: AdminClient,
+  userId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error: announcementsError } = await adminClient
+    .from("announcements")
+    .delete()
+    .eq("author_id", userId)
+
+  if (announcementsError) {
+    return {
+      ok: false,
+      error: `Could not remove announcements for this account. ${announcementsError.message}`,
+    }
+  }
+
+  const { error: recordsError } = await adminClient
+    .from("patient_records")
+    .update({ last_edited_by: null })
+    .eq("last_edited_by", userId)
+
+  if (recordsError) {
+    return {
+      ok: false,
+      error: `Could not clear medical chart references for this account. ${recordsError.message}`,
+    }
+  }
+
+  const { error: appointmentsError } = await adminClient
+    .from("appointments")
+    .update({ doctor_id: null })
+    .eq("doctor_id", userId)
+
+  if (appointmentsError) {
+    return {
+      ok: false,
+      error: `Could not unassign appointments for this account. ${appointmentsError.message}`,
+    }
+  }
+
+  const { error: legacyConsultationsError } = await adminClient
+    .from("appointment_consultations")
+    .update({ doctor_id: null })
+    .eq("doctor_id", userId)
+
+  if (legacyConsultationsError) {
+    const stillLinked = /not-null|null value|23502|violates not-null/i.test(
+      legacyConsultationsError.message
+    )
+    if (!stillLinked) {
+      return {
+        ok: false,
+        error: `Could not unassign legacy consultation records for this account. ${legacyConsultationsError.message}`,
+      }
+    }
+
+    const { error: legacyDeleteError } = await adminClient
+      .from("appointment_consultations")
+      .delete()
+      .eq("doctor_id", userId)
+
+    if (legacyDeleteError) {
+      return {
+        ok: false,
+        error: `Could not remove legacy consultation records linked to this account. ${legacyDeleteError.message}`,
+      }
+    }
+  }
+
+  return { ok: true }
 }
 
 function summarize(users: ManagedStaffUser[]): StaffDirectorySummary {
@@ -277,7 +395,9 @@ export async function listStaffUsers(
 
   const { data: profileRows, error: profileError } = await adminClient
     .from("users")
-    .select("id, full_name, email, primary_role, is_active, invite_pending")
+    .select(
+      "id, full_name, email, primary_role, is_active, invite_pending, employee_id, license_number"
+    )
     .in("primary_role", scopedRoles)
 
   if (profileError) {
@@ -382,6 +502,8 @@ export async function listStaffUsers(
         id: row.id,
         fullName: deriveDisplayName(row),
         email: row.email,
+        employeeId: normalizeEmployeeId(row.employee_id),
+        licenseNumber: normalizeLicenseNumber(row.license_number),
         role: row.primary_role,
         isActive: row.is_active,
         invitePending: accountStatus === "invited",
@@ -397,7 +519,8 @@ export async function listStaffUsers(
       if (status === "inactive" && user.status !== "inactive") return false
       if (!query) return true
 
-      const target = `${user.fullName} ${user.email}`.toLowerCase()
+      const target =
+        `${user.fullName} ${user.email} ${user.employeeId ?? ""} ${user.licenseNumber ?? ""} ${user.role}`.toLowerCase()
       return target.includes(query)
     })
     .sort((a, b) => a.fullName.localeCompare(b.fullName))
@@ -495,6 +618,7 @@ export async function createStaffUser(
       primary_role: input.role,
       is_active: true,
       invite_pending: true,
+      employee_id: normalizeEmployeeId(input.employeeId),
       license_number: isLicensedProfessionalRole(input.role)
         ? normalizeLicenseNumber(input.licenseNumber)
         : null,
@@ -719,7 +843,9 @@ export async function getStaffUserForEdit(
 
   const { data: profile, error } = await adminClient
     .from("users")
-    .select("id, full_name, email, primary_role, is_active, license_number")
+    .select(
+      "id, full_name, email, primary_role, is_active, employee_id, license_number"
+    )
     .eq("id", id)
     .in("primary_role", MANAGED_ROLES)
     .maybeSingle()
@@ -743,6 +869,7 @@ export async function getStaffUserForEdit(
       email: profile.email,
       role: profile.primary_role as ManagedRole,
       isActive: profile.is_active !== false,
+      employeeId: normalizeEmployeeId(profile.employee_id as string | null),
       licenseNumber: (profile.license_number as string | null) ?? null,
       scheduleSlots: (slots ?? []).map((slot) => ({
         id: slot.id,
@@ -821,6 +948,23 @@ export async function updateStaffUser(
     }
   }
 
+  const nextEmployeeId = normalizeEmployeeId(input.employeeId)
+  if (nextEmployeeId) {
+    const { data: employeeTaken } = await adminClient
+      .from("users")
+      .select("id")
+      .eq("employee_id", nextEmployeeId)
+      .neq("id", userId)
+      .maybeSingle()
+
+    if (employeeTaken) {
+      return {
+        ok: false,
+        error: "Another account already uses that employee ID.",
+      }
+    }
+  }
+
   const { error: authError } = await adminClient.auth.admin.updateUserById(
     userId,
     {
@@ -847,6 +991,7 @@ export async function updateStaffUser(
       full_name: fullName,
       email,
       primary_role: input.role,
+      employee_id: nextEmployeeId,
       license_number: isLicensedProfessionalRole(input.role)
         ? normalizeLicenseNumber(input.licenseNumber)
         : null,
@@ -1073,14 +1218,36 @@ export async function deleteStaffUser(
     return { ok: false, error: "User not found in the directory." }
   }
 
-  // Auth delete cascades to users + clinic_members.
+  const purgeResult = await purgeStaffUserDependencies(adminClient, userId)
+  if (!purgeResult.ok) {
+    return { ok: false, error: purgeResult.error }
+  }
+
+  // Auth delete cascades to public.users, clinic_members, and related staff rows.
   const { error: deleteError } =
     await adminClient.auth.admin.deleteUser(userId)
 
-  if (deleteError) {
+  if (deleteError && !isMissingAuthUserError(deleteError)) {
     return {
       ok: false,
-      error: `Could not delete account. ${deleteError.message}`,
+      error: `Could not delete account. ${formatAdminError(
+        deleteError,
+        "The auth service rejected the delete request. Check linked records or Supabase logs."
+      )}`,
+    }
+  }
+
+  if (deleteError) {
+    const { error: profileDeleteError } = await adminClient
+      .from("users")
+      .delete()
+      .eq("id", userId)
+
+    if (profileDeleteError) {
+      return {
+        ok: false,
+        error: `Auth account was already missing, but the directory row could not be removed. ${profileDeleteError.message}`,
+      }
     }
   }
 
@@ -1111,12 +1278,48 @@ export async function importStaffUsersFromExcel(
     return { ok: false, error: "No rows found in the spreadsheet." }
   }
 
+  const adminClientResult = getAdminClientSafe()
+  if (!adminClientResult.ok) {
+    return { ok: false, error: adminClientResult.error }
+  }
+  const adminClient = adminClientResult.client
+
+  const { data: existingRows, error: existingError } = await adminClient
+    .from("users")
+    .select("email, employee_id")
+    .in("primary_role", allowedRoles)
+
+  if (existingError) {
+    return {
+      ok: false,
+      error: `Could not check existing accounts. ${existingError.message}`,
+    }
+  }
+
+  const existingEmails = new Set(
+    (existingRows ?? []).map((row) => String(row.email).trim().toLowerCase())
+  )
+  const existingEmployeeIds = new Set(
+    (existingRows ?? [])
+      .map((row) => normalizeEmployeeId(row.employee_id as string | null))
+      .filter((value): value is string => Boolean(value))
+  )
+
   let created = 0
+  let skipped = 0
   const failures: string[] = []
+  const seenEmails = new Set<string>()
+  const seenEmployeeIds = new Set<string>()
 
   for (const [index, row] of rows.entries()) {
     const fullName = (row.full_name || row.name || "").trim()
     const email = (row.email || "").trim().toLowerCase()
+    const employeeId = normalizeEmployeeId(
+      row.employee_id || row.employeeid || row.staff_id
+    )
+    const licenseNumber = normalizeLicenseNumber(
+      row.license_no || row.license_number || row.license
+    )
     const defaultRole = allowedRoles[0] ?? "nurse"
     const roleRaw = (row.role || defaultRole).trim().toLowerCase()
     const role = allowedRoles.includes(roleRaw as ManagedRole)
@@ -1125,39 +1328,72 @@ export async function importStaffUsersFromExcel(
 
     if (!fullName || !email || !role) {
       failures.push(
-        `Row ${index + 2}: need full_name, email, and valid role (${roleHint})`
+        `Row ${index + 2}: need Full Name, Email, and valid Role (${roleHint})`
       )
       continue
     }
+
+    const duplicateEmail =
+      existingEmails.has(email) || seenEmails.has(email)
+    const duplicateEmployeeId = Boolean(
+      employeeId &&
+        (existingEmployeeIds.has(employeeId) || seenEmployeeIds.has(employeeId))
+    )
+
+    if (duplicateEmail || duplicateEmployeeId) {
+      skipped += 1
+      continue
+    }
+
+    seenEmails.add(email)
+    if (employeeId) seenEmployeeIds.add(employeeId)
 
     const outcome = await createStaffUser({
       fullName,
       email,
       role,
+      employeeId,
+      licenseNumber,
       allowedRoles,
     })
     if (!outcome.ok) {
+      if (/already|registered|exists/i.test(outcome.error)) {
+        skipped += 1
+        existingEmails.add(email)
+        continue
+      }
       failures.push(`Row ${index + 2}: ${outcome.error}`)
       continue
     }
     created += 1
+    existingEmails.add(email)
+    if (employeeId) existingEmployeeIds.add(employeeId)
   }
 
   if (created === 0) {
+    if (skipped > 0 && failures.length === 0) {
+      return {
+        ok: true,
+        message: `No new accounts imported. ${skipped} duplicate${skipped === 1 ? "" : "s"} skipped.`,
+      }
+    }
+
     return {
       ok: false,
       error:
         failures[0] ??
-        `No accounts imported. Headers: full_name, email, role (${roleHint})`,
+        `No accounts imported. Check column headers: Full Name, Email, Employee ID, License No., Role (${roleHint})`,
     }
   }
 
   return {
     ok: true,
-    message: `Imported ${created} account${created === 1 ? "" : "s"}.`,
+    message: `Imported ${created} new account${created === 1 ? "" : "s"}.`,
     warning:
       failures.length > 0
         ? `${failures.length} row(s) failed. ${failures.slice(0, 3).join(" · ")}`
-        : undefined,
+        : skipped > 0
+          ? `${skipped} duplicate${skipped === 1 ? "" : "s"} skipped.`
+          : undefined,
   }
 }

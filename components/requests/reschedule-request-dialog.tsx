@@ -1,7 +1,9 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
-import { toast } from "sonner"
+import { useConfirm } from "@/components/feedback/confirm-provider"
+import { appToast } from "@/lib/feedback/app-toast"
+import { requestToasts } from "@/lib/feedback/toast-messages"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -29,6 +31,7 @@ export function RescheduleRequestDialog({
   request: AppointmentRequest | null
   onUpdated: (request: AppointmentRequest) => void
 }) {
+  const { confirmPreset } = useConfirm()
   const [pending, startTransition] = useTransition()
   const [rescheduleDate, setRescheduleDate] = useState("")
   const [rescheduleTime, setRescheduleTime] = useState("")
@@ -46,28 +49,38 @@ export function RescheduleRequestDialog({
   function handleSave() {
     const trimmed = rescheduleReason.trim()
     if (!trimmed) {
-      toast.error("A reschedule reason is required.")
+      appToast.error({
+        title: "Reschedule reason required",
+        description: "A reschedule reason is required.",
+      })
       return
     }
     if (!rescheduleDate || !rescheduleTime) {
-      toast.error("New date and time are required.")
+      appToast.error({
+        title: "Date and time required",
+        description: "New date and time are required.",
+      })
       return
     }
 
-    startTransition(async () => {
-      const result = await rescheduleConsultationRequestAction({
-        id: request!.id,
-        preferredDate: rescheduleDate,
-        preferredTime: rescheduleTime,
-        reason: trimmed,
-      })
-      if (!result.ok) {
-        toast.error(result.error)
-        return
-      }
-      toast.success("Request rescheduled.")
-      onUpdated(result.data)
-      onOpenChange(false)
+    void confirmPreset("reschedule", {
+      onConfirm: () => {
+        startTransition(async () => {
+          const result = await rescheduleConsultationRequestAction({
+            id: request!.id,
+            preferredDate: rescheduleDate,
+            preferredTime: rescheduleTime,
+            reason: trimmed,
+          })
+          if (!result.ok) {
+            requestToasts.failed(result.error)
+            return
+          }
+          requestToasts.rescheduled()
+          onUpdated(result.data)
+          onOpenChange(false)
+        })
+      },
     })
   }
 

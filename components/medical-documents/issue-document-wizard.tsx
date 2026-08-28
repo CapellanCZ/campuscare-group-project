@@ -1,7 +1,8 @@
 "use client"
 
 import { useMemo, useState, useTransition } from "react"
-import { toast } from "sonner"
+import { useConfirm } from "@/components/feedback/confirm-provider"
+import { documentToasts } from "@/lib/feedback/toast-messages"
 
 import { GoHomeSlipForm } from "@/components/medical-documents/forms/go-home-slip-form"
 import { MedicalCertificationForm } from "@/components/medical-documents/forms/medical-certification-form"
@@ -40,18 +41,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 
-type WizardStep = "form" | "preview" | "confirm"
+type WizardStep = "form" | "preview"
 
 function templateVersion(type: MedicalDocumentType): string {
   switch (type) {
@@ -112,6 +103,7 @@ export function IssueDocumentWizard({
     [workspace]
   )
 
+  const { confirmPreset } = useConfirm()
   const [step, setStep] = useState<WizardStep>("form")
   const [certPayload, setCertPayload] = useState<MedicalCertificationPayload>(() =>
     defaultMedicalCertificationPayload(ctx)
@@ -125,7 +117,6 @@ export function IssueDocumentWizard({
   const [nfgPayload, setNfgPayload] = useState<NfgClearancePayload>(() =>
     defaultNfgClearancePayload(workspace, ctx)
   )
-  const [confirmOpen, setConfirmOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
 
   const payload = useMemo(() => {
@@ -195,14 +186,13 @@ export function IssueDocumentWizard({
 
   function resetAndClose() {
     setStep("form")
-    setConfirmOpen(false)
     onOpenChange(false)
   }
 
   function handleIssue() {
     const validationError = validatePayload(documentType, payload)
     if (validationError) {
-      toast.error(validationError)
+      documentToasts.failed(validationError)
       return
     }
 
@@ -218,13 +208,37 @@ export function IssueDocumentWizard({
       })
 
       if (!result.ok) {
-        toast.error(result.error)
+        documentToasts.failed(result.error)
         return
       }
 
-      toast.success(`${DOCUMENT_TYPE_LABELS[documentType]} issued.`)
+      if (documentType === "medical_certification") {
+        documentToasts.certificateGenerated()
+      } else {
+        documentToasts.finalized()
+      }
       onIssued(result.data)
       resetAndClose()
+    })
+  }
+
+  function requestIssue() {
+    const validationError = validatePayload(documentType, payload)
+    if (validationError) {
+      documentToasts.failed(validationError)
+      return
+    }
+
+    const preset =
+      documentType === "medical_certification"
+        ? "generateCertificate"
+        : "finalizeDocument"
+
+    void confirmPreset(preset, {
+      title: "Issue this document?",
+      description: `This will permanently issue an official ${title} for ${ctx.patientName}. The document will be linked to this consultation and cannot be deleted — only voided if needed.`,
+      confirmLabel: "Issue document",
+      onConfirm: handleIssue,
     })
   }
 
@@ -283,7 +297,7 @@ export function IssueDocumentWizard({
                   onClick={() => {
                     const err = validatePayload(documentType, payload)
                     if (err) {
-                      toast.error(err)
+                      documentToasts.failed(err)
                       return
                     }
                     setStep("preview")
@@ -297,7 +311,7 @@ export function IssueDocumentWizard({
                 <Button variant="outline" onClick={() => setStep("form")}>
                   Back
                 </Button>
-                <Button onClick={() => setConfirmOpen(true)} disabled={isPending}>
+                <Button onClick={requestIssue} disabled={isPending}>
                   Confirm & Issue
                 </Button>
               </>
@@ -305,25 +319,6 @@ export function IssueDocumentWizard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Issue this document?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently issue an official {title} for{" "}
-              {ctx.patientName}. The document will be linked to this consultation
-              and cannot be deleted — only voided if needed.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction disabled={isPending} onClick={handleIssue}>
-              {isPending ? "Issuing…" : "Issue document"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   )
 }

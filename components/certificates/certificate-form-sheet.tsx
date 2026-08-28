@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, useTransition } from "react"
-import { toast } from "sonner"
+import { documentToasts } from "@/lib/feedback/toast-messages"
 import { IconCheck, IconChevronDown } from "@tabler/icons-react"
 
 import {
@@ -315,7 +315,7 @@ function CertificateFormBody({
       setLoadingPatients(false)
       if (!result.ok) {
         setError(result.error)
-        toast.error(result.error)
+        documentToasts.failed(result.error)
         return
       }
       setPatients(result.data)
@@ -349,7 +349,7 @@ function CertificateFormBody({
     const validationError = validateForm(formForValidation, mode)
     if (validationError) {
       setError(validationError)
-      toast.error(validationError)
+      documentToasts.failed(validationError)
       return
     }
 
@@ -374,11 +374,11 @@ function CertificateFormBody({
 
         if (!result.ok) {
           setError(result.error)
-          toast.error(result.error)
+          documentToasts.failed(result.error)
           return
         }
 
-        toast.success("Medical certificate created.")
+        documentToasts.certificateGenerated()
         onOpenChange(false)
         onSaved(result.data)
         return
@@ -386,7 +386,7 @@ function CertificateFormBody({
 
       if (!certificate) {
         setError("Certificate not found.")
-        toast.error("Certificate not found.")
+        documentToasts.failed("Certificate not found.")
         return
       }
 
@@ -403,11 +403,11 @@ function CertificateFormBody({
 
       if (!result.ok) {
         setError(result.error)
-        toast.error(result.error)
+        documentToasts.failed(result.error)
         return
       }
 
-      toast.success("Medical certificate updated.")
+      documentToasts.saved()
       onOpenChange(false)
       onSaved(result.data)
     })

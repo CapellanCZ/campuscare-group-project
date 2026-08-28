@@ -1,7 +1,9 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { toast } from "sonner"
+import { useConfirm } from "@/components/feedback/confirm-provider"
+import { appToast } from "@/lib/feedback/app-toast"
+import { documentToasts } from "@/lib/feedback/toast-messages"
 
 import { voidMedicalDocumentAction } from "@/features/medical-documents/actions"
 import type { MedicalDocument } from "@/types/medicalDocument"
@@ -28,24 +30,41 @@ export function DocumentVoidDialog({
   onOpenChange: (open: boolean) => void
   onVoided: (document: MedicalDocument) => void
 }) {
+  const { confirmPreset } = useConfirm()
   const [reason, setReason] = useState("")
   const [isPending, startTransition] = useTransition()
 
   function handleVoid() {
     if (!document) return
-    startTransition(async () => {
-      const result = await voidMedicalDocumentAction({
-        id: document.id,
-        reason,
+    const trimmed = reason.trim()
+    if (!trimmed) {
+      appToast.error({
+        title: "Reason required",
+        description: "Provide a reason before voiding this document.",
       })
-      if (!result.ok) {
-        toast.error(result.error)
-        return
-      }
-      toast.success("Document voided.")
-      setReason("")
-      onVoided(result.data)
-      onOpenChange(false)
+      return
+    }
+
+    void confirmPreset("delete", {
+      title: "Void document?",
+      description: `${document.documentNumber} will be marked void and cannot be reprinted as valid. This preserves the record for audit.`,
+      confirmLabel: "Void document",
+      onConfirm: () => {
+        startTransition(async () => {
+          const result = await voidMedicalDocumentAction({
+            id: document.id,
+            reason: trimmed,
+          })
+          if (!result.ok) {
+            documentToasts.failed(result.error)
+            return
+          }
+          documentToasts.voided()
+          setReason("")
+          onVoided(result.data)
+          onOpenChange(false)
+        })
+      },
     })
   }
 
