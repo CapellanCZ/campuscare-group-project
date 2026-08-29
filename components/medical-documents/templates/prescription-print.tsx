@@ -1,4 +1,8 @@
 import { HsoHeader } from "@/components/medical-documents/templates/shared/hso-header"
+import {
+  HsoFullPageDocument,
+  HsoFullPageTitle,
+} from "@/components/medical-documents/templates/shared/hso-full-page"
 import type { MedicalDocument, PrescriptionPayload } from "@/types/medicalDocument"
 import { cn } from "@/lib/utils"
 
@@ -15,32 +19,28 @@ export function PrescriptionPrint({
     (document.payload.physicianLicenseNumber as string | undefined) ?? ""
 
   return (
-    <article
-      className={cn(
-        "mx-auto max-w-[780px] bg-white p-8 font-serif text-[11px] leading-relaxed text-black print:break-after-page",
-        className
-      )}
+    <HsoFullPageDocument
+      className={cn("print:break-after-page", className)}
     >
       <HsoHeader formCode="NUD-ADM-HSO Prescription Form" />
+      <HsoFullPageTitle>Prescription</HsoFullPageTitle>
 
-      <h1 className="mt-4 text-center text-base font-bold uppercase">Prescription</h1>
-
-      <dl className="mt-6 grid grid-cols-[100px_1fr] gap-x-3 gap-y-2">
-        <dt>Name</dt>
-        <dd className="border-b border-neutral-400 font-semibold">
+      <dl className="mt-6 grid grid-cols-[88px_1fr] gap-x-4 gap-y-3 text-[11px]">
+        <dt className="font-semibold text-neutral-700">Name</dt>
+        <dd className="border-b border-neutral-400 pb-0.5 font-semibold">
           {document.patient.fullName}
         </dd>
-        <dt>Address</dt>
-        <dd className="border-b border-neutral-400">
+        <dt className="font-semibold text-neutral-700">Address</dt>
+        <dd className="border-b border-neutral-400 pb-0.5">
           {payload.patientAddress ?? "—"}
         </dd>
-        <dt>Age / Sex</dt>
-        <dd className="border-b border-neutral-400">
+        <dt className="font-semibold text-neutral-700">Age / Sex</dt>
+        <dd className="border-b border-neutral-400 pb-0.5">
           {[payload.patientAge, payload.patientSex].filter(Boolean).join(" / ") ||
             "—"}
         </dd>
-        <dt>Date</dt>
-        <dd className="border-b border-neutral-400">
+        <dt className="font-semibold text-neutral-700">Date</dt>
+        <dd className="border-b border-neutral-400 pb-0.5">
           {document.issuedAt
             ? new Intl.DateTimeFormat("en-PH", {
                 timeZone: "Asia/Manila",
@@ -53,12 +53,14 @@ export function PrescriptionPrint({
       </dl>
 
       <div className="mt-8">
-        <p className="text-2xl font-serif italic">℞</p>
-        <ol className="mt-4 list-decimal space-y-4 pl-6">
+        <p className="font-serif text-3xl italic leading-none text-neutral-800">
+          ℞
+        </p>
+        <ol className="mt-4 list-decimal space-y-4 pl-5">
           {meds.map((med, index) => (
             <li key={index} className="print:break-inside-avoid">
               <p className="font-semibold">{med.name}</p>
-              <p className="text-[10px]">
+              <p className="mt-0.5 text-[10px] text-neutral-700">
                 {[
                   med.strength,
                   med.quantity ? `Qty: ${med.quantity}` : null,
@@ -70,33 +72,39 @@ export function PrescriptionPrint({
                   .join(" · ")}
               </p>
               {med.instructions ? (
-                <p className="mt-1 italic">{med.instructions}</p>
+                <p className="mt-1 text-[10px] italic text-neutral-600">
+                  {med.instructions}
+                </p>
               ) : null}
             </li>
           ))}
         </ol>
       </div>
 
-      <footer className="mt-16 border-t border-neutral-300 pt-4 text-[10px]">
-        <div className="grid grid-cols-3 gap-4">
+      <footer className="mt-14 border-t border-neutral-200 pt-5 text-[10px]">
+        <div className="grid grid-cols-3 gap-6">
           <div>
-            <p>Licensed No.</p>
-            <p className="mt-1 border-b border-black">{license || " "}</p>
+            <p className="font-semibold text-neutral-700">Licensed No.</p>
+            <p className="mt-1 min-h-[1.25rem] border-b border-black">
+              {license || "\u00a0"}
+            </p>
           </div>
           <div>
-            <p>PTR No.</p>
-            <p className="mt-1 border-b border-black">&nbsp;</p>
+            <p className="font-semibold text-neutral-700">PTR No.</p>
+            <p className="mt-1 min-h-[1.25rem] border-b border-black">&nbsp;</p>
           </div>
           <div>
-            <p>S2 No.</p>
-            <p className="mt-1 border-b border-black">&nbsp;</p>
+            <p className="font-semibold text-neutral-700">S2 No.</p>
+            <p className="mt-1 min-h-[1.25rem] border-b border-black">&nbsp;</p>
           </div>
         </div>
         <p className="mt-6 font-semibold">
           {document.doctorName ?? "Physician"}
         </p>
-        <p className="text-neutral-600">Document No. {document.documentNumber}</p>
+        <p className="mt-1 text-neutral-500">
+          Document No. {document.documentNumber}
+        </p>
       </footer>
-    </article>
+    </HsoFullPageDocument>
   )
 }

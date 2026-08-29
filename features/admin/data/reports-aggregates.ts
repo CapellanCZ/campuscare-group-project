@@ -355,7 +355,7 @@ export async function loadAdminReportsAggregates(
         },
         {
           key: "certs_issued",
-          label: "Certificates issued",
+          label: "Documents issued",
           value: String(certs.length),
         },
         {
@@ -501,7 +501,7 @@ export async function loadAdminReportsAggregates(
         },
         {
           kind: "medical_certificate",
-          title: "Certificates issued",
+          title: "HSO documents issued",
           columns: [
             { key: "date", label: "Date", sortable: true },
             { key: "count", label: "Issued", sortable: true },

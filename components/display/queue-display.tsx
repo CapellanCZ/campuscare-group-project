@@ -1,10 +1,15 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 
 import { DisplayHeader } from "@/components/display/display-header"
 import { StationCard } from "@/components/display/station-card"
+import {
+  persistSpeakerPreference,
+  readSpeakerPreference,
+  useQueueAnnouncements,
+} from "@/components/display/use-queue-announcements"
 import { RecentlyServedCard } from "@/components/shared/recently-served-card"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/client"
@@ -30,7 +35,10 @@ export function QueueDisplay({
   const [totalWaiting, setTotalWaiting] = useState(initialTotalWaiting)
   const [clinicBreak, setClinicBreak] = useState(initialClinicBreak)
   const [speakerOn, setSpeakerOn] = useState(true)
-  const [lastAnnounced, setLastAnnounced] = useState<string | null>(null)
+
+  useEffect(() => {
+    setSpeakerOn(readSpeakerPreference())
+  }, [])
 
   useEffect(() => {
     setBoards(initialBoards)
@@ -44,30 +52,11 @@ export function QueueDisplay({
     initialClinicBreak,
   ])
 
-  const servingKey = useMemo(
-    () =>
-      boards
-        .map((b) => `${b.station}:${b.nowServing ?? "-"}:${b.status}`)
-        .join("|"),
-    [boards]
-  )
-
-  useEffect(() => {
-    if (!speakerOn || typeof window === "undefined") return
-    if (clinicBreak.isOnBreak) return
-    const next = boards.find(
-      (b) => b.status !== "on_break" && b.nowServing
-    )?.nowServing
-    if (!next || next === lastAnnounced) return
-    setLastAnnounced(next)
-    const station = boards.find((b) => b.nowServing === next)?.label ?? "clinic"
-    const utterance = new SpeechSynthesisUtterance(
-      `Now serving ticket ${next} at the ${station} station`
-    )
-    utterance.rate = 0.95
-    window.speechSynthesis.cancel()
-    window.speechSynthesis.speak(utterance)
-  }, [boards, speakerOn, lastAnnounced, servingKey, clinicBreak.isOnBreak])
+  useQueueAnnouncements({
+    boards,
+    speakerOn,
+    clinicOnBreak: clinicBreak.isOnBreak,
+  })
 
   useEffect(() => {
     const client = createClient()
@@ -83,12 +72,20 @@ export function QueueDisplay({
     }
   }, [router])
 
+  function handleToggleSpeaker() {
+    setSpeakerOn((current) => {
+      const next = !current
+      persistSpeakerPreference(next)
+      return next
+    })
+  }
+
   return (
     <div className="flex min-h-dvh flex-col bg-background text-foreground">
       <DisplayHeader
         totalWaiting={totalWaiting}
         speakerOn={speakerOn}
-        onToggleSpeaker={() => setSpeakerOn((v) => !v)}
+        onToggleSpeaker={handleToggleSpeaker}
         clinicOnBreak={clinicBreak.isOnBreak}
         clinicResumesAt={clinicBreak.resumesAt}
       />

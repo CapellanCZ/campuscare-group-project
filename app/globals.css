@@ -386,6 +386,41 @@
     break-inside: avoid !important;
   }
 
+  #medical-document-print[data-print-layout="full-page"],
+  #medical-document-print.medical-document-print--full-page {
+    display: block !important;
+    position: static !important;
+    width: auto !important;
+    height: auto !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    overflow: visible !important;
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  #medical-document-print[data-print-layout="full-page"] article,
+  #medical-document-print.medical-document-print--full-page article {
+    width: auto !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
+  html.printing-medical-document-full #medical-document-print,
+  html.printing-medical-document-full #medical-document-print article {
+    width: auto !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
   #medical-document-print .hso-form-preview-frame,
   #medical-document-print .hso-form-preview-frame > div {
     box-shadow: none !important;

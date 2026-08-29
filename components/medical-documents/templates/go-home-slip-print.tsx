@@ -1,4 +1,8 @@
 import { HsoHeader } from "@/components/medical-documents/templates/shared/hso-header"
+import {
+  HsoFullPageDocument,
+  HsoFullPageTitle,
+} from "@/components/medical-documents/templates/shared/hso-full-page"
 import type { GoHomeSlipPayload, MedicalDocument } from "@/types/medicalDocument"
 import { cn } from "@/lib/utils"
 
@@ -34,36 +38,33 @@ export function GoHomeSlipPrint({
   const lines = meds.length > 0 ? meds : Array.from({ length: 6 }, () => null)
 
   return (
-    <article
-      className={cn(
-        "mx-auto max-w-[780px] bg-white p-8 font-serif text-[11px] leading-relaxed text-black",
-        className
-      )}
-    >
+    <HsoFullPageDocument className={cn(className)}>
       <HsoHeader formCode="NUD-ADM-HSO-F006 ver 2025" />
+      <HsoFullPageTitle>Go Home Slip</HsoFullPageTitle>
 
-      <h1 className="mt-6 text-center text-lg font-bold tracking-wide uppercase">
-        Go Home Slip
-      </h1>
+      <p className="mt-6 font-semibold">To Whom It May Concern:</p>
 
-      <p className="mt-8 font-semibold">To Whom It May Concern:</p>
-
-      <p className="mt-4 indent-8">
+      <p className="mt-4 indent-8 leading-7">
         This is to certify that{" "}
-        <strong className="underline">{document.patient.fullName}</strong>, a
-        student/patient of National University, is authorized to leave the
+        <strong className="underline decoration-neutral-400 underline-offset-2">
+          {document.patient.fullName}
+        </strong>
+        , a student/patient of National University, is authorized to leave the
         university premises and go home on{" "}
         <strong>{formatDate(payload.releaseDate ?? document.issuedAt)}</strong>{" "}
-        due to <strong>{payload.reason || "_________________________"}</strong>.
+        due to{" "}
+        <strong>{payload.reason || "_________________________"}</strong>.
       </p>
 
       <div className="mt-8">
-        <p className="font-semibold">Prescribed medication(s):</p>
-        <div className="mt-3 space-y-3">
+        <p className="text-[10px] font-bold tracking-wide uppercase">
+          Prescribed medication(s)
+        </p>
+        <div className="mt-3 space-y-2.5">
           {lines.slice(0, 6).map((med, index) => (
             <div
               key={index}
-              className="min-h-[1.25rem] border-b border-neutral-400 pb-1"
+              className="min-h-[1.35rem] border-b border-neutral-400 pb-1 text-[11px]"
             >
               {med ? medicationLine(med, index) : "\u00a0"}
             </div>
@@ -71,19 +72,19 @@ export function GoHomeSlipPrint({
         </div>
       </div>
 
-      <footer className="mt-16">
+      <footer className="mt-14 border-t border-neutral-200 pt-6">
         <div className="w-64">
           <div className="h-10 border-b border-black" />
-          <p className="mt-1 font-semibold">
+          <p className="mt-1.5 font-semibold">
             {document.doctorName ?? "School Physician"}
           </p>
-          <p className="text-[10px]">Health Services Office</p>
+          <p className="text-[10px] text-neutral-600">Health Services Office</p>
         </div>
-        <p className="mt-6 text-[10px] text-neutral-600">
+        <p className="mt-5 text-[10px] text-neutral-500">
           Document No. {document.documentNumber}
           {document.status === "voided" ? " · VOIDED" : ""}
         </p>
       </footer>
-    </article>
+    </HsoFullPageDocument>
   )
 }

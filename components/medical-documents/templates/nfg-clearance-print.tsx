@@ -1,5 +1,11 @@
 import { HsoHeader } from "@/components/medical-documents/templates/shared/hso-header"
+import {
+  HsoFormCheckboxMark,
+  HsoFullPageDocument,
+  HsoFullPageSection,
+} from "@/components/medical-documents/templates/shared/hso-full-page"
 import { NFG_CLEARANCE_STATUS_OPTIONS } from "@/features/medical-documents/lib/document-labels"
+import { nfgMedicalHistoryLabel } from "@/features/medical-documents/lib/nfg-history-labels"
 import type { MedicalDocument, NfgClearancePayload } from "@/types/medicalDocument"
 import { cn } from "@/lib/utils"
 
@@ -17,24 +23,16 @@ export function NfgClearancePrint({
     (document.payload.physicianLicenseNumber as string | undefined) ?? ""
 
   return (
-    <article
-      className={cn(
-        "mx-auto max-w-[780px] bg-white p-6 font-serif text-[10px] leading-snug text-black",
-        className
-      )}
-    >
-      <div className="rounded-sm bg-[#1e3a8a] px-4 py-2 text-center text-white">
-        <HsoHeader showNfgLogo formCode="NFG Medical Clearance Form" />
-        <h1 className="mt-2 text-sm font-bold uppercase tracking-wide">
+    <HsoFullPageDocument className={cn("py-5", className)}>
+      <div className="rounded-sm bg-[#1e3a8a] px-4 py-3 text-white">
+        <HsoHeader showNfgLogo formCode="NFG Medical Clearance Form" inverted />
+        <h1 className="mt-2 text-center text-sm font-bold tracking-wide uppercase">
           Medical Clearance — Nationalian Friendship Games
         </h1>
       </div>
 
-      <section className="mt-4 rounded border border-neutral-300 p-3">
-        <h2 className="mb-2 rounded bg-neutral-100 px-2 py-1 text-[10px] font-bold uppercase">
-          Student Information
-        </h2>
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
+      <HsoFullPageSection title="Student Information">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[11px]">
           <div>
             <dt className="text-neutral-600">Name</dt>
             <dd className="font-semibold">{document.patient.fullName}</dd>
@@ -64,74 +62,88 @@ export function NfgClearancePrint({
             <dd>{payload.emergencyContact ?? "—"}</dd>
           </div>
         </dl>
-      </section>
+      </HsoFullPageSection>
 
-      <section className="mt-3 rounded border border-neutral-300 p-3">
-        <h2 className="mb-2 rounded bg-neutral-100 px-2 py-1 text-[10px] font-bold uppercase">
-          Physical Examination
-        </h2>
-        <dl className="grid grid-cols-3 gap-2">
-          <div>Height: {physical.height ?? "—"}</div>
-          <div>Weight: {physical.weight ?? "—"}</div>
-          <div>BP: {physical.bloodPressure ?? "—"}</div>
-          <div>HR: {physical.heartRate ?? "—"}</div>
-          <div>RR: {physical.respiratoryRate ?? "—"}</div>
+      <HsoFullPageSection title="Physical Examination">
+        <dl className="grid grid-cols-3 gap-2 text-[11px]">
+          <div>
+            <span className="text-neutral-600">Height:</span>{" "}
+            {physical.height ?? "—"}
+          </div>
+          <div>
+            <span className="text-neutral-600">Weight:</span>{" "}
+            {physical.weight ?? "—"}
+          </div>
+          <div>
+            <span className="text-neutral-600">BP:</span>{" "}
+            {physical.bloodPressure ?? "—"}
+          </div>
+          <div>
+            <span className="text-neutral-600">HR:</span>{" "}
+            {physical.heartRate ?? "—"}
+          </div>
+          <div>
+            <span className="text-neutral-600">RR:</span>{" "}
+            {physical.respiratoryRate ?? "—"}
+          </div>
           <div className="col-span-3">
-            Other: {physical.otherFindings ?? "—"}
+            <span className="text-neutral-600">Other findings:</span>{" "}
+            {physical.otherFindings ?? "—"}
           </div>
         </dl>
-      </section>
+      </HsoFullPageSection>
 
-      <section className="mt-3 rounded border border-neutral-300 p-3">
-        <h2 className="mb-2 rounded bg-neutral-100 px-2 py-1 text-[10px] font-bold uppercase">
-          Medical History
-        </h2>
-        <div className="flex flex-wrap gap-3">
+      <HsoFullPageSection title="Medical History">
+        <div className="grid gap-2 sm:grid-cols-2">
           {Object.entries(history).map(([key, value]) => (
-            <span key={key} className="flex items-center gap-1">
-              <span className="inline-block size-2.5 border border-black">
-                {value ? <span className="block size-full bg-black" /> : null}
-              </span>
-              {key.replace(/([A-Z])/g, " $1")}
+            <span key={key} className="flex items-center gap-2 text-[11px]">
+              <HsoFormCheckboxMark checked={Boolean(value)} />
+              {nfgMedicalHistoryLabel(key)}
             </span>
           ))}
         </div>
         {payload.historyDetails ? (
-          <p className="mt-2">Details: {payload.historyDetails}</p>
+          <p className="mt-3 border-t border-neutral-200 pt-2 text-[11px]">
+            <span className="font-semibold">Additional details:</span>{" "}
+            {payload.historyDetails}
+          </p>
         ) : null}
-      </section>
+      </HsoFullPageSection>
 
-      <section className="mt-3 rounded border border-neutral-300 p-3">
-        <h2 className="mb-2 rounded bg-neutral-100 px-2 py-1 text-[10px] font-bold uppercase">
-          Clearance
-        </h2>
-        <ul className="space-y-1">
+      <HsoFullPageSection title="Clearance">
+        <ul className="space-y-2 text-[11px]">
           {NFG_CLEARANCE_STATUS_OPTIONS.map((option) => (
-            <li key={option.value} className="flex gap-2">
-              <span className="inline-block size-2.5 border border-black">
-                {payload.clearanceStatus === option.value ? (
-                  <span className="block size-full bg-black" />
-                ) : null}
-              </span>
-              {option.label}
+            <li key={option.value} className="flex items-start gap-2">
+              <HsoFormCheckboxMark
+                checked={payload.clearanceStatus === option.value}
+              />
+              <span>{option.label}</span>
             </li>
           ))}
         </ul>
         {payload.restrictions ? (
-          <p className="mt-2">Restrictions: {payload.restrictions}</p>
+          <p className="mt-3 border-t border-neutral-200 pt-2 text-[11px]">
+            <span className="font-semibold">Restrictions:</span>{" "}
+            {payload.restrictions}
+          </p>
         ) : null}
         {payload.recommendations ? (
-          <p className="mt-1">Recommendations: {payload.recommendations}</p>
+          <p className="mt-2 text-[11px]">
+            <span className="font-semibold">Recommendations:</span>{" "}
+            {payload.recommendations}
+          </p>
         ) : null}
-      </section>
+      </HsoFullPageSection>
 
-      <footer className="mt-6 border-t pt-4">
+      <footer className="mt-6 border-t border-neutral-200 pt-4 text-[11px]">
         <p className="font-semibold">{document.doctorName ?? "Physician"}</p>
-        <p>Licensed No. {license || "_______________"}</p>
-        <p className="mt-2 text-neutral-600">
+        <p className="mt-1 text-neutral-600">
+          Licensed No. {license || "_______________"}
+        </p>
+        <p className="mt-2 text-[10px] text-neutral-500">
           Document No. {document.documentNumber}
         </p>
       </footer>
-    </article>
+    </HsoFullPageDocument>
   )
 }

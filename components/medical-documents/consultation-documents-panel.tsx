@@ -8,7 +8,7 @@ import { IssueDocumentTypeDialog } from "@/components/medical-documents/issue-do
 import { IssueDocumentWizard } from "@/components/medical-documents/issue-document-wizard"
 import { DocumentPreviewDialog } from "@/components/medical-documents/document-preview-dialog"
 import { MedicalDocumentPrintView } from "@/components/medical-documents/document-print-view"
-import { documentTypeLabel } from "@/components/medical-documents/document-print-view"
+import { documentTypeLabel, isHalfBondDocument } from "@/components/medical-documents/document-print-view"
 import {
   fetchMedicalDocumentsByConsultationAction,
   logMedicalDocumentViewAction,
@@ -71,7 +71,9 @@ export function ConsultationDocumentsPanel({
     setPrintDoc(document)
     startTransition(async () => {
       await logMedicalDocumentViewAction(document.id)
-      triggerMedicalDocumentPrint()
+      triggerMedicalDocumentPrint(
+        isHalfBondDocument(document) ? "half-bond" : "full-page"
+      )
     })
   }
 
@@ -106,14 +108,19 @@ export function ConsultationDocumentsPanel({
             documents.map((doc) => (
               <div
                 key={doc.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/30"
               >
-                <div>
+                <div className="min-w-0 flex-1 space-y-1">
                   <p className="font-medium">{documentTypeLabel(doc)}</p>
                   <p className="text-xs text-muted-foreground">
                     {doc.documentNumber} ·{" "}
                     {formatCertificateDateTime(doc.issuedAt)}
                   </p>
+                  {doc.purpose ? (
+                    <p className="truncate text-xs text-muted-foreground">
+                      {doc.purpose}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant={documentStatusVariant(doc.status)}>

@@ -53,6 +53,42 @@ type AdminReportTab =
   | "requests"
   | "certificates"
 
+const ADMIN_REPORT_TAB_META: Record<
+  AdminReportTab,
+  { label: string; description: string }
+> = {
+  operations: {
+    label: "Clinic Operations",
+    description:
+      "Daily clinic throughput — consultations, patients served, documents issued, and average wait time.",
+  },
+  consultations: {
+    label: "Consultations",
+    description:
+      "Medical and dental consultation volume and utilization for the selected period.",
+  },
+  patients: {
+    label: "Patients Served",
+    description:
+      "Patient counts by type (students and faculty/employees). Aggregated totals only.",
+  },
+  queue: {
+    label: "Queue Performance",
+    description:
+      "Waiting times, service times, and hourly queue volume for capacity planning.",
+  },
+  requests: {
+    label: "Consultation Requests",
+    description:
+      "Online consultation request outcomes — pending, approved, rescheduled, and declined.",
+  },
+  certificates: {
+    label: "Documents Issued",
+    description:
+      "HSO medical documents issued (certificates, prescriptions, go-home slips, and clearances).",
+  },
+}
+
 const TAB_CHARTS: Record<AdminReportTab, string[]> = {
   operations: [
     "consult_volume_trend",
@@ -235,7 +271,7 @@ export function AdminReportsView({
       operationalProgress: `Consultations: ${findKpi("total_consultations")}; patients served: ${findKpi("patients_served")}; average wait: ${findKpi("avg_wait")}.`,
       healthConcerns:
         "Clinical complaint and diagnosis analytics are withheld from Admin exports.",
-      serviceCapacity: `Certificates issued: ${findKpi("certs_issued")}. Peak queue period: ${findKpi("peak_queue")}.`,
+      serviceCapacity: `Documents issued: ${findKpi("certs_issued")}. Peak queue period: ${findKpi("peak_queue")}.`,
       closing:
         "Use this summary for staffing and capacity planning. Clinical record review remains with Nurses, Physicians, and Dentists.",
     }
@@ -261,6 +297,10 @@ export function AdminReportsView({
 
     return (
       <div className="flex flex-col gap-4">
+        <p className="text-sm text-muted-foreground">
+          {ADMIN_REPORT_TAB_META[tabId].description}
+        </p>
+
         {cardsLevel !== "none" && tabKpis.length > 0 ? (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {tabKpis.map((kpi) => (
@@ -378,8 +418,8 @@ export function AdminReportsView({
     <div className={adminPageShellClassName("gap-6")}>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <PageIntro
-          title="Reports"
-          description="Operational performance analytics. Aggregated counts only — no clinical patient details."
+          title="HSO Operations Reports"
+          description="Operational analytics for clinic administration. Aggregated counts only — no clinical patient details."
         />
         <div className="flex flex-wrap gap-2">
           {pdfLevel !== "none" ? (
@@ -508,23 +548,15 @@ export function AdminReportsView({
         className="gap-4"
       >
         <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
-          <TabsTrigger value="operations">Operations</TabsTrigger>
-          <TabsTrigger value="consultations">Consultations</TabsTrigger>
-          <TabsTrigger value="patients">Patients</TabsTrigger>
-          <TabsTrigger value="queue">Queue</TabsTrigger>
-          <TabsTrigger value="requests">Requests</TabsTrigger>
-          <TabsTrigger value="certificates">Certificates</TabsTrigger>
+          {(Object.keys(ADMIN_REPORT_TAB_META) as AdminReportTab[]).map(
+            (id) => (
+              <TabsTrigger key={id} value={id}>
+                {ADMIN_REPORT_TAB_META[id].label}
+              </TabsTrigger>
+            )
+          )}
         </TabsList>
-        {(
-          [
-            "operations",
-            "consultations",
-            "patients",
-            "queue",
-            "requests",
-            "certificates",
-          ] as AdminReportTab[]
-        ).map((id) => (
+        {(Object.keys(ADMIN_REPORT_TAB_META) as AdminReportTab[]).map((id) => (
           <TabsContent key={id} value={id} className="mt-0">
             {panelFor(id)}
           </TabsContent>

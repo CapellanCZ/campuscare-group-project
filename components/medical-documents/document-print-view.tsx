@@ -5,6 +5,7 @@ import { MedicalCertificationPrint } from "@/components/medical-documents/templa
 import { NfgClearancePrint } from "@/components/medical-documents/templates/nfg-clearance-print"
 import { PrescriptionPrint } from "@/components/medical-documents/templates/prescription-print"
 import { HsoFormPreviewFrame } from "@/components/medical-documents/templates/shared/hso-half-bond-page"
+import { HsoFullPagePreviewFrame } from "@/components/medical-documents/templates/shared/hso-full-page"
 import type { MedicalCertificate } from "@/types/medicalCertificate"
 import type { MedicalDocument } from "@/types/medicalDocument"
 import { DOCUMENT_TYPE_LABELS } from "@/types/medicalDocument"
@@ -46,6 +47,10 @@ export function certificateToDocument(
   }
 }
 
+export function isHalfBondDocument(document: MedicalDocument): boolean {
+  return document.documentType === "medical_certification"
+}
+
 export function MedicalDocumentPrintBody({
   document,
   className,
@@ -71,10 +76,13 @@ export function MedicalDocumentPrintView({
 }: {
   document: MedicalDocument
 }) {
+  const halfBond = isHalfBondDocument(document)
+
   return (
     <div
       id="medical-document-print"
-      className="hidden print:block"
+      data-print-layout={halfBond ? "half-bond" : "full-page"}
+      className={cn("hidden print:block", !halfBond && "medical-document-print--full-page")}
       aria-hidden
     >
       <MedicalDocumentPrintBody document={document} className="shadow-none" />
@@ -93,20 +101,11 @@ export function MedicalDocumentPreviewBody({
     <MedicalDocumentPrintBody document={document} className={className} />
   )
 
-  if (document.documentType === "medical_certification") {
+  if (isHalfBondDocument(document)) {
     return <HsoFormPreviewFrame>{content}</HsoFormPreviewFrame>
   }
 
-  return (
-    <div
-      className={cn(
-        "mx-auto max-w-[780px] rounded-sm bg-white shadow-md ring-1 ring-black/10",
-        className
-      )}
-    >
-      {content}
-    </div>
-  )
+  return <HsoFullPagePreviewFrame>{content}</HsoFullPagePreviewFrame>
 }
 
 export function documentTypeLabel(document: MedicalDocument): string {

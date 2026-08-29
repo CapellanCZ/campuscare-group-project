@@ -1,10 +1,7 @@
 const STYLE_ID = "medical-document-print-page"
 const ROOT_CLASS = "printing-medical-document"
+const ROOT_CLASS_FULL = "printing-medical-document-full"
 
-/**
- * Half-bond HSO forms use the top 8.5in × 5.5in of portrait letter paper
- * (or pre-cut half-bond stock with the same printable area).
- */
 export const MEDICAL_DOCUMENT_PRINT_PAGE_CSS = `@media print {
   @page {
     size: letter portrait;
@@ -23,21 +20,48 @@ export const MEDICAL_DOCUMENT_PRINT_PAGE_CSS = `@media print {
   }
 }`
 
-/** Opens the browser print dialog for portrait half-bond HSO documents. */
-export function triggerMedicalDocumentPrint(delayMs = 150) {
+export const MEDICAL_DOCUMENT_FULL_PAGE_PRINT_CSS = `@media print {
+  @page {
+    size: letter portrait;
+    margin: 0.5in;
+  }
+
+  html.${ROOT_CLASS_FULL},
+  html.${ROOT_CLASS_FULL} body {
+    width: auto !important;
+    height: auto !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: white !important;
+  }
+}`
+
+/** Opens the browser print dialog for HSO medical documents. */
+export function triggerMedicalDocumentPrint(
+  layout: "half-bond" | "full-page" = "half-bond",
+  delayMs = 150
+) {
   window.setTimeout(() => {
-    document.documentElement.classList.add(ROOT_CLASS)
+    const isFullPage = layout === "full-page"
+    const rootClass = isFullPage ? ROOT_CLASS_FULL : ROOT_CLASS
+
+    document.documentElement.classList.add(rootClass)
 
     let style = document.getElementById(STYLE_ID) as HTMLStyleElement | null
     if (!style) {
       style = document.createElement("style")
       style.id = STYLE_ID
-      style.textContent = MEDICAL_DOCUMENT_PRINT_PAGE_CSS
       document.head.appendChild(style)
     }
 
+    style.textContent = isFullPage
+      ? MEDICAL_DOCUMENT_FULL_PAGE_PRINT_CSS
+      : MEDICAL_DOCUMENT_PRINT_PAGE_CSS
+
     const cleanup = () => {
-      document.documentElement.classList.remove(ROOT_CLASS)
+      document.documentElement.classList.remove(ROOT_CLASS, ROOT_CLASS_FULL)
       document.getElementById(STYLE_ID)?.remove()
       window.removeEventListener("afterprint", cleanup)
     }
