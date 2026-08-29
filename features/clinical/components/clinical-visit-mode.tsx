@@ -1,9 +1,11 @@
 "use client"
 
+import Link from "next/link"
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { IconCheck, IconLoader2 } from "@tabler/icons-react"
 
+import { ConsultationDocumentsPanel } from "@/components/medical-documents/consultation-documents-panel"
 import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert"
 import {
   Stepper,
@@ -18,8 +20,7 @@ import {
   StepperTrigger,
 } from "@/components/reui/stepper"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { saveClinicalVisit } from "@/features/clinical/actions/consultation-visit"
@@ -30,12 +31,13 @@ import {
   visitDentalValueFromWorkspace,
   type VisitDentalFormValue,
 } from "@/features/clinical/components/visit-dental-form"
-import { ConsultationDocumentsPanel } from "@/components/medical-documents/consultation-documents-panel"
+import { HsoFormShell } from "@/features/common/components/hso-form-shell"
 import { PageHeader } from "@/features/common/components/page-header"
 import { VisitMedicalChart } from "@/features/physician/components/visit-medical-chart"
+import { formatClinicDateTime } from "@/lib/physician/timezone"
+import { cn } from "@/lib/utils"
 import { consultationStatusLabel } from "@/types/consultation"
 import type { MedicalHistory, PhysicalExam } from "@/types/patientRecord"
-import { formatClinicDateTime } from "@/lib/physician/timezone"
 
 const steps = [
   { title: "Symptoms", description: "Chief complaint" },
@@ -121,49 +123,99 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
     })
   }
 
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Consultation"
-        subtitle={workspace.patientName}
-        description={`${formatClinicDateTime(workspace.consultationDate, "Asia/Manila")} · ${workspace.chiefComplaint ?? "No chief complaint"}`}
-      />
+  if (isDentist) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Consultation"
+          subtitle={workspace.patientName}
+          description={`${formatClinicDateTime(workspace.consultationDate, "Asia/Manila")} · ${workspace.chiefComplaint ?? "No chief complaint"}`}
+        />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="outline">
-          {consultationStatusLabel(workspace.status)}
-        </Badge>
-        {workspace.campusId ? (
-          <span className="text-xs text-muted-foreground">
-            Campus ID: {workspace.campusId}
-          </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline">
+            {consultationStatusLabel(workspace.status)}
+          </Badge>
+          {workspace.campusId ? (
+            <span className="text-xs text-muted-foreground">
+              Campus ID: {workspace.campusId}
+            </span>
+          ) : null}
+        </div>
+
+        {workspace.priorRecordsCount === 0 ? (
+          <Alert variant="info">
+            <AlertTitle>No previous records</AlertTitle>
+            <AlertDescription>
+              This patient has no prior consultation notes on file. Document the
+              encounter carefully.
+            </AlertDescription>
+          </Alert>
         ) : null}
-      </div>
 
-      {workspace.priorRecordsCount === 0 ? (
-        <Alert variant="info">
-          <AlertTitle>No previous records</AlertTitle>
-          <AlertDescription>
-            This patient has no prior consultation notes on file. Document the
-            encounter carefully.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      {isDentist ? (
         <VisitDentalForm
           value={dentalForm}
           onChange={setDentalForm}
           readOnly={readOnly}
         />
-      ) : (
-        <VisitMedicalChart
-          record={workspace.medicalRecord}
-          nurseVitals={workspace.nurseVitals}
-          readOnly={readOnly}
-          onChartChange={setMedicalChart}
+
+        {error ? (
+          <Alert variant="destructive">
+            <AlertTitle>Could not save</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        {message ? (
+          <Alert variant="success" role="status">
+            <AlertTitle>Saved</AlertTitle>
+            <AlertDescription>{message}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        {!readOnly ? (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              disabled={isPending}
+              onClick={() => persist(false)}
+            >
+              Save draft
+            </Button>
+            <Button disabled={isPending} onClick={() => persist(true)}>
+              Complete consultation
+            </Button>
+          </div>
+        ) : null}
+
+        <ConsultationDocumentsPanel
+          workspace={workspace}
+          canIssue={workspace.canIssueDocuments && !readOnly}
         />
-      )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 pb-10">
+      <PageHeader
+        title={readOnly ? "Medical Record (Completed)" : "Medical Record"}
+        description={
+          workspace.campusId
+            ? `${workspace.patientName} · ${workspace.campusId}`
+            : workspace.patientName
+        }
+      />
+
+      {readOnly ? (
+        <Alert>
+          <AlertTitle>Consultation completed</AlertTitle>
+          <AlertDescription>
+            This record is read-only. Medical history, exam findings, and
+            treatment notes were saved with the patient record.
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       {error ? (
         <Alert variant="destructive">
@@ -179,148 +231,200 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
         </Alert>
       ) : null}
 
-      {isDentist ? (
-        !readOnly ? (
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              disabled={isPending}
-              onClick={() => persist(false)}
+      <HsoFormShell
+        title="Medical Record"
+        formCode="NUD-ADM-HSO-F011"
+        footer={
+          <div className="flex flex-wrap justify-end gap-2">
+            <Link
+              href="/physician/queue"
+              className={cn(buttonVariants({ variant: "outline" }))}
             >
-              Save draft
-            </Button>
-            <Button disabled={isPending} onClick={() => persist(true)}>
-              Complete consultation
-            </Button>
-          </div>
-        ) : null
-      ) : (
-        <>
-        <Card className="rounded-2xl border-border/70 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Encounter workflow</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <Stepper
-              value={step}
-              onValueChange={setStep}
-              indicators={{
-                completed: <IconCheck className="size-3.5" />,
-                loading: <IconLoader2 className="size-3.5 animate-spin" />,
-              }}
-              className="w-full space-y-8"
-            >
-              <StepperNav>
-                {steps.map((item, index) => (
-                  <StepperItem
-                    key={item.title}
-                    step={index + 1}
-                    className="relative"
-                  >
-                    <StepperTrigger className="flex justify-start gap-1.5">
-                      <StepperIndicator>{index + 1}</StepperIndicator>
-                      <div className="flex flex-col items-start gap-0.5">
-                        <StepperTitle>{item.title}</StepperTitle>
-                        <StepperDescription>
-                          {item.description}
-                        </StepperDescription>
-                      </div>
-                    </StepperTrigger>
-                    {steps.length > index + 1 ? (
-                      <StepperSeparator className="md:mx-2.5" />
-                    ) : null}
-                  </StepperItem>
-                ))}
-              </StepperNav>
-
-              <StepperPanel className="space-y-4 text-sm">
-                <StepperContent value={1} className="space-y-2">
-                  <Label htmlFor="symptoms">Symptoms / chief complaint</Label>
-                  <Textarea
-                    id="symptoms"
-                    value={symptoms}
-                    onChange={(e) => setSymptoms(e.target.value)}
-                    rows={6}
-                    disabled={readOnly}
-                    placeholder="Onset, duration, severity, associated symptoms..."
-                  />
-                </StepperContent>
-                <StepperContent value={2} className="space-y-2">
-                  <Label htmlFor="diagnosis">Diagnosis</Label>
-                  <Textarea
-                    id="diagnosis"
-                    value={diagnosis}
-                    onChange={(e) => setDiagnosis(e.target.value)}
-                    rows={6}
-                    disabled={readOnly}
-                    placeholder="Working diagnosis and differentials..."
-                  />
-                </StepperContent>
-                <StepperContent value={3} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="notes">Clinical notes</Label>
-                    <Textarea
-                      id="notes"
-                      value={clinicalNotes}
-                      onChange={(e) => setClinicalNotes(e.target.value)}
-                      rows={5}
-                      disabled={readOnly}
-                      placeholder="Exam findings, advice given, follow-up plan..."
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="rx">Prescription</Label>
-                    <Textarea
-                      id="rx"
-                      value={prescription}
-                      onChange={(e) => setPrescription(e.target.value)}
-                      rows={5}
-                      disabled={readOnly}
-                      placeholder="Medication, dose, frequency, duration..."
-                    />
-                  </div>
-                </StepperContent>
-              </StepperPanel>
-            </Stepper>
-
-            {!readOnly ? (
-              <div className="flex flex-wrap gap-2">
+              Back to queue
+            </Link>
+            {readOnly ? (
+              <Link
+                href="/physician/consultations"
+                className={cn(buttonVariants({ variant: "outline" }))}
+              >
+                Consultations
+              </Link>
+            ) : (
+              <>
                 <Button
-                  variant="outline"
-                  disabled={step === 1 || isPending}
-                  onClick={() => setStep((s) => Math.max(1, s - 1))}
-                >
-                  Back
-                </Button>
-                {step < 3 ? (
-                  <Button
-                    disabled={isPending}
-                    onClick={() => setStep((s) => s + 1)}
-                  >
-                    Continue
-                  </Button>
-                ) : null}
-                <Button
+                  type="button"
                   variant="outline"
                   disabled={isPending}
                   onClick={() => persist(false)}
                 >
+                  {isPending ? (
+                    <IconLoader2 className="size-4 animate-spin" />
+                  ) : null}
                   Save draft
                 </Button>
-                <Button disabled={isPending} onClick={() => persist(true)}>
+                <Button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => persist(true)}
+                >
+                  {isPending ? (
+                    <IconLoader2 className="size-4 animate-spin" />
+                  ) : (
+                    <IconCheck className="size-4" />
+                  )}
                   Complete consultation
                 </Button>
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
-        </>
-      )}
+              </>
+            )}
+          </div>
+        }
+      >
+        <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-neutral-300 pb-3">
+          <Badge variant="outline">
+            {consultationStatusLabel(workspace.status)}
+          </Badge>
+          <span className="text-xs text-neutral-600">
+            {formatClinicDateTime(workspace.consultationDate, "Asia/Manila")}
+          </span>
+          {workspace.chiefComplaint ? (
+            <span className="text-xs text-neutral-600">
+              · {workspace.chiefComplaint}
+            </span>
+          ) : null}
+        </div>
 
-      <ConsultationDocumentsPanel
-        workspace={workspace}
-        canIssue={workspace.canIssueDocuments && !readOnly}
-      />
+        {workspace.priorRecordsCount === 0 ? (
+          <Alert variant="info" className="mb-4">
+            <AlertTitle>No previous records</AlertTitle>
+            <AlertDescription>
+              This patient has no prior consultation notes on file. Document the
+              encounter carefully.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
+        <VisitMedicalChart
+          record={workspace.medicalRecord}
+          nurseVitals={workspace.nurseVitals}
+          readOnly={readOnly}
+          onChartChange={setMedicalChart}
+          paperLayout
+        />
+
+        <section className="mt-6 space-y-6 border-t border-neutral-300 pt-6">
+          <h3 className="text-sm font-semibold tracking-wide text-neutral-900 uppercase">
+            Encounter workflow
+          </h3>
+
+          <Stepper
+            value={step}
+            onValueChange={setStep}
+            indicators={{
+              completed: <IconCheck className="size-3.5" />,
+              loading: <IconLoader2 className="size-3.5 animate-spin" />,
+            }}
+            className="w-full space-y-8"
+          >
+            <StepperNav>
+              {steps.map((item, index) => (
+                <StepperItem
+                  key={item.title}
+                  step={index + 1}
+                  className="relative"
+                >
+                  <StepperTrigger className="flex justify-start gap-1.5">
+                    <StepperIndicator>{index + 1}</StepperIndicator>
+                    <div className="flex flex-col items-start gap-0.5">
+                      <StepperTitle>{item.title}</StepperTitle>
+                      <StepperDescription>{item.description}</StepperDescription>
+                    </div>
+                  </StepperTrigger>
+                  {steps.length > index + 1 ? (
+                    <StepperSeparator className="md:mx-2.5" />
+                  ) : null}
+                </StepperItem>
+              ))}
+            </StepperNav>
+
+            <StepperPanel className="space-y-4 text-sm">
+              <StepperContent value={1} className="space-y-2">
+                <Label htmlFor="symptoms">Symptoms / chief complaint</Label>
+                <Textarea
+                  id="symptoms"
+                  value={symptoms}
+                  onChange={(e) => setSymptoms(e.target.value)}
+                  rows={6}
+                  disabled={readOnly}
+                  className="rounded-none border-neutral-400 font-sans"
+                  placeholder="Onset, duration, severity, associated symptoms..."
+                />
+              </StepperContent>
+              <StepperContent value={2} className="space-y-2">
+                <Label htmlFor="diagnosis">Diagnosis</Label>
+                <Textarea
+                  id="diagnosis"
+                  value={diagnosis}
+                  onChange={(e) => setDiagnosis(e.target.value)}
+                  rows={6}
+                  disabled={readOnly}
+                  className="rounded-none border-neutral-400 font-sans"
+                  placeholder="Working diagnosis and differentials..."
+                />
+              </StepperContent>
+              <StepperContent value={3} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Clinical notes</Label>
+                  <Textarea
+                    id="notes"
+                    value={clinicalNotes}
+                    onChange={(e) => setClinicalNotes(e.target.value)}
+                    rows={5}
+                    disabled={readOnly}
+                    className="rounded-none border-neutral-400 font-sans"
+                    placeholder="Exam findings, advice given, follow-up plan..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rx">Prescription</Label>
+                  <Textarea
+                    id="rx"
+                    value={prescription}
+                    onChange={(e) => setPrescription(e.target.value)}
+                    rows={5}
+                    disabled={readOnly}
+                    className="rounded-none border-neutral-400 font-sans"
+                    placeholder="Medication, dose, frequency, duration..."
+                  />
+                </div>
+              </StepperContent>
+            </StepperPanel>
+          </Stepper>
+
+          {!readOnly ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                disabled={step === 1 || isPending}
+                onClick={() => setStep((s) => Math.max(1, s - 1))}
+              >
+                Back
+              </Button>
+              {step < 3 ? (
+                <Button disabled={isPending} onClick={() => setStep((s) => s + 1)}>
+                  Continue
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+        </section>
+
+        <section className="mt-6 border-t border-neutral-300 pt-6">
+          <ConsultationDocumentsPanel
+            workspace={workspace}
+            canIssue={workspace.canIssueDocuments && !readOnly}
+          />
+        </section>
+      </HsoFormShell>
     </div>
   )
 }

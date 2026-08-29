@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { updatePatientMedicalRecordAction } from "@/features/patients/actions"
 import type { NurseVisitVitals } from "@/features/physician/types-visit"
 import { mergeNurseVitalsIntoExam } from "@/features/physician/lib/merge-nurse-vitals"
+import { cn } from "@/lib/utils"
 import {
   EMPTY_MEDICAL_HISTORY,
   EMPTY_PHYSICAL_EXAM,
@@ -80,6 +81,7 @@ export function VisitMedicalChart({
   nurseVitals,
   readOnly = false,
   onChartChange,
+  paperLayout = false,
 }: {
   record: PatientRecord | null
   nurseVitals: NurseVisitVitals
@@ -88,6 +90,7 @@ export function VisitMedicalChart({
     medicalHistory: MedicalHistory
     physicalExam: PhysicalExam
   }) => void
+  paperLayout?: boolean
 }) {
   const [history, setHistory] = useState<MedicalHistory>({
     ...EMPTY_MEDICAL_HISTORY,
@@ -164,17 +167,40 @@ export function VisitMedicalChart({
   }
 
   return (
-    <Card className="rounded-2xl border-border/70 shadow-sm">
-      <CardHeader className="border-b">
-        <CardTitle className="text-base">
+    <Card
+      className={cn(
+        paperLayout
+          ? "rounded-none border-0 border-b border-neutral-300 bg-transparent shadow-none"
+          : "rounded-2xl border-border/70 shadow-sm"
+      )}
+    >
+      <CardHeader className={cn(paperLayout ? "px-0 pt-0" : "border-b")}>
+        <CardTitle
+          className={cn(
+            paperLayout
+              ? "text-sm font-semibold tracking-wide text-neutral-900 uppercase"
+              : "text-base"
+          )}
+        >
           MEDICAL RECORD · {patientFullName(record)}
         </CardTitle>
-        <p className="text-sm text-muted-foreground">
+        <p
+          className={cn(
+            paperLayout
+              ? "text-xs text-neutral-600"
+              : "text-sm text-muted-foreground"
+          )}
+        >
           Demographics from enrollment. Vital signs from nurse intake. History
           and exam findings are part of this consultation.
         </p>
       </CardHeader>
-      <CardContent className="space-y-10 pt-(--card-spacing)">
+      <CardContent
+        className={cn(
+          "space-y-10",
+          paperLayout ? "px-0 pt-4 pb-0" : "pt-(--card-spacing)"
+        )}
+      >
         <section className="space-y-5">
           <h3 className="text-sm font-semibold tracking-wide uppercase">
             General Personal Information
