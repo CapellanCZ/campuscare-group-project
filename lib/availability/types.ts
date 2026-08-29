@@ -42,6 +42,28 @@ export type BreakStatus = {
   updatedAt: string | null
 }
 
+export type DutyStatusValue = "not_available" | "available" | "on_break"
+
+export type StaffDutyStatus = {
+  status: DutyStatusValue
+  dutyStartedAt: string | null
+  dutyEndedAt: string | null
+  updatedAt: string | null
+}
+
+export type StationRoleDutyKey = "nurse" | "physician" | "dentist"
+
+export function dutyStatusLabel(status: DutyStatusValue): string {
+  switch (status) {
+    case "available":
+      return "Available"
+    case "on_break":
+      return "On Break"
+    default:
+      return "Not Available"
+  }
+}
+
 export type AccommodateResult =
   | { ok: true }
   | { ok: false; error: string }

@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { toast } from "sonner"
 
 import { DocumentPreviewDialog } from "@/components/medical-documents/document-preview-dialog"
 import {
@@ -10,6 +9,8 @@ import {
 } from "@/components/medical-documents/document-print-view"
 import { fetchPatientDocumentsAction } from "@/features/patients/actions"
 import { documentStatusLabel } from "@/features/medical-documents/lib/document-status"
+import type { ClinicalRecordScope } from "@/lib/clinical/record-scope"
+import { appToast } from "@/lib/feedback/app-toast"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -40,10 +41,12 @@ export function PatientDocumentsSheet({
   patient,
   open,
   onOpenChange,
+  documentScope = "all",
 }: {
   patient: PatientRecord | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  documentScope?: ClinicalRecordScope
 }) {
   const [rows, setRows] = useState<MedicalCertificate[]>([])
   const [loading, setLoading] = useState(false)
@@ -54,14 +57,20 @@ export function PatientDocumentsSheet({
     if (!open || !patient) return
     let cancelled = false
     setLoading(true)
-    void fetchPatientDocumentsAction({
-      studentId: patient.studentId,
-      employeeId: patient.employeeId,
-    }).then((result) => {
+    void fetchPatientDocumentsAction(
+      {
+        studentId: patient.studentId,
+        employeeId: patient.employeeId,
+      },
+      documentScope
+    ).then((result) => {
       if (cancelled) return
       setLoading(false)
       if (!result.ok) {
-        toast.error(result.error)
+        appToast.error({
+          title: "Unable to Load Documents",
+          description: result.error,
+        })
         setRows([])
         return
       }
@@ -70,7 +79,7 @@ export function PatientDocumentsSheet({
     return () => {
       cancelled = true
     }
-  }, [open, patient])
+  }, [documentScope, open, patient])
 
   return (
     <>

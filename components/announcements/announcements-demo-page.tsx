@@ -8,7 +8,8 @@ import {
   useState,
   useTransition,
 } from "react"
-import { toast } from "sonner"
+import { announcementToasts } from "@/lib/feedback/toast-messages"
+import { useConfirm } from "@/components/feedback/confirm-provider"
 import { IconSpeakerphone } from "@tabler/icons-react"
 
 import { AnnouncementArticleDialog } from "@/components/announcements/announcement-article-dialog"
@@ -147,6 +148,7 @@ export function AnnouncementsPage({
   initialStats: AnnouncementStats
   initialError?: string | null
 }) {
+  const { confirmPreset } = useConfirm()
   const [query, setQuery] = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
@@ -175,7 +177,7 @@ export function AnnouncementsPage({
   const canDelete = can(d, "announcements.delete")
 
   useEffect(() => {
-    if (initialError) toast.error(initialError)
+    if (initialError) announcementToasts.failed(initialError)
   }, [initialError])
 
   useEffect(() => {
@@ -228,15 +230,15 @@ export function AnnouncementsPage({
         ])
 
         if (!feedResult.ok) {
-          toast.error(feedResult.error)
+          announcementToasts.failed(feedResult.error)
           return
         }
         if (!listResult.ok) {
-          toast.error(listResult.error)
+          announcementToasts.failed(listResult.error)
           return
         }
         if (!statsResult.ok) {
-          toast.error(statsResult.error)
+          announcementToasts.failed(statsResult.error)
           return
         }
 
@@ -244,7 +246,7 @@ export function AnnouncementsPage({
         if (canManage) setList(listResult.data)
         setStats(statsResult.data)
       } catch {
-        toast.error(
+        announcementToasts.failed(
           "Unable to reach the database. Check your connection and try again."
         )
       } finally {
@@ -293,7 +295,7 @@ export function AnnouncementsPage({
     startTransition(async () => {
       const result = await fetchAnnouncementByIdAction(announcement.id)
       if (!result.ok) {
-        toast.error(result.error)
+        announcementToasts.failed(result.error)
         return
       }
       setSelected(result.data)
@@ -315,7 +317,7 @@ export function AnnouncementsPage({
     startTransition(async () => {
       const result = await fetchAnnouncementByIdAction(announcement.id)
       if (!result.ok) {
-        toast.error(result.error)
+        announcementToasts.failed(result.error)
         return
       }
       setEditing(result.data)
@@ -330,15 +332,19 @@ export function AnnouncementsPage({
   }
 
   function handlePublish(announcement: Announcement) {
-    startTransition(async () => {
-      const result = await publishAnnouncementAction(announcement.id)
-      if (!result.ok) {
-        toast.error(result.error)
-        return
-      }
-      toast.success("Announcement published.")
-      setSelected(result.data)
-      await refresh()
+    void confirmPreset("publish", {
+      onConfirm: () => {
+        startTransition(async () => {
+          const result = await publishAnnouncementAction(announcement.id)
+          if (!result.ok) {
+            announcementToasts.failed(result.error)
+            return
+          }
+          announcementToasts.published()
+          setSelected(result.data)
+          await refresh()
+        })
+      },
     })
   }
 

@@ -10,7 +10,6 @@ import {
   IconUserHeart,
 } from "@tabler/icons-react"
 
-import { DashboardQuickNav } from "@/components/dashboard/dashboard-quick-nav"
 import { StatCard } from "@/components/shared/stat-card"
 import { VitalsStrip } from "@/components/queue/vitals-strip"
 import { WaitStatusBadge } from "@/components/queue/wait-status-badge"
@@ -141,7 +140,6 @@ export function DentistDashboardView({
             </Button>
           }
         />
-        <DashboardQuickNav designation={access.designation} />
       </div>
 
       <div className="flex flex-col gap-3">

@@ -5,6 +5,11 @@ import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { IconCheck, IconLoader2 } from "@tabler/icons-react"
 
+import {
+  buildDentalFormConsultationPreview,
+  buildPhysicianConsultationPreview,
+} from "@/components/consultations/build-consultation-preview"
+import { ConsultationSummaryDialog } from "@/components/consultations/consultation-summary-dialog"
 import { ConsultationDocumentsPanel } from "@/components/medical-documents/consultation-documents-panel"
 import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert"
 import {
@@ -34,9 +39,11 @@ import {
 import { HsoFormShell } from "@/features/common/components/hso-form-shell"
 import { PageHeader } from "@/features/common/components/page-header"
 import { VisitMedicalChart } from "@/features/physician/components/visit-medical-chart"
+import type { QueueVitals } from "@/lib/health/types"
 import { formatClinicDateTime } from "@/lib/physician/timezone"
 import { cn } from "@/lib/utils"
 import { consultationStatusLabel } from "@/types/consultation"
+import type { Consultation } from "@/types/consultation"
 import type { MedicalHistory, PhysicalExam } from "@/types/patientRecord"
 
 const steps = [
@@ -52,6 +59,7 @@ type ClinicalVisitModeProps = {
 export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
   const router = useRouter()
   const isDentist = workspace.role === "dentist"
+  const queuePath = isDentist ? "/dentist/queue" : "/physician/queue"
   const [step, setStep] = useState(1)
   const [symptoms, setSymptoms] = useState(workspace.symptoms ?? "")
   const [diagnosis, setDiagnosis] = useState(workspace.diagnosis ?? "")
@@ -74,54 +82,106 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
   } | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [summaryOpen, setSummaryOpen] = useState(false)
+  const [summaryPreview, setSummaryPreview] = useState<{
+    visit: Consultation
+    ticketVitals: QueueVitals | null
+  } | null>(null)
+  const [completing, setCompleting] = useState(false)
   const [isPending, startTransition] = useTransition()
   const readOnly = workspace.status === "completed"
 
-  function persist(complete = false) {
+  function persist(complete = false): Promise<void> {
     setError(null)
     setMessage(null)
-    startTransition(async () => {
-      const payload = isDentist
-        ? serializeVisitDentalValue(dentalForm)
-        : {
-            symptoms,
-            diagnosis,
-            clinicalNotes,
-            prescription,
-            treatment: undefined as string | undefined,
-            followUpDate: null as string | null,
-          }
+    return new Promise((resolve, reject) => {
+      startTransition(async () => {
+        const payload = isDentist
+          ? serializeVisitDentalValue(dentalForm)
+          : {
+              symptoms,
+              diagnosis,
+              clinicalNotes,
+              prescription,
+              treatment: undefined as string | undefined,
+              followUpDate: null as string | null,
+            }
 
-      const result = await saveClinicalVisit({
-        consultationId: workspace.consultationId,
-        role: workspace.role,
-        symptoms: payload.symptoms,
-        diagnosis: payload.diagnosis,
-        clinicalNotes: payload.clinicalNotes,
-        prescription: payload.prescription,
-        treatment: payload.treatment,
-        followUpDate: payload.followUpDate,
-        complete,
-        medicalChart:
-          !isDentist && complete && medicalChart && workspace.patientRecordId
-            ? {
-                patientRecordId: workspace.patientRecordId,
-                medicalHistory: medicalChart.medicalHistory,
-                physicalExam: medicalChart.physicalExam,
-              }
-            : undefined,
+        const result = await saveClinicalVisit({
+          consultationId: workspace.consultationId,
+          role: workspace.role,
+          symptoms: payload.symptoms,
+          diagnosis: payload.diagnosis,
+          clinicalNotes: payload.clinicalNotes,
+          prescription: payload.prescription,
+          treatment: payload.treatment,
+          followUpDate: payload.followUpDate,
+          complete,
+          medicalChart:
+            !isDentist && complete && medicalChart && workspace.patientRecordId
+              ? {
+                  patientRecordId: workspace.patientRecordId,
+                  medicalHistory: medicalChart.medicalHistory,
+                  physicalExam: medicalChart.physicalExam,
+                }
+              : undefined,
+        })
+        if (!result.ok) {
+          setError(result.error)
+          reject(new Error(result.error))
+          return
+        }
+        if (complete) {
+          resolve()
+          return
+        }
+        setMessage("Draft saved.")
+        resolve()
       })
-      if (!result.ok) {
-        setError(result.error)
-        return
-      }
-      setMessage(complete ? "Consultation completed." : "Draft saved.")
-      if (complete) {
-        router.push(workspace.dashboardPath)
-        router.refresh()
-      }
     })
   }
+
+  function openCompletePreview() {
+    const preview = isDentist
+      ? buildDentalFormConsultationPreview({ workspace, dentalForm })
+      : buildPhysicianConsultationPreview({
+          workspace,
+          symptoms,
+          diagnosis,
+          clinicalNotes,
+          prescription,
+        })
+    setSummaryPreview(preview)
+    setSummaryOpen(true)
+  }
+
+  async function confirmComplete() {
+    setCompleting(true)
+    try {
+      await persist(true)
+      setSummaryOpen(false)
+      setSummaryPreview(null)
+      router.push(queuePath)
+      router.refresh()
+    } catch {
+      // Error surfaced inline via setError in persist
+    } finally {
+      setCompleting(false)
+    }
+  }
+
+  const summaryDialog = summaryPreview ? (
+    <ConsultationSummaryDialog
+      mode="preview"
+      visit={summaryPreview.visit}
+      ticketVitals={summaryPreview.ticketVitals}
+      patientName={workspace.patientName}
+      open={summaryOpen}
+      onOpenChange={setSummaryOpen}
+      onConfirm={confirmComplete}
+      pending={completing}
+    />
+  ) : null
 
   if (isDentist) {
     return (
@@ -182,7 +242,7 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
             >
               Save draft
             </Button>
-            <Button disabled={isPending} onClick={() => persist(true)}>
+            <Button disabled={isPending} onClick={openCompletePreview}>
               Complete consultation
             </Button>
           </div>
@@ -192,6 +252,8 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
           workspace={workspace}
           canIssue={workspace.canIssueDocuments && !readOnly}
         />
+
+        {summaryDialog}
       </div>
     )
   }
@@ -237,7 +299,7 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
         footer={
           <div className="flex flex-wrap justify-end gap-2">
             <Link
-              href="/physician/queue"
+              href={queuePath}
               className={cn(buttonVariants({ variant: "outline" }))}
             >
               Back to queue
@@ -265,7 +327,7 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
                 <Button
                   type="button"
                   disabled={isPending}
-                  onClick={() => persist(true)}
+                  onClick={openCompletePreview}
                 >
                   {isPending ? (
                     <IconLoader2 className="size-4 animate-spin" />
@@ -425,6 +487,8 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
           />
         </section>
       </HsoFormShell>
+
+      {summaryDialog}
     </div>
   )
 }

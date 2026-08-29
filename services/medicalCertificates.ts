@@ -2,6 +2,7 @@ import "server-only"
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 
+import { patientMatchesSearchQuery } from "@/lib/clinical/record-scope"
 import { createClient } from "@/lib/supabase/server"
 import { ensureOperationalPatientForCertificateId } from "@/lib/students/ensure-patient"
 import {
@@ -144,11 +145,11 @@ function mapCertificate(row: CertificateRow): MedicalCertificate {
 }
 
 function matchesQuery(certificate: MedicalCertificate, query: string): boolean {
-  const q = query.trim().toLowerCase()
-  if (!q) return true
-
-  const studentId = (certificate.patient.studentId ?? "").toLowerCase()
-  return studentId.includes(q)
+  return patientMatchesSearchQuery(
+    certificate.patient.fullName,
+    certificate.patient.studentId,
+    query
+  )
 }
 
 function manilaDateParts(date = new Date()) {

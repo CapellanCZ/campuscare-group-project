@@ -69,12 +69,12 @@ async function ensureAuthUser(params: {
   const { data, error } = await params.admin.auth.admin.createUser({
     email,
     email_confirm: true,
+    app_metadata: { primary_role: "patient" },
     user_metadata: params.fullName
-      ? { full_name: params.fullName }
-      : undefined,
+      ? { full_name: params.fullName, primary_role: "patient" }
+      : { primary_role: "patient" },
   })
   if (error) {
-    // Race / already exists
     if (/already|registered|exists/i.test(error.message)) {
       const refreshed = await buildEmailToUserId(params.admin)
       const id = refreshed.get(email)
@@ -88,6 +88,29 @@ async function ensureAuthUser(params: {
   if (!data.user?.id) throw new Error(`No auth user id for ${email}`)
   params.emailToUserId.set(email, data.user.id)
   return { userId: data.user.id, created: true }
+}
+
+async function upsertPatientUserRow(params: {
+  admin: AdminClient
+  userId: string
+  email: string
+  fullName: string
+}) {
+  const email = params.email.trim().toLowerCase()
+  const fullName = params.fullName.trim() || email.split("@")[0] || "Patient"
+  const { error } = await params.admin.from("users").upsert(
+    {
+      id: params.userId,
+      email,
+      full_name: fullName,
+      primary_role: "patient",
+      is_active: true,
+      invite_pending: false,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "id" }
+  )
+  if (error) throw error
 }
 
 async function linkOne(params: {
@@ -104,6 +127,13 @@ async function linkOne(params: {
     fullName: params.fullName,
   })
 
+  await upsertPatientUserRow({
+    admin: params.admin,
+    userId,
+    email: params.email,
+    fullName: params.fullName,
+  })
+
   const { data, error } = await params.admin
     .from("patients")
     .update({
@@ -112,7 +142,7 @@ async function linkOne(params: {
       updated_at: new Date().toISOString(),
     })
     .eq("id", params.patientId)
-    .select("id, email, auth_user_id, student_id, full_name")
+    .select("id, email, auth_user_id, student_id, employee_id, full_name")
     .maybeSingle()
 
   if (error) throw error
@@ -121,7 +151,6 @@ async function linkOne(params: {
 }
 
 async function linkAll(admin: AdminClient) {
-  // Backfill patients.email from patient_records when possible
   const { data: unlinked, error } = await admin
     .from("patients")
     .select("id, full_name, email, student_id, employee_id, auth_user_id")
@@ -133,8 +162,12 @@ async function linkAll(admin: AdminClient) {
   const studentIds = rows
     .map((r) => r.student_id)
     .filter((id): id is string => Boolean(id))
+  const employeeIds = rows
+    .map((r) => r.employee_id)
+    .filter((id): id is string => Boolean(id))
 
   const emailByStudentId = new Map<string, string>()
+  const emailByEmployeeId = new Map<string, string>()
   if (studentIds.length > 0) {
     const { data: records, error: recErr } = await admin
       .from("patient_records")
@@ -147,6 +180,18 @@ async function linkAll(admin: AdminClient) {
       if (sid && email) emailByStudentId.set(sid, email)
     }
   }
+  if (employeeIds.length > 0) {
+    const { data: records, error: recErr } = await admin
+      .from("patient_records")
+      .select("employee_id, email")
+      .in("employee_id", employeeIds)
+    if (recErr) throw recErr
+    for (const rec of records ?? []) {
+      const eid = (rec.employee_id || "").trim()
+      const email = (rec.email || "").trim().toLowerCase()
+      if (eid && email) emailByEmployeeId.set(eid, email)
+    }
+  }
 
   const emailToUserId = await buildEmailToUserId(admin)
   let created = 0
@@ -156,10 +201,13 @@ async function linkAll(admin: AdminClient) {
 
   for (const row of rows) {
     const fromPatient = (row.email || "").trim().toLowerCase()
-    const fromRecord = row.student_id
+    const fromStudentRecord = row.student_id
       ? emailByStudentId.get(row.student_id) || ""
       : ""
-    const email = fromPatient || fromRecord
+    const fromEmployeeRecord = row.employee_id
+      ? emailByEmployeeId.get(row.employee_id) || ""
+      : ""
+    const email = fromPatient || fromStudentRecord || fromEmployeeRecord
     if (!email) {
       skippedNoEmail += 1
       continue
@@ -178,12 +226,16 @@ async function linkAll(admin: AdminClient) {
       console.log(
         `${result.created ? "created+linked" : "linked"}`,
         result.linked.email,
-        result.linked.student_id || result.linked.id
+        result.linked.student_id || result.linked.employee_id || result.linked.id
       )
-      // Soft rate-limit Auth Admin creates
       await sleep(120)
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === "object" && err && "message" in err
+            ? String((err as { message?: unknown }).message)
+            : String(err)
       failures.push(`${email}: ${message}`)
       console.error("failed", email, message)
     }

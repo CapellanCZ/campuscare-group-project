@@ -29,6 +29,8 @@ export type ManagedStaffUser = {
   id: string
   fullName: string
   email: string
+  employeeId: string | null
+  licenseNumber: string | null
   role: ManagedRole
   isActive: boolean
   /** Invite/re-invite sent; clears to Active after they sign in. */
@@ -79,6 +81,7 @@ export type CreateStaffUserInput = {
   fullName: string
   email: string
   role: ManagedRole
+  employeeId?: string | null
   licenseNumber?: string | null
   /** When set, create is rejected if role is outside this list. */
   allowedRoles?: ManagedRole[]
@@ -107,6 +110,7 @@ export type UpdateStaffUserInput = {
   fullName: string
   email: string
   role: ManagedRole
+  employeeId?: string | null
   licenseNumber?: string | null
   allowedRoles?: ManagedRole[]
   /** When provided (clinic staff), replaces weekly office hours. */
@@ -119,6 +123,7 @@ export type StaffUserEditData = {
   email: string
   role: ManagedRole
   isActive: boolean
+  employeeId: string | null
   licenseNumber: string | null
   scheduleSlots: Array<{
     id: string

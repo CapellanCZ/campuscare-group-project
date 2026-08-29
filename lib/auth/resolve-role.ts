@@ -1,4 +1,4 @@
-import type { ClinicDesignation, WebRole } from "@/lib/auth/types"
+import type { ClinicDesignation, PatientRole, WebRole } from "@/lib/auth/types"
 
 const CLINIC_ROLES = [
   "admin",
@@ -51,7 +51,14 @@ export function hasApprovedClinicAccess(
 ): boolean {
   if (!profile) return false
   if (profile.is_active === false) return false
+  if (normalizeClinicRole(profile.primary_role) === "patient") return false
   return resolveClinicRole(profile) !== null
+}
+
+export function isPatientRole(
+  value: string | null | undefined
+): value is PatientRole {
+  return normalizeClinicRole(value) === "patient"
 }
 
 /** Same gate as approved access for this schema (no account_status column). */

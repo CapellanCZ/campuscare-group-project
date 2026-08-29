@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react"
 import { IconFileTypePdf } from "@tabler/icons-react"
-import { toast } from "sonner"
+import { appToast } from "@/lib/feedback/app-toast"
 
 import { AdminReportsView } from "@/features/reports/components/admin-reports-view"
 import { ReportChartCard } from "@/features/reports/components/report-chart-card"
@@ -111,7 +111,10 @@ function ClinicalReportsAnalyticsPage({
 
   useEffect(() => {
     if (initialBundle.error) {
-      toast.error(initialBundle.error)
+      appToast.error({
+        title: "Unable to load reports",
+        description: initialBundle.error,
+      })
     }
   }, [initialBundle.error])
 
@@ -183,9 +186,11 @@ function ClinicalReportsAnalyticsPage({
     try {
       printClinicProgressReport({ meta: exportMeta(), pack: exportPack })
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Could not open print view."
-      )
+      appToast.error({
+        title: "Print failed",
+        description:
+          error instanceof Error ? error.message : "Could not open print view.",
+      })
     }
   }
 
@@ -194,7 +199,10 @@ function ClinicalReportsAnalyticsPage({
       meta: exportMeta(),
       pack: exportPack,
     })
-    toast.success("Clinic progress CSV downloaded (overview, charts, tables).")
+    appToast.success({
+      title: "Clinic progress CSV downloaded.",
+      description: "Overview, charts, and tables were exported.",
+    })
   }
 
   async function handleExcel() {
@@ -203,11 +211,15 @@ function ClinicalReportsAnalyticsPage({
         meta: exportMeta(),
         pack: exportPack,
       })
-      toast.success(
-        "Clinic progress Excel downloaded (overview, charts, tables)."
-      )
+      appToast.success({
+        title: "Clinic progress Excel downloaded.",
+        description: "Overview, charts, and tables were exported.",
+      })
     } catch {
-      toast.error("Could not export Excel.")
+      appToast.error({
+        title: "Export failed",
+        description: "Could not export Excel.",
+      })
     }
   }
 

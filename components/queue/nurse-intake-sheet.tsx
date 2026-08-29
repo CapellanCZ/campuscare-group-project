@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
-import { toast } from "sonner"
+import { appToast } from "@/lib/feedback/app-toast"
+import { queueToasts } from "@/lib/feedback/toast-messages"
 import { useRouter } from "next/navigation"
 
 import { SelectWithOtherField } from "@/components/shared/select-with-other-field"
@@ -157,7 +158,7 @@ export function NurseIntakeSheet({
     ).then((result) => {
       if (cancelled) return
       if (!result.ok) {
-        toast.error(result.error)
+        queueToasts.failed(result.error)
         return
       }
       setHistoryRecords(result.data)
@@ -216,7 +217,7 @@ export function NurseIntakeSheet({
     ).then((result) => {
       setHistoryLoading(false)
       if (!result.ok) {
-        toast.error(result.error)
+        queueToasts.failed(result.error)
         return
       }
       setHistoryRecords(result.data)
@@ -249,14 +250,17 @@ export function NurseIntakeSheet({
       if (!result.ok) {
         setError(result.error)
         setStatusMessage(null)
-        toast.error(result.error)
+        queueToasts.failed(result.error)
         router.refresh()
         return
       }
 
       const destination =
         toStation === "dentist" ? "Dentist queue" : "Physician queue"
-      toast.success(result.message ?? `Sent to ${destination}`)
+      appToast.success({
+        title: result.message ?? `Sent to ${destination}`,
+        description: "Patient vitals have been recorded and the queue updated.",
+      })
       reset()
       onOpenChange(false)
       router.refresh()

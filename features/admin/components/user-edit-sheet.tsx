@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { toast } from "sonner"
+import { appToast } from "@/lib/feedback/app-toast"
+import { staffToasts } from "@/lib/feedback/toast-messages"
 import { IconPlus, IconTrash } from "@tabler/icons-react"
 
 import {
@@ -66,6 +67,7 @@ export function UserEditSheet({
   const [loading, setLoading] = useState(false)
   const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
+  const [employeeId, setEmployeeId] = useState("")
   const [role, setRole] = useState<ManagedRole>(config.defaultCreateRole)
   const [licenseNumber, setLicenseNumber] = useState("")
   const [slots, setSlots] = useState<DraftSlot[]>([])
@@ -82,6 +84,7 @@ export function UserEditSheet({
 
     setFullName(user.fullName)
     setEmail(user.email)
+    setEmployeeId(user.employeeId ?? "")
     setRole(user.role)
     setLicenseNumber("")
     setError(null)
@@ -92,11 +95,12 @@ export function UserEditSheet({
       setLoading(false)
       if (!result.ok) {
         setError(result.error)
-        toast.error(result.error)
+        staffToasts.failed(result.error)
         return
       }
       setFullName(result.data.fullName)
       setEmail(result.data.email)
+      setEmployeeId(result.data.employeeId ?? "")
       setRole(result.data.role)
       setLicenseNumber(result.data.licenseNumber ?? "")
       setSlots(
@@ -140,6 +144,7 @@ export function UserEditSheet({
         fullName,
         email,
         role,
+        employeeId: employeeId.trim() || null,
         licenseNumber: showLicenseNumber ? licenseNumber : null,
         allowedRoles: [...config.roles],
         scheduleSlots: showSchedule
@@ -154,15 +159,17 @@ export function UserEditSheet({
 
       if (!result.ok) {
         setError(result.error)
-        toast.error(result.error)
+        staffToasts.failed(result.error)
         return
       }
 
-      toast.success(result.message)
+      appToast.success({ title: result.message })
       onSaved({
         ...user,
         fullName: fullName.trim(),
         email: email.trim().toLowerCase(),
+        employeeId: employeeId.trim() || null,
+        licenseNumber: showLicenseNumber ? licenseNumber.trim() || null : null,
         role,
       })
       onOpenChange(false)
@@ -176,9 +183,9 @@ export function UserEditSheet({
         <SheetHeader>
           <SheetTitle>Edit {user?.fullName ?? "staff"}</SheetTitle>
           <SheetDescription>
-            Update name, email
+            Update name, email, employee ID
             {config.allowRoleChange ? ", role" : ""}
-            {showLicenseNumber ? ", licensed number" : ""}
+            {showLicenseNumber ? ", license no." : ""}
             {showSchedule ? ", and weekly schedule" : ""}.
           </SheetDescription>
         </SheetHeader>
@@ -213,6 +220,19 @@ export function UserEditSheet({
             </Field>
             {config.allowRoleChange ? (
               <Field>
+                <FieldLabel htmlFor="edit-employee-id">Employee ID</FieldLabel>
+                <Input
+                  id="edit-employee-id"
+                  value={employeeId}
+                  onChange={(event) => setEmployeeId(event.target.value)}
+                  placeholder="EMP-001"
+                  disabled={pending || loading}
+                  autoComplete="off"
+                />
+              </Field>
+            ) : null}
+            {config.allowRoleChange ? (
+              <Field>
                 <FieldLabel>Role</FieldLabel>
                 <Select
                   value={role}
@@ -241,7 +261,7 @@ export function UserEditSheet({
             )}
             {showLicenseNumber ? (
               <Field>
-                <FieldLabel htmlFor="edit-license">Licensed number</FieldLabel>
+                <FieldLabel htmlFor="edit-license">License No.</FieldLabel>
                 <Input
                   id="edit-license"
                   value={licenseNumber}

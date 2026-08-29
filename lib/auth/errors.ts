@@ -41,7 +41,8 @@ export function mapAuthError(error: AuthLikeError, fallback: string): string {
 
   if (
     message.includes("not registered") ||
-    message.includes("import your account")
+    message.includes("import your") ||
+    message.includes("not ready for mobile")
   ) {
     return rawMessage
   }

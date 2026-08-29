@@ -3,7 +3,8 @@
 import Link from "next/link"
 import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { toast } from "sonner"
+import { appToast } from "@/lib/feedback/app-toast"
+import { queueToasts } from "@/lib/feedback/toast-messages"
 import {
   IconDots,
   IconListCheck,
@@ -128,10 +129,10 @@ export function NurseTodayQueue({
     startTransition(async () => {
       const result = await action()
       if (!result.ok) {
-        toast.error(result.error ?? `${label} failed`)
+        queueToasts.failed(result.error ?? `${label} failed`)
         return
       }
-      toast.success(result.message ?? label)
+      appToast.success({ title: result.message ?? label })
       router.refresh()
     })
   }

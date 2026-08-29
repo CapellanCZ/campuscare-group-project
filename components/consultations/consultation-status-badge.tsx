@@ -3,6 +3,7 @@
 import { Badge } from "@/components/ui/badge"
 import {
   consultationStatusLabel,
+  normalizeConsultationStatus,
   type ConsultationStatus,
 } from "@/types/consultation"
 import { cn } from "@/lib/utils"
@@ -27,7 +28,7 @@ export function ConsultationStatusBadge({
   className,
 }: ConsultationStatusBadgeProps) {
   const normalized = consultationStatusLabel(status)
-  const key = status.toLowerCase() as ConsultationStatus
+  const key = normalizeConsultationStatus(status)
   const variant =
     statusVariant[key] ??
     (normalized === "Completed"

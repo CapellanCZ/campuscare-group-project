@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { toast } from "sonner"
+import { requestToasts } from "@/lib/feedback/toast-messages"
 
 import { ModuleSnapshot } from "@/components/dashboard/module-snapshot"
 import { ApproveRequestDialog } from "@/components/requests/approve-request-dialog"
@@ -75,7 +75,7 @@ export function NurseRequestsPanel({
     startView(async () => {
       const result = await fetchConsultationRequestByIdAction(requestId)
       if (!result.ok) {
-        toast.error(result.error)
+        requestToasts.failed(result.error)
         return
       }
       setSelectedRequest(result.data)

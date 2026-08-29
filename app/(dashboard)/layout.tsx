@@ -1,9 +1,9 @@
-import { IdleSessionProvider } from "@/components/auth/idle-session-provider"
+import { StaffSessionShell } from "@/components/staff-session-shell"
 
 export default function DashboardGroupLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  return <IdleSessionProvider>{children}</IdleSessionProvider>
+  return <StaffSessionShell>{children}</StaffSessionShell>
 }

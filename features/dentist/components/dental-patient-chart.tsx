@@ -85,7 +85,7 @@ function ClinicalExamGrid({
   onPatch: (patch: Partial<DentalClinicalExam>) => void
 }) {
   const gridClass =
-    "grid grid-cols-[10.5rem_repeat(3,minmax(0,1fr))] items-start gap-x-3"
+    "grid grid-cols-[10.5rem_repeat(3,minmax(0,1fr))] items-start justify-items-center gap-x-3 [&>span:first-child]:justify-self-start"
 
   function toggleSingle<T extends string>(
     field: keyof DentalClinicalExam,
@@ -161,7 +161,6 @@ function ClinicalExamGrid({
         <span className="pt-0.5 text-sm font-medium text-neutral-900">
           Gingival Color
         </span>
-        <span />
         <ExamCheckbox
           label="pink"
           checked={clinical.gingivalColor === "pink"}
@@ -178,48 +177,47 @@ function ClinicalExamGrid({
             toggleSingle("gingivalColor", clinical.gingivalColor, "bright_red")
           }
         />
+        <span />
       </div>
 
-      <div className="grid grid-cols-[10.5rem_minmax(0,1fr)] items-start gap-x-3 border-b border-neutral-200 py-3">
+      <div className={cn(gridClass, "border-b border-neutral-200 py-3")}>
         <span className="pt-0.5 text-sm font-medium text-neutral-900">
           Lymph Nodes
         </span>
-        <div className="flex flex-wrap gap-8 pl-1">
-          <ExamCheckbox
-            label="not palpable"
-            checked={clinical.lymphNodes === "not_palpable"}
-            readOnly={readOnly}
-            onChange={() =>
-              toggleSingle("lymphNodes", clinical.lymphNodes, "not_palpable")
-            }
-          />
-          <ExamCheckbox
-            label="palpable"
-            checked={clinical.lymphNodes === "palpable"}
-            readOnly={readOnly}
-            onChange={() =>
-              toggleSingle("lymphNodes", clinical.lymphNodes, "palpable")
-            }
-          />
-        </div>
+        <ExamCheckbox
+          label="not palpable"
+          checked={clinical.lymphNodes === "not_palpable"}
+          readOnly={readOnly}
+          onChange={() =>
+            toggleSingle("lymphNodes", clinical.lymphNodes, "not_palpable")
+          }
+        />
+        <ExamCheckbox
+          label="palpable"
+          checked={clinical.lymphNodes === "palpable"}
+          readOnly={readOnly}
+          onChange={() =>
+            toggleSingle("lymphNodes", clinical.lymphNodes, "palpable")
+          }
+        />
+        <span />
       </div>
 
-      <div className="grid grid-cols-[10.5rem_minmax(0,1fr)] items-start gap-x-3 py-3">
+      <div className={cn(gridClass, "py-3")}>
         <span className="pt-0.5 text-sm font-medium text-neutral-900">Tongue</span>
-        <div className="flex flex-wrap gap-8 pl-1">
-          <ExamCheckbox
-            label="normal"
-            checked={clinical.tongue === "normal"}
-            readOnly={readOnly}
-            onChange={() => toggleSingle("tongue", clinical.tongue, "normal")}
-          />
-          <ExamCheckbox
-            label="coated"
-            checked={clinical.tongue === "coated"}
-            readOnly={readOnly}
-            onChange={() => toggleSingle("tongue", clinical.tongue, "coated")}
-          />
-        </div>
+        <ExamCheckbox
+          label="normal"
+          checked={clinical.tongue === "normal"}
+          readOnly={readOnly}
+          onChange={() => toggleSingle("tongue", clinical.tongue, "normal")}
+        />
+        <ExamCheckbox
+          label="coated"
+          checked={clinical.tongue === "coated"}
+          readOnly={readOnly}
+          onChange={() => toggleSingle("tongue", clinical.tongue, "coated")}
+        />
+        <span />
       </div>
     </div>
   )

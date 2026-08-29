@@ -8,15 +8,19 @@ import {
   useState,
   useTransition,
 } from "react"
-import { toast } from "sonner"
+import { patientToasts } from "@/lib/feedback/toast-messages"
+import { appToast } from "@/lib/feedback/app-toast"
 
 import { PatientDocumentsSheet } from "@/components/patients/patient-documents-sheet"
 import { PatientHistorySheet } from "@/components/patients/patient-history-sheet"
 import { PatientImportSheet } from "@/components/patients/patient-import-sheet"
 import { PatientMedicalSheet } from "@/components/patients/patient-medical-sheet"
 import { PatientProfileSheet } from "@/components/patients/patient-profile-sheet"
-import { StudentIdSearchInput } from "@/components/shared/student-id-search-input"
-import { DENTIST_PATIENT_SEARCH_PLACEHOLDER } from "@/lib/students/patient-search-copy"
+import {
+  clinicalScopeForDesignation,
+  historyStationFilterForDesignation,
+} from "@/lib/clinical/record-scope"
+import { PATIENT_SEARCH_PLACEHOLDER } from "@/lib/students/patient-search-copy"
 import { DemoPageHeader, DemoStatGrid } from "@/components/demo/demo-page"
 import {
   PanelFrame,
@@ -43,6 +47,13 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -65,16 +76,31 @@ import { createClient } from "@/lib/supabase/client"
 import {
   patientCampusId,
   patientFullName,
+  patientTypeIsStudent,
+  patientTypeLabel,
   type PatientRecord,
   type PatientRecordListResult,
   type PatientRecordSortColumn,
   type PatientRecordStats,
+  type PatientType,
 } from "@/types/patientRecord"
 import { IconSearch, IconUsers } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 300
+
+type PatientRecordTypeFilter = PatientType | "all"
+
+const PATIENT_TYPE_FILTER_OPTIONS: {
+  value: PatientRecordTypeFilter
+  label: string
+}[] = [
+  { value: "all", label: "All types" },
+  { value: "student", label: "Student" },
+  { value: "faculty", label: "Faculty" },
+  { value: "employee", label: "Employee" },
+]
 
 function toStatCards(stats: PatientRecordStats): DemoStat[] {
   return [
@@ -134,6 +160,8 @@ export function PatientsPage({
 }) {
   const [query, setQuery] = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
+  const [patientTypeFilter, setPatientTypeFilter] =
+    useState<PatientRecordTypeFilter>("all")
   const [sortColumn, setSortColumn] =
     useState<PatientRecordSortColumn>("patient")
   const [sortDirection, setSortDirection] =
@@ -168,7 +196,7 @@ export function PatientsPage({
   }, [])
 
   useEffect(() => {
-    if (initialError) toast.error(initialError)
+    if (initialError) patientToasts.failed(initialError)
   }, [initialError])
 
   useEffect(() => {
@@ -183,6 +211,7 @@ export function PatientsPage({
   const loadPage = useCallback(
     async (
       nextQuery: string,
+      nextPatientType: PatientRecordTypeFilter,
       nextSortBy: PatientRecordSortColumn,
       nextSortDir: "asc" | "desc"
     ) => {
@@ -192,7 +221,7 @@ export function PatientsPage({
           searchPatientRecordsAction(nextQuery, {
             page: 1,
             pageSize: PAGE_SIZE,
-            patientType: "all",
+            patientType: nextPatientType,
             sortBy: nextSortBy,
             sortDir: nextSortDir,
           }),
@@ -208,21 +237,21 @@ export function PatientsPage({
               pageSize: PAGE_SIZE,
               totalPages: 1,
             })
-            toast.error(NO_STUDENT_FOUND)
+            patientToasts.failed(NO_STUDENT_FOUND)
             return
           }
-          toast.error(listResult.error)
+          patientToasts.failed(listResult.error)
           return
         }
         if (!statsResult.ok) {
-          toast.error(statsResult.error)
+          patientToasts.failed(statsResult.error)
           return
         }
         setList(listResult.data)
         setStats(statsResult.data)
       } catch {
         if (!mountedRef.current) return
-        toast.error(
+        patientToasts.failed(
           "Unable to reach the database. Check your connection and try again."
         )
       } finally {
@@ -236,17 +265,17 @@ export function PatientsPage({
 
   const refresh = useCallback(() => {
     startTransition(() => {
-      void loadPage(debouncedQuery, sortColumn, activeSortDir)
+      void loadPage(debouncedQuery, patientTypeFilter, sortColumn, activeSortDir)
     })
-  }, [activeSortDir, debouncedQuery, loadPage, sortColumn])
+  }, [activeSortDir, debouncedQuery, loadPage, patientTypeFilter, sortColumn])
 
   useEffect(() => {
     if (skipNextFetch.current) {
       skipNextFetch.current = false
       return
     }
-    void loadPage(debouncedQuery, sortColumn, activeSortDir)
-  }, [activeSortDir, debouncedQuery, loadPage, sortColumn])
+    void loadPage(debouncedQuery, patientTypeFilter, sortColumn, activeSortDir)
+  }, [activeSortDir, debouncedQuery, loadPage, patientTypeFilter, sortColumn])
 
   useEffect(() => {
     const supabase = createClient()
@@ -256,14 +285,14 @@ export function PatientsPage({
         "postgres_changes",
         { event: "*", schema: "public", table: "patient_records" },
         () => {
-          void loadPage(debouncedQuery, sortColumn, activeSortDir)
+          void loadPage(debouncedQuery, patientTypeFilter, sortColumn, activeSortDir)
         }
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "consultations" },
         () => {
-          void loadPage(debouncedQuery, sortColumn, activeSortDir)
+          void loadPage(debouncedQuery, patientTypeFilter, sortColumn, activeSortDir)
         }
       )
       .subscribe()
@@ -271,7 +300,7 @@ export function PatientsPage({
     return () => {
       void supabase.removeChannel(channel)
     }
-  }, [activeSortDir, debouncedQuery, loadPage, sortColumn])
+  }, [activeSortDir, debouncedQuery, loadPage, patientTypeFilter, sortColumn])
 
   function setColumnSort(
     column: PatientRecordSortColumn,
@@ -308,7 +337,7 @@ export function PatientsPage({
     try {
       const result = await ensurePatientRecordAction(patient)
       if (!result.ok) {
-        toast.error(result.error)
+        patientToasts.failed(result.error)
         return
       }
       setList((prev) => ({
@@ -323,7 +352,7 @@ export function PatientsPage({
       }))
       then(result.data)
     } catch {
-      toast.error("Could not sync enrolled student into patient records.")
+      patientToasts.failed("Could not sync enrolled student into patient records.")
     } finally {
       setLoading(false)
     }
@@ -334,7 +363,9 @@ export function PatientsPage({
   const rows = list.items
   const emptyMessage = debouncedQuery
     ? NO_STUDENT_FOUND
-    : "No patients on file yet. Use Import patients to upload a roster."
+    : patientTypeFilter !== "all"
+      ? `No ${patientTypeLabel(patientTypeFilter).toLowerCase()} patients found.`
+      : "No patients on file yet. Use Import patients to upload a roster."
 
   return (
     <div
@@ -371,39 +402,37 @@ export function PatientsPage({
         >
           <CardTitle className="text-base">Patient directory</CardTitle>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <Select
+              value={patientTypeFilter}
+              onValueChange={(value) => {
+                setPatientTypeFilter(value as PatientRecordTypeFilter)
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-40" aria-label="Patient type">
+                <SelectValue placeholder="Patient type" />
+              </SelectTrigger>
+              <SelectContent>
+                {PATIENT_TYPE_FILTER_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {can(access.designation, "patients.search") ? (
-              access.designation === "nurse" ||
-              access.designation === "physician" ? (
-                <StudentIdSearchInput
-                  className="w-full sm:w-72"
-                  value={query}
-                  onChange={setQuery}
-                  placeholder="Search by ID Number"
-                  aria-label="Search by ID Number"
+              <div className="relative w-full sm:w-72">
+                <IconSearch
+                  className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
                 />
-              ) : (
-                <div className="relative w-full sm:w-72">
-                  <IconSearch
-                    className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                  <Input
-                    className="pl-8"
-                    placeholder={
-                      access.designation === "dentist"
-                        ? DENTIST_PATIENT_SEARCH_PLACEHOLDER
-                        : "Search by Student ID Number"
-                    }
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    aria-label={
-                      access.designation === "dentist"
-                        ? DENTIST_PATIENT_SEARCH_PLACEHOLDER
-                        : "Search by Student ID Number"
-                    }
-                  />
-                </div>
-              )
+                <Input
+                  className="pl-8"
+                  placeholder={PATIENT_SEARCH_PLACEHOLDER}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  aria-label={PATIENT_SEARCH_PLACEHOLDER}
+                />
+              </div>
             ) : null}
             {can(access.designation, "patients.table") ? (
               <PatientImportSheet toolbar onImported={refresh} />
@@ -472,15 +501,21 @@ export function PatientsPage({
                       <TableCell className="px-4">
                         <div className="flex items-center gap-2">
                           <p className="font-medium">{patientFullName(row)}</p>
-                          <Badge variant="outline">Student</Badge>
+                          <Badge variant="outline">
+                            {patientTypeLabel(row.patientType)}
+                          </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Student ID {patientCampusId(row) ?? "—"}
-                          {row.yearLevel ? ` · ${row.yearLevel}` : ""}
+                          ID Number {patientCampusId(row) ?? "—"}
+                          {patientTypeIsStudent(row.patientType) && row.yearLevel
+                            ? ` · ${row.yearLevel}`
+                            : ""}
                         </p>
                       </TableCell>
                       <TableCell className="hidden px-4 md:table-cell">
-                        {row.course || "—"}
+                        {patientTypeIsStudent(row.patientType)
+                          ? row.course || "—"
+                          : "—"}
                       </TableCell>
                       <TableCell className="hidden px-4 lg:table-cell">
                         <p className="text-sm">
@@ -588,9 +623,8 @@ export function PatientsPage({
         onOpenChange={(open) => {
           if (!open) setHistoryPatient(null)
         }}
-        stationFilter={
-          access.designation === "dentist" ? "dentist" : "all"
-        }
+        stationFilter={historyStationFilterForDesignation(access.designation)}
+        documentScope={clinicalScopeForDesignation(access.designation)}
       />
       <PatientDocumentsSheet
         patient={documentsPatient}
@@ -598,6 +632,7 @@ export function PatientsPage({
         onOpenChange={(open) => {
           if (!open) setDocumentsPatient(null)
         }}
+        documentScope={clinicalScopeForDesignation(access.designation)}
       />
     </div>
   )

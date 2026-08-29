@@ -12,7 +12,45 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
+import { useOptionalDutyStatus } from "@/components/availability/duty-status-control"
+import { dutyStatusLabel } from "@/lib/availability/types"
 import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
+
+function ScheduleAvailabilityBadge({
+  onBreak,
+  clinicOnBreak,
+  resumesAt,
+}: {
+  onBreak: boolean
+  clinicOnBreak: boolean
+  resumesAt: string | null
+}) {
+  const duty = useOptionalDutyStatus()
+
+  if (onBreak || clinicOnBreak) {
+    return (
+      <Badge variant="secondary">
+        {onBreak ? "You are on break" : "Clinic is on break"}
+        {resumesAt
+          ? ` · resumes ${new Date(resumesAt).toLocaleTimeString("en-PH", {
+              hour: "numeric",
+              minute: "2-digit",
+            })}`
+          : ""}
+      </Badge>
+    )
+  }
+
+  const label = duty ? dutyStatusLabel(duty.dutyStatus.status) : "Not Available"
+  const variant =
+    duty?.dutyStatus.status === "available"
+      ? "default"
+      : duty?.dutyStatus.status === "on_break"
+        ? "secondary"
+        : "outline"
+
+  return <Badge variant={variant}>{label}</Badge>
+}
 
 export function RoleDashboardSummaries({
   access,
@@ -357,23 +395,11 @@ export function RoleDashboardSummaries({
             href={`${base}/settings`}
             linkLabel="Edit schedule"
           >
-            {summary.schedule.onBreak || summary.schedule.clinicOnBreak ? (
-              <Badge variant="secondary">
-                {summary.schedule.onBreak
-                  ? "You are on break"
-                  : "Clinic is on break"}
-                {summary.schedule.resumesAt
-                  ? ` · resumes ${new Date(
-                      summary.schedule.resumesAt
-                    ).toLocaleTimeString("en-PH", {
-                      hour: "numeric",
-                      minute: "2-digit",
-                    })}`
-                  : ""}
-              </Badge>
-            ) : (
-              <Badge variant="outline">Available</Badge>
-            )}
+            <ScheduleAvailabilityBadge
+              onBreak={Boolean(summary.schedule.onBreak)}
+              clinicOnBreak={Boolean(summary.schedule.clinicOnBreak)}
+              resumesAt={summary.schedule.resumesAt}
+            />
             {summary.schedule.todaySlots.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No active slots set for today.

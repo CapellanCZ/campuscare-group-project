@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
-import { toast } from "sonner"
+import { patientToasts } from "@/lib/feedback/toast-messages"
 
 import {
   createPatientRecordAction,
@@ -28,16 +28,20 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
-import type {
-  CreatePatientRecordInput,
-  PatientRecord,
-  PatientType,
+import {
+  CAMPUS_ID_LABEL,
+  campusIdsFromIdNumber,
+  normalizePatientType,
+  patientCampusId,
+  patientTypeIsStudent,
+  type CreatePatientRecordInput,
+  type PatientRecord,
+  type PatientType,
 } from "@/types/patientRecord"
 
 type FormState = {
   patientType: PatientType
-  studentId: string
-  employeeId: string
+  idNumber: string
   firstName: string
   middleName: string
   lastName: string
@@ -59,8 +63,7 @@ type FormState = {
 
 const emptyForm: FormState = {
   patientType: "student",
-  studentId: "",
-  employeeId: "",
+  idNumber: "",
   firstName: "",
   middleName: "",
   lastName: "",
@@ -84,8 +87,12 @@ function toForm(patient: PatientRecord | null): FormState {
   if (!patient) return emptyForm
   return {
     patientType: patient.patientType,
-    studentId: patient.studentId ?? "",
-    employeeId: patient.employeeId ?? "",
+    idNumber:
+      patientCampusId({
+        patientType: patient.patientType,
+        studentId: patient.studentId,
+        employeeId: patient.employeeId,
+      }) ?? "",
     firstName: patient.firstName,
     middleName: patient.middleName ?? "",
     lastName: patient.lastName,
@@ -107,15 +114,19 @@ function toForm(patient: PatientRecord | null): FormState {
 }
 
 function toInput(form: FormState): CreatePatientRecordInput {
+  const ids = campusIdsFromIdNumber(form.patientType, form.idNumber)
+  const studentId = ids.ok ? ids.studentId ?? "" : ""
+  const employeeId = ids.ok ? ids.employeeId ?? "" : ""
+
   return {
     patientType: form.patientType,
-    studentId: form.studentId,
-    employeeId: form.employeeId,
+    studentId,
+    employeeId,
     firstName: form.firstName,
     middleName: form.middleName,
     lastName: form.lastName,
-    course: form.course,
-    yearLevel: form.yearLevel,
+    course: form.patientType === "student" ? form.course : "",
+    yearLevel: form.patientType === "student" ? form.yearLevel : "",
     gender: form.gender,
     birthDate: form.birthDate,
     bloodType: form.bloodType,
@@ -146,7 +157,7 @@ export function PatientFormSheet({
 }) {
   const [form, setForm] = useState<FormState>(emptyForm)
   const [pending, startTransition] = useTransition()
-  const isStudent = form.patientType === "student"
+  const isStudent = patientTypeIsStudent(form.patientType)
 
   useEffect(() => {
     if (open) setForm(toForm(mode === "edit" ? patient : null))
@@ -165,13 +176,11 @@ export function PatientFormSheet({
           : await createPatientRecordAction(input)
 
       if (!result.ok) {
-        toast.error(result.error)
+        patientToasts.failed(result.error)
         return
       }
 
-      toast.success(
-        mode === "edit" ? "Patient record updated." : "Patient record created."
-      )
+      patientToasts.saved()
       onOpenChange(false)
       onSaved(result.data)
     })
@@ -186,8 +195,8 @@ export function PatientFormSheet({
           </SheetTitle>
           <SheetDescription>
             {isStudent
-              ? "Students need a student ID and course. Campus ID must stay unique."
-              : "Faculty need an employee ID. Campus ID must stay unique."}
+              ? "Students need an ID number and course. The ID must stay unique."
+              : "Faculty and employees use the same ID number field — set the role separately. No course or year level."}
           </SheetDescription>
         </SheetHeader>
 
@@ -198,9 +207,21 @@ export function PatientFormSheet({
               <Select
                 value={form.patientType}
                 onValueChange={(value) => {
-                  if (value === "student" || value === "faculty") {
-                    update("patientType", value)
+                  const nextType = normalizePatientType(value)
+                  if (
+                    !nextType ||
+                    nextType === "visitor" ||
+                    nextType === form.patientType
+                  ) {
+                    return
                   }
+                  setForm((prev) => ({
+                    ...prev,
+                    patientType: nextType,
+                    ...(patientTypeIsStudent(nextType)
+                      ? {}
+                      : { course: "", yearLevel: "" }),
+                  }))
                 }}
               >
                 <SelectTrigger
@@ -213,31 +234,20 @@ export function PatientFormSheet({
                 <SelectContent>
                   <SelectItem value="student">Student</SelectItem>
                   <SelectItem value="faculty">Faculty</SelectItem>
+                  <SelectItem value="employee">Employee</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
 
-            {isStudent ? (
-              <Field>
-                <FieldLabel htmlFor="studentId">Student ID *</FieldLabel>
-                <CampusIdInput
-                  id="studentId"
-                  value={form.studentId}
-                  onChange={(value) => update("studentId", value)}
-                  placeholder="2021-04521"
-                />
-              </Field>
-            ) : (
-              <Field>
-                <FieldLabel htmlFor="employeeId">Employee ID *</FieldLabel>
-                <CampusIdInput
-                  id="employeeId"
-                  value={form.employeeId}
-                  onChange={(value) => update("employeeId", value)}
-                  placeholder="FAC-0124"
-                />
-              </Field>
-            )}
+            <Field>
+              <FieldLabel htmlFor="idNumber">{CAMPUS_ID_LABEL} *</FieldLabel>
+              <CampusIdInput
+                id="idNumber"
+                value={form.idNumber}
+                onChange={(value) => update("idNumber", value)}
+                placeholder={isStudent ? "2021-04521" : "26-00100"}
+              />
+            </Field>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>
@@ -265,19 +275,17 @@ export function PatientFormSheet({
                 onChange={(e) => update("middleName", e.target.value)}
               />
             </Field>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field>
-                <FieldLabel htmlFor="course">
-                  {isStudent ? "Course *" : "Department"}
-                </FieldLabel>
-                <Input
-                  id="course"
-                  value={form.course}
-                  onChange={(e) => update("course", e.target.value)}
-                  placeholder={isStudent ? "BSIT" : "College of Nursing"}
-                />
-              </Field>
-              {isStudent ? (
+            {isStudent ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="course">Course *</FieldLabel>
+                  <Input
+                    id="course"
+                    value={form.course}
+                    onChange={(e) => update("course", e.target.value)}
+                    placeholder="BSIT"
+                  />
+                </Field>
                 <Field>
                   <FieldLabel htmlFor="yearLevel">Year level</FieldLabel>
                   <Input
@@ -286,10 +294,8 @@ export function PatientFormSheet({
                     onChange={(e) => update("yearLevel", e.target.value)}
                   />
                 </Field>
-              ) : (
-                <div aria-hidden className="hidden sm:block" />
-              )}
-            </div>
+              </div>
+            ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="gender">Gender</FieldLabel>

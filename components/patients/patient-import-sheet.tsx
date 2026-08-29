@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { toast } from "sonner"
+import { appToast } from "@/lib/feedback/app-toast"
+import { patientToasts } from "@/lib/feedback/toast-messages"
 import { IconDownload, IconFileSpreadsheet, IconUpload } from "@tabler/icons-react"
 
 import { importPatientRecordsFromExcelAction } from "@/features/patients/actions"
@@ -22,8 +23,7 @@ import {
 
 const TEMPLATE_HEADERS = [
   "patient_type",
-  "student_id",
-  "employee_id",
+  "id_number",
   "first_name",
   "middle_name",
   "last_name",
@@ -39,7 +39,6 @@ const TEMPLATE_SAMPLE_ROWS = [
   [
     "student",
     "2024-001",
-    "",
     "Juan",
     "Reyes",
     "Dela Cruz",
@@ -52,17 +51,29 @@ const TEMPLATE_SAMPLE_ROWS = [
   ],
   [
     "faculty",
-    "",
     "FAC-12",
     "Maria",
     "",
     "Santos",
-    "College of Nursing",
+    "",
     "",
     "female",
     "1988-02-01",
     "09179876543",
     "maria.santos@example.com",
+  ],
+  [
+    "employee",
+    "26-00100",
+    "Juan",
+    "",
+    "Reyes",
+    "",
+    "",
+    "male",
+    "1990-06-15",
+    "09171234567",
+    "juan.reyes@example.com",
   ],
 ]
 
@@ -89,12 +100,12 @@ export function PatientImportSheet({
 
       if (!result.ok) {
         setError(result.error)
-        toast.error(result.error)
+        patientToasts.failed(result.error)
         return
       }
 
-      toast.success(result.message)
-      if (result.warning) toast.message(result.warning)
+      appToast.success({ title: result.message })
+      if (result.warning) appToast.warning({ title: result.warning })
       setOpen(false)
       onImported()
     })
@@ -125,8 +136,8 @@ export function PatientImportSheet({
           <DialogTitle>Import patients</DialogTitle>
           <DialogDescription>
             Upload an Excel or CSV roster. Rows upsert into Patient Records and
-            the operational patients table by student/employee ID. NU campus
-            student datasets (BASIC INFORMATION header) are supported.
+            the operational patients table by ID number. NU campus student
+            datasets (BASIC INFORMATION header) are supported.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -136,12 +147,13 @@ export function PatientImportSheet({
           <p className="text-sm text-muted-foreground">
             Template columns:{" "}
             <span className="font-medium text-foreground">
-              patient_type, student_id, employee_id, first_name, last_name,
-              course
+              patient_type, id_number, first_name, last_name, course
             </span>{" "}
-            (student | faculty | employee | visitor). Campus rosters with Student
-            ID Number / First Name / Last Name also work and import civil status,
-            religion, and guardian details when present.
+            (student | faculty | employee | visitor). Faculty and employee use
+            the same id_number column — set patient_type, role, designation, or
+            occupation to the role (or use separate Faculty / Employee sheets).
+            Campus rosters with ID number / First Name / Last Name also work and
+            import civil status, religion, and guardian details when present.
           </p>
           <Button
             type="button"

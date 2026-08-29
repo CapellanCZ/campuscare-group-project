@@ -14,7 +14,7 @@ import { getStaffAccess } from "@/lib/auth/access"
 import { createClient } from "@/lib/supabase/server"
 
 export type DentalChartActionResult =
-  | { ok: true }
+  | { ok: true; consultationId?: string | null }
   | { ok: false; error: string }
 
 const DENTIST_PATHS = [
@@ -153,7 +153,7 @@ async function upsertStaffConsultation(params: {
   chart: DentalPatientChart
   providerName: string
   complete: boolean
-}) {
+}): Promise<string | null> {
   const {
     supabase,
     patientRecordId,
@@ -175,12 +175,14 @@ async function upsertStaffConsultation(params: {
     prescription: chart.prescription || null,
     provider_name: providerName,
     provider_role: "dentist",
+    provider_type: "dentist" as const,
     station: "dentist",
-    status: complete ? "Completed" : "In Progress",
+    status: complete ? "completed" : "ongoing",
     priority: "Normal",
     consultation_date: new Date().toISOString(),
     notes: chartNote,
     queue_ticket_id: queueTicketId,
+    appointment_id: appointmentId,
   }
 
   const { data: existing } = await supabase
@@ -189,14 +191,10 @@ async function upsertStaffConsultation(params: {
     .eq("notes", chartNote)
     .maybeSingle()
 
+  let consultationId: string | null = null
+
   if (existing?.id) {
-    await supabase
-      .from("consultations")
-      .update({
-        ...payload,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", existing.id)
+    consultationId = existing.id as string
   } else if (queueTicketId) {
     const { data: byTicket } = await supabase
       .from("consultations")
@@ -206,26 +204,37 @@ async function upsertStaffConsultation(params: {
       .maybeSingle()
 
     if (byTicket?.id) {
-      await supabase
-        .from("consultations")
-        .update({
-          ...payload,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", byTicket.id)
-    } else {
-      await supabase.from("consultations").insert(payload)
+      consultationId = byTicket.id as string
     }
-  } else {
-    await supabase.from("consultations").insert(payload)
   }
 
-  if (complete) {
+  if (consultationId) {
+    await supabase
+      .from("consultations")
+      .update({
+        ...payload,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", consultationId)
+  } else {
+    const { data: inserted, error } = await supabase
+      .from("consultations")
+      .insert(payload)
+      .select("id")
+      .single()
+
+    if (error) return null
+    consultationId = (inserted?.id as string | undefined) ?? null
+  }
+
+  if (complete && consultationId) {
     await supabase
       .from("patient_records")
       .update({ last_visit: new Date().toISOString().slice(0, 10) })
       .eq("id", patientRecordId)
   }
+
+  return consultationId
 }
 
 export async function saveDentalPatientChart(input: {
@@ -368,8 +377,9 @@ export async function saveDentalPatientChart(input: {
     supabase,
     appointment.patient_id as string
   )
+  let consultationId: string | null = null
   if (patientRecordId) {
-    await upsertStaffConsultation({
+    consultationId = await upsertStaffConsultation({
       supabase,
       patientRecordId,
       appointmentId: input.appointmentId,
@@ -381,7 +391,7 @@ export async function saveDentalPatientChart(input: {
   }
 
   revalidateDentist(input.appointmentId)
-  return { ok: true }
+  return { ok: true, consultationId }
 }
 
 /** Verify a saved chart can be reloaded (used after complete). */

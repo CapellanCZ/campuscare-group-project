@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 
-import { IdleSessionProvider } from "@/components/auth/idle-session-provider"
+import { StaffSessionShell } from "@/components/staff-session-shell"
 import { AppShell } from "@/components/app-shell"
 import { getStaffAccess } from "@/lib/auth/access"
 import {
@@ -37,8 +37,8 @@ export async function StaffRoleLayout({
   }
 
   return (
-    <IdleSessionProvider>
+    <StaffSessionShell>
       <AppShell access={access}>{children}</AppShell>
-    </IdleSessionProvider>
+    </StaffSessionShell>
   )
 }

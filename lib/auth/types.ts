@@ -12,6 +12,9 @@ export type WebRole =
   | "dentist"
   | "queue_display"
 
+/** Mobile app identity — stored in `users.primary_role` but excluded from web shell RBAC. */
+export type PatientRole = "patient"
+
 /** Alias used by permission matrix / queue stations (same values as WebRole). */
 export type ClinicDesignation = WebRole
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react"
 import { IconFileTypePdf, IconPrinter } from "@tabler/icons-react"
-import { toast } from "sonner"
+import { appToast } from "@/lib/feedback/app-toast"
 
 import { reloadAdminReportsAction } from "@/features/admin/actions/reports"
 import type { AdminReportsAggregates } from "@/features/admin/types/ops"
@@ -128,7 +128,12 @@ export function AdminReportsView({
   )
 
   useEffect(() => {
-    if (initialAggregates.error) toast.error(initialAggregates.error)
+    if (initialAggregates.error) {
+      appToast.error({
+        title: "Unable to load reports",
+        description: initialAggregates.error,
+      })
+    }
   }, [initialAggregates.error])
 
   const chartsLevel = getAccessLevel(d, "reports.charts")
@@ -180,8 +185,14 @@ export function AdminReportsView({
       })
       setApplied(draft)
       setAggregates(next)
-      if (next.error) toast.error(next.error)
-      else toast.success("Filters applied.")
+      if (next.error) {
+        appToast.error({ title: "Unable to apply filters", description: next.error })
+      } else {
+        appToast.success({
+          title: "Filters applied.",
+          description: "Report data has been refreshed with your filters.",
+        })
+      }
     })
   }
 
@@ -198,7 +209,10 @@ export function AdminReportsView({
       })
       setApplied(cleared)
       setAggregates(next)
-      toast.success("Filters cleared.")
+      appToast.success({
+        title: "Filters cleared.",
+        description: "Report filters have been reset.",
+      })
     })
   }
 
@@ -380,11 +394,13 @@ export function AdminReportsView({
                       pack: exportPack,
                     })
                   } catch (error) {
-                    toast.error(
-                      error instanceof Error
-                        ? error.message
-                        : "Could not open print view."
-                    )
+                    appToast.error({
+                      title: "Print failed",
+                      description:
+                        error instanceof Error
+                          ? error.message
+                          : "Could not open print view.",
+                    })
                   }
                 }}
               >
@@ -401,7 +417,10 @@ export function AdminReportsView({
                       pack: exportPack,
                     })
                   } catch {
-                    toast.error("Could not open print view.")
+                    appToast.error({
+                      title: "Print failed",
+                      description: "Could not open print view.",
+                    })
                   }
                 }}
               >
@@ -420,7 +439,10 @@ export function AdminReportsView({
                     meta: exportMeta(),
                     pack: exportPack,
                   })
-                  toast.success("CSV downloaded.")
+                  appToast.success({
+                    title: "CSV downloaded.",
+                    description: "Your report export has been saved.",
+                  })
                 }}
               >
                 Export CSV
@@ -433,8 +455,18 @@ export function AdminReportsView({
                     meta: exportMeta(),
                     pack: exportPack,
                   })
-                    .then(() => toast.success("Excel downloaded."))
-                    .catch(() => toast.error("Could not export Excel."))
+                    .then(() =>
+                      appToast.success({
+                        title: "Excel downloaded.",
+                        description: "Your report export has been saved.",
+                      })
+                    )
+                    .catch(() =>
+                      appToast.error({
+                        title: "Export failed",
+                        description: "Could not export Excel.",
+                      })
+                    )
                 }}
               >
                 Export Excel

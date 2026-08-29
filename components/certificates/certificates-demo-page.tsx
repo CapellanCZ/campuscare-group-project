@@ -8,7 +8,7 @@ import {
   useState,
   useTransition,
 } from "react"
-import { toast } from "sonner"
+import { documentToasts } from "@/lib/feedback/toast-messages"
 import { IconFileText, IconPrinter, IconFileTypePdf } from "@tabler/icons-react"
 
 import { DocumentDetailSheet } from "@/components/medical-documents/document-detail-sheet"
@@ -183,7 +183,7 @@ export function CertificatesPage({
 
   useEffect(() => {
     if (initialError) {
-      toast.error(initialError)
+      documentToasts.failed(initialError)
     }
   }, [initialError])
 
@@ -212,18 +212,18 @@ export function CertificatesPage({
       ])
 
       if (!listResult.ok) {
-        toast.error(listResult.error)
+        documentToasts.failed(listResult.error)
         return
       }
       if (!statsResult.ok) {
-        toast.error(statsResult.error)
+        documentToasts.failed(statsResult.error)
         return
       }
 
       setList(listResult.data)
       setStats(statsResult.data)
     } catch {
-      toast.error(
+      documentToasts.failed(
         "Unable to reach the database. Check your connection and try again."
       )
     } finally {

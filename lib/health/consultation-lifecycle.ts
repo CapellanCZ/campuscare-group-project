@@ -106,7 +106,7 @@ export async function resolveClinicalPatientId(
       employee_id: isFaculty ? employeeId : null,
       first_name: firstName,
       last_name: lastName,
-      course: isFaculty ? "Faculty" : null,
+      course: null,
       email: operational.email,
       phone: operational.phone,
       birth_date: operational.date_of_birth,

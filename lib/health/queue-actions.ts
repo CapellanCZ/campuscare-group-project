@@ -1,6 +1,11 @@
+import { CAMPUS_ID_LABEL } from "@/types/patientRecord"
 import type { ClinicDesignation } from "@/lib/auth/types"
 import { CAMPUS_CLINIC_ID } from "@/lib/auth/campus-clinic"
 import { assertCanAccommodate } from "@/lib/availability/queries"
+import {
+  getActiveDutyByRole,
+  isRoleOnDuty,
+} from "@/lib/availability/duty-queries"
 import {
   canApproveConsultationRequest,
   canMutateQueue,
@@ -60,9 +65,19 @@ export async function callNextTicket(params: {
   designation: ClinicDesignation
   station?: StationId
   staffName: string
+  actingUserId?: string
 }): Promise<HealthActionResult> {
   const denied = await requireMutable(params.designation)
   if (denied) return { ok: false, error: denied }
+
+  const openCheck = await assertCanAccommodate({
+    at: new Date(),
+    actingUserId: params.actingUserId,
+    staffLabel: "You",
+  })
+  if (!openCheck.ok) {
+    return { ok: false, error: openCheck.error }
+  }
 
   const supabase = await createClient()
   const station =
@@ -153,6 +168,15 @@ export async function startConsultation(params: {
 }): Promise<HealthActionResult> {
   const denied = await requireMutable(params.designation)
   if (denied) return { ok: false, error: denied }
+
+  const openCheck = await assertCanAccommodate({
+    at: new Date(),
+    actingUserId: params.staffUserId,
+    staffLabel: "You",
+  })
+  if (!openCheck.ok) {
+    return { ok: false, error: openCheck.error }
+  }
 
   const supabase = await createClient()
   const station = stationForDesignation(params.designation)
@@ -400,11 +424,25 @@ export async function completeTicket(params: {
   if (denied) return { ok: false, error: denied }
 
   const supabase = await createClient()
+  const now = new Date().toISOString()
+
+  const consultationId = await resolveConsultationIdForTicket(
+    params.ticketId,
+    supabase
+  )
+  if (consultationId) {
+    await setConsultationStatus({
+      consultationId,
+      status: "completed",
+      client: supabase,
+    })
+  }
+
   const { error } = await supabase
     .from("health_queue_tickets")
     .update({
       status: "completed",
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     })
     .eq("id", params.ticketId)
 
@@ -551,13 +589,18 @@ export async function completeNurseIntakeAndAssign(params: {
   designation: ClinicDesignation
   ticketId: string
   staffName: string
+  actingUserId?: string
   intake: NurseIntakeInput
 }): Promise<HealthActionResult> {
   if (!canTransferQueue(params.designation)) {
     return { ok: false, error: "Only nurses can complete intake and assign specialty." }
   }
 
-  const openCheck = await assertCanAccommodate({ at: new Date() })
+  const openCheck = await assertCanAccommodate({
+    at: new Date(),
+    actingUserId: params.actingUserId,
+    staffLabel: "You",
+  })
   if (!openCheck.ok) {
     return { ok: false, error: openCheck.error }
   }
@@ -657,8 +700,14 @@ export async function completeNurseIntakeAndAssign(params: {
   })
   if (!saved.ok) return { ok: false, error: saved.error }
 
-  const { nextPos } = await nextQueueSlot(supabase)
+  const dutyByRole = await getActiveDutyByRole(supabase)
+  const providerAvailable =
+    toStation === "physician" || toStation === "dentist"
+      ? isRoleOnDuty(dutyByRole, toStation)
+      : true
+
   const now = new Date().toISOString()
+  const { nextPos } = await nextQueueSlot(supabase)
 
   const { error } = await supabase
     .from("health_queue_tickets")
@@ -687,9 +736,14 @@ export async function completeNurseIntakeAndAssign(params: {
 
   if (error) return { ok: false, error: error.message }
 
+  const providerLabel = toStation === "dentist" ? "Dentist" : "Physician"
+  const message = providerAvailable
+    ? `Intake saved. Assigned to ${toStation} queue.`
+    : `Intake saved. Added to the ${providerLabel} waiting list — no ${providerLabel.toLowerCase()} is on duty yet.`
+
   return {
     ok: true,
-    message: `Intake saved. Assigned to ${toStation} queue.`,
+    message,
     consultationId,
   }
 }
@@ -712,6 +766,28 @@ export async function transferTicket(params: {
 
   if (!ticket) return { ok: false, error: "Ticket not found." }
 
+  const consultationId = await resolveConsultationIdForTicket(
+    params.ticketId,
+    supabase
+  )
+  if (
+    consultationId &&
+    (params.toStation === "physician" || params.toStation === "dentist")
+  ) {
+    await setConsultationStatus({
+      consultationId,
+      status: "waiting",
+      station: params.toStation,
+      client: supabase,
+    })
+  }
+
+  const dutyByRole = await getActiveDutyByRole(supabase)
+  const providerAvailable =
+    params.toStation === "physician" || params.toStation === "dentist"
+      ? isRoleOnDuty(dutyByRole, params.toStation)
+      : true
+
   const { nextPos } = await nextQueueSlot(supabase)
   const { error } = await supabase
     .from("health_queue_tickets")
@@ -726,6 +802,19 @@ export async function transferTicket(params: {
     .eq("id", ticket.id)
 
   if (error) return { ok: false, error: error.message }
+
+  if (
+    !providerAvailable &&
+    (params.toStation === "physician" || params.toStation === "dentist")
+  ) {
+    const providerLabel =
+      params.toStation === "dentist" ? "Dentist" : "Physician"
+    return {
+      ok: true,
+      message: `Added to the ${providerLabel} waiting list — no ${providerLabel.toLowerCase()} is on duty yet.`,
+    }
+  }
+
   return { ok: true, message: `Transferred to ${params.toStation}.` }
 }
 
@@ -737,12 +826,17 @@ export async function registerWalkIn(params: {
   consultationType: string
   providerQueue: StationId
   staffName: string
+  actingUserId?: string
 }): Promise<HealthActionResult> {
   if (!canRegisterWalkIn(params.designation)) {
     return { ok: false, error: "Only nurses can register walk-ins." }
   }
 
-  const openCheck = await assertCanAccommodate({ at: new Date() })
+  const openCheck = await assertCanAccommodate({
+    at: new Date(),
+    actingUserId: params.actingUserId,
+    staffLabel: "You",
+  })
   if (!openCheck.ok) {
     return { ok: false, error: openCheck.error }
   }
@@ -757,10 +851,7 @@ export async function registerWalkIn(params: {
   if (idRequired && !campusId) {
     return {
       ok: false,
-      error:
-        patientType === "student"
-          ? "Student ID is required for students."
-          : "ID is required for faculty and employees.",
+      error: `${CAMPUS_ID_LABEL} is required for ${patientType === "student" ? "students" : "faculty and employees"}.`,
     }
   }
 
@@ -845,6 +936,32 @@ export async function registerWalkIn(params: {
       resolvedName = created.full_name
       resolvedCampusId = created.employee_id
     }
+  }
+
+  if (patientType === "visitor" && !patientId) {
+    const now = new Date().toISOString()
+    const { data: created, error: createError } = await supabase
+      .from("patients")
+      .insert({
+        full_name: name,
+        patient_type: "visitor",
+        affiliation: "visitor",
+        student_id: campusId,
+        employee_id: null,
+        clinic_id: CAMPUS_CLINIC_ID,
+        updated_at: now,
+      })
+      .select("id, full_name")
+      .single()
+
+    if (createError || !created) {
+      return {
+        ok: false,
+        error: createError?.message || "Could not register visitor walk-in.",
+      }
+    }
+    patientId = created.id as string
+    resolvedName = created.full_name as string
   }
 
   const consultationTypeLower = (

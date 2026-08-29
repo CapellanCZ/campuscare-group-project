@@ -259,20 +259,157 @@ export function normalizePatientType(
   value?: string | null
 ): PatientType | null {
   const raw = (value ?? "").trim().toLowerCase()
+  if (raw === "student" || raw === "visitor") return raw
   if (
-    raw === "student" ||
-    raw === "faculty" ||
     raw === "employee" ||
-    raw === "visitor"
+    raw === "staff" ||
+    raw === "personnel" ||
+    raw === "non-teaching" ||
+    raw === "non teaching" ||
+    raw === "nonteaching"
   ) {
-    return raw
+    return "employee"
+  }
+  if (
+    raw === "faculty" ||
+    raw === "teacher" ||
+    raw === "instructor" ||
+    raw === "professor" ||
+    raw === "teaching"
+  ) {
+    return "faculty"
+  }
+  if (
+    raw === "faculty employee" ||
+    raw === "faculty/employee" ||
+    raw === "employee/faculty"
+  ) {
+    return null
+  }
+  if (raw.includes("non-teaching") || raw.includes("nonteaching")) {
+    return "employee"
+  }
+  if (raw.includes("faculty") || raw.includes("teaching")) return "faculty"
+  if (raw.includes("employee") || raw.includes("staff")) return "employee"
+  return null
+}
+
+/** True when a spreadsheet cell holds a roster role label, not a guardian occupation. */
+export function isPatientTypeRoleLabel(value?: string | null): boolean {
+  const type = normalizePatientType(value)
+  return type === "student" || type === "faculty" || type === "employee"
+}
+
+const IMPORT_PATIENT_TYPE_FIELDS = [
+  "patient_type",
+  "patienttype",
+  "type_of_patient",
+  "patient_category",
+  "affiliation",
+  "type",
+  "category",
+  "role",
+  "designation",
+  "classification",
+  "employment_type",
+  "employee_type",
+  "employee_category",
+  "person_type",
+  "personnel_type",
+  "staff_type",
+  "group",
+  "occupation",
+  "position",
+  "__import_sheet",
+] as const
+
+function explicitImportPatientType(
+  row: Record<string, string | undefined>
+): PatientType | null {
+  for (const field of IMPORT_PATIENT_TYPE_FIELDS) {
+    const type = normalizePatientType(row[field])
+    if (type) return type
   }
   return null
 }
 
-/** Campus / Student ID required for all types except visitor. */
+export function looksLikeStudentCampusId(value: string): boolean {
+  return /^\d{4}-\d{6}$/.test(value.trim())
+}
+
+/** Faculty and employee share ID Number storage (`employee_id`) but are distinct roles. */
+export function patientTypeUsesEmployeeId(
+  type: PatientType | null | undefined
+): boolean {
+  return type === "faculty" || type === "employee"
+}
+
+/** Infer student vs faculty/employee when spreadsheets omit or mislabel patient_type. */
+export function resolveImportPatientType(
+  row: Record<string, string | undefined>
+): PatientType {
+  const explicit = explicitImportPatientType(row)
+  if (explicit) return explicit
+
+  const course = (row.course || row.program || "").trim()
+  const studentId = (
+    row.student_id ||
+    row.student_id_number ||
+    row.nu_quest_id ||
+    ""
+  ).trim()
+  const idNumber = (
+    row.id_number ||
+    row.id_no ||
+    row.campus_id ||
+    row.employee_id ||
+    row.employeeid ||
+    ""
+  ).trim()
+
+  if (studentId || (idNumber && looksLikeStudentCampusId(idNumber))) {
+    return "student"
+  }
+
+  if (idNumber && !course) {
+    // Same ID Number field as faculty; role must be set explicitly in patient_type.
+    return "employee"
+  }
+
+  if (!course) return "employee"
+
+  return "student"
+}
+
+/** Campus ID required for all types except visitor. */
 export function patientTypeRequiresCampusId(type: PatientType): boolean {
   return type !== "visitor"
+}
+
+/** Unified UI label for student / employee / faculty campus identifiers. */
+export const CAMPUS_ID_LABEL = "ID Number"
+
+export function campusIdsFromIdNumber(
+  patientType: PatientType,
+  idNumber: string
+):
+  | { ok: true; studentId: string | null; employeeId: string | null }
+  | { ok: false; error: string } {
+  const trimmed = idNumber.trim()
+
+  if (patientType === "visitor") {
+    return { ok: true, studentId: null, employeeId: null }
+  }
+
+  if (!trimmed) {
+    return { ok: false, error: `${CAMPUS_ID_LABEL} is required.` }
+  }
+
+  if (patientType === "student") {
+    return { ok: true, studentId: trimmed, employeeId: null }
+  }
+
+  return { ok: true, studentId: null, employeeId: trimmed }
 }
 
 export function patientTypeLabel(type: PatientType | null | undefined): string {
@@ -281,6 +418,10 @@ export function patientTypeLabel(type: PatientType | null | undefined): string {
   if (type === "visitor") return "Visitor"
   if (type === "student") return "Student"
   return "—"
+}
+
+export function patientTypeIsStudent(type: PatientType | null | undefined): boolean {
+  return type === "student"
 }
 
 export function patientFullName(patient: {
@@ -462,8 +603,8 @@ export function patientRecordToJson(
     first_name: patient.firstName.trim(),
     middle_name: emptyToNull(patient.middleName),
     last_name: patient.lastName.trim(),
-    course: emptyToNull(patient.course),
-    year_level: emptyToNull(patient.yearLevel),
+    course: patientType === "student" ? emptyToNull(patient.course) : null,
+    year_level: patientType === "student" ? emptyToNull(patient.yearLevel) : null,
     gender: emptyToNull(patient.gender),
     birth_date: emptyToNull(patient.birthDate),
     civil_status: emptyToNull(patient.civilStatus),

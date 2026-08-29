@@ -1,7 +1,7 @@
 ﻿"use client"
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
-import { toast } from "sonner"
+import { appToast } from "@/lib/feedback/app-toast"
 
 import { DemoPageHeader, DemoStatGrid } from "@/components/demo/demo-page"
 import { Button } from "@/components/ui/button"
@@ -123,7 +123,7 @@ export function ReportsPage({
   const canExcel = can(d, "reports.export_excel")
 
   useEffect(() => {
-    if (initialError) toast.error(initialError)
+    if (initialError) appToast.error({ title: "Unable to load reports", description: initialError })
   }, [initialError])
 
   const loadRange = useCallback(async (nextRange: ReportRange) => {
@@ -131,15 +131,16 @@ export function ReportsPage({
     try {
       const result = await fetchClinicReportAction(nextRange)
       if (!result.ok) {
-        toast.error(result.error)
+        appToast.error({ title: "Unable to load reports", description: result.error })
         return
       }
       setReport(result.data)
       setRange(result.data.range)
     } catch {
-      toast.error(
-        "Unable to reach the database. Check your connection and try again."
-      )
+      appToast.error({
+        title: "Unable to reach the database",
+        description: "Check your connection and try again.",
+      })
     } finally {
       setLoading(false)
     }
@@ -154,18 +155,24 @@ export function ReportsPage({
 
   function handleExportPdf() {
     window.print()
-    toast.success(
-      pdfLevel === "view" ? "Opening print preview." : "Preparing PDF export."
-    )
+    appToast.info({
+      title: pdfLevel === "view" ? "Opening print preview." : "Preparing PDF export.",
+    })
   }
 
   function handleExportExcel() {
     startTransition(async () => {
       try {
         await downloadExcel(report)
-        toast.success("Excel export downloaded.")
+        appToast.success({
+          title: "Excel export downloaded.",
+          description: "Your report export has been saved.",
+        })
       } catch {
-        toast.error("Could not export Excel. Please try again.")
+        appToast.error({
+          title: "Export failed",
+          description: "Could not export Excel. Please try again.",
+        })
       }
     })
   }

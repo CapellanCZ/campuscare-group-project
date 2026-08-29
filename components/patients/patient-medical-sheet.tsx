@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
-import { toast } from "sonner"
+import { patientToasts } from "@/lib/feedback/toast-messages"
 
 import { PatientMedicalConfirmDialog } from "@/components/patients/patient-medical-confirm-dialog"
 import { Button } from "@/components/ui/button"
@@ -20,11 +20,13 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { updatePatientMedicalRecordAction } from "@/features/patients/actions"
 import {
+  CAMPUS_ID_LABEL,
   EMPTY_MEDICAL_HISTORY,
   EMPTY_PHYSICAL_EXAM,
   patientAgeYears,
   patientCampusId,
   patientFullName,
+  patientTypeIsStudent,
   type MedicalHistory,
   type PatientRecord,
   type PhysicalExam,
@@ -125,10 +127,10 @@ export function PatientMedicalSheet({
         physicalExam: exam,
       })
       if (!result.ok) {
-        toast.error(result.error)
+        patientToasts.failed(result.error)
         return
       }
-      toast.success("Medical record updated.")
+      patientToasts.saved()
       setConfirmOpen(false)
       onOpenChange(false)
       onSaved(result.data)
@@ -161,9 +163,13 @@ export function PatientMedicalSheet({
                   <ReadOnly label="Surname" value={patient.lastName} />
                   <ReadOnly label="Given name" value={patient.firstName} />
                   <ReadOnly label="Middle name" value={patient.middleName} />
-                  <ReadOnly label="Course" value={patient.course} />
-                  <ReadOnly label="Student ID No." value={studentId} />
-                  <ReadOnly label="Year level" value={patient.yearLevel} />
+                  {patientTypeIsStudent(patient.patientType) ? (
+                    <>
+                      <ReadOnly label="Course" value={patient.course} />
+                      <ReadOnly label="Year level" value={patient.yearLevel} />
+                    </>
+                  ) : null}
+                  <ReadOnly label={`${CAMPUS_ID_LABEL}`} value={studentId} />
                   <ReadOnly label="Address" value={patient.address} />
                   <ReadOnly label="Contact No." value={patient.phone} />
                   <ReadOnly label="Birthdate" value={patient.birthDate} />

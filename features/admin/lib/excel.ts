@@ -27,8 +27,14 @@ const HEADER_HINTS = [
   "full_name",
   "student_id",
   "student_id_number",
-  "employee_id",
+  "id_number",
+  "id_no",
   "patient_type",
+  "license_no",
+  "license_number",
+  "role",
+  "designation",
+  "occupation",
   "email",
   "course",
 ] as const
@@ -62,7 +68,8 @@ function detectHeaderRowIndex(matrix: unknown[][]): number {
 
 function matrixToKeyedRows(
   matrix: unknown[][],
-  headerRowIndex: number
+  headerRowIndex: number,
+  sheetName?: string
 ): ExcelRow[] {
   const headerRow = matrix[headerRowIndex]
   if (!Array.isArray(headerRow)) return []
@@ -94,33 +101,41 @@ function matrixToKeyedRows(
       }
     }
     if (!hasValue) continue
+    if (sheetName) {
+      normalized.__import_sheet = sheetName
+    }
     rows.push(normalized)
   }
   return rows
 }
 
-/** Parse first sheet of an .xlsx / .xls / .csv file into normalized string rows. */
+/** Parse all sheets of an .xlsx / .xls / .csv file into normalized string rows. */
 export async function parseExcelRows(buffer: ArrayBuffer): Promise<ExcelRow[]> {
   const XLSX = await import("xlsx")
   const workbook = XLSX.read(buffer, { type: "array", cellDates: true })
-  const sheetName = workbook.SheetNames[0]
-  if (!sheetName) return []
+  if (workbook.SheetNames.length === 0) return []
 
-  const sheet = workbook.Sheets[sheetName]
-  const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-    header: 1,
-    defval: "",
-    raw: false,
-  })
+  const allRows: ExcelRow[] = []
 
-  if (matrix.length === 0) return []
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName]
+    const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+      header: 1,
+      defval: "",
+      raw: false,
+    })
 
-  if (isCampusRosterMatrix(matrix)) {
-    return parseCampusRosterMatrix(matrix)
+    if (matrix.length === 0) continue
+
+    if (allRows.length === 0 && isCampusRosterMatrix(matrix)) {
+      return parseCampusRosterMatrix(matrix)
+    }
+
+    const headerRowIndex = detectHeaderRowIndex(matrix)
+    allRows.push(...matrixToKeyedRows(matrix, headerRowIndex, sheetName))
   }
 
-  const headerRowIndex = detectHeaderRowIndex(matrix)
-  return matrixToKeyedRows(matrix, headerRowIndex)
+  return allRows
 }
 
 /** Lazy-loads xlsx only when the user downloads a template (keeps page compile light). */

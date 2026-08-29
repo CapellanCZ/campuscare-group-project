@@ -4,6 +4,8 @@ import type {
   BreakStatus,
   ClinicOfficeHour,
   DayOfWeek,
+  DutyStatusValue,
+  StaffDutyStatus,
   StaffWeeklyHour,
 } from "@/lib/availability/types"
 
@@ -170,13 +172,39 @@ export function evaluateStaffOpen(input: {
   return { ok: true }
 }
 
+export function evaluateStaffDuty(input: {
+  dutyStatus: StaffDutyStatus | null | undefined
+  label?: string
+}): AccommodateResult {
+  const label = input.label ?? "This staff member"
+  const status: DutyStatusValue = input.dutyStatus?.status ?? "not_available"
+
+  if (status === "not_available") {
+    return {
+      ok: false,
+      error: `${label} is not on duty. Start duty to receive patients.`,
+    }
+  }
+
+  if (status === "on_break") {
+    return {
+      ok: false,
+      error: `${label} is on break and cannot receive patients right now.`,
+    }
+  }
+
+  return { ok: true }
+}
+
 export function evaluateCanAccommodate(input: {
   at: Date
   clinicHours: ClinicOfficeHour[]
   clinicBreak: BreakStatus | null
-  staffSlots?: StaffWeeklyHour[]
+  staffDuty?: StaffDutyStatus | null
   staffBreak?: BreakStatus | null
   staffLabel?: string
+  /** @deprecated Schedule slots are reference-only; use staffDuty for real-time availability. */
+  staffSlots?: StaffWeeklyHour[]
   timeZone?: string
 }): AccommodateResult {
   const clinic = evaluateClinicOpen({
@@ -187,14 +215,25 @@ export function evaluateCanAccommodate(input: {
   })
   if (!clinic.ok) return clinic
 
-  if (input.staffSlots) {
-    return evaluateStaffOpen({
-      at: input.at,
-      slots: input.staffSlots,
-      breakStatus: input.staffBreak ?? null,
-      timeZone: input.timeZone,
+  if (input.staffDuty !== undefined) {
+    const duty = evaluateStaffDuty({
+      dutyStatus: input.staffDuty,
       label: input.staffLabel,
     })
+    if (!duty.ok) return duty
+  }
+
+  if (input.staffBreak && isBreakActive(input.staffBreak, input.at)) {
+    const label = input.staffLabel ?? "This staff member"
+    const until = input.staffBreak.resumesAt
+      ? new Date(input.staffBreak.resumesAt).toLocaleString("en-PH", {
+          timeZone: input.timeZone ?? CLINIC_TIMEZONE,
+        })
+      : "later"
+    return {
+      ok: false,
+      error: `${label} is on break until ${until}.`,
+    }
   }
 
   return { ok: true }

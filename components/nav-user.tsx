@@ -17,18 +17,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useConfirm } from "@/components/feedback/confirm-provider"
 import { useTheme } from "@/components/theme-provider"
 import { useOptionalStaffAccess } from "@/components/staff-access-provider"
 import { signOut } from "@/app/auth/actions"
 import { savePreferencesAction } from "@/features/settings/actions"
 import { staffBasePath } from "@/lib/auth/home-path"
+import { appToast } from "@/lib/feedback/app-toast"
 import {
   IconLogout,
   IconMoon,
   IconSun,
   IconUser,
 } from "@tabler/icons-react"
-import { toast } from "sonner"
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -40,6 +41,7 @@ function initials(name: string) {
 export function NavUser() {
   const access = useOptionalStaffAccess()
   const { theme, setTheme, resolvedTheme } = useTheme()
+  const { confirmPreset } = useConfirm()
   const [pending, startTransition] = useTransition()
 
   const name = access?.fullName ?? "Staff"
@@ -57,7 +59,7 @@ export function NavUser() {
     startTransition(async () => {
       const result = await savePreferencesAction({ theme: next })
       if (!result.ok) {
-        toast.error(result.error)
+        appToast.error({ title: "Unable to Save Preference", description: result.error })
       }
     })
   }
@@ -130,9 +132,11 @@ export function NavUser() {
             variant="destructive"
             disabled={pending}
             onClick={() => {
-              startTransition(async () => {
-                await signOut()
-                window.location.assign("/login")
+              void confirmPreset("logout", {
+                onConfirm: async () => {
+                  await signOut()
+                  window.location.assign("/login")
+                },
               })
             }}
           >

@@ -12,6 +12,7 @@ import { resolveActiveNav } from "@/components/app-shared"
 import { HeaderNotifications } from "@/components/header-notifications"
 import { NavUser } from "@/components/nav-user"
 import { OnBreakControl } from "@/components/availability/on-break-control"
+import { DutyStatusControl } from "@/components/availability/duty-status-control"
 import { useOptionalStaffAccess } from "@/components/staff-access-provider"
 import { stripStaffBasePath } from "@/lib/auth/home-path"
 
@@ -45,7 +46,12 @@ export function AppHeader() {
         <AppBreadcrumbs page={page} />
       </div>
       <div className="flex flex-wrap items-center justify-end gap-3">
-        {role ? <OnBreakControl /> : null}
+        {role ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <DutyStatusControl />
+            <OnBreakControl />
+          </div>
+        ) : null}
         <HeaderNotifications />
         <Separator
           className="h-4 data-[orientation=vertical]:self-center"

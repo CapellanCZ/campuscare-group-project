@@ -58,6 +58,7 @@ export async function actionCallNext(station?: StationId) {
       designation: access.designation,
       station,
       staffName: access.fullName,
+      actingUserId: access.userId,
     })
   )
 }
@@ -143,6 +144,7 @@ export async function actionCompleteNurseIntake(
       designation: access.designation,
       ticketId,
       staffName: access.fullName,
+      actingUserId: access.userId,
       intake,
     })
   )
@@ -195,6 +197,7 @@ export async function actionRegisterWalkIn(input: {
       consultationType: input.consultationType,
       providerQueue: input.providerQueue,
       staffName: access.fullName,
+      actingUserId: access.userId,
     })
   )
 }

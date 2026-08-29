@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
-import { toast } from "sonner"
+import { useConfirm } from "@/components/feedback/confirm-provider"
+import { requestToasts } from "@/lib/feedback/toast-messages"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -45,6 +46,7 @@ export function ApproveRequestDialog({
   mode?: "approve" | "admit"
   onUpdated: (request: AppointmentRequest) => void
 }) {
+  const { confirmPreset } = useConfirm()
   const [pending, startTransition] = useTransition()
   const [doctors, setDoctors] = useState<
     { id: string; fullName: string; email: string | null }[]
@@ -69,15 +71,15 @@ export function ApproveRequestDialog({
 
   const isAdmit = mode === "admit" || request.status === "waitlisted"
 
-  function handleConfirm() {
+  function executeConfirm() {
     startTransition(async () => {
       if (isAdmit) {
         const result = await admitConsultationRequestAction(request!.id, true)
         if (!result.ok) {
-          toast.error(result.error)
+          requestToasts.failed(result.error)
           return
         }
-        toast.success("Patient admitted from waitlist.")
+        requestToasts.approved()
         onUpdated(result.data)
         onOpenChange(false)
         return
@@ -93,12 +95,28 @@ export function ApproveRequestDialog({
         notes: approvalNotes,
       })
       if (!result.ok) {
-        toast.error(result.error)
+        requestToasts.failed(result.error)
         return
       }
-      toast.success("Request approved. Patient moved to Consultations.")
+      requestToasts.approved()
       onUpdated(result.data)
       onOpenChange(false)
+    })
+  }
+
+  function handleConfirm() {
+    if (isAdmit) {
+      void confirmPreset("approve", {
+        title: "Admit from waitlist?",
+        description: `Admit ${request!.patientName} to the queue for their preferred date?`,
+        confirmLabel: "Admit to queue",
+        onConfirm: executeConfirm,
+      })
+      return
+    }
+
+    void confirmPreset("approve", {
+      onConfirm: executeConfirm,
     })
   }
 

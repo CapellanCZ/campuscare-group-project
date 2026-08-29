@@ -59,7 +59,7 @@ export function MedicalCertificationPrint({
         </div>
       }
     >
-      <section className="space-y-1.5 print:space-y-0.5">
+      <section className="space-y-1.5">
         <HsoFormFieldRow
           label="Patient's Name"
           value={document.patient.fullName}
@@ -73,13 +73,13 @@ export function MedicalCertificationPrint({
 
       <HsoFormRule />
 
-      <section className="mt-7 space-y-2 print:mt-1.5 print:space-y-1">
+      <section className="mt-7 space-y-2">
         <p>
           I certify that I have examined and found the student to be physically
           fit/unfit for the school event.
         </p>
 
-        <ul className="space-y-1.5 print:space-y-0.5">
+        <ul className="space-y-1.5">
           <li className="flex gap-1.5">
             <HsoFormCheckbox checked={status === "fit_all"} />
             <span>Physically fit for any activity of the University</span>

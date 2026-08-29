@@ -17,7 +17,7 @@ import {
   setClinicBreak,
   setStaffBreak,
 } from "@/features/availability/actions/availability"
-import type { BreakStatus } from "@/lib/availability/types"
+import type { BreakStatus, StaffDutyStatus } from "@/lib/availability/types"
 import type { WebRole } from "@/lib/auth/types"
 
 type BreakMode = "clinic" | "staff"
@@ -27,6 +27,7 @@ type BreakModeContextValue = {
   role: WebRole | null
   active: boolean
   resumesAt: string | null
+  dutyStatus: StaffDutyStatus
   pending: boolean
   error: string | null
   startBreak: () => void
@@ -51,6 +52,12 @@ export function BreakModeProvider({
 }) {
   const [clinicBreak, setClinicBreakState] = useState<BreakStatus | null>(null)
   const [staffBreak, setStaffBreakState] = useState<BreakStatus | null>(null)
+  const [dutyStatus, setDutyStatus] = useState<StaffDutyStatus>({
+    status: "not_available",
+    dutyStartedAt: null,
+    dutyEndedAt: null,
+    updatedAt: null,
+  })
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -71,6 +78,7 @@ export function BreakModeProvider({
     void loadMyBreakBundle().then((bundle) => {
       setClinicBreakState(bundle.clinicBreak)
       setStaffBreakState(bundle.staffBreak)
+      setDutyStatus(bundle.dutyStatus)
     })
   }, [canClinic, canStaff])
 
@@ -81,6 +89,7 @@ export function BreakModeProvider({
       if (cancelled) return
       setClinicBreakState(bundle.clinicBreak)
       setStaffBreakState(bundle.staffBreak)
+      setDutyStatus(bundle.dutyStatus)
     })
     return () => {
       cancelled = true
@@ -122,13 +131,14 @@ export function BreakModeProvider({
       role: role ?? null,
       active: Boolean(mode) && active,
       resumesAt,
+      dutyStatus,
       pending: isPending,
       error,
       startBreak,
       endBreak,
       refresh,
     }),
-    [mode, role, active, resumesAt, isPending, error, startBreak, endBreak, refresh]
+    [mode, role, active, resumesAt, dutyStatus, isPending, error, startBreak, endBreak, refresh]
   )
 
   return (

@@ -1,6 +1,6 @@
 "use client"
 
-import { toast } from "sonner"
+import { appToast } from "@/lib/feedback/app-toast"
 
 import { DemoPageHeader } from "@/components/demo/demo-page"
 import { Button } from "@/components/ui/button"
@@ -146,9 +146,10 @@ export function SettingsDemoPage({ access }: { access: StaffAccess }) {
                     size="sm"
                     variant="outline"
                     onClick={() =>
-                      toast.message(
-                        "Profile editing will be available when account settings are connected."
-                      )
+                      appToast.info({
+                        title:
+                          "Profile editing will be available when account settings are connected.",
+                      })
                     }
                   >
                     Edit profile

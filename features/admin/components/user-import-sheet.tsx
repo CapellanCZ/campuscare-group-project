@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { toast } from "sonner"
+import { appToast } from "@/lib/feedback/app-toast"
+import { staffToasts } from "@/lib/feedback/toast-messages"
 import { IconDownload, IconFileSpreadsheet, IconUpload } from "@tabler/icons-react"
 
 import { importStaffUsersFromExcel } from "@/features/admin/actions/user-management"
@@ -51,12 +52,12 @@ export function UserImportSheet({
 
       if (!result.ok) {
         setError(result.error)
-        toast.error(result.error)
+        staffToasts.failed(result.error)
         return
       }
 
-      toast.success(result.message)
-      if (result.warning) toast.message(result.warning)
+      appToast.success({ title: result.message })
+      if (result.warning) appToast.warning({ title: result.warning })
       setOpen(false)
       onImported()
       router.refresh()
@@ -94,9 +95,14 @@ export function UserImportSheet({
           <p className="text-sm text-muted-foreground">
             Columns:{" "}
             <span className="font-medium text-foreground">
-              full_name, email, role
-            </span>{" "}
-            ({config.importRoleHint})
+              {config.templateHeaders.join(", ")}
+            </span>
+            {config.importRoleHint ? (
+              <>
+                {" "}
+                (Role: {config.importRoleHint})
+              </>
+            ) : null}
           </p>
           <Button
             type="button"
@@ -107,7 +113,7 @@ export function UserImportSheet({
             onClick={() => {
               void downloadExcelTemplate(
                 config.templateFilename,
-                ["full_name", "email", "role"],
+                [...config.templateHeaders],
                 config.templateSampleRows
               )
             }}

@@ -30,6 +30,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  CAMPUS_ID_LABEL,
+  patientCampusId,
+} from "@/types/patientRecord"
 
 type SearchParamValue = string | string[] | undefined
 
@@ -65,11 +69,6 @@ function buildHref(parts: {
   return qs ? `${BASE}?${qs}` : BASE
 }
 
-function campusIdLabel(patientType: PatientAffiliation | "all" | string) {
-  if (patientType === "faculty") return "Employee ID"
-  return "Student ID"
-}
-
 export async function PatientsPage({ searchParams = {} }: PatientsPageProps) {
   const query = firstValue(searchParams.q).trim()
   const patientType = normalizeTypeFilter(
@@ -89,8 +88,7 @@ export async function PatientsPage({ searchParams = {} }: PatientsPageProps) {
     const outcome = await createPatient({
       fullName: String(formData.get("fullName") ?? ""),
       email: String(formData.get("email") ?? ""),
-      studentId: String(formData.get("studentId") ?? ""),
-      employeeId: String(formData.get("employeeId") ?? ""),
+      idNumber: String(formData.get("idNumber") ?? ""),
       phone: String(formData.get("phone") ?? ""),
       dateOfBirth: String(formData.get("dateOfBirth") ?? ""),
       sex: String(formData.get("sex") ?? ""),
@@ -115,8 +113,7 @@ export async function PatientsPage({ searchParams = {} }: PatientsPageProps) {
       patientId: String(formData.get("patientId") ?? ""),
       fullName: String(formData.get("fullName") ?? ""),
       email: String(formData.get("email") ?? ""),
-      studentId: String(formData.get("studentId") ?? ""),
-      employeeId: String(formData.get("employeeId") ?? ""),
+      idNumber: String(formData.get("idNumber") ?? ""),
       phone: String(formData.get("phone") ?? ""),
       dateOfBirth: String(formData.get("dateOfBirth") ?? ""),
       sex: String(formData.get("sex") ?? ""),
@@ -171,7 +168,7 @@ export async function PatientsPage({ searchParams = {} }: PatientsPageProps) {
       <PageHeader
         title="Patients"
         subtitle="Students and faculty"
-        description="Register campus patients with the correct campus ID. Students use student ID; faculty use employee ID."
+        description={`Register campus patients. Choose student or faculty, then enter their ${CAMPUS_ID_LABEL.toLowerCase()}.`}
       />
 
       {(notice || warning || error) && (
@@ -208,7 +205,7 @@ export async function PatientsPage({ searchParams = {} }: PatientsPageProps) {
                   Register patient
                 </CardTitle>
                 <CardDescription>
-                  Pick student or faculty first — the required campus ID follows.
+                  Pick student or faculty, then enter their {CAMPUS_ID_LABEL.toLowerCase()}.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -233,14 +230,11 @@ export async function PatientsPage({ searchParams = {} }: PatientsPageProps) {
                   </select>
                   <Input name="email" type="email" placeholder="Email" />
                   <Input
-                    name="studentId"
-                    placeholder="Student ID (students)"
-                    aria-label="Student ID"
-                  />
-                  <Input
-                    name="employeeId"
-                    placeholder="Employee ID (faculty)"
-                    aria-label="Employee ID"
+                    name="idNumber"
+                    placeholder={CAMPUS_ID_LABEL}
+                    aria-label={CAMPUS_ID_LABEL}
+                    className="sm:col-span-2"
+                    required
                   />
                   <Input name="phone" placeholder="Phone" />
                   <Input name="dateOfBirth" type="date" aria-label="Date of birth" />
@@ -262,13 +256,12 @@ export async function PatientsPage({ searchParams = {} }: PatientsPageProps) {
               <CardContent>
                 <BulkExcelImportCard
                   title="Import patients"
-                  description="Columns: full_name, email, student_id, employee_id, phone, date_of_birth, sex, patient_type (student|faculty)"
+                  description="Columns: full_name, email, id_number, phone, date_of_birth, sex, patient_type (student|faculty)"
                   templateFilename="patients-import-template.xlsx"
                   templateHeaders={[
                     "full_name",
                     "email",
-                    "student_id",
-                    "employee_id",
+                    "id_number",
                     "phone",
                     "date_of_birth",
                     "sex",
@@ -279,7 +272,6 @@ export async function PatientsPage({ searchParams = {} }: PatientsPageProps) {
                       "Juan Dela Cruz",
                       "juan@example.com",
                       "2024-001",
-                      "",
                       "09171234567",
                       "2004-05-12",
                       "male",
@@ -288,7 +280,6 @@ export async function PatientsPage({ searchParams = {} }: PatientsPageProps) {
                     [
                       "Maria Santos",
                       "maria.santos@example.com",
-                      "",
                       "FAC-12",
                       "09179876543",
                       "1988-02-01",
@@ -315,7 +306,7 @@ export async function PatientsPage({ searchParams = {} }: PatientsPageProps) {
                 <Input
                   name="q"
                   defaultValue={query}
-                  placeholder="Search name or campus ID"
+                  placeholder={`Search name or ${CAMPUS_ID_LABEL.toLowerCase()}`}
                   className="w-48"
                 />
                 <select
@@ -387,16 +378,16 @@ export async function PatientsPage({ searchParams = {} }: PatientsPageProps) {
                                 <option value="faculty">Faculty</option>
                               </select>
                               <Input
-                                name="studentId"
-                                defaultValue={patient.studentId ?? ""}
-                                placeholder="Student ID"
-                                aria-label="Student ID"
-                              />
-                              <Input
-                                name="employeeId"
-                                defaultValue={patient.employeeId ?? ""}
-                                placeholder="Employee ID"
-                                aria-label="Employee ID"
+                                name="idNumber"
+                                defaultValue={
+                                  patientCampusId({
+                                    patientType: type,
+                                    studentId: patient.studentId,
+                                    employeeId: patient.employeeId,
+                                  }) ?? ""
+                                }
+                                placeholder={CAMPUS_ID_LABEL}
+                                aria-label={CAMPUS_ID_LABEL}
                               />
                               <Input
                                 name="dateOfBirth"
@@ -434,10 +425,12 @@ export async function PatientsPage({ searchParams = {} }: PatientsPageProps) {
                               <p>{patient.email ?? "No email"}</p>
                               <p>{patient.phone ?? "No phone"}</p>
                               <p>
-                                {campusIdLabel(type)}:{" "}
-                                {type === "faculty"
-                                  ? (patient.employeeId ?? "—")
-                                  : (patient.studentId ?? "—")}
+                                {CAMPUS_ID_LABEL}:{" "}
+                                {patientCampusId({
+                                  patientType: type,
+                                  studentId: patient.studentId,
+                                  employeeId: patient.employeeId,
+                                }) ?? "—"}
                               </p>
                             </div>
                           </TableCell>

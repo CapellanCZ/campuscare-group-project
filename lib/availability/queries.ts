@@ -4,6 +4,10 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { CAMPUS_CLINIC_ID } from "@/lib/auth/campus-clinic"
 import {
+  ensureStaffDutyRow,
+  getStaffDutyStatus,
+} from "@/lib/availability/duty-queries"
+import {
   evaluateCanAccommodate,
   isBreakActive,
 } from "@/lib/availability/rules"
@@ -233,6 +237,7 @@ export async function listStaffForHoursEditor(
 export async function assertCanAccommodate(input: {
   at: Date | string
   clinicianUserId?: string
+  actingUserId?: string
   staffLabel?: string
   client?: SupabaseClient
   clinicId?: string
@@ -253,13 +258,15 @@ export async function assertCanAccommodate(input: {
     }
   }
 
-  let staffSlots: StaffWeeklyHour[] | undefined
+  const dutyUserId = input.clinicianUserId ?? input.actingUserId
+  let staffDuty = undefined as Awaited<ReturnType<typeof getStaffDutyStatus>> | undefined
   let staffBreak: BreakStatus | null | undefined
 
-  if (input.clinicianUserId) {
-    ;[staffSlots, staffBreak] = await Promise.all([
-      getStaffWeeklyHours(input.clinicianUserId, supabase),
-      getStaffBreakStatus(input.clinicianUserId, supabase),
+  if (dutyUserId) {
+    await ensureStaffDutyRow(dutyUserId, supabase)
+    ;[staffDuty, staffBreak] = await Promise.all([
+      getStaffDutyStatus(dutyUserId, supabase),
+      getStaffBreakStatus(dutyUserId, supabase),
     ])
   }
 
@@ -267,7 +274,7 @@ export async function assertCanAccommodate(input: {
     at,
     clinicHours,
     clinicBreak,
-    staffSlots,
+    staffDuty,
     staffBreak,
     staffLabel: input.staffLabel,
   })

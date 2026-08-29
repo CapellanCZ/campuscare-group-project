@@ -1,6 +1,14 @@
 "use server"
 
 import {
+  filterCertificatesByScope,
+  type ClinicalRecordScope,
+} from "@/lib/clinical/record-scope"
+import { getStaffAccess } from "@/lib/auth/access"
+import { canViewModule } from "@/lib/auth/permissions"
+import { loadDentalVisitChart } from "@/features/dentist/data/visit-chart"
+import type { DentalPatientChart } from "@/features/dentist/types/dental-chart"
+import {
   getDirectoryPatientRecordStats,
   listDirectoryPatientRecords,
   listEnrolledPatientOptions,
@@ -285,10 +293,11 @@ export async function listPatientOptionsAction(
 }
 
 export async function fetchPatientConsultationHistoryAction(
-  patientId: string
+  patientId: string,
+  stationFilter: "dentist" | "physician" | "nurse" | "all" = "all"
 ): Promise<PatientRecordActionResult<Consultation[]>> {
   try {
-    const data = await getConsultationsByPatientId(patientId)
+    const data = await getConsultationsByPatientId(patientId, { stationFilter })
     return { ok: true, data }
   } catch (error) {
     return toErrorResult(error)
@@ -311,15 +320,51 @@ export async function fetchConsultationVisitDetailAction(
   }
 }
 
+export async function fetchDentalChartPreviewAction(
+  appointmentId: string
+): Promise<
+  PatientRecordActionResult<{
+    chart: DentalPatientChart
+    patientName: string
+    campusId: string | null
+  }>
+> {
+  try {
+    const access = await getStaffAccess()
+    if (!access || !canViewModule(access.designation, "patient_records")) {
+      return {
+        ok: false,
+        error: "You do not have permission to view dental charts.",
+        code: "permission",
+      }
+    }
+    const data = await loadDentalVisitChart({
+      appointmentId,
+      campusId: null,
+    })
+    return {
+      ok: true,
+      data: {
+        chart: data.chart,
+        patientName: data.patientName,
+        campusId: data.campusId,
+      },
+    }
+  } catch (error) {
+    return toErrorResult(error)
+  }
+}
+
 export async function fetchPatientDocumentsAction(
-  patient: Pick<PatientRecord, "studentId" | "employeeId">
+  patient: Pick<PatientRecord, "studentId" | "employeeId">,
+  scope: ClinicalRecordScope = "all"
 ): Promise<PatientRecordActionResult<MedicalCertificate[]>> {
   try {
     const data = await getMedicalCertificatesForPatientRecord({
       studentId: patient.studentId,
       employeeId: patient.employeeId,
     })
-    return { ok: true, data }
+    return { ok: true, data: filterCertificatesByScope(data, scope) }
   } catch (error) {
     return toErrorResult(error)
   }
@@ -339,11 +384,28 @@ export async function importPatientRecordsFromExcelAction(
     if (result.updated > 0) {
       parts.push(`${result.updated} updated`)
     }
+    const typeSummary = [
+      result.typeCounts.faculty > 0
+        ? `${result.typeCounts.faculty} faculty`
+        : null,
+      result.typeCounts.employee > 0
+        ? `${result.typeCounts.employee} employee`
+        : null,
+      result.typeCounts.student > 0
+        ? `${result.typeCounts.student} student`
+        : null,
+      result.typeCounts.visitor > 0
+        ? `${result.typeCounts.visitor} visitor`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(", ")
+
     return {
       ok: true,
       message:
         parts.length > 0
-          ? `Import complete: ${parts.join(", ")}.`
+          ? `Import complete: ${parts.join(", ")}${typeSummary ? ` (${typeSummary})` : ""}.`
           : "Import finished.",
       warning:
         result.failures.length > 0

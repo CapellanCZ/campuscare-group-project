@@ -383,7 +383,7 @@ export function Odontogram({
       </svg>
 
       {!readOnly ? (
-        <p className="mb-2 text-[10px] text-neutral-500">
+        <p className="mb-2 text-[10px] font-bold text-neutral-700">
           {activeCode
             ? `Active mark: ${activeCode} — click a tooth to apply or clear`
             : "Select a legend code, then click teeth to mark conditions"}

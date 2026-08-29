@@ -9,7 +9,9 @@ import type { ClinicalVisitRole } from "@/features/clinical/data/load-consultati
 import { updatePatientMedicalRecord } from "@/services/patientRecords"
 import type { MedicalHistory, PhysicalExam } from "@/types/patientRecord"
 
-export type VisitActionResult = { ok: true } | { ok: false; error: string }
+export type VisitActionResult =
+  | { ok: true; consultationId: string; completed?: boolean }
+  | { ok: false; error: string }
 
 function rolePaths(role: ClinicalVisitRole) {
   const base = role === "dentist" ? "/dentist" : "/physician"
@@ -145,5 +147,5 @@ export async function saveClinicalVisit(input: {
   }
 
   revalidateRole(input.role, input.consultationId)
-  return { ok: true }
+  return { ok: true, consultationId: input.consultationId, completed: input.complete }
 }

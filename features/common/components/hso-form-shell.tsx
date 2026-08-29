@@ -2,44 +2,26 @@
 
 import Image from "next/image"
 
+import { HSO_LOGO_PATH } from "@/features/reports/lib/export-letterhead"
 import { cn } from "@/lib/utils"
 
 export function HsoFormLetterhead({ compact = false }: { compact?: boolean }) {
   return (
     <div className="flex flex-col items-center text-center">
-      <div className="flex items-center justify-center gap-3 sm:gap-4">
-        <Image
-          src="/images/NU-Logo.png"
-          alt="National University"
-          width={compact ? 48 : 64}
-          height={compact ? 48 : 64}
-          className={cn(
-            "shrink-0 object-contain",
-            compact ? "size-12" : "size-14 sm:size-16"
-          )}
-        />
-        <div className="text-left">
-          <h2
-            className={cn(
-              "font-bold tracking-wide text-neutral-900 uppercase",
-              compact ? "text-base sm:text-lg" : "text-lg sm:text-xl"
-            )}
-          >
-            NU Dasmariñas
-          </h2>
-          <p
-            className={cn(
-              "font-semibold text-neutral-900",
-              compact ? "text-sm sm:text-base" : "text-base sm:text-lg"
-            )}
-          >
-            Health Services Office
-          </p>
-        </div>
-      </div>
+      <Image
+        src={HSO_LOGO_PATH}
+        alt="NU Dasmariñas Health Services Office"
+        width={compact ? 180 : 240}
+        height={compact ? 48 : 64}
+        className={cn(
+          "shrink-0 object-contain",
+          compact ? "h-12 w-auto" : "h-14 w-auto sm:h-16"
+        )}
+        priority
+      />
       <p
         className={cn(
-          "mt-1 max-w-xl leading-snug text-neutral-600",
+          "mt-2 max-w-xl leading-snug text-neutral-600",
           compact ? "text-xs" : "text-xs sm:text-sm"
         )}
       >

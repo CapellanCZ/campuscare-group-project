@@ -1,19 +1,9 @@
 "use client"
 
-import { useTransition } from "react"
-import { toast } from "sonner"
+import { useEffect, useRef } from "react"
 
+import { useConfirm } from "@/components/feedback/confirm-provider"
 import { deletePatientRecordAction } from "@/features/patients/actions"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import {
   patientFullName,
   type PatientRecord,
@@ -30,57 +20,39 @@ export function PatientDeleteDialog({
   onOpenChange: (open: boolean) => void
   onDeleted: (id: string) => void
 }) {
-  const [pending, startTransition] = useTransition()
+  const { confirmPreset } = useConfirm()
+  const inFlightRef = useRef(false)
 
-  function handleDelete() {
-    if (!patient) return
-    startTransition(async () => {
-      const result = await deletePatientRecordAction(patient.id)
-      if (!result.ok) {
-        toast.error(result.error)
-        return
-      }
-      toast.success("Patient record deleted.")
-      onOpenChange(false)
-      onDeleted(patient.id)
+  useEffect(() => {
+    if (!open || !patient || inFlightRef.current) return
+    inFlightRef.current = true
+    onOpenChange(false)
+
+    const idLabel =
+      patient.patientType === "faculty"
+        ? patient.employeeId
+        : patient.studentId
+
+    void confirmPreset("delete", {
+      description: `This permanently deletes ${patientFullName(patient)}${
+        idLabel ? ` (${idLabel})` : ""
+      } and all linked consultations. This action may not be reversible.`,
+      onConfirm: async () => {
+        const result = await deletePatientRecordAction(patient.id)
+        if (!result.ok) throw new Error(result.error)
+        onDeleted(patient.id)
+      },
+      successToast: {
+        title: "Patient Record Deleted",
+        description: "The patient record has been removed successfully.",
+      },
+      errorToast: {
+        title: "Unable to Delete Patient Record",
+      },
+    }).finally(() => {
+      inFlightRef.current = false
     })
-  }
+  }, [confirmPreset, onDeleted, onOpenChange, open, patient])
 
-  return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent size="default">
-        <AlertDialogHeader>
-          <AlertDialogTitle>Delete patient record?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This permanently deletes{" "}
-            <span className="font-medium text-foreground">
-              {patient ? patientFullName(patient) : "this patient"}
-            </span>
-            {patient
-              ? ` (${
-                  patient.patientType === "faculty"
-                    ? patient.employeeId
-                    : patient.studentId
-                })`
-              : ""}{" "}
-            and all linked
-            consultations. This action cannot be undone.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            variant="destructive"
-            disabled={pending || !patient}
-            onClick={(event) => {
-              event.preventDefault()
-              handleDelete()
-            }}
-          >
-            {pending ? "Deleting…" : "Delete"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  )
+  return null
 }

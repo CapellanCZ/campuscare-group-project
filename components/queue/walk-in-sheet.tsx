@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useTransition } from "react"
-import { toast } from "sonner"
+import { useEffect, useState, useTransition } from "react"
+import { appToast } from "@/lib/feedback/app-toast"
+import { queueToasts } from "@/lib/feedback/toast-messages"
 import { useRouter } from "next/navigation"
 
 import { SelectWithOtherField } from "@/components/shared/select-with-other-field"
@@ -27,24 +28,27 @@ import {
 import { CONSULTATION_TYPE_OPTIONS } from "@/lib/health/form-options"
 import { CampusIdInput } from "@/components/shared/campus-id-input"
 import { actionRegisterWalkIn } from "@/lib/health/queue-server-actions"
+import { searchPatientByStudentIdAction } from "@/features/patients/actions"
 import {
-  PATIENT_TYPES,
+  patientFullName,
   patientTypeLabel,
-  patientTypeRequiresCampusId,
+  CAMPUS_ID_LABEL,
   type PatientType,
 } from "@/types/patientRecord"
 import { IconUserPlus } from "@tabler/icons-react"
 
 const DEFAULT_CONSULTATION = "Walk-in consultation"
+const WALK_IN_PATIENT_TYPES = ["student", "employee", "visitor"] as const
+type WalkInPatientType = (typeof WALK_IN_PATIENT_TYPES)[number]
 
-function campusIdLabel(type: PatientType): string {
-  if (type === "faculty" || type === "employee") {
-    return patientTypeRequiresCampusId(type)
-      ? "Employee / Faculty ID"
-      : "Employee / Faculty ID (optional)"
-  }
-  if (type === "visitor") return "Student ID Number (optional)"
-  return "Student ID Number"
+function looksLikeStudentId(value: string): boolean {
+  return /^\d{4}-\d{6}$/.test(value.trim())
+}
+
+function walkInTypeFromRecord(type: PatientType): WalkInPatientType {
+  if (type === "student") return "student"
+  if (type === "faculty" || type === "employee") return "employee"
+  return "visitor"
 }
 
 export function WalkInSheet({
@@ -61,20 +65,67 @@ export function WalkInSheet({
   const open = controlledOpen ?? uncontrolledOpen
   const setOpen = onOpenChange ?? setUncontrolledOpen
   const [pending, startTransition] = useTransition()
-  const [patientName, setPatientName] = useState("")
-  const [patientType, setPatientType] = useState<PatientType>("student")
   const [campusId, setCampusId] = useState("")
+  const [debouncedCampusId, setDebouncedCampusId] = useState("")
+  const [patientName, setPatientName] = useState("")
+  const [patientType, setPatientType] = useState<WalkInPatientType>("visitor")
   const [consultationType, setConsultationType] = useState(DEFAULT_CONSULTATION)
+  const [lookupHint, setLookupHint] = useState<string | null>(null)
+  const [lookupPending, setLookupPending] = useState(false)
+  const [nameAutoFilled, setNameAutoFilled] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [formKey, setFormKey] = useState(0)
 
-  const idRequired = patientTypeRequiresCampusId(patientType)
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedCampusId(campusId.trim())
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [campusId])
+
+  useEffect(() => {
+    const id = debouncedCampusId
+    if (!id) {
+      setLookupHint(null)
+      setNameAutoFilled(false)
+      setPatientType("visitor")
+      return
+    }
+
+    let cancelled = false
+    setLookupPending(true)
+    setLookupHint(null)
+
+    void searchPatientByStudentIdAction(id).then((result) => {
+      if (cancelled) return
+      setLookupPending(false)
+
+      if (result.ok) {
+        setPatientName(patientFullName(result.data))
+        setPatientType(walkInTypeFromRecord(result.data.patientType))
+        setNameAutoFilled(true)
+        setLookupHint("Patient record found. Name and type were filled automatically.")
+        return
+      }
+
+      setNameAutoFilled(false)
+      setPatientType(looksLikeStudentId(id) ? "student" : "employee")
+      setLookupHint("No record found — enter the full name manually.")
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [debouncedCampusId])
 
   function resetForm() {
-    setPatientName("")
-    setPatientType("student")
     setCampusId("")
+    setDebouncedCampusId("")
+    setPatientName("")
+    setPatientType("visitor")
     setConsultationType(DEFAULT_CONSULTATION)
+    setLookupHint(null)
+    setNameAutoFilled(false)
     setError(null)
     setFormKey((key) => key + 1)
   }
@@ -84,15 +135,11 @@ export function WalkInSheet({
     setError(null)
 
     if (!patientName.trim()) {
-      setError("Enter the patient name.")
+      setError("Enter the patient's full name.")
       return
     }
-    if (idRequired && !campusId.trim()) {
-      setError(
-        patientType === "student"
-          ? "Student ID is required for students."
-          : "ID is required for faculty and employees."
-      )
+    if (patientType !== "visitor" && !campusId.trim()) {
+      setError(`${CAMPUS_ID_LABEL} is required for ${patientType}s.`)
       return
     }
     if (!consultationType.trim()) {
@@ -100,22 +147,28 @@ export function WalkInSheet({
       return
     }
 
+    const backendPatientType: PatientType =
+      patientType === "employee" ? "employee" : patientType
+
     startTransition(async () => {
       const result = await actionRegisterWalkIn({
         patientName,
         studentId: campusId.trim() || undefined,
-        patientType,
+        patientType: backendPatientType,
         consultationType: consultationType.trim(),
         providerQueue: "nurse",
       })
 
       if (!result.ok) {
         setError(result.error)
-        toast.error(result.error)
+        queueToasts.failed(result.error)
         return
       }
 
-      toast.success(result.message ?? "Walk-in registered")
+      appToast.success({
+        title: result.message ?? "Walk-in registered",
+        description: "The walk-in patient has been added to the queue.",
+      })
       setOpen(false)
       resetForm()
       router.refresh()
@@ -140,8 +193,8 @@ export function WalkInSheet({
         <DialogHeader className="gap-1 border-b px-6 py-4 text-left">
           <DialogTitle>Register walk-in</DialogTitle>
           <DialogDescription className="text-xs">
-            Check-in starts at the nurse station for vitals and specialty
-            assignment.
+            Enter the {CAMPUS_ID_LABEL.toLowerCase()} first. The system will look up the patient record
+            and fill in the name when found.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -149,15 +202,39 @@ export function WalkInSheet({
           className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-4"
           onSubmit={onSubmit}
         >
+          <Field>
+            <FieldLabel htmlFor="walkin-campus">{CAMPUS_ID_LABEL}</FieldLabel>
+            <CampusIdInput
+              id="walkin-campus"
+              value={campusId}
+              onChange={setCampusId}
+              placeholder="2023-171863 or faculty/employee ID"
+              aria-label={CAMPUS_ID_LABEL}
+              disabled={pending}
+            />
+            {lookupPending ? (
+              <p className="text-xs text-muted-foreground">Looking up patient…</p>
+            ) : lookupHint ? (
+              <p className="text-xs text-muted-foreground">{lookupHint}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Leave blank for visitors without an {CAMPUS_ID_LABEL.toLowerCase()}.
+              </p>
+            )}
+          </Field>
+
           <Field data-invalid={error ? true : undefined}>
-            <FieldLabel htmlFor="walkin-name">Patient name</FieldLabel>
+            <FieldLabel htmlFor="walkin-name">Full name</FieldLabel>
             <Input
               id="walkin-name"
               value={patientName}
-              onChange={(e) => setPatientName(e.target.value)}
+              onChange={(e) => {
+                setPatientName(e.target.value)
+                setNameAutoFilled(false)
+              }}
               placeholder="Full name"
               required
-              disabled={pending}
+              disabled={pending || (nameAutoFilled && lookupPending)}
               autoComplete="name"
             />
           </Field>
@@ -167,11 +244,7 @@ export function WalkInSheet({
             <Select
               value={patientType}
               onValueChange={(value) => {
-                const next = (value ?? "student") as PatientType
-                setPatientType(next)
-                if (!patientTypeRequiresCampusId(next)) {
-                  // keep any typed ID but no longer required
-                }
+                setPatientType((value ?? "visitor") as WalkInPatientType)
               }}
               disabled={pending}
             >
@@ -179,32 +252,13 @@ export function WalkInSheet({
                 <SelectValue placeholder="Select patient type" />
               </SelectTrigger>
               <SelectContent>
-                {PATIENT_TYPES.map((type) => (
+                {WALK_IN_PATIENT_TYPES.map((type) => (
                   <SelectItem key={type} value={type}>
                     {patientTypeLabel(type)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </Field>
-
-          <Field>
-            <FieldLabel htmlFor="walkin-campus">
-              {campusIdLabel(patientType)}
-              {idRequired ? "" : ""}
-            </FieldLabel>
-            <CampusIdInput
-              id="walkin-campus"
-              value={campusId}
-              onChange={setCampusId}
-              placeholder={
-                patientType === "faculty" || patientType === "employee"
-                  ? "Employee ID"
-                  : "2023-171863"
-              }
-              aria-label={campusIdLabel(patientType)}
-              disabled={pending}
-            />
           </Field>
 
           <SelectWithOtherField
@@ -224,7 +278,7 @@ export function WalkInSheet({
             </p>
           ) : null}
           <DialogFooter className="mt-auto px-0 sm:justify-stretch">
-            <Button type="submit" disabled={pending} className="w-full">
+            <Button type="submit" disabled={pending || lookupPending} className="w-full">
               {pending ? "Registering…" : "Register to nurse queue"}
             </Button>
           </DialogFooter>
