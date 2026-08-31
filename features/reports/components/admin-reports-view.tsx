@@ -24,13 +24,14 @@ import {
 } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { defaultFiltersFor } from "@/features/reports/data/apply-filters"
-import { downloadClinicProgressCsv } from "@/features/reports/lib/export-csv"
-import { downloadClinicProgressExcel } from "@/features/reports/lib/export-excel"
 import {
   buildFilterSummary,
   type ExportMeta,
 } from "@/features/reports/lib/export-letterhead"
-import { printClinicProgressReport } from "@/features/reports/lib/export-pdf"
+import {
+  downloadClinicProgressPdf,
+  printClinicProgressReport,
+} from "@/features/reports/lib/export-pdf"
 import type {
   ReportChartSeries,
   ReportFilters,
@@ -175,7 +176,6 @@ export function AdminReportsView({
   const chartsLevel = getAccessLevel(d, "reports.charts")
   const cardsLevel = getAccessLevel(d, "reports.summary_cards")
   const pdfLevel = getAccessLevel(d, "reports.export_pdf")
-  const canExcel = can(d, "reports.export_excel")
   const canFilters = can(d, "reports.filters")
 
   const kpis = useMemo(
@@ -428,6 +428,34 @@ export function AdminReportsView({
                 variant="outline"
                 disabled={exportEmpty || pending}
                 onClick={() => {
+                  void downloadClinicProgressPdf({
+                    meta: exportMeta(),
+                    pack: exportPack,
+                  })
+                    .then(() =>
+                      appToast.success({
+                        title: "PDF downloaded.",
+                        description: "Your report export has been saved.",
+                      })
+                    )
+                    .catch((error) => {
+                      appToast.error({
+                        title: "Export failed",
+                        description:
+                          error instanceof Error
+                            ? error.message
+                            : "Could not export PDF.",
+                      })
+                    })
+                }}
+              >
+                <IconFileTypePdf className="size-4" />
+                Export PDF
+              </Button>
+              <Button
+                variant="outline"
+                disabled={exportEmpty || pending}
+                onClick={() => {
                   try {
                     printClinicProgressReport({
                       meta: exportMeta(),
@@ -444,72 +472,8 @@ export function AdminReportsView({
                   }
                 }}
               >
-                <IconFileTypePdf className="size-4" />
-                Export PDF
-              </Button>
-              <Button
-                variant="outline"
-                disabled={exportEmpty || pending}
-                onClick={() => {
-                  try {
-                    printClinicProgressReport({
-                      meta: exportMeta(),
-                      pack: exportPack,
-                    })
-                  } catch {
-                    appToast.error({
-                      title: "Print failed",
-                      description: "Could not open print view.",
-                    })
-                  }
-                }}
-              >
                 <IconPrinter className="size-4" />
                 Print
-              </Button>
-            </>
-          ) : null}
-          {canExcel ? (
-            <>
-              <Button
-                variant="outline"
-                disabled={exportEmpty || pending}
-                onClick={() => {
-                  downloadClinicProgressCsv({
-                    meta: exportMeta(),
-                    pack: exportPack,
-                  })
-                  appToast.success({
-                    title: "CSV downloaded.",
-                    description: "Your report export has been saved.",
-                  })
-                }}
-              >
-                Export CSV
-              </Button>
-              <Button
-                variant="outline"
-                disabled={exportEmpty || pending}
-                onClick={() => {
-                  void downloadClinicProgressExcel({
-                    meta: exportMeta(),
-                    pack: exportPack,
-                  })
-                    .then(() =>
-                      appToast.success({
-                        title: "Excel downloaded.",
-                        description: "Your report export has been saved.",
-                      })
-                    )
-                    .catch(() =>
-                      appToast.error({
-                        title: "Export failed",
-                        description: "Could not export Excel.",
-                      })
-                    )
-                }}
-              >
-                Export Excel
               </Button>
             </>
           ) : null}

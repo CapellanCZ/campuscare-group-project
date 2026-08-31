@@ -1,8 +1,12 @@
+import html2canvas from "html2canvas"
+import { jsPDF } from "jspdf"
+
 import { chartSeriesToSvg } from "@/features/reports/lib/chart-to-svg"
 import type { ClinicExportPack } from "@/features/reports/lib/clinic-progress-narrative"
 import {
   HSO_ACCENT,
   HSO_CONFIDENTIAL,
+  exportFilename,
   HSO_LETTERHEAD_LINE,
   HSO_LOGO_PATH,
   HSO_OFFICE_NAME,
@@ -228,22 +232,89 @@ export function buildClinicProgressPrintHtml(input: {
 </html>`
 }
 
-export function printClinicProgressReport(input: {
-  meta: ExportMeta
-  pack: ClinicExportPack
-}): void {
-  const html = buildClinicProgressPrintHtml({
-    ...input,
-    logoUrl: `${window.location.origin}${HSO_LOGO_PATH}`,
+const UNSUPPORTED_COLOR_PATTERN = /lab\(|oklch\(|color\(/i
+
+const HTML2CANVAS_COLOR_PROPS = [
+  "color",
+  "backgroundColor",
+  "borderColor",
+  "borderTopColor",
+  "borderRightColor",
+  "borderBottomColor",
+  "borderLeftColor",
+  "outlineColor",
+  "textDecorationColor",
+] as const
+
+function toCanvasSafeColor(view: Window, value: string): string {
+  if (!value || value === "transparent" || value === "rgba(0, 0, 0, 0)") {
+    return value
+  }
+  if (!UNSUPPORTED_COLOR_PATTERN.test(value)) return value
+
+  const probe = view.document.createElement("span")
+  probe.style.display = "none"
+  probe.style.color = value
+  view.document.body.appendChild(probe)
+  const resolved = view.getComputedStyle(probe).color
+  probe.remove()
+
+  if (resolved && !UNSUPPORTED_COLOR_PATTERN.test(resolved)) {
+    return resolved
+  }
+  return "#111827"
+}
+
+/** html2canvas cannot parse Tailwind v4 lab()/oklch() colors from the app shell. */
+function prepareHtmlCloneForCanvas(clonedDoc: Document) {
+  const view = clonedDoc.defaultView
+  if (!view) return
+
+  if ("adoptedStyleSheets" in clonedDoc) {
+    try {
+      clonedDoc.adoptedStyleSheets = []
+    } catch {
+      // Some browsers block reassignment; ignore.
+    }
+  }
+
+  clonedDoc.querySelectorAll('link[rel="stylesheet"]').forEach((node) => {
+    node.remove()
   })
 
+  clonedDoc.querySelectorAll("style").forEach((styleEl) => {
+    const text = styleEl.textContent ?? ""
+    if (UNSUPPORTED_COLOR_PATTERN.test(text) && !text.includes(".letterhead")) {
+      styleEl.remove()
+    }
+  })
+
+  clonedDoc.querySelectorAll("*").forEach((node) => {
+    if (!(node instanceof view.HTMLElement)) return
+    const computed = view.getComputedStyle(node)
+    for (const prop of HTML2CANVAS_COLOR_PROPS) {
+      const value = computed[prop]
+      if (!value || value === "transparent" || value === "rgba(0, 0, 0, 0)") {
+        continue
+      }
+      node.style[prop] = toCanvasSafeColor(view, value)
+    }
+  })
+
+  if (clonedDoc.body) {
+    clonedDoc.body.style.backgroundColor = "#ffffff"
+    clonedDoc.body.style.color = "#111827"
+  }
+}
+
+function createReportRenderFrame(html: string, title: string): HTMLIFrameElement {
   const existing = document.getElementById("campuscare-report-print-frame")
   if (existing) existing.remove()
 
   const iframe = document.createElement("iframe")
   iframe.id = "campuscare-report-print-frame"
   iframe.setAttribute("aria-hidden", "true")
-  iframe.setAttribute("title", "Print clinic progress report")
+  iframe.setAttribute("title", title)
   Object.assign(iframe.style, {
     position: "fixed",
     top: "0",
@@ -259,9 +330,69 @@ export function printClinicProgressReport(input: {
   })
   document.body.appendChild(iframe)
 
+  const frameDocument = iframe.contentWindow?.document
+  if (!frameDocument) {
+    iframe.remove()
+    throw new Error("Could not prepare the report view. Try again.")
+  }
+
+  frameDocument.open()
+  frameDocument.write(html)
+  frameDocument.close()
+
+  return iframe
+}
+
+function waitForReportFrameReady(iframe: HTMLIFrameElement): Promise<void> {
+  const frameDocument = iframe.contentWindow?.document
+  if (!frameDocument) {
+    return Promise.reject(new Error("Could not prepare the report view. Try again."))
+  }
+
+  return new Promise((resolve) => {
+    const images = Array.from(frameDocument.images)
+    if (images.length === 0) {
+      window.setTimeout(resolve, 150)
+      return
+    }
+
+    let remaining = images.length
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
+      resolve()
+    }
+
+    const onReady = () => {
+      remaining -= 1
+      if (remaining <= 0) finish()
+    }
+
+    for (const img of images) {
+      if (img.complete) onReady()
+      else {
+        img.addEventListener("load", onReady, { once: true })
+        img.addEventListener("error", onReady, { once: true })
+      }
+    }
+
+    window.setTimeout(finish, 2500)
+  })
+}
+
+export function printClinicProgressReport(input: {
+  meta: ExportMeta
+  pack: ClinicExportPack
+}): void {
+  const html = buildClinicProgressPrintHtml({
+    ...input,
+    logoUrl: `${window.location.origin}${HSO_LOGO_PATH}`,
+  })
+
+  const iframe = createReportRenderFrame(html, "Print clinic progress report")
   const frameWindow = iframe.contentWindow
-  const frameDocument = frameWindow?.document
-  if (!frameWindow || !frameDocument) {
+  if (!frameWindow) {
     iframe.remove()
     throw new Error("Could not prepare the print view. Try again.")
   }
@@ -282,29 +413,75 @@ export function printClinicProgressReport(input: {
     }
   }
 
-  frameDocument.open()
-  frameDocument.write(html)
-  frameDocument.close()
+  void waitForReportFrameReady(iframe).then(triggerPrint)
+}
 
-  const images = Array.from(frameDocument.images)
-  if (images.length === 0) {
-    window.setTimeout(triggerPrint, 150)
-    return
+export async function downloadClinicProgressPdf(input: {
+  meta: ExportMeta
+  pack: ClinicExportPack
+}): Promise<void> {
+  const html = buildClinicProgressPrintHtml({
+    ...input,
+    logoUrl: `${window.location.origin}${HSO_LOGO_PATH}`,
+  })
+
+  const iframe = createReportRenderFrame(html, "Export clinic progress report PDF")
+  const frameDocument = iframe.contentWindow?.document
+  const frameWindow = iframe.contentWindow
+  if (!frameDocument?.body || !frameWindow) {
+    iframe.remove()
+    throw new Error("Could not prepare the PDF export. Try again.")
   }
 
-  let remaining = images.length
-  const onReady = () => {
-    remaining -= 1
-    if (remaining <= 0) triggerPrint()
-  }
-  for (const img of images) {
-    if (img.complete) onReady()
-    else {
-      img.addEventListener("load", onReady, { once: true })
-      img.addEventListener("error", onReady, { once: true })
+  try {
+    await waitForReportFrameReady(iframe)
+
+    const canvas = await html2canvas(frameDocument.body, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: "#ffffff",
+      windowWidth: 900,
+      onclone: prepareHtmlCloneForCanvas,
+      // html2canvas reads parent Tailwind lab() colors unless scoped to the iframe.
+      ...({ window: frameWindow } as object),
+    })
+
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    })
+
+    const margin = 14
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const printableWidth = pageWidth - margin * 2
+    const printableHeight = pageHeight - margin * 2
+    const imgHeight = (canvas.height * printableWidth) / canvas.width
+    const imgData = canvas.toDataURL("image/png")
+
+    let offsetY = 0
+    let pageIndex = 0
+
+    while (offsetY < imgHeight) {
+      if (pageIndex > 0) doc.addPage()
+      doc.addImage(
+        imgData,
+        "PNG",
+        margin,
+        margin - offsetY,
+        printableWidth,
+        imgHeight
+      )
+      offsetY += printableHeight
+      pageIndex += 1
     }
+
+    doc.save(exportFilename(input.meta.reportTitle, "pdf"))
+  } finally {
+    iframe.remove()
   }
-  window.setTimeout(triggerPrint, 2500)
 }
 
 /** @deprecated Prefer printClinicProgressReport */
