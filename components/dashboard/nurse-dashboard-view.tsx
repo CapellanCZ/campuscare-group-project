@@ -24,6 +24,7 @@ import {
   PanelGrid,
   panelCardClassName,
 } from "@/components/layout/panel-frame"
+import { OnBreakControl } from "@/components/availability/on-break-control"
 import { Button } from "@/components/ui/button"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
@@ -103,6 +104,7 @@ export function NurseDashboardView({
         title={<NurseGreetingTitle firstName={firstName} />}
         action={
           <>
+            <OnBreakControl />
             {showWalkIn ? (
               <Button
                 type="button"

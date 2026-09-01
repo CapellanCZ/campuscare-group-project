@@ -5,6 +5,7 @@ import {
   resolveClinicRole,
 } from "@/lib/auth/resolve-role"
 import type { StaffAccess } from "@/lib/auth/types"
+import { isStaleRefreshTokenError } from "@/lib/supabase/auth-errors"
 import { createClient } from "@/lib/supabase/server"
 
 type ProfileRow = {
@@ -24,7 +25,13 @@ export async function getStaffAccess(): Promise<StaffAccess | null> {
   const supabase = await createClient()
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser()
+
+  if (isStaleRefreshTokenError(authError)) {
+    await supabase.auth.signOut({ scope: "local" })
+    return null
+  }
 
   if (!user) return null
 

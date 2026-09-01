@@ -17,11 +17,17 @@ import {
   setClinicBreak,
   setStaffBreak,
 } from "@/features/availability/actions/availability"
-import { DUTY_REFRESH_EVENT } from "@/components/staff-realtime-shell"
+import {
+  DUTY_REFRESH_EVENT,
+  emitDutyRefresh,
+} from "@/components/staff-realtime-shell"
+import {
+  canUseClinicBreak,
+  canUseStaffBreak,
+  type BreakMode,
+} from "@/lib/availability/break-mode"
 import type { BreakStatus, StaffDutyStatus } from "@/lib/availability/types"
 import type { WebRole } from "@/lib/auth/types"
-
-type BreakMode = "clinic" | "staff"
 
 type BreakModeContextValue = {
   mode: BreakMode | null
@@ -62,10 +68,8 @@ export function BreakModeProvider({
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
-  const canClinic = mode === "clinic" && (role === "nurse" || role === "admin")
-  const canStaff =
-    mode === "staff" &&
-    (role === "physician" || role === "dentist" || role === "nurse")
+  const canClinic = canUseClinicBreak(role, mode)
+  const canStaff = canUseStaffBreak(role, mode)
 
   const active =
     mode === "clinic"
@@ -120,6 +124,7 @@ export function BreakModeProvider({
         return
       }
       refresh()
+      emitDutyRefresh()
     })
   }, [mode, refresh])
 
@@ -134,6 +139,7 @@ export function BreakModeProvider({
         return
       }
       refresh()
+      emitDutyRefresh()
     })
   }, [mode, refresh])
 

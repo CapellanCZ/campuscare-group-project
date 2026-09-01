@@ -4,6 +4,7 @@ import { clearInvitePendingAfterSignIn } from "@/lib/auth/clear-invite-pending"
 import { asErrorMessage, mapAuthError } from "@/lib/auth/errors"
 import { sendLoginOtpEmail } from "@/lib/auth/send-login-otp"
 import type { AuthResult } from "@/lib/auth/types"
+import { isStaleRefreshTokenError } from "@/lib/supabase/auth-errors"
 import { createClient } from "@/lib/supabase/server"
 
 export async function sendOtpEmail(email: string): Promise<AuthResult> {
@@ -93,7 +94,7 @@ export async function signOut(): Promise<AuthResult> {
     const supabase = await createClient()
     const { error } = await supabase.auth.signOut()
 
-    if (error) {
+    if (error && !isStaleRefreshTokenError(error)) {
       return { ok: false, error: mapAuthError(error, "Could not sign out.") }
     }
 

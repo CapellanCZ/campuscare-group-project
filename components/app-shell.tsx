@@ -13,6 +13,7 @@ import { DutyStatusProvider } from "@/components/availability/duty-status-contro
 import { StaffRealtimeShell } from "@/components/staff-realtime-shell"
 import { StaffAccessProvider } from "@/components/staff-access-provider"
 import type { StaffAccess } from "@/lib/auth/types"
+import { breakModeForRole } from "@/lib/availability/break-mode"
 
 function ShellBody({
   children,
@@ -60,12 +61,7 @@ export function AppShell({
   access: StaffAccess
 }) {
   const role = access.primaryRole
-  const breakMode =
-    role === "nurse" || role === "admin"
-      ? ("clinic" as const)
-      : role === "physician" || role === "dentist"
-        ? ("staff" as const)
-        : null
+  const breakMode = breakModeForRole(role)
 
   return (
     <StaffAccessProvider access={access}>

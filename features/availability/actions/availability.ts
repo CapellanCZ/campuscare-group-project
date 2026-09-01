@@ -444,8 +444,8 @@ export async function setClinicBreak(
 ): Promise<AvailabilityActionResult> {
   const access = await requireAccess()
   if (!access) return { ok: false, error: "Unauthorized." }
-  if (access.primaryRole !== "nurse" && access.primaryRole !== "admin") {
-    return { ok: false, error: "Only nurses or admins can set a clinic break." }
+  if (access.primaryRole !== "admin") {
+    return { ok: false, error: "Only admins can set a clinic break." }
   }
 
   const resumes = new Date(resumesAt)
@@ -473,8 +473,8 @@ export async function setClinicBreak(
 export async function clearClinicBreak(): Promise<AvailabilityActionResult> {
   const access = await requireAccess()
   if (!access) return { ok: false, error: "Unauthorized." }
-  if (access.primaryRole !== "nurse" && access.primaryRole !== "admin") {
-    return { ok: false, error: "Only nurses or admins can end a clinic break." }
+  if (access.primaryRole !== "admin") {
+    return { ok: false, error: "Only admins can end a clinic break." }
   }
 
   const supabase = await createClient()

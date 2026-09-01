@@ -20,6 +20,7 @@ import {
   PanelGrid,
   panelCardClassName,
 } from "@/components/layout/panel-frame"
+import { OnBreakControl } from "@/components/availability/on-break-control"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -122,13 +123,16 @@ export function PhysicianDashboardView({
       <PageIntro
         title={`Welcome back, Dr. ${firstName}!`}
         action={
-          <Button
-            size="sm"
-            render={<Link href="/physician/queue" />}
-            nativeButton={false}
-          >
-            Open queue
-          </Button>
+          <>
+            <OnBreakControl />
+            <Button
+              size="sm"
+              render={<Link href="/physician/queue" />}
+              nativeButton={false}
+            >
+              Open queue
+            </Button>
+          </>
         }
       />
 

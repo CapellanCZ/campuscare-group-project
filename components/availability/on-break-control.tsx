@@ -13,7 +13,6 @@ export function OnBreakControl({ className }: { className?: string }) {
 
   if (!breakMode?.mode) return null
   if (breakMode.active) return null
-  if (breakMode.dutyStatus.status !== "available") return null
 
   const { pending, startBreak } = breakMode
 
@@ -37,19 +36,10 @@ export function OnBreakControl({ className }: { className?: string }) {
 
 export function BreakModeOverlay() {
   const breakMode = useOptionalBreakMode()
-  const { confirmPreset } = useConfirm()
 
   if (!breakMode?.active) return null
 
   const { pending, endBreak } = breakMode
-
-  const handleResume = () => {
-    void confirmPreset("resumeWork", {
-      onConfirm: async () => {
-        endBreak()
-      },
-    })
-  }
 
   return (
     <div
@@ -68,7 +58,7 @@ export function BreakModeOverlay() {
         >
           On Break
         </p>
-        <Button size="lg" disabled={pending} onClick={handleResume}>
+        <Button size="lg" disabled={pending} onClick={endBreak}>
           <IconPlayerPlay data-icon="inline-start" />
           Resume Work
         </Button>

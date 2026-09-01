@@ -103,7 +103,7 @@ export function StaffSchedulePage({
               : "Set your weekly office hours. Appointment times must fall inside both clinic hours and your schedule, and are blocked while you or the clinic are on break."
           }
         />
-        {embeddedInSettings ? null : <OnBreakControl />}
+        <OnBreakControl className="shrink-0" />
       </div>
 
       {embeddedInSettings ? null : (

@@ -13,7 +13,10 @@ import {
 import { IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react"
 
 import { useOptionalBreakMode } from "@/components/availability/break-mode-context"
-import { DUTY_REFRESH_EVENT } from "@/components/staff-realtime-shell"
+import {
+  DUTY_REFRESH_EVENT,
+  emitDutyRefresh,
+} from "@/components/staff-realtime-shell"
 import { useConfirm } from "@/components/feedback/confirm-provider"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -162,6 +165,7 @@ export function DutyStatusControl({ className }: { className?: string }) {
         }
         dutyToasts.started()
         refresh()
+        emitDutyRefresh()
       },
     })
   }
@@ -176,6 +180,7 @@ export function DutyStatusControl({ className }: { className?: string }) {
         }
         dutyToasts.ended()
         refresh()
+        emitDutyRefresh()
       },
     })
   }

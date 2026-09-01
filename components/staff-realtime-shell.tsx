@@ -5,7 +5,7 @@ import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 
 export const DUTY_REFRESH_EVENT = "campuscare:duty-refresh"
 
-function emitDutyRefresh() {
+export function emitDutyRefresh() {
   window.dispatchEvent(new CustomEvent(DUTY_REFRESH_EVENT))
 }
 
