@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, useTransition } from "react"
-import { IconFileTypePdf } from "@tabler/icons-react"
+import { IconFileTypePdf, IconPrinter } from "@tabler/icons-react"
 import { appToast } from "@/lib/feedback/app-toast"
 
 import { AdminReportsView } from "@/features/reports/components/admin-reports-view"
@@ -23,13 +23,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { catalogFor } from "@/features/reports/role-catalog"
 import { applyReportsFilters } from "@/features/reports/data/apply-filters"
 import { buildClinicProgressNarrative } from "@/features/reports/lib/clinic-progress-narrative"
-import { downloadClinicProgressCsv } from "@/features/reports/lib/export-csv"
-import { downloadClinicProgressExcel } from "@/features/reports/lib/export-excel"
 import {
   buildFilterSummary,
   type ExportMeta,
 } from "@/features/reports/lib/export-letterhead"
-import { printClinicProgressReport } from "@/features/reports/lib/export-pdf"
+import {
+  downloadClinicProgressPdf,
+  printClinicProgressReport,
+} from "@/features/reports/lib/export-pdf"
 import type {
   ReportFilters,
   ReportKind,
@@ -159,7 +160,6 @@ function ClinicalReportsAnalyticsPage({
   const cardsLevel = getAccessLevel(d, "reports.summary_cards")
   const chartsLevel = getAccessLevel(d, "reports.charts")
   const pdfLevel = getAccessLevel(d, "reports.export_pdf")
-  const canExcel = can(d, "reports.export_excel")
   const canFilters = can(d, "reports.filters")
   const exportEmpty =
     exportPack.kpis.every((k) => k.value === "0" || k.value === "0 min") &&
@@ -182,7 +182,7 @@ function ClinicalReportsAnalyticsPage({
     }
   }
 
-  function handlePrintPdf() {
+  function handlePrint() {
     try {
       printClinicProgressReport({ meta: exportMeta(), pack: exportPack })
     } catch (error) {
@@ -194,33 +194,24 @@ function ClinicalReportsAnalyticsPage({
     }
   }
 
-  function handleCsv() {
-    downloadClinicProgressCsv({
+  function handleExportPdf() {
+    void downloadClinicProgressPdf({
       meta: exportMeta(),
       pack: exportPack,
     })
-    appToast.success({
-      title: "Clinic progress CSV downloaded.",
-      description: "Overview, charts, and tables were exported.",
-    })
-  }
-
-  async function handleExcel() {
-    try {
-      await downloadClinicProgressExcel({
-        meta: exportMeta(),
-        pack: exportPack,
+      .then(() =>
+        appToast.success({
+          title: "PDF downloaded.",
+          description: "Your report export has been saved.",
+        })
+      )
+      .catch((error) => {
+        appToast.error({
+          title: "Export failed",
+          description:
+            error instanceof Error ? error.message : "Could not export PDF.",
+        })
       })
-      appToast.success({
-        title: "Clinic progress Excel downloaded.",
-        description: "Overview, charts, and tables were exported.",
-      })
-    } catch {
-      appToast.error({
-        title: "Export failed",
-        description: "Could not export Excel.",
-      })
-    }
   }
 
   const visibleKinds = catalog.reportKinds.filter((kind) => {
@@ -244,41 +235,24 @@ function ClinicalReportsAnalyticsPage({
         action={
           <div className="flex flex-wrap gap-2">
             {pdfLevel !== "none" ? (
-              isNurse ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={exportEmpty}
-                  onClick={handlePrintPdf}
-                  aria-label={
-                    pdfLevel === "view" ? "Print or export PDF" : "Export PDF"
-                  }
-                >
-                  <IconFileTypePdf className="size-4" aria-hidden />
-                </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={exportEmpty}
-                  onClick={handlePrintPdf}
-                >
-                  {pdfLevel === "view" ? "Print / PDF" : "Export PDF"}
-                </Button>
-              )
-            ) : null}
-            {canExcel ? (
               <>
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={exportEmpty}
-                  onClick={handleCsv}
+                  disabled={exportEmpty || pending}
+                  onClick={handleExportPdf}
                 >
-                  Export CSV
+                  <IconFileTypePdf className="size-4" aria-hidden />
+                  Export PDF
                 </Button>
-                <Button size="sm" disabled={exportEmpty} onClick={handleExcel}>
-                  Export Excel
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={exportEmpty || pending}
+                  onClick={handlePrint}
+                >
+                  <IconPrinter className="size-4" aria-hidden />
+                  Print
                 </Button>
               </>
             ) : null}
