@@ -7,7 +7,11 @@ import {
 
 const AUDIENCE_SET = new Set<string>(ANNOUNCEMENT_AUDIENCES)
 
-/** Audiences a staff role may see on the published feed. `null` = all. */
+/**
+ * Audiences a staff role may see on the published feed. `null` = all.
+ * Student, Faculty, and Employee are reserved for future patient-app delivery and are
+ * excluded from clinical reader feeds (admin/publishers see all in management).
+ */
 export function visibleAudiencesForRole(
   designation: ClinicDesignation | null | undefined
 ): AnnouncementAudience[] | null {

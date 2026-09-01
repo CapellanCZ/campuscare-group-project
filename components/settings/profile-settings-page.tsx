@@ -24,6 +24,8 @@ import { designationLabel } from "@/lib/health/roles"
 import { createClient } from "@/lib/supabase/client"
 import type { StaffProfile, UserPreferences } from "@/services/staff-profile"
 import { adminElevatedCardClassName } from "@/features/admin/lib/admin-surface"
+import { useStaffRealtimeRouterRefresh } from "@/hooks/use-staff-realtime-refresh"
+import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 import { cn } from "@/lib/utils"
 import { IconEye, IconEyeOff } from "@tabler/icons-react"
 
@@ -80,6 +82,16 @@ export function ProfileSettingsPage({
   const cardClass = elevated
     ? adminElevatedCardClassName
     : "shadow-none dark:ring-0"
+
+  useStaffRealtimeRouterRefresh(
+    `staff-profile-${initialProfile.userId}`,
+    STAFF_REALTIME_TABLES.profile
+  )
+
+  useEffect(() => {
+    setProfile(initialProfile)
+    setPreferences(initialPreferences)
+  }, [initialProfile, initialPreferences])
 
   useEffect(() => {
     setTheme(preferences.theme)

@@ -13,6 +13,7 @@ import {
 import { IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react"
 
 import { useOptionalBreakMode } from "@/components/availability/break-mode-context"
+import { DUTY_REFRESH_EVENT } from "@/components/staff-realtime-shell"
 import { useConfirm } from "@/components/feedback/confirm-provider"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -73,6 +74,17 @@ export function DutyStatusProvider({
       cancelled = true
     }
   }, [clinical, role])
+
+  useEffect(() => {
+    if (!clinical) return
+    const onDutyRefresh = () => {
+      refresh()
+    }
+    window.addEventListener(DUTY_REFRESH_EVENT, onDutyRefresh)
+    return () => {
+      window.removeEventListener(DUTY_REFRESH_EVENT, onDutyRefresh)
+    }
+  }, [clinical, refresh])
 
   const value = useMemo(
     () => ({

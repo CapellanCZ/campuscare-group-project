@@ -10,6 +10,7 @@ import {
   useOptionalBreakMode,
 } from "@/components/availability/break-mode-context"
 import { DutyStatusProvider } from "@/components/availability/duty-status-control"
+import { StaffRealtimeShell } from "@/components/staff-realtime-shell"
 import { StaffAccessProvider } from "@/components/staff-access-provider"
 import type { StaffAccess } from "@/lib/auth/types"
 
@@ -70,6 +71,7 @@ export function AppShell({
     <StaffAccessProvider access={access}>
       <BreakModeProvider mode={breakMode} role={role}>
         <DutyStatusProvider role={role}>
+          <StaffRealtimeShell />
           <ShellBody isAdmin={role === "admin"}>{children}</ShellBody>
         </DutyStatusProvider>
       </BreakModeProvider>

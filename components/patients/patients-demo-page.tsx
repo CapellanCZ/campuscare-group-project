@@ -72,7 +72,8 @@ import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { DemoStat } from "@/lib/demo/types"
 import { NO_STUDENT_FOUND } from "@/lib/students/types"
-import { createClient } from "@/lib/supabase/client"
+import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
+import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 import {
   patientCampusId,
   patientFullName,
@@ -277,30 +278,13 @@ export function PatientsPage({
     void loadPage(debouncedQuery, patientTypeFilter, sortColumn, activeSortDir)
   }, [activeSortDir, debouncedQuery, loadPage, patientTypeFilter, sortColumn])
 
-  useEffect(() => {
-    const supabase = createClient()
-    const channel = supabase
-      .channel("patient_records_live")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "patient_records" },
-        () => {
-          void loadPage(debouncedQuery, patientTypeFilter, sortColumn, activeSortDir)
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "consultations" },
-        () => {
-          void loadPage(debouncedQuery, patientTypeFilter, sortColumn, activeSortDir)
-        }
-      )
-      .subscribe()
-
-    return () => {
-      void supabase.removeChannel(channel)
+  useStaffRealtimeRefresh(
+    `staff-patients-${access.designation}`,
+    STAFF_REALTIME_TABLES.patients,
+    () => {
+      void loadPage(debouncedQuery, patientTypeFilter, sortColumn, activeSortDir)
     }
-  }, [activeSortDir, debouncedQuery, loadPage, patientTypeFilter, sortColumn])
+  )
 
   function setColumnSort(
     column: PatientRecordSortColumn,

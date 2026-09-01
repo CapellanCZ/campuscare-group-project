@@ -42,6 +42,8 @@ import { VisitMedicalChart } from "@/features/physician/components/visit-medical
 import type { QueueVitals } from "@/lib/health/types"
 import { formatClinicDateTime } from "@/lib/physician/timezone"
 import { cn } from "@/lib/utils"
+import { useStaffRealtimeRouterRefresh } from "@/hooks/use-staff-realtime-refresh"
+import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 import { consultationStatusLabel } from "@/types/consultation"
 import type { Consultation } from "@/types/consultation"
 import type { MedicalHistory, PhysicalExam } from "@/types/patientRecord"
@@ -60,6 +62,12 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
   const router = useRouter()
   const isDentist = workspace.role === "dentist"
   const queuePath = isDentist ? "/dentist/queue" : "/physician/queue"
+
+  useStaffRealtimeRouterRefresh(
+    `staff-clinical-visit-${workspace.consultationId}`,
+    STAFF_REALTIME_TABLES.clinicalVisit
+  )
+
   const [step, setStep] = useState(1)
   const [symptoms, setSymptoms] = useState(workspace.symptoms ?? "")
   const [diagnosis, setDiagnosis] = useState(workspace.diagnosis ?? "")

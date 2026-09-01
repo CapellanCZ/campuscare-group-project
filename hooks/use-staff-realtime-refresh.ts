@@ -16,7 +16,8 @@ export function useStaffRealtimeRefresh(
   channelName: string,
   tables: readonly string[],
   onChange?: () => void,
-  debounceMs = DEFAULT_DEBOUNCE_MS
+  debounceMs = DEFAULT_DEBOUNCE_MS,
+  filters?: Record<string, string>
 ) {
   const router = useRouter()
   const onChangeEvent = useEffectEvent(() => {
@@ -28,6 +29,7 @@ export function useStaffRealtimeRefresh(
   })
 
   const tablesKey = tables.join(",")
+  const filtersKey = filters ? JSON.stringify(filters) : ""
 
   useEffect(() => {
     if (!tablesKey) return
@@ -47,14 +49,15 @@ export function useStaffRealtimeRefresh(
       client,
       channelName,
       tablesKey.split(","),
-      schedule
+      schedule,
+      filters ? { filters } : undefined
     )
 
     return () => {
       if (timer) clearTimeout(timer)
       void client.removeChannel(channel)
     }
-  }, [channelName, tablesKey, debounceMs])
+  }, [channelName, tablesKey, filtersKey, debounceMs])
 }
 
 /** Convenience: default router.refresh when tables change. */

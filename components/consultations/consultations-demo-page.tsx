@@ -74,7 +74,8 @@ import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { DemoStat } from "@/lib/demo/types"
 import { cn } from "@/lib/utils"
-import { createClient } from "@/lib/supabase/client"
+import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
+import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 import {
   CONSULTATION_STATUSES,
   CONSULTATION_TAB_STATUSES,
@@ -346,30 +347,13 @@ export function ConsultationsPage({
     void loadPage(debouncedQuery)
   }, [debouncedQuery, loadPage])
 
-  useEffect(() => {
-    const supabase = createClient()
-    const channel = supabase
-      .channel("consultations_live")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "consultations" },
-        () => {
-          void loadPage(debouncedQuery)
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "patient_records" },
-        () => {
-          void loadPage(debouncedQuery)
-        }
-      )
-      .subscribe()
-
-    return () => {
-      void supabase.removeChannel(channel)
+  useStaffRealtimeRefresh(
+    `staff-consultations-${access.designation}`,
+    STAFF_REALTIME_TABLES.consultations,
+    () => {
+      void loadPage(debouncedQuery)
     }
-  }, [debouncedQuery, loadPage])
+  )
 
   const isClinician = isPhysician || isDentist
   const rolePath = isDentist ? "dentist" : "physician"

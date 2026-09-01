@@ -8,10 +8,12 @@ export type AnnouncementStatus = (typeof ANNOUNCEMENT_STATUSES)[number]
 
 export const ANNOUNCEMENT_AUDIENCES = [
   "All",
+  "Student",
   "Dentist",
   "Physician",
   "Nurse",
   "Faculty",
+  "Employee",
 ] as const
 
 export type AnnouncementAudience = (typeof ANNOUNCEMENT_AUDIENCES)[number]

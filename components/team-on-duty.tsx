@@ -1,10 +1,12 @@
 "use client"
 
-import { useEffect, useState, type ComponentProps } from "react"
+import { useCallback, useEffect, useState, type ComponentProps } from "react"
 
 import { fetchTeamDutyOverviewAction } from "@/features/availability/actions/availability"
+import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
 import { dutyStatusLabel } from "@/lib/availability/types"
 import type { DutyStatusValue } from "@/lib/availability/types"
+import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 import { cn } from "@/lib/utils"
 import { StatusIndicator } from "@/components/indicator"
 import {
@@ -35,17 +37,22 @@ export function TeamOnDuty({
   const [rows, setRows] = useState<DutyOverviewRow[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    let cancelled = false
+  const loadRows = useCallback(() => {
     void fetchTeamDutyOverviewAction().then((result) => {
-      if (cancelled) return
       if (result.ok) setRows(result.data)
       setLoading(false)
     })
-    return () => {
-      cancelled = true
-    }
   }, [])
+
+  useStaffRealtimeRefresh(
+    "staff-team-on-duty",
+    STAFF_REALTIME_TABLES.duty,
+    loadRows
+  )
+
+  useEffect(() => {
+    loadRows()
+  }, [loadRows])
 
   return (
     <Card className={cn("shadow-none dark:ring-0", className)} {...props}>

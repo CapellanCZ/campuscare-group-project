@@ -23,6 +23,8 @@ import {
   markAllNotificationsReadAction,
   markNotificationReadAction,
 } from "@/features/settings/actions"
+import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
+import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 import {
   buildFallbackNotifications,
   filterNotificationsByPrefs,
@@ -65,6 +67,7 @@ function HeaderNotificationsInbox() {
   const router = useRouter()
   const access = useOptionalStaffAccess()
   const designation = access?.primaryRole ?? "physician"
+  const userId = access?.userId
   const [items, setItems] = useState<HeaderStaffNotification[]>([])
   const [usingFallback, setUsingFallback] = useState(false)
   const [pending, startTransition] = useTransition()
@@ -96,9 +99,17 @@ function HeaderNotificationsInbox() {
     })
   }, [designation])
 
+  useStaffRealtimeRefresh(
+    userId ? `staff-notifications-${userId}` : "staff-notifications",
+    STAFF_REALTIME_TABLES.notifications,
+    load,
+    300,
+    userId ? { notifications: `user_id=eq.${userId}` } : undefined
+  )
+
   useEffect(() => {
     load()
-    const id = window.setInterval(load, 60_000)
+    const id = window.setInterval(load, 300_000)
     window.addEventListener("campuscare:notification-prefs", load)
     return () => {
       window.clearInterval(id)

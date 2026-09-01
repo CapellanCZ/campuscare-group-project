@@ -76,6 +76,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
+import { useStaffRealtimeRouterRefresh } from "@/hooks/use-staff-realtime-refresh"
+import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 
 type UserDirectoryPanelProps = {
   directory: UserDirectory
@@ -202,6 +204,11 @@ export function UserDirectoryPanel({
   const [editingUser, setEditingUser] = useState<ManagedStaffUser | null>(null)
   const [, startTransition] = useTransition()
   const deferredQuery = useDeferredValue(query.trim().toLowerCase())
+
+  useStaffRealtimeRouterRefresh(
+    `staff-users-${directory}`,
+    STAFF_REALTIME_TABLES.users
+  )
 
   useEffect(() => {
     setUsers(initialUsers)

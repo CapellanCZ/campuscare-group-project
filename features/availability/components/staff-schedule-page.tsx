@@ -22,8 +22,10 @@ import {
   upsertStaffWeeklySlot,
 } from "@/features/availability/actions/availability"
 import { PageHeader } from "@/features/common/components/page-header"
+import { useStaffRealtimeRouterRefresh } from "@/hooks/use-staff-realtime-refresh"
 import type { ClinicOfficeHour, StaffWeeklyHour } from "@/lib/availability/types"
 import { CLINIC_TIMEZONE, DAY_LABELS } from "@/lib/availability/types"
+import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 
 type StaffSchedulePageProps = {
   doctorName: string
@@ -39,6 +41,11 @@ export function StaffSchedulePage({
   clinicHours,
   embeddedInSettings = false,
 }: StaffSchedulePageProps) {
+  useStaffRealtimeRouterRefresh(
+    "staff-schedule",
+    STAFF_REALTIME_TABLES.schedule
+  )
+
   const [dayOfWeek, setDayOfWeek] = useState("1")
   const [startTime, setStartTime] = useState("09:00")
   const [endTime, setEndTime] = useState("12:00")

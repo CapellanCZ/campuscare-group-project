@@ -17,6 +17,7 @@ import {
   setClinicBreak,
   setStaffBreak,
 } from "@/features/availability/actions/availability"
+import { DUTY_REFRESH_EVENT } from "@/components/staff-realtime-shell"
 import type { BreakStatus, StaffDutyStatus } from "@/lib/availability/types"
 import type { WebRole } from "@/lib/auth/types"
 
@@ -95,6 +96,17 @@ export function BreakModeProvider({
       cancelled = true
     }
   }, [canClinic, canStaff, role, mode])
+
+  useEffect(() => {
+    if (!canClinic && !canStaff) return
+    const onDutyRefresh = () => {
+      refresh()
+    }
+    window.addEventListener(DUTY_REFRESH_EVENT, onDutyRefresh)
+    return () => {
+      window.removeEventListener(DUTY_REFRESH_EVENT, onDutyRefresh)
+    }
+  }, [canClinic, canStaff, refresh])
 
   const startBreak = useCallback(() => {
     if (!mode) return
