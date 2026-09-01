@@ -4,6 +4,7 @@ import type {
   ReportPatientType,
   ReportTableRow,
 } from "@/features/reports/types"
+import { reportPatientTypeLabel } from "@/features/reports/lib/patient-type-label"
 
 export type SeedConsultRow = {
   id: string
@@ -11,7 +12,7 @@ export type SeedConsultRow = {
   period: string
   patientName: string
   campusId: string
-  patientType: Exclude<ReportPatientType, "all">
+  patientType: "student" | "faculty" | "employee" | "visitor"
   consultationType: Exclude<ReportConsultationType, "all">
   service: string
   complaint: string
@@ -29,7 +30,7 @@ export type SeedCertRow = {
   date: string
   patientName: string
   campusId: string
-  patientType: Exclude<ReportPatientType, "all">
+  patientType: "student" | "faculty" | "employee" | "visitor"
   consultationType: Exclude<ReportConsultationType, "all">
   certificateType: string
   doctorName: string
@@ -41,7 +42,7 @@ export type SeedRequestRow = {
   submittedAt: string
   patientName: string
   campusId: string
-  patientType: Exclude<ReportPatientType, "all">
+  patientType: "student" | "faculty" | "employee" | "visitor"
   service: string
   preferredDate: string
   status: string
@@ -106,7 +107,11 @@ export function filterConsults(
       row.assignedPersonnel !== input.assignedPersonnel
     )
       return false
-    if (input.status !== "all" && row.status !== input.status) return false
+    if (
+      input.status !== "all" &&
+      input.status.toLowerCase() !== row.status.toLowerCase()
+    )
+      return false
     return true
   })
 }
@@ -156,7 +161,7 @@ export function toTableRowsFromConsults(
       date: row.date,
       patient: row.patientName,
       campusId: row.campusId,
-      type: row.patientType === "faculty" ? "Faculty / Employee" : "Student",
+      type: reportPatientTypeLabel(row.patientType),
       service: row.service,
       complaint: row.complaint,
       diagnosis: row.diagnosis,
@@ -168,8 +173,7 @@ export function toTableRowsFromConsults(
       Date: row.date,
       Patient: row.patientName,
       "Campus ID": row.campusId,
-      "Patient type":
-        row.patientType === "faculty" ? "Faculty / Employee" : "Student",
+      "Patient type": reportPatientTypeLabel(row.patientType),
       Service: row.service,
       Complaint: row.complaint,
       Diagnosis: row.diagnosis,

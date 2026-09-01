@@ -47,6 +47,7 @@ export function ReportDataTable({
   hideTitle = false,
   /** Isolate search to this table (does not update shared report filters). */
   independentSearch = false,
+  compact = false,
 }: {
   table: ReportTableBundle
   query: string
@@ -54,6 +55,8 @@ export function ReportDataTable({
   /** When parent already shows the report title. */
   hideTitle?: boolean
   independentSearch?: boolean
+  /** Supporting table under a chart — no search, details, or extra chrome. */
+  compact?: boolean
 }) {
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
@@ -101,6 +104,7 @@ export function ReportDataTable({
 
   return (
     <div className="space-y-3">
+      {compact ? null : (
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           {hideTitle ? null : (
@@ -125,6 +129,7 @@ export function ReportDataTable({
           }}
         />
       </div>
+      )}
 
       <div className="overflow-x-auto rounded-xl border border-border/60">
         <Table>
@@ -150,17 +155,19 @@ export function ReportDataTable({
                   )}
                 </TableHead>
               ))}
-              <TableHead className="text-right">Actions</TableHead>
+              {compact ? null : (
+                <TableHead className="text-right">Actions</TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
             {pageRows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={table.columns.length + 1}
+                  colSpan={table.columns.length + (compact ? 0 : 1)}
                   className="py-10 text-center text-muted-foreground"
                 >
-                  No rows match the current filters.
+                  No data available for the selected period.
                 </TableCell>
               </TableRow>
             ) : (
@@ -171,15 +178,17 @@ export function ReportDataTable({
                       {String(row.cells[col.key] ?? "")}
                     </TableCell>
                   ))}
-                  <TableCell className="text-right">
-                    <button
-                      type="button"
-                      className="text-sm font-medium text-primary hover:underline"
-                      onClick={() => setDetails(row)}
-                    >
-                      View details
-                    </button>
-                  </TableCell>
+                  {compact ? null : (
+                    <TableCell className="text-right">
+                      <button
+                        type="button"
+                        className="text-sm font-medium text-primary hover:underline"
+                        onClick={() => setDetails(row)}
+                      >
+                        View details
+                      </button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))
             )}
@@ -187,6 +196,7 @@ export function ReportDataTable({
         </Table>
       </div>
 
+      {sorted.length > PAGE_SIZE ? (
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
           Page {currentPage} of {totalPages}
@@ -210,7 +220,9 @@ export function ReportDataTable({
           </Button>
         </div>
       </div>
+      ) : null}
 
+      {compact ? null : (
       <Dialog open={Boolean(details)} onOpenChange={(open) => !open && setDetails(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -232,6 +244,7 @@ export function ReportDataTable({
           </dl>
         </DialogContent>
       </Dialog>
+      )}
     </div>
   )
 }

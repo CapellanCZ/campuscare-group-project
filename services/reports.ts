@@ -2,6 +2,7 @@ import "server-only"
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 
+import { fetchAllRows } from "@/features/reports/data/fetch-all-rows"
 import { createClient } from "@/lib/supabase/server"
 import {
   REPORT_RANGES,
@@ -186,24 +187,48 @@ export async function getClinicReport(
     certificatesResult,
     ticketsResult,
   ] = await Promise.all([
-    supabase
-      .from("consultations")
-      .select("id, station, consultation_date, status, created_at")
-      .gte("consultation_date", startIso)
-      .lte("consultation_date", endIso),
-    supabase
-      .from("medical_certificates")
-      .select("id, certificate_type, status, issued_at, created_at")
-      .or(
-        `and(issued_at.gte.${startIso},issued_at.lte.${endIso}),and(issued_at.is.null,created_at.gte.${startIso},created_at.lte.${endIso})`
-      ),
-    supabase
-      .from("health_queue_tickets")
-      .select(
-        "id, estimated_wait_minutes, created_at, appointment_id, health_appointment_id"
-      )
-      .gte("created_at", startIso)
-      .lte("created_at", endIso),
+    fetchAllRows((from, to) =>
+      supabase
+        .from("consultations")
+        .select("id, station, consultation_date, status, created_at")
+        .gte("consultation_date", startIso)
+        .lte("consultation_date", endIso)
+        .order("consultation_date", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to)
+    ).then((data) => ({ data, error: null })).catch((error) => ({
+      data: null,
+      error,
+    })),
+    fetchAllRows((from, to) =>
+      supabase
+        .from("medical_certificates")
+        .select("id, certificate_type, status, issued_at, created_at")
+        .or(
+          `and(issued_at.gte.${startIso},issued_at.lte.${endIso}),and(issued_at.is.null,created_at.gte.${startIso},created_at.lte.${endIso})`
+        )
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to)
+    ).then((data) => ({ data, error: null })).catch((error) => ({
+      data: null,
+      error,
+    })),
+    fetchAllRows((from, to) =>
+      supabase
+        .from("health_queue_tickets")
+        .select(
+          "id, estimated_wait_minutes, created_at, appointment_id, health_appointment_id"
+        )
+        .gte("created_at", startIso)
+        .lte("created_at", endIso)
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to)
+    ).then((data) => ({ data, error: null })).catch((error) => ({
+      data: null,
+      error,
+    })),
   ])
 
   if (consultationsResult.error && !isMissingTable(consultationsResult.error)) {

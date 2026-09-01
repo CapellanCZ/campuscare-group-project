@@ -66,7 +66,7 @@ export type AdminReportsAggregates = {
     key: string
     title: string
     description?: string
-    kind: "line" | "bar" | "pie" | "hbar" | "multiline"
+    kind: "line" | "bar" | "pie" | "hbar" | "multiline" | "stackedBar"
     points: AdminChartPoint[]
   }>
   tables: Array<{

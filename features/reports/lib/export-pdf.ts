@@ -78,13 +78,27 @@ export function buildClinicProgressPrintHtml(input: {
         }
         ${chartSeriesToSvg(series)}
         <table class="compact">
-          <thead><tr><th>Category</th><th>Value</th></tr></thead>
+          <thead>${
+            series.kind === "stackedBar"
+              ? "<tr><th>Health Case</th><th>Student</th><th>Faculty</th><th>Employee</th><th>Total</th></tr>"
+              : series.kind === "multiline" || series.kind === "line"
+                ? "<tr><th>Date</th><th>Medical</th><th>Dental</th><th>Total</th></tr>"
+                : "<tr><th>Category</th><th>Value</th></tr>"
+          }</thead>
           <tbody>
             ${series.points
-              .map(
-                (p) =>
-                  `<tr><td>${escapeHtml(p.label)}</td><td>${p.value}</td></tr>`
-              )
+              .map((p) => {
+                if (series.kind === "stackedBar") {
+                  const student = p.value
+                  const faculty = p.secondary ?? 0
+                  const employee = p.tertiary ?? 0
+                  return `<tr><td>${escapeHtml(p.label)}</td><td>${student}</td><td>${faculty}</td><td>${employee}</td><td>${student + faculty + employee}</td></tr>`
+                }
+                if (series.kind === "multiline" || series.kind === "line") {
+                  return `<tr><td>${escapeHtml(p.label)}</td><td>${p.value}</td><td>${p.secondary ?? 0}</td><td>${p.tertiary ?? p.value + (p.secondary ?? 0)}</td></tr>`
+                }
+                return `<tr><td>${escapeHtml(p.label)}</td><td>${p.value}</td></tr>`
+              })
               .join("")}
           </tbody>
         </table>

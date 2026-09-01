@@ -39,7 +39,8 @@ export function buildClinicProgressNarrative(input: {
     (c) =>
       c.key === "common_health_complaints" ||
       c.key === "common_diagnoses" ||
-      c.key === "common_dental_cases"
+      c.key === "common_dental_cases" ||
+      c.key === "health_cases"
   )
   const dental = input.charts.find((c) => c.key === "common_dental_cases")
   const patientMix = input.charts.find(
@@ -51,7 +52,8 @@ export function buildClinicProgressNarrative(input: {
       c.key === "monthly_consult_trend" ||
       c.key === "consultation_trend" ||
       c.key === "dental_consult_trend" ||
-      c.key === "daily_patient_volume"
+      c.key === "daily_patient_volume" ||
+      c.key === "consult_volume_trend"
   )
 
   const total =

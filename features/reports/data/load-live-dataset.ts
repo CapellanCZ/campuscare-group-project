@@ -7,6 +7,7 @@ import type {
   SeedRequestRow,
   ReportsDataset,
 } from "@/features/reports/data/datasets"
+import { fetchAllRows, fetchInChunks } from "@/features/reports/data/fetch-all-rows"
 import { createClient } from "@/lib/supabase/server"
 import { manilaDayBounds } from "@/lib/health/time"
 
@@ -55,8 +56,11 @@ function consultationTypeOf(
 
 function patientTypeOf(
   value: string | null | undefined
-): "student" | "faculty" {
-  return value === "faculty" ? "faculty" : "student"
+): "student" | "faculty" | "employee" | "visitor" {
+  if (value === "faculty" || value === "employee" || value === "visitor") {
+    return value
+  }
+  return "student"
 }
 
 function titleStatus(status: string): string {
@@ -110,27 +114,58 @@ function isMissingRelation(error: { message: string } | null) {
   )
 }
 
-export async function loadLiveReportsDataset(): Promise<{
+async function fetchRelationOrEmpty<T>(
+  load: () => Promise<T[]>
+): Promise<T[]> {
+  try {
+    return await load()
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "message" in error &&
+      isMissingRelation(error as { message: string })
+    ) {
+      return []
+    }
+    throw error
+  }
+}
+
+export async function loadLiveReportsDataset(range?: {
+  dateFrom: string
+  dateTo: string
+}): Promise<{
   dataset: ReportsDataset
   live: ReportsLiveMetrics
 }> {
   const supabase = await createClient()
   const today = manilaDayBounds()
+  const fromBounds = range
+    ? manilaDayBounds(new Date(`${range.dateFrom}T12:00:00+08:00`))
+    : null
+  const toBounds = range
+    ? manilaDayBounds(new Date(`${range.dateTo}T12:00:00+08:00`))
+    : null
 
   const [
-    consultationsResult,
-    certificatesResult,
-    ticketsResult,
-    healthAppointmentsResult,
-    appointmentsResult,
+    consultationRows,
+    certificatesByCreated,
+    certificatesByIssued,
+    ticketRows,
+    healthAppointmentsInRange,
+    legacyAppointmentsInRange,
   ] = await Promise.all([
-    supabase
-      .from("consultations")
-      .select(
-        `
+    fetchRelationOrEmpty(() =>
+      fetchAllRows((from, to) => {
+        let query = supabase
+          .from("consultations")
+          .select(
+            `
         id,
         chief_complaint,
         diagnosis,
+        symptoms,
         provider_name,
         station,
         provider_type,
@@ -146,13 +181,23 @@ export async function loadLiveReportsDataset(): Promise<{
           employee_id
         )
       `
-      )
-      .order("consultation_date", { ascending: false })
-      .limit(2000),
-    supabase
-      .from("medical_certificates")
-      .select(
-        `
+          )
+          .order("consultation_date", { ascending: true })
+          .order("id", { ascending: true })
+        if (fromBounds && toBounds) {
+          query = query
+            .gte("consultation_date", fromBounds.startIso)
+            .lte("consultation_date", toBounds.endIso)
+        }
+        return query.range(from, to)
+      })
+    ),
+    fetchRelationOrEmpty(() =>
+      fetchAllRows((from, to) => {
+        let query = supabase
+          .from("medical_certificates")
+          .select(
+            `
         id,
         certificate_type,
         doctor_name,
@@ -161,30 +206,82 @@ export async function loadLiveReportsDataset(): Promise<{
         created_at,
         patients (
           full_name,
-          student_id
+          student_id,
+          employee_id,
+          patient_type
         )
       `
-      )
-      .order("created_at", { ascending: false })
-      .limit(2000),
-    supabase
-      .from("health_queue_tickets")
-      .select(
-        `
+          )
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+        if (fromBounds && toBounds) {
+          query = query
+            .gte("created_at", fromBounds.startIso)
+            .lte("created_at", toBounds.endIso)
+        }
+        return query.range(from, to)
+      })
+    ),
+    fetchRelationOrEmpty(() =>
+      fromBounds && toBounds
+        ? fetchAllRows((from, to) =>
+            supabase
+              .from("medical_certificates")
+              .select(
+                `
+        id,
+        certificate_type,
+        doctor_name,
+        status,
+        issued_at,
+        created_at,
+        patients (
+          full_name,
+          student_id,
+          employee_id,
+          patient_type
+        )
+      `
+              )
+              .gte("issued_at", fromBounds.startIso)
+              .lte("issued_at", toBounds.endIso)
+              .order("issued_at", { ascending: true })
+              .order("id", { ascending: true })
+              .range(from, to)
+          )
+        : Promise.resolve([])
+    ),
+    fetchRelationOrEmpty(() =>
+      fetchAllRows((from, to) => {
+        let query = supabase
+          .from("health_queue_tickets")
+          .select(
+            `
         id,
         status,
         estimated_wait_minutes,
         created_at,
         appointment_id,
-        health_appointment_id
+        health_appointment_id,
+        consultation_id
       `
-      )
-      .order("created_at", { ascending: false })
-      .limit(3000),
-    supabase
-      .from("health_appointments")
-      .select(
-        `
+          )
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+        if (fromBounds && toBounds) {
+          query = query
+            .gte("created_at", fromBounds.startIso)
+            .lte("created_at", toBounds.endIso)
+        }
+        return query.range(from, to)
+      })
+    ),
+    fetchRelationOrEmpty(() =>
+      fetchAllRows((from, to) => {
+        let query = supabase
+          .from("health_appointments")
+          .select(
+            `
         id,
         student_id,
         purpose,
@@ -198,13 +295,23 @@ export async function loadLiveReportsDataset(): Promise<{
         created_at,
         notes
       `
-      )
-      .order("created_at", { ascending: false })
-      .limit(2000),
-    supabase
-      .from("appointments")
-      .select(
-        `
+          )
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+        if (fromBounds && toBounds) {
+          query = query
+            .gte("created_at", fromBounds.startIso)
+            .lte("created_at", toBounds.endIso)
+        }
+        return query.range(from, to)
+      })
+    ),
+    fetchRelationOrEmpty(() =>
+      fetchAllRows((from, to) => {
+        let query = supabase
+          .from("appointments")
+          .select(
+            `
         id,
         title,
         date_scheduled,
@@ -214,41 +321,21 @@ export async function loadLiveReportsDataset(): Promise<{
         created_at,
         user_id
       `
-      )
-      .order("created_at", { ascending: false })
-      .limit(2000),
+          )
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+        if (fromBounds && toBounds) {
+          query = query
+            .gte("created_at", fromBounds.startIso)
+            .lte("created_at", toBounds.endIso)
+        }
+        return query.range(from, to)
+      })
+    ),
   ])
 
-  if (
-    consultationsResult.error &&
-    !isMissingRelation(consultationsResult.error)
-  ) {
-    throw new Error(consultationsResult.error.message)
-  }
-  if (
-    certificatesResult.error &&
-    !isMissingRelation(certificatesResult.error)
-  ) {
-    throw new Error(certificatesResult.error.message)
-  }
-  if (ticketsResult.error && !isMissingRelation(ticketsResult.error)) {
-    throw new Error(ticketsResult.error.message)
-  }
-  if (
-    healthAppointmentsResult.error &&
-    !isMissingRelation(healthAppointmentsResult.error)
-  ) {
-    throw new Error(healthAppointmentsResult.error.message)
-  }
-  if (
-    appointmentsResult.error &&
-    !isMissingRelation(appointmentsResult.error)
-  ) {
-    throw new Error(appointmentsResult.error.message)
-  }
-
-  const healthAppointments = healthAppointmentsResult.data ?? []
-  const legacyAppointments = appointmentsResult.data ?? []
+  const healthAppointments = [...healthAppointmentsInRange]
+  const legacyAppointments = [...legacyAppointmentsInRange]
 
   const appointmentsById = new Map<
     string,
@@ -275,6 +362,48 @@ export async function loadLiveReportsDataset(): Promise<{
         service: (row.title as string | null) ?? null,
         notes: null,
         purpose: (row.title as string | null) ?? null,
+      })
+    }
+  }
+
+  const missingAppointmentIds = [
+    ...new Set(
+      ticketRows
+        .map(
+          (ticket) =>
+            (ticket.health_appointment_id as string | null) ??
+            (ticket.appointment_id as string | null)
+        )
+        .filter(
+          (id): id is string =>
+            typeof id === "string" &&
+            id.length > 0 &&
+            !appointmentsById.has(id)
+        )
+    ),
+  ]
+
+  if (missingAppointmentIds.length > 0) {
+    const extraHealth = await fetchRelationOrEmpty(() =>
+      fetchInChunks<{
+        id: string
+        consultation_type: string | null
+        service: string | null
+        notes: string | null
+        purpose: string | null
+      }>(missingAppointmentIds, (chunk) =>
+        supabase
+          .from("health_appointments")
+          .select("id, consultation_type, service, notes, purpose")
+          .in("id", chunk)
+      )
+    )
+    for (const row of extraHealth) {
+      appointmentsById.set(row.id, {
+        consultation_type: row.consultation_type,
+        service: row.service,
+        notes: row.notes,
+        purpose: row.purpose,
       })
     }
   }
@@ -350,65 +479,86 @@ export async function loadLiveReportsDataset(): Promise<{
   const requests: SeedRequestRow[] =
     requestsFromHealth.length > 0 ? requestsFromHealth : requestsFromLegacy
 
-  const consults: SeedConsultRow[] = (consultationsResult.data ?? []).map(
-    (row) => {
-      const patientJoin = Array.isArray(row.patient_records)
-        ? row.patient_records[0]
-        : row.patient_records
-      const patientType = patientTypeOf(
-        (patientJoin?.patient_type as string | null) ?? null
-      )
-      const campusId =
-        patientType === "faculty"
-          ? ((patientJoin?.employee_id as string | null) ??
-            (patientJoin?.student_id as string | null) ??
-            "—")
-          : ((patientJoin?.student_id as string | null) ?? "—")
-      const firstName = (patientJoin?.first_name as string | null) ?? ""
-      const lastName = (patientJoin?.last_name as string | null) ?? ""
-      const patientName =
-        [firstName, lastName].filter(Boolean).join(" ") || "Unknown patient"
-      const date = manilaYmd(row.consultation_date as string)
-      const providerType = row.provider_type as string | null
-      const station = stationOf(
-        providerType === "dentist"
-          ? "dentist"
-          : providerType === "physician"
-            ? "physician"
-            : (row.station as string | null)
-      )
-      const consultationType =
-        providerType === "dentist"
-          ? "dental"
-          : providerType === "physician"
-            ? "medical"
-            : consultationTypeOf(row.station as string | null)
-      const notes = ((row.notes as string | null) ?? "").toLowerCase()
-      return {
-        id: row.id as string,
-        date,
-        period: monthPeriod(date),
-        patientName,
-        campusId,
-        patientType,
-        consultationType,
-        service:
-          consultationType === "dental"
-            ? "Dental consultation"
-            : "General consultation",
-        complaint: (row.chief_complaint as string | null) || "—",
-        diagnosis: (row.diagnosis as string | null) || "—",
-        station,
-        assignedPersonnel: (row.provider_name as string | null) || "Unassigned",
-        status: titleStatus((row.status as string) || "Unknown"),
-        waitMinutes: 0,
-        walkIn: notes.includes("walk"),
-        followUpDate: (row.follow_up_date as string | null) ?? null,
-      }
+  const waitByConsultId = new Map<string, number>()
+  for (const ticket of ticketRows) {
+    const consultId = ticket.consultation_id as string | null
+    const wait = ticket.estimated_wait_minutes as number | null
+    if (
+      consultId &&
+      typeof wait === "number" &&
+      Number.isFinite(wait) &&
+      !waitByConsultId.has(consultId)
+    ) {
+      waitByConsultId.set(consultId, wait)
     }
-  )
+  }
 
-  const certs: SeedCertRow[] = (certificatesResult.data ?? []).map((row) => {
+  const consults: SeedConsultRow[] = consultationRows.map((row) => {
+    const patientJoin = Array.isArray(row.patient_records)
+      ? row.patient_records[0]
+      : row.patient_records
+    const patientType = patientTypeOf(
+      (patientJoin?.patient_type as string | null) ?? null
+    )
+    const campusId =
+      patientType === "faculty" || patientType === "employee"
+        ? ((patientJoin?.employee_id as string | null) ??
+          (patientJoin?.student_id as string | null) ??
+          "—")
+        : ((patientJoin?.student_id as string | null) ?? "—")
+    const firstName = (patientJoin?.first_name as string | null) ?? ""
+    const lastName = (patientJoin?.last_name as string | null) ?? ""
+    const patientName =
+      [firstName, lastName].filter(Boolean).join(" ") || "Unknown patient"
+    const date = manilaYmd(row.consultation_date as string)
+    const providerType = row.provider_type as string | null
+    const station = stationOf(
+      providerType === "dentist"
+        ? "dentist"
+        : providerType === "physician"
+          ? "physician"
+          : (row.station as string | null)
+    )
+    const consultationType =
+      providerType === "dentist"
+        ? "dental"
+        : providerType === "physician"
+          ? "medical"
+          : consultationTypeOf(row.station as string | null)
+    const notes = ((row.notes as string | null) ?? "").toLowerCase()
+    const complaint =
+      (row.chief_complaint as string | null)?.trim() ||
+      (row.symptoms as string | null)?.trim() ||
+      "—"
+    return {
+      id: row.id as string,
+      date,
+      period: monthPeriod(date),
+      patientName,
+      campusId,
+      patientType,
+      consultationType,
+      service:
+        consultationType === "dental"
+          ? "Dental consultation"
+          : "General consultation",
+      complaint,
+      diagnosis: (row.diagnosis as string | null) || "—",
+      station,
+      assignedPersonnel: (row.provider_name as string | null) || "Unassigned",
+      status: titleStatus((row.status as string) || "Unknown"),
+      waitMinutes: waitByConsultId.get(row.id as string) ?? 0,
+      walkIn: notes.includes("walk"),
+      followUpDate: (row.follow_up_date as string | null) ?? null,
+    }
+  })
+
+  const certById = new Map<string, (typeof certificatesByCreated)[number]>()
+  for (const row of [...certificatesByCreated, ...certificatesByIssued]) {
+    certById.set(row.id as string, row)
+  }
+
+  const certs: SeedCertRow[] = [...certById.values()].map((row) => {
     const patientJoin = Array.isArray(row.patients)
       ? row.patients[0]
       : row.patients
@@ -417,12 +567,18 @@ export async function loadLiveReportsDataset(): Promise<{
     const date = manilaYmd(
       (row.issued_at as string | null) ?? (row.created_at as string)
     )
+    const campusId =
+      (patientJoin?.student_id as string | null) ||
+      (patientJoin?.employee_id as string | null) ||
+      "—"
     return {
       id: row.id as string,
       date,
       patientName: (patientJoin?.full_name as string | null) || "Unknown patient",
-      campusId: (patientJoin?.student_id as string | null) || "—",
-      patientType: "student",
+      campusId,
+      patientType: patientTypeOf(
+        (patientJoin?.patient_type as string | null) ?? null
+      ),
       consultationType,
       certificateType,
       doctorName: (row.doctor_name as string | null) || "Unassigned",
@@ -430,7 +586,7 @@ export async function loadLiveReportsDataset(): Promise<{
     }
   })
 
-  const tickets = ticketsResult.data ?? []
+  const tickets = ticketRows
   const queueBuckets = new Map<
     string,
     {
@@ -499,6 +655,7 @@ export async function loadLiveReportsDataset(): Promise<{
     waitByDate.set(bucket.date, list)
   }
   for (const consult of consults) {
+    if (consult.waitMinutes > 0) continue
     const waits = waitByDate.get(consult.date) ?? []
     if (waits.length) {
       consult.waitMinutes = Math.round(

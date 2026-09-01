@@ -1,3 +1,6 @@
+import { formatPeriodLabel } from "@/features/reports/lib/report-period"
+import { reportPatientTypeLabel } from "@/features/reports/lib/patient-type-label"
+
 export const HSO_OFFICE_NAME = "NU DASMARIÑAS"
 export const HSO_OFFICE_UNIT = "Health Service Office"
 export const HSO_LETTERHEAD_LINE = "NU DASMARIÑAS — Health Service Office"
@@ -43,16 +46,18 @@ export function buildFilterSummary(input: {
   status: string
 }): string {
   const parts = [
-    `Date: ${input.dateFrom} to ${input.dateTo}`,
-    `Consultation: ${input.consultationType}`,
-    `Patient type: ${
-      input.patientType === "faculty"
-        ? "Faculty / Employee"
-        : input.patientType
+    `Report Period: ${formatPeriodLabel(input.dateFrom, input.dateTo)}`,
+    `Consultation: ${input.consultationType === "all" ? "All" : input.consultationType}`,
+    `Patient Type: ${
+      input.patientType === "all"
+        ? "All"
+        : reportPatientTypeLabel(input.patientType)
     }`,
-    `Personnel: ${input.assignedPersonnel}`,
-    `Status: ${input.status}`,
   ]
+  if (input.assignedPersonnel && input.assignedPersonnel !== "all") {
+    parts.push(`Personnel: ${input.assignedPersonnel}`)
+  }
+  parts.push(`Status: ${input.status === "all" ? "All" : input.status}`)
   return parts.join(" · ")
 }
 

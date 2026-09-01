@@ -12,7 +12,7 @@ export async function reloadAdminReportsAction(
   >
 ): Promise<AdminReportsAggregates> {
   const access = await getStaffAccess()
-  if (!access || access.primaryRole !== "admin") {
+  if (!access || (access.primaryRole !== "admin" && access.primaryRole !== "nurse")) {
     return {
       generatedAt: new Date().toISOString(),
       dateFrom: filters.dateFrom,
@@ -24,5 +24,8 @@ export async function reloadAdminReportsAction(
       error: "Unauthorized.",
     }
   }
-  return loadAdminReportsAggregates(filters)
+  return loadAdminReportsAggregates(
+    filters,
+    access.primaryRole === "nurse" ? "nurse" : "admin"
+  )
 }

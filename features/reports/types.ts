@@ -1,7 +1,8 @@
 import type { ClinicDesignation } from "@/lib/auth/types"
+import type { ReportPeriodPreset } from "@/features/reports/lib/report-period"
 
 export type ReportConsultationType = "all" | "medical" | "dental"
-export type ReportPatientType = "all" | "student" | "faculty"
+export type ReportPatientType = "all" | "student" | "faculty" | "employee"
 
 export type ReportKind =
   | "daily_consultation"
@@ -15,6 +16,10 @@ export type ReportKind =
   | "consultation_request"
   | "patient_consultation_history"
   | "patient_dental_history"
+  | "service_utilization"
+  | "health_cases"
+  | "health_cases_by_patient_type"
+  | "patient_service_statistics"
 
 export type ReportKpiKey =
   | "total_consultations"
@@ -29,6 +34,9 @@ export type ReportKpiKey =
   | "dental_consultations_today"
   | "dental_certs_issued"
   | "follow_up_cases"
+  | "medical_consultations"
+  | "dental_consultations"
+  | "completed_consultations"
 
 export type ReportChartKey =
   | "monthly_consult_trend"
@@ -41,8 +49,15 @@ export type ReportChartKey =
   | "consultation_trend"
   | "common_diagnoses"
   | "dental_consult_trend"
+  | "consult_volume_trend"
+  | "service_utilization"
+  | "health_cases"
+  | "health_cases_by_patient_type"
+  | "patient_type_bar"
+  | "medical_dental_donut"
 
 export type ReportFilters = {
+  reportPeriod: ReportPeriodPreset
   dateFrom: string
   dateTo: string
   consultationType: ReportConsultationType
@@ -64,14 +79,26 @@ export type ReportChartPoint = {
   label: string
   value: number
   secondary?: number
+  tertiary?: number
 }
+
+export type ReportChartKind =
+  | "line"
+  | "bar"
+  | "pie"
+  | "hbar"
+  | "multiline"
+  | "stackedBar"
 
 export type ReportChartSeries = {
   key: ReportChartKey
   title: string
   description?: string
-  kind: "line" | "bar" | "pie"
+  kind: ReportChartKind
   points: ReportChartPoint[]
+  valueLabel?: string
+  secondaryLabel?: string
+  tertiaryLabel?: string
 }
 
 export type ReportTableColumn = {
@@ -134,4 +161,8 @@ export const REPORT_KIND_LABELS: Record<ReportKind, string> = {
   consultation_request: "Consultation Request Report",
   patient_consultation_history: "Patient Consultation History",
   patient_dental_history: "Patient Visit History",
+  service_utilization: "Service Utilization",
+  health_cases: "Health Cases",
+  health_cases_by_patient_type: "Health Cases by Patient Type",
+  patient_service_statistics: "Patient Service Statistics",
 }

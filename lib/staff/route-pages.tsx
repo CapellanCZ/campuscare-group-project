@@ -393,15 +393,18 @@ export async function StaffCertificatesPage() {
 export async function StaffReportsPage() {
   const access = await requireStaffModule("reports")
 
-  if (access.designation === "admin") {
+  if (access.designation === "admin" || access.designation === "nurse") {
     const { defaultFiltersFor } = await import(
       "@/features/reports/data/apply-filters"
     )
     const { loadAdminReportsAggregates } = await import(
       "@/features/admin/data/reports-aggregates"
     )
-    const filters = defaultFiltersFor("admin")
-    const aggregates = await loadAdminReportsAggregates(filters)
+    const filters = defaultFiltersFor(access.designation)
+    const aggregates = await loadAdminReportsAggregates(
+      filters,
+      access.designation === "nurse" ? "nurse" : "admin"
+    )
     return (
       <ReportsAnalyticsPage
         access={access}
@@ -412,28 +415,25 @@ export async function StaffReportsPage() {
   }
 
   const bundle = await loadReportsBundle(access.designation)
-  const isNurse = access.designation === "nurse"
 
   let announcements: Awaited<ReturnType<typeof getAnnouncements>> | undefined
-  if (!isNurse) {
-    announcements = {
-      items: [],
-      total: 0,
+  announcements = {
+    items: [],
+    total: 0,
+    page: 1,
+    pageSize: 6,
+    totalPages: 1,
+  }
+  try {
+    announcements = await getAnnouncements({
       page: 1,
       pageSize: 6,
-      totalPages: 1,
-    }
-    try {
-      announcements = await getAnnouncements({
-        page: 1,
-        pageSize: 6,
-        sortBy: "updated_at",
-        sortDirection: "desc",
-        feed: true,
-      })
-    } catch {
-      // Reports still render without the announcements strip.
-    }
+      sortBy: "updated_at",
+      sortDirection: "desc",
+      feed: true,
+    })
+  } catch {
+    // Reports still render without the announcements strip.
   }
 
   return (
