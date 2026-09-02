@@ -19,6 +19,7 @@ import {
 } from "@/features/reports/lib/export-pdf"
 import type { ReportFilters, ReportsBundle } from "@/features/reports/types"
 import type { StaffAccess } from "@/lib/auth/types"
+import { exportReportTitle } from "@/features/reports/lib/report-scope"
 import { designationLabel } from "@/lib/health/roles"
 import type { AnnouncementListResult } from "@/types/announcement"
 import { useStaffRealtimeRouterRefresh } from "@/hooks/use-staff-realtime-refresh"
@@ -111,6 +112,7 @@ function ClinicalReportsAnalyticsPage({
       roleLabel: designationLabel(d),
       kpis: bundle.kpis,
       charts: bundle.charts,
+      scope: d === "dentist" ? "dental" : "medical",
     })
     return {
       narrative,
@@ -146,7 +148,7 @@ function ClinicalReportsAnalyticsPage({
 
   function exportMeta(): ExportMeta {
     return {
-      reportTitle: exportPack.narrative.title,
+      reportTitle: exportReportTitle(d),
       generatedAt: new Date().toISOString(),
       generatedBy: access.fullName,
       roleLabel: designationLabel(d),
@@ -198,6 +200,7 @@ function ClinicalReportsAnalyticsPage({
         void downloadClinicProgressPdf({
           meta: exportMeta(),
           pack: exportPack,
+          reportMode: d === "dentist" ? "dental" : "medical",
         })
           .then(() =>
             appToast.success({

@@ -36,8 +36,8 @@ export function ReportAnalyticsCard({
     <Card
       className={cn(
         elevated
-          ? "rounded-xl border bg-card shadow-sm dark:ring-0"
-          : "min-w-0 border-border/70 shadow-none dark:ring-0",
+          ? "rounded-xl border border-border bg-card shadow-sm dark:border-border dark:bg-card"
+          : "min-w-0 border-border/70 bg-card shadow-none dark:border-border dark:bg-card",
         className
       )}
     >

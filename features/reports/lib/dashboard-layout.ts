@@ -111,10 +111,13 @@ export function reportsPageDescription(
   periodLabel: string
 ): string {
   if (designation === "physician") {
-    return `Medical consultation analytics for ${periodLabel}.`
+    return `Medical consultation analytics and health case summaries for ${periodLabel}. Dental data is excluded from this view.`
   }
   if (designation === "dentist") {
-    return `Dental consultation analytics for ${periodLabel}.`
+    return `Dental consultation analytics and case summaries for ${periodLabel}. Medical data is excluded from this view.`
   }
-  return `HSO operational summary for ${periodLabel}. Aggregated counts only.`
+  if (designation === "nurse") {
+    return `HSO operational summary for ${periodLabel}. Aggregated counts only — no patient identifiers.`
+  }
+  return `Clinic-wide operational summary for ${periodLabel}. Aggregated counts for HSO administration.`
 }

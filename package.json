@@ -30,6 +30,7 @@
     "html2canvas": "^1.4.1",
     "input-otp": "^1.4.2",
     "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.7",
     "lucide": "^1.25.0",
     "motion": "^12.42.2",
     "next": "16.2.6",

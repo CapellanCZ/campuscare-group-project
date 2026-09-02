@@ -4,7 +4,7 @@ import Link from "next/link"
 import { IconBook, IconContrast } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
-import { useTheme } from "@/components/theme-provider"
+import { useStaffThemeToggle } from "@/hooks/use-staff-theme-toggle"
 
 type SidebarUtilityFooterProps = {
   docsHref?: string
@@ -14,8 +14,8 @@ type SidebarUtilityFooterProps = {
 export function SidebarUtilityFooter({
   docsHref = "/docs",
 }: SidebarUtilityFooterProps) {
-  const { resolvedTheme, setTheme } = useTheme()
-  const nextTheme = resolvedTheme === "dark" ? "light" : "dark"
+  const { isDark, toggleTheme } = useStaffThemeToggle()
+  const nextTheme = isDark ? "light" : "dark"
 
   return (
     <div className="flex items-center gap-1 px-2 py-1">
@@ -24,7 +24,7 @@ export function SidebarUtilityFooter({
         variant="ghost"
         size="icon-sm"
         aria-label={`Switch to ${nextTheme} mode`}
-        onClick={() => setTheme(nextTheme)}
+        onClick={toggleTheme}
       >
         <IconContrast aria-hidden />
       </Button>

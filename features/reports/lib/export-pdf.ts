@@ -1,16 +1,17 @@
-import html2canvas from "html2canvas"
-import { jsPDF } from "jspdf"
+import { buildClinicProgressPdfDocument } from "@/features/reports/lib/pdf/clinic-progress-pdf-document"
 
 import { chartSeriesToSvg } from "@/features/reports/lib/chart-to-svg"
 import type { ClinicExportPack } from "@/features/reports/lib/clinic-progress-narrative"
+import {
+  STANDARD_DENTAL_CASE_LABELS,
+  STANDARD_MEDICAL_CASE_LABELS,
+} from "@/features/reports/lib/health-case-normalize"
 import {
   HSO_ACCENT,
   HSO_CONFIDENTIAL,
   exportFilename,
   HSO_LETTERHEAD_LINE,
-  HSO_LOGO_PATH,
-  HSO_OFFICE_NAME,
-  HSO_OFFICE_UNIT,
+  HSO_LETTERHEAD_PATH,
   formatManilaTimestamp,
   type ExportMeta,
 } from "@/features/reports/lib/export-letterhead"
@@ -37,9 +38,9 @@ function renderTable(table: ReportTableBundle): string {
     })
     .join("")
 
-  return `<section class="block">
+  return `<section class="block pdf-section table-section">
     <h2>${escapeHtml(table.title)}</h2>
-    <table>
+    <table class="data-table">
       <thead><tr>${headers}</tr></thead>
       <tbody>${
         body ||
@@ -49,13 +50,89 @@ function renderTable(table: ReportTableBundle): string {
   </section>`
 }
 
+function renderOfficialHealthCasesTable(
+  table: ReportTableBundle | undefined,
+  mode: "medical" | "dental"
+): string {
+  const standardLabels =
+    mode === "dental"
+      ? STANDARD_DENTAL_CASE_LABELS
+      : STANDARD_MEDICAL_CASE_LABELS
+
+  const byTypeTable = table?.kind === "health_cases_by_patient_type"
+  const counts = new Map<
+    string,
+    { employee: number; college: number; shs: number }
+  >()
+
+  for (const row of table?.rows ?? []) {
+    const label = String(row.cells.case ?? "")
+    if (!label) continue
+    if (byTypeTable) {
+      counts.set(label, {
+        employee: Number(row.cells.employee ?? 0),
+        college: Number(row.cells.student ?? 0),
+        shs: Number(row.cells.faculty ?? 0),
+      })
+    } else {
+      counts.set(label, {
+        employee: Number(row.cells.total ?? 0),
+        college: 0,
+        shs: 0,
+      })
+    }
+  }
+
+  const body = standardLabels
+    .map((label) => {
+      const bucket = counts.get(label) ?? { employee: 0, college: 0, shs: 0 }
+      return `<tr>
+        <td>${escapeHtml(label)}</td>
+        <td class="num">${bucket.employee || "—"}</td>
+        <td class="num">${bucket.college || "—"}</td>
+        <td class="num">${bucket.shs || "—"}</td>
+      </tr>`
+    })
+    .join("")
+
+  const title =
+    mode === "dental"
+      ? "Dental Health Cases Summary"
+      : "Medical Health Cases Summary"
+
+  return `<section class="block pdf-section table-section">
+    <h2>${escapeHtml(title)}</h2>
+    <p class="muted">Official case tally for the selected period. Employee, College, and SHS columns reflect patient classification where available.</p>
+    <table class="data-table health-cases">
+      <thead>
+        <tr>
+          <th>CASE</th>
+          <th>EMPLOYEE</th>
+          <th>COLLEGE</th>
+          <th>SHS</th>
+        </tr>
+      </thead>
+      <tbody>${body}</tbody>
+    </table>
+  </section>`
+}
+
 export function buildClinicProgressPrintHtml(input: {
   meta: ExportMeta
   pack: ClinicExportPack
   logoUrl?: string
+  reportMode?: "medical" | "dental" | "hso"
 }): string {
-  const logoSrc = input.logoUrl ?? `${window.location.origin}${HSO_LOGO_PATH}`
+  const logoSrc =
+    input.logoUrl ?? `${window.location.origin}${HSO_LETTERHEAD_PATH}`
   const n = input.pack.narrative
+  const reportMode =
+    input.reportMode ??
+    (input.meta.reportTitle.toLowerCase().includes("dental")
+      ? "dental"
+      : input.meta.reportTitle.toLowerCase().includes("medical")
+        ? "medical"
+        : "hso")
 
   const kpiCards = input.pack.kpis
     .map(
@@ -69,7 +146,7 @@ export function buildClinicProgressPrintHtml(input: {
 
   const charts = input.pack.charts
     .map(
-      (series) => `<section class="block chart-block">
+      (series) => `<section class="block chart-block pdf-section">
         <h2>${escapeHtml(series.title)}</h2>
         ${
           series.description
@@ -77,7 +154,7 @@ export function buildClinicProgressPrintHtml(input: {
             : ""
         }
         ${chartSeriesToSvg(series)}
-        <table class="compact">
+        <table class="compact data-table">
           <thead>${
             series.kind === "stackedBar"
               ? "<tr><th>Health Case</th><th>Student</th><th>Faculty</th><th>Employee</th><th>Total</th></tr>"
@@ -92,12 +169,12 @@ export function buildClinicProgressPrintHtml(input: {
                   const student = p.value
                   const faculty = p.secondary ?? 0
                   const employee = p.tertiary ?? 0
-                  return `<tr><td>${escapeHtml(p.label)}</td><td>${student}</td><td>${faculty}</td><td>${employee}</td><td>${student + faculty + employee}</td></tr>`
+                  return `<tr><td>${escapeHtml(p.label)}</td><td class="num">${student}</td><td class="num">${faculty}</td><td class="num">${employee}</td><td class="num">${student + faculty + employee}</td></tr>`
                 }
                 if (series.kind === "multiline" || series.kind === "line") {
-                  return `<tr><td>${escapeHtml(p.label)}</td><td>${p.value}</td><td>${p.secondary ?? 0}</td><td>${p.tertiary ?? p.value + (p.secondary ?? 0)}</td></tr>`
+                  return `<tr><td>${escapeHtml(p.label)}</td><td class="num">${p.value}</td><td class="num">${p.secondary ?? 0}</td><td class="num">${p.tertiary ?? p.value + (p.secondary ?? 0)}</td></tr>`
                 }
-                return `<tr><td>${escapeHtml(p.label)}</td><td>${p.value}</td></tr>`
+                return `<tr><td>${escapeHtml(p.label)}</td><td class="num">${p.value}</td></tr>`
               })
               .join("")}
           </tbody>
@@ -106,7 +183,21 @@ export function buildClinicProgressPrintHtml(input: {
     )
     .join("")
 
-  const tables = input.pack.tables.map(renderTable).join("")
+  const healthCasesTable =
+    input.pack.tables.find(
+      (table) =>
+        table.kind === "health_cases_by_patient_type" ||
+        table.kind === "health_cases"
+    )
+  const officialHealthCases =
+    reportMode === "medical" || reportMode === "dental"
+      ? renderOfficialHealthCasesTable(healthCasesTable, reportMode)
+      : ""
+
+  const tables = input.pack.tables
+    .filter((table) => table.kind !== "health_cases" || reportMode === "hso")
+    .map(renderTable)
+    .join("")
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -114,38 +205,49 @@ export function buildClinicProgressPrintHtml(input: {
   <meta charset="utf-8" />
   <title>${escapeHtml(n.title)}</title>
   <style>
-    @page { margin: 16mm 14mm; }
+    @page { margin: 14mm 12mm; size: A4 portrait; }
+    * { box-sizing: border-box; }
     body {
       font-family: "Segoe UI", Arial, Helvetica, sans-serif;
       color: #111827;
-      font-size: 10.5pt;
+      font-size: 10pt;
       line-height: 1.45;
       margin: 0;
+      padding: 0;
       background: #fff;
     }
     .letterhead {
       display: flex;
+      justify-content: center;
       align-items: center;
-      gap: 16px;
       border-bottom: 2px solid ${HSO_ACCENT};
       padding-bottom: 12px;
       margin-bottom: 14px;
     }
-    .letterhead img { height: 56px; width: auto; object-fit: contain; }
-    .letterhead h1 { margin: 0; font-size: 15pt; color: ${HSO_ACCENT}; }
-    .letterhead p { margin: 2px 0 0; color: ${HSO_ACCENT}; font-size: 10.5pt; }
-    .meta, .narrative p { font-size: 9.5pt; color: #374151; }
+    .letterhead img { height: 64px; width: auto; object-fit: contain; }
+    .report-title {
+      margin: 10px 0 4px;
+      font-size: 13pt;
+      font-weight: 700;
+      text-align: center;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #111827;
+    }
+    .meta, .narrative p { font-size: 9pt; color: #374151; }
+    .meta { margin-bottom: 12px; display: grid; gap: 3px; }
     .meta strong, .narrative strong { color: #111827; }
     h2 {
-      margin: 18px 0 8px;
-      font-size: 12pt;
+      margin: 14px 0 8px;
+      font-size: 11pt;
       color: ${HSO_ACCENT};
       border-bottom: 1px solid #dbe3f0;
       padding-bottom: 4px;
+      page-break-after: avoid;
     }
     .kpi-grid {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 8px;
       margin: 10px 0 16px;
     }
@@ -154,52 +256,78 @@ export function buildClinicProgressPrintHtml(input: {
       border-radius: 6px;
       padding: 8px 10px;
       background: #f8fafc;
+      page-break-inside: avoid;
     }
-    .kpi-label { font-size: 8.5pt; color: #6b7280; }
-    .kpi-value { font-size: 14pt; font-weight: 700; color: ${HSO_ACCENT}; }
-    .kpi-desc { font-size: 8pt; color: #6b7280; }
-    table {
+    .kpi-label { font-size: 8pt; color: #6b7280; }
+    .kpi-value { font-size: 13pt; font-weight: 700; color: ${HSO_ACCENT}; }
+    .kpi-desc { font-size: 7.5pt; color: #6b7280; }
+    table.data-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 9pt;
+      font-size: 8.5pt;
       margin-top: 6px;
+      page-break-inside: auto;
     }
-    table.compact { max-width: 360px; }
+    table.compact { max-width: 100%; }
     th, td {
-      border: 1px solid #d1d5db;
+      border: 1px solid #9ca3af;
       padding: 5px 7px;
       text-align: left;
       vertical-align: top;
     }
-    th { background: #eef2ff; color: ${HSO_ACCENT}; font-weight: 600; }
-    tr:nth-child(even) td { background: #f9fafb; }
-    .block { break-inside: avoid; page-break-inside: avoid; margin-bottom: 12px; }
-    .chart-block svg { max-width: 100%; }
-    .muted { color: #6b7280; font-size: 9pt; margin: 0 0 6px; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    th {
+      background: #e8eef8;
+      color: ${HSO_ACCENT};
+      font-weight: 600;
+      font-size: 8pt;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; page-break-after: auto; }
+    tbody tr:nth-child(even) td { background: #f9fafb; }
+    .block { margin-bottom: 14px; }
+    .pdf-section { page-break-inside: auto; }
+    .table-section { page-break-before: auto; }
+    .chart-block svg { max-width: 100%; height: auto; }
+    .muted { color: #6b7280; font-size: 8.5pt; margin: 0 0 6px; }
     .footer {
-      margin-top: 18px;
+      margin-top: 24px;
       border-top: 1px solid #d1d5db;
       padding-top: 8px;
-      font-size: 8pt;
+      font-size: 7.5pt;
       color: #6b7280;
       display: flex;
       justify-content: space-between;
       gap: 12px;
     }
+    .signatures {
+      margin-top: 28px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      font-size: 8.5pt;
+      page-break-inside: avoid;
+    }
+    .signatures .line {
+      border-top: 1px solid #111827;
+      margin-top: 36px;
+      padding-top: 4px;
+      text-align: center;
+      color: #374151;
+    }
     .narrative p { margin: 0 0 8px; text-align: justify; }
   </style>
 </head>
 <body>
-  <header class="letterhead">
+  <header class="letterhead pdf-section">
     <img src="${escapeHtml(logoSrc)}" alt="${escapeHtml(HSO_LETTERHEAD_LINE)}" />
-    <div>
-      <h1>${escapeHtml(HSO_OFFICE_NAME)}</h1>
-      <p>${escapeHtml(HSO_OFFICE_UNIT)}</p>
-      <p style="font-size:9pt;color:#6b7280;margin-top:4px;">CampusCare · Quarterly admin briefing</p>
-    </div>
   </header>
 
-  <section class="meta">
+  <h1 class="report-title">${escapeHtml(n.title)}</h1>
+
+  <section class="meta pdf-section">
     <div><strong>Report:</strong> ${escapeHtml(n.title)}</div>
     <div><strong>Coverage period:</strong> ${escapeHtml(n.periodLabel)}</div>
     <div><strong>Generated:</strong> ${escapeHtml(formatManilaTimestamp(input.meta.generatedAt))} (Asia/Manila)</div>
@@ -207,7 +335,7 @@ export function buildClinicProgressPrintHtml(input: {
     <div><strong>Applied filters:</strong> ${escapeHtml(input.meta.filterSummary)}</div>
   </section>
 
-  <section class="narrative block">
+  <section class="narrative block pdf-section">
     <h2>1. Executive summary</h2>
     <p>${escapeHtml(n.executiveSummary)}</p>
     <h2>2. Operational progress</h2>
@@ -218,24 +346,32 @@ export function buildClinicProgressPrintHtml(input: {
     <p>${escapeHtml(n.serviceCapacity)}</p>
   </section>
 
-  <section class="block">
+  <section class="block pdf-section">
     <h2>5. Analytics snapshot (KPI cards)</h2>
     <div class="kpi-grid">${kpiCards}</div>
   </section>
 
-  <section>
+  <section class="pdf-section">
     <h2>6. Charts & visual analytics</h2>
     ${charts || `<p class="muted">No charts available for this role view.</p>`}
   </section>
 
-  <section>
+  ${officialHealthCases}
+
+  <section class="pdf-section">
     <h2>7. Detailed report tables</h2>
     ${tables || `<p class="muted">No tables available.</p>`}
   </section>
 
-  <section class="narrative block">
+  <section class="narrative block pdf-section">
     <h2>8. Closing note for administration</h2>
     <p>${escapeHtml(n.closing)}</p>
+  </section>
+
+  <section class="signatures pdf-section">
+    <div><div class="line">Prepared by</div></div>
+    <div><div class="line">Checked by</div></div>
+    <div><div class="line">Noted by</div></div>
   </section>
 
   <footer class="footer">
@@ -244,81 +380,6 @@ export function buildClinicProgressPrintHtml(input: {
   </footer>
 </body>
 </html>`
-}
-
-const UNSUPPORTED_COLOR_PATTERN = /lab\(|oklch\(|color\(/i
-
-const HTML2CANVAS_COLOR_PROPS = [
-  "color",
-  "backgroundColor",
-  "borderColor",
-  "borderTopColor",
-  "borderRightColor",
-  "borderBottomColor",
-  "borderLeftColor",
-  "outlineColor",
-  "textDecorationColor",
-] as const
-
-function toCanvasSafeColor(view: Window, value: string): string {
-  if (!value || value === "transparent" || value === "rgba(0, 0, 0, 0)") {
-    return value
-  }
-  if (!UNSUPPORTED_COLOR_PATTERN.test(value)) return value
-
-  const probe = view.document.createElement("span")
-  probe.style.display = "none"
-  probe.style.color = value
-  view.document.body.appendChild(probe)
-  const resolved = view.getComputedStyle(probe).color
-  probe.remove()
-
-  if (resolved && !UNSUPPORTED_COLOR_PATTERN.test(resolved)) {
-    return resolved
-  }
-  return "#111827"
-}
-
-/** html2canvas cannot parse Tailwind v4 lab()/oklch() colors from the app shell. */
-function prepareHtmlCloneForCanvas(clonedDoc: Document) {
-  const view = clonedDoc.defaultView
-  if (!view) return
-
-  if ("adoptedStyleSheets" in clonedDoc) {
-    try {
-      clonedDoc.adoptedStyleSheets = []
-    } catch {
-      // Some browsers block reassignment; ignore.
-    }
-  }
-
-  clonedDoc.querySelectorAll('link[rel="stylesheet"]').forEach((node) => {
-    node.remove()
-  })
-
-  clonedDoc.querySelectorAll("style").forEach((styleEl) => {
-    const text = styleEl.textContent ?? ""
-    if (UNSUPPORTED_COLOR_PATTERN.test(text) && !text.includes(".letterhead")) {
-      styleEl.remove()
-    }
-  })
-
-  clonedDoc.querySelectorAll("*").forEach((node) => {
-    if (!(node instanceof view.HTMLElement)) return
-    const computed = view.getComputedStyle(node)
-    for (const prop of HTML2CANVAS_COLOR_PROPS) {
-      const value = computed[prop]
-      if (!value || value === "transparent" || value === "rgba(0, 0, 0, 0)") {
-        continue
-      }
-      node.style[prop] = toCanvasSafeColor(view, value)
-    }
-  })
-
-  if (clonedDoc.body) {
-    clonedDoc.body.style.backgroundColor = "#ffffff"
-    clonedDoc.body.style.color = "#111827"
-  }
 }
 
 function createReportRenderFrame(html: string, title: string): HTMLIFrameElement {
@@ -401,7 +462,7 @@ export function printClinicProgressReport(input: {
 }): void {
   const html = buildClinicProgressPrintHtml({
     ...input,
-    logoUrl: `${window.location.origin}${HSO_LOGO_PATH}`,
+    logoUrl: `${window.location.origin}${HSO_LETTERHEAD_PATH}`,
   })
 
   const iframe = createReportRenderFrame(html, "Print clinic progress report")
@@ -433,69 +494,14 @@ export function printClinicProgressReport(input: {
 export async function downloadClinicProgressPdf(input: {
   meta: ExportMeta
   pack: ClinicExportPack
+  reportMode?: "medical" | "dental" | "hso"
 }): Promise<void> {
-  const html = buildClinicProgressPrintHtml({
-    ...input,
-    logoUrl: `${window.location.origin}${HSO_LOGO_PATH}`,
+  const doc = await buildClinicProgressPdfDocument({
+    meta: input.meta,
+    pack: input.pack,
+    reportMode: input.reportMode,
   })
-
-  const iframe = createReportRenderFrame(html, "Export clinic progress report PDF")
-  const frameDocument = iframe.contentWindow?.document
-  const frameWindow = iframe.contentWindow
-  if (!frameDocument?.body || !frameWindow) {
-    iframe.remove()
-    throw new Error("Could not prepare the PDF export. Try again.")
-  }
-
-  try {
-    await waitForReportFrameReady(iframe)
-
-    const canvas = await html2canvas(frameDocument.body, {
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      backgroundColor: "#ffffff",
-      windowWidth: 900,
-      onclone: prepareHtmlCloneForCanvas,
-      // html2canvas reads parent Tailwind lab() colors unless scoped to the iframe.
-      ...({ window: frameWindow } as object),
-    })
-
-    const doc = new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: "a4",
-    })
-
-    const margin = 14
-    const pageWidth = doc.internal.pageSize.getWidth()
-    const pageHeight = doc.internal.pageSize.getHeight()
-    const printableWidth = pageWidth - margin * 2
-    const printableHeight = pageHeight - margin * 2
-    const imgHeight = (canvas.height * printableWidth) / canvas.width
-    const imgData = canvas.toDataURL("image/png")
-
-    let offsetY = 0
-    let pageIndex = 0
-
-    while (offsetY < imgHeight) {
-      if (pageIndex > 0) doc.addPage()
-      doc.addImage(
-        imgData,
-        "PNG",
-        margin,
-        margin - offsetY,
-        printableWidth,
-        imgHeight
-      )
-      offsetY += printableHeight
-      pageIndex += 1
-    }
-
-    doc.save(exportFilename(input.meta.reportTitle, "pdf"))
-  } finally {
-    iframe.remove()
-  }
+  doc.save(exportFilename(input.meta.reportTitle, "pdf"))
 }
 
 /** @deprecated Prefer printClinicProgressReport */

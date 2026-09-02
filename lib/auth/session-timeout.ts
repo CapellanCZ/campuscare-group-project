@@ -67,7 +67,12 @@ export function readSessionStartedAt(storage: Storage, now: number): number {
   const raw = storage.getItem(SESSION_STARTED_AT_KEY)
   if (raw) {
     const parsed = Number(raw)
-    if (Number.isFinite(parsed) && parsed > 0) return parsed
+    if (Number.isFinite(parsed) && parsed > 0) {
+      // Ignore stale timestamps left from a previous browser session.
+      if (now < absoluteDeadline(parsed)) {
+        return parsed
+      }
+    }
   }
 
   storage.setItem(SESSION_STARTED_AT_KEY, String(now))

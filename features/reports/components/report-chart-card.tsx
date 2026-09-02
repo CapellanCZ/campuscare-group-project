@@ -31,18 +31,25 @@ import { panelCardClassName } from "@/components/layout/panel-frame"
 import type { ReportChartKind, ReportChartSeries } from "@/features/reports/types"
 import { cn } from "@/lib/utils"
 
-const COLORS = ["#1e3a8a", "#2563eb", "#0ea5e9", "#64748b", "#94a3b8", "#334155"]
+const COLORS = [
+  "hsl(var(--chart-1))",
+  "hsl(var(--chart-2))",
+  "hsl(var(--chart-3))",
+  "hsl(var(--chart-4))",
+  "hsl(var(--chart-5))",
+  "#64748b",
+]
 
 const trendConfig = {
-  value: { label: "Medical", color: "#1e3a8a" },
-  secondary: { label: "Dental", color: "#0ea5e9" },
-  tertiary: { label: "Total", color: "#64748b" },
+  value: { label: "Medical", color: "hsl(var(--chart-1))" },
+  secondary: { label: "Dental", color: "hsl(var(--chart-2))" },
+  tertiary: { label: "Total", color: "hsl(var(--chart-4))" },
 } satisfies ChartConfig
 
 const stackedConfig = {
-  value: { label: "Student", color: "#1e3a8a" },
-  secondary: { label: "Faculty", color: "#2563eb" },
-  tertiary: { label: "Employee", color: "#0ea5e9" },
+  value: { label: "Student", color: "hsl(var(--chart-1))" },
+  secondary: { label: "Faculty", color: "hsl(var(--chart-2))" },
+  tertiary: { label: "Employee", color: "hsl(var(--chart-3))" },
 } satisfies ChartConfig
 
 export type OpsChartSeries = {

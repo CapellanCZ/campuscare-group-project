@@ -113,3 +113,32 @@ export function rankHealthCases(
   }
   return other.total > 0 ? [...head, other] : head
 }
+
+/** Standard medical case rows for official HSO health-case reporting tables. */
+export const STANDARD_MEDICAL_CASE_LABELS = [
+  "Headache",
+  "Wound / injury",
+  "Menstrual Cramps",
+  "Cough / cold",
+  "Fever / flu-like symptoms",
+  "Stomach pain",
+  "Muscle Pain / Body Pain",
+  "Allergy",
+  "Anxiety",
+  "Dizziness",
+  "GERD",
+  "Increased BP",
+  "Toothache",
+  "Asthma",
+  "Eye Irritation",
+  "Nausea / Vomiting",
+  "Nosebleed",
+] as const
+
+export const STANDARD_DENTAL_CASE_LABELS = [
+  "Toothache",
+  "Oral prophylaxis",
+  "Tooth extraction",
+  "Dental check-up",
+  "Gum concern",
+] as const

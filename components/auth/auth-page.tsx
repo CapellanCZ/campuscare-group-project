@@ -18,6 +18,7 @@ import {
 } from "@/lib/auth/auth-api"
 import { asErrorMessage } from "@/lib/auth/errors"
 import { isValidEmail } from "@/lib/auth/email"
+import { markSessionStarted } from "@/lib/auth/session-timeout"
 
 type AuthStep = "email" | "otp" | "activate"
 
@@ -150,6 +151,8 @@ export function AuthPage() {
         setIsVerifying(false)
         return
       }
+
+      markSessionStarted(window.sessionStorage, Date.now())
 
       // Hard navigation avoids leaving this screen stuck on "Verifying..."
       // while /auth/continue resolves the role home.

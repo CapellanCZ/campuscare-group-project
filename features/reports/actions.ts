@@ -2,6 +2,7 @@
 
 import { loadReportsBundle } from "@/features/reports/data/queries"
 import { getClinicReport } from "@/services/reports"
+import { getStaffAccess } from "@/lib/auth/access"
 import type { ClinicDesignation } from "@/lib/auth/types"
 import type { ReportFilters, ReportsBundle } from "@/features/reports/types"
 import {
@@ -46,6 +47,43 @@ export async function fetchReportsBundleAction(
   filters?: Partial<ReportFilters>
 ): Promise<ReportActionResult<ReportsBundle>> {
   try {
+    const access = await getStaffAccess()
+    if (!access?.hasClinicMembership) {
+      return { ok: false, error: "Unauthorized.", code: "unauthorized" }
+    }
+    if (
+      access.designation !== designation &&
+      access.designation !== "admin"
+    ) {
+      return {
+        ok: false,
+        error: "You do not have access to these reports.",
+        code: "forbidden",
+      }
+    }
+    if (
+      designation === "physician" &&
+      filters?.consultationType &&
+      filters.consultationType !== "medical"
+    ) {
+      return {
+        ok: false,
+        error: "Medical reports cannot include dental consultation data.",
+        code: "forbidden",
+      }
+    }
+    if (
+      designation === "dentist" &&
+      filters?.consultationType &&
+      filters.consultationType !== "dental"
+    ) {
+      return {
+        ok: false,
+        error: "Dental reports cannot include medical consultation data.",
+        code: "forbidden",
+      }
+    }
+
     const data = await loadReportsBundle(designation, filters)
     if (data.error) {
       return { ok: false, error: data.error, code: "database" }

@@ -7,6 +7,8 @@ export const HSO_LETTERHEAD_LINE = "NU DASMARIÑAS — Health Service Office"
 export const HSO_CONFIDENTIAL =
   "NU Dasmariñas Health Service Office — Confidential"
 export const HSO_LOGO_PATH = "/images/HSOLogo.png"
+/** Full-width NU Dasmariñas HSO banner for PDF / print letterhead */
+export const HSO_LETTERHEAD_PATH = "/images/HSO-letterhead.png"
 export const HSO_ACCENT = "#1e3a8a"
 
 export type ExportMeta = {

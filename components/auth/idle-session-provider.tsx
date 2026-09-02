@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 
+import { signOut } from "@/app/auth/actions"
 import { IdleSessionWarning } from "@/components/auth/idle-session-warning"
 import { SessionLockOverlay } from "@/components/auth/session-lock-overlay"
+import { resetActiveThemeStorage } from "@/lib/theme/staff-theme-storage"
 import { cn } from "@/lib/utils"
 import {
   clearSessionStartedAt,
@@ -41,7 +43,10 @@ export function IdleSessionProvider({
     if (loggingOutRef.current) return
     loggingOutRef.current = true
     clearSessionStartedAt(window.sessionStorage)
-    window.location.assign("/auth/logout?reason=absolute")
+    void signOut().finally(() => {
+      resetActiveThemeStorage("light")
+      window.location.assign("/login?reason=absolute")
+    })
   }, [])
 
   const continueSession = useCallback(() => {

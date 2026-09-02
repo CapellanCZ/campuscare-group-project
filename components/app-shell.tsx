@@ -12,7 +12,9 @@ import {
 import { DutyStatusProvider } from "@/components/availability/duty-status-control"
 import { StaffRealtimeShell } from "@/components/staff-realtime-shell"
 import { StaffAccessProvider } from "@/components/staff-access-provider"
+import { StaffThemeController } from "@/components/staff-theme-provider"
 import type { StaffAccess } from "@/lib/auth/types"
+import type { ThemePreference } from "@/lib/theme/staff-theme-storage"
 import { breakModeForRole } from "@/lib/availability/break-mode"
 
 function ShellBody({
@@ -56,21 +58,25 @@ function ShellBody({
 export function AppShell({
   children,
   access,
+  initialTheme,
 }: {
   children: React.ReactNode
   access: StaffAccess
+  initialTheme: ThemePreference
 }) {
   const role = access.primaryRole
   const breakMode = breakModeForRole(role)
 
   return (
     <StaffAccessProvider access={access}>
-      <BreakModeProvider mode={breakMode} role={role}>
-        <DutyStatusProvider role={role}>
-          <StaffRealtimeShell />
-          <ShellBody isAdmin={role === "admin"}>{children}</ShellBody>
-        </DutyStatusProvider>
-      </BreakModeProvider>
+      <StaffThemeController userId={access.userId} initialTheme={initialTheme}>
+        <BreakModeProvider mode={breakMode} role={role}>
+          <DutyStatusProvider role={role}>
+            <StaffRealtimeShell />
+            <ShellBody isAdmin={role === "admin"}>{children}</ShellBody>
+          </DutyStatusProvider>
+        </BreakModeProvider>
+      </StaffThemeController>
     </StaffAccessProvider>
   )
 }

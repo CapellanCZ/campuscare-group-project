@@ -129,7 +129,7 @@ export async function getUserPreferences(
     notifyConsultationRequests: true,
     notifyQueue: true,
     notifyAnnouncements: true,
-    theme: "system",
+    theme: "light",
   }
 }
 

@@ -277,7 +277,8 @@ function buildCharts(
   requests: SeedRequestRow[],
   queueDays: SeedQueueDay[],
   dateFrom: string,
-  dateTo: string
+  dateTo: string,
+  designation: ClinicDesignation
 ): ReportChartSeries[] {
   const byMonth = countBy(consults.map((c) => c.period)).map((p) => ({
     label: p.label,
@@ -366,6 +367,13 @@ function buildCharts(
       ).length,
     },
   ].filter((point) => point.value > 0)
+
+  const scopedUtilization =
+    designation === "physician"
+      ? utilization.filter((point) => point.label.includes("Medical"))
+      : designation === "dentist"
+        ? utilization.filter((point) => point.label.includes("Dental"))
+        : utilization
 
   const caseBuckets = new Map<
     string,
@@ -483,9 +491,14 @@ function buildCharts(
     },
     service_utilization: {
       key: "service_utilization",
-      title: "Service Utilization",
+      title:
+        designation === "physician"
+          ? "Medical Service Utilization"
+          : designation === "dentist"
+            ? "Dental Service Utilization"
+            : "Service Utilization",
       kind: "hbar",
-      points: utilization,
+      points: scopedUtilization,
     },
     health_cases: {
       key: "health_cases",
@@ -536,14 +549,42 @@ function buildCharts(
   })
 }
 
-function columnsFor(kind: ReportKind, aggregateOnly = false): ReportTableColumn[] {
+function columnsFor(
+  kind: ReportKind,
+  aggregateOnly = false,
+  designation?: ClinicDesignation
+): ReportTableColumn[] {
   if (aggregateOnly) {
-    if (kind === "daily_consultation" || kind === "daily_dental") {
+    if (kind === "daily_consultation") {
+      if (designation === "physician") {
+        return [
+          { key: "date", label: "Date", sortable: true },
+          { key: "medical", label: "Consultations", sortable: true },
+          { key: "patients", label: "Patients", sortable: true },
+          { key: "avgWait", label: "Avg wait (min)", sortable: true },
+        ]
+      }
+      if (designation === "dentist") {
+        return [
+          { key: "date", label: "Date", sortable: true },
+          { key: "dental", label: "Consultations", sortable: true },
+          { key: "patients", label: "Patients", sortable: true },
+          { key: "avgWait", label: "Avg wait (min)", sortable: true },
+        ]
+      }
       return [
         { key: "date", label: "Date", sortable: true },
         { key: "medical", label: "Medical", sortable: true },
         { key: "dental", label: "Dental", sortable: true },
         { key: "total", label: "Total", sortable: true },
+      ]
+    }
+    if (kind === "daily_dental") {
+      return [
+        { key: "date", label: "Date", sortable: true },
+        { key: "dental", label: "Consultations", sortable: true },
+        { key: "patients", label: "Patients", sortable: true },
+        { key: "avgWait", label: "Avg wait (min)", sortable: true },
       ]
     }
     if (kind === "medical_certificate" || kind === "dental_certificate") {
@@ -720,7 +761,8 @@ function buildTable(
   requests: SeedRequestRow[],
   queueDays: SeedQueueDay[],
   query: string,
-  aggregateOnly = false
+  aggregateOnly = false,
+  designation?: ClinicDesignation
 ): ReportTableBundle {
   let rows: ReportTableRow[] = []
 
@@ -923,7 +965,8 @@ function buildTable(
     title: REPORT_KIND_LABELS[kind],
     columns: columnsFor(
       aggregateOnly && kind === "patient_list" ? "daily_consultation" : kind,
-      aggregateOnly
+      aggregateOnly,
+      designation
     ),
     rows: searchRows(rows, query),
   }
@@ -979,7 +1022,8 @@ export function applyReportsFilters(
       requests,
       queueDays,
       effective.query,
-      true
+      true,
+      designation
     )
   })
 
@@ -1009,7 +1053,15 @@ export function applyReportsFilters(
     designation,
     filters: effective,
     kpis: buildKpis(catalog.kpiKeys, consults, certs, requests, live, designation),
-    charts: buildCharts(chartKeys, consults, requests, queueDays, effective.dateFrom, effective.dateTo),
+    charts: buildCharts(
+      chartKeys,
+      consults,
+      requests,
+      queueDays,
+      effective.dateFrom,
+      effective.dateTo,
+      designation
+    ),
     tables,
     personnelOptions: personnel,
     statusOptions: statuses,

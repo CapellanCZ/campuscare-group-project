@@ -131,7 +131,7 @@ export function ReportDataTable({
       </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-border/60">
+      <div className="overflow-x-auto rounded-xl border border-border/70 bg-card dark:border-border">
         <Table>
           <TableHeader>
             <TableRow>

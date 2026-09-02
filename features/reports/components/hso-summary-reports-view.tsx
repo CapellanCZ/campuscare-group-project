@@ -30,6 +30,7 @@ import type {
 } from "@/features/reports/types"
 import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
+import { exportReportTitle } from "@/features/reports/lib/report-scope"
 import { designationLabel } from "@/lib/health/roles"
 import { useStaffRealtimeRouterRefresh } from "@/hooks/use-staff-realtime-refresh"
 import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
@@ -162,7 +163,7 @@ export function HsoSummaryReportsView({
 
   function exportMeta(): ExportMeta {
     return {
-      reportTitle: "HSO Monthly Summary Report",
+      reportTitle: exportReportTitle(d === "nurse" ? "nurse" : "admin"),
       generatedAt: new Date().toISOString(),
       generatedBy: access.fullName,
       roleLabel: designationLabel(d),
@@ -246,6 +247,7 @@ export function HsoSummaryReportsView({
         void downloadClinicProgressPdf({
           meta: exportMeta(),
           pack: exportPack,
+          reportMode: "hso",
         })
           .then(() =>
             appToast.success({

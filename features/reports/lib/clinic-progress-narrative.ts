@@ -33,6 +33,7 @@ export function buildClinicProgressNarrative(input: {
   roleLabel: string
   kpis: ReportKpi[]
   charts: ReportChartSeries[]
+  scope?: "medical" | "dental" | "hso"
 }): ClinicProgressNarrative {
   const periodLabel = `${input.dateFrom} to ${input.dateTo}`
   const complaints = input.charts.find(
@@ -104,9 +105,13 @@ export function buildClinicProgressNarrative(input: {
 
   const healthConcerns = [
     `Leading health-related findings in this period: ${topLabels(complaints, 5)}.`,
-    dental && dental.key !== complaints?.key
-      ? `Dental case pattern: ${topLabels(dental, 4)}.`
-      : "Dental and medical concern patterns should be monitored for seasonal spikes and clearance demand.",
+    input.scope === "medical"
+      ? "Dental case patterns are excluded from this medical report."
+      : input.scope === "dental"
+        ? "Medical case patterns are excluded from this dental report."
+        : dental && dental.key !== complaints?.key
+          ? `Dental case pattern: ${topLabels(dental, 4)}.`
+          : "Dental and medical concern patterns should be monitored for seasonal spikes and clearance demand.",
     `These concerns guide staffing, inventory of common remedies, and health education priorities for the next quarter.`,
   ].join(" ")
 
@@ -119,8 +124,15 @@ export function buildClinicProgressNarrative(input: {
 
   const closing = `This document consolidates analytics cards, charts, and report tables for the selected period so the Health Service Office can brief administration on clinic progress, patient demand, and priority health concerns. Retain with quarterly HSO submissions.`
 
+  const title =
+    input.scope === "medical"
+      ? "Medical Consultation & Health Cases Report"
+      : input.scope === "dental"
+        ? "Dental Consultation & Health Cases Report"
+        : "HSO Clinic Progress & Health Situation Report"
+
   return {
-    title: "HSO Clinic Progress & Health Situation Report",
+    title,
     periodLabel,
     executiveSummary,
     operationalProgress,

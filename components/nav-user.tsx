@@ -1,7 +1,6 @@
 "use client"
 
 import Link from "next/link"
-import { useTransition } from "react"
 import {
   Avatar,
   AvatarFallback,
@@ -18,12 +17,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useConfirm } from "@/components/feedback/confirm-provider"
-import { useTheme } from "@/components/theme-provider"
 import { useOptionalStaffAccess } from "@/components/staff-access-provider"
 import { signOut } from "@/app/auth/actions"
-import { savePreferencesAction } from "@/features/settings/actions"
 import { staffBasePath } from "@/lib/auth/home-path"
-import { appToast } from "@/lib/feedback/app-toast"
+import { useStaffThemeToggle } from "@/hooks/use-staff-theme-toggle"
+import { resetActiveThemeStorage } from "@/lib/theme/staff-theme-storage"
 import {
   IconLogout,
   IconMoon,
@@ -40,9 +38,8 @@ function initials(name: string) {
 
 export function NavUser() {
   const access = useOptionalStaffAccess()
-  const { theme, setTheme, resolvedTheme } = useTheme()
+  const { isDark, pending, toggleTheme } = useStaffThemeToggle()
   const { confirmPreset } = useConfirm()
-  const [pending, startTransition] = useTransition()
 
   const name = access?.fullName ?? "Staff"
   const email = access?.email ?? ""
@@ -50,19 +47,6 @@ export function NavUser() {
   const base = access ? staffBasePath(access.primaryRole) : "/login"
   const settingsHref = `${base}/settings`
   const mark = initials(name)
-  const isDark = (resolvedTheme ?? theme) === "dark"
-
-  function toggleTheme() {
-    const next = isDark ? "light" : "dark"
-    setTheme(next)
-    if (!access) return
-    startTransition(async () => {
-      const result = await savePreferencesAction({ theme: next })
-      if (!result.ok) {
-        appToast.error({ title: "Unable to Save Preference", description: result.error })
-      }
-    })
-  }
 
   return (
     <DropdownMenu>
@@ -135,6 +119,7 @@ export function NavUser() {
               void confirmPreset("logout", {
                 onConfirm: async () => {
                   await signOut()
+                  resetActiveThemeStorage("light")
                   window.location.assign("/login")
                 },
               })

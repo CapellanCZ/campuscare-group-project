@@ -3,6 +3,7 @@
 import * as React from "react"
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 
+import { ACTIVE_THEME_STORAGE_KEY } from "@/lib/theme/staff-theme-storage"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 // next-themes injects an inline <script> to prevent theme flash (FOUC).
@@ -39,9 +40,10 @@ function ThemeProvider({
   return (
     <NextThemesProvider
       attribute="class"
-      defaultTheme="system"
+      defaultTheme="light"
       enableSystem
       disableTransitionOnChange
+      storageKey={ACTIVE_THEME_STORAGE_KEY}
       {...props}
     >
       <TooltipProvider>
@@ -99,4 +101,4 @@ function ThemeHotkey() {
   return null
 }
 
-export { ThemeProvider, useTheme }
+export { ThemeProvider, useTheme, ThemeHotkey }

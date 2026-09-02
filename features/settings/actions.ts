@@ -69,6 +69,14 @@ export async function fetchPreferencesAction(): Promise<
   return { ok: true, data: await getUserPreferences(access.userId) }
 }
 
+export async function saveThemePreferenceAction(
+  theme: "light" | "dark" | "system"
+): Promise<ActionResult<UserPreferences>> {
+  const access = await requireSignedIn()
+  if (!access) return { ok: false, error: "Not signed in." }
+  return upsertUserPreferences(access.userId, { theme })
+}
+
 export async function savePreferencesAction(
   patch: Partial<{
     notifyConsultationRequests: boolean

@@ -18,8 +18,15 @@ import {
 
 import { ReportAnalyticsCard } from "@/features/reports/components/report-analytics-card"
 import { ReportPeriodFilter } from "@/features/reports/components/report-period-filter"
-import { dashboardSlotsFor, reportsPageDescription } from "@/features/reports/lib/dashboard-layout"
+import {
+  dashboardSlotsFor,
+  reportsPageDescription,
+} from "@/features/reports/lib/dashboard-layout"
 import { formatAppliedPeriod } from "@/features/reports/lib/report-period"
+import {
+  reportsPageTitle,
+  reportsScopeLabel,
+} from "@/features/reports/lib/report-scope"
 import type {
   ReportChartSeries,
   ReportFilters,
@@ -29,8 +36,15 @@ import type {
 } from "@/features/reports/types"
 import { PageIntro } from "@/components/layout/panel-frame"
 import { StatCard } from "@/components/shared/stat-card"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { catalogFor } from "@/features/reports/role-catalog"
 import { can, getAccessLevel } from "@/lib/auth/permissions"
@@ -38,7 +52,7 @@ import type { StaffAccess } from "@/lib/auth/types"
 import { cn } from "@/lib/utils"
 
 const selectClass =
-  "h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+  "h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-card dark:border-border"
 
 const KPI_ICONS: Partial<Record<ReportKpiKey, ReactNode>> = {
   patients_served: <IconUsers />,
@@ -53,6 +67,14 @@ const KPI_ICONS: Partial<Record<ReportKpiKey, ReactNode>> = {
 }
 
 type PeriodChange = Pick<ReportFilters, "reportPeriod" | "dateFrom" | "dateTo">
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="px-0.5 text-xs font-semibold tracking-[0.12em] text-muted-foreground uppercase">
+      {children}
+    </p>
+  )
+}
 
 export function ReportsDashboardView({
   access,
@@ -100,6 +122,7 @@ export function ReportsDashboardView({
   const d = access.designation
   const catalog = catalogFor(d)
   const slots = dashboardSlotsFor(d)
+  const scopeLabel = reportsScopeLabel(d)
   const chartsLevel = getAccessLevel(d, "reports.charts")
   const cardsLevel = getAccessLevel(d, "reports.summary_cards")
   const pdfLevel = getAccessLevel(d, "reports.export_pdf")
@@ -119,13 +142,20 @@ export function ReportsDashboardView({
   const secondary = slots.filter((slot) => slot.placement === "secondary")
   const full = slots.filter((slot) => slot.placement === "full")
 
+  const showContent = !empty && !error
+
   return (
-    <div className={cn("flex flex-1 flex-col gap-6", shellClassName)}>
+    <div className={cn("flex flex-1 flex-col gap-8", shellClassName)}>
       <PageIntro
-        title="Reports & Analytics"
+        title={reportsPageTitle(d)}
         description={reportsPageDescription(d, periodLabel)}
         action={
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {scopeLabel ? (
+              <Badge variant="secondary" className="hidden sm:inline-flex">
+                {scopeLabel} only
+              </Badge>
+            ) : null}
             {pdfLevel !== "none" ? (
               <Button
                 size="sm"
@@ -164,8 +194,19 @@ export function ReportsDashboardView({
       />
 
       {canFilters ? (
-        <Card className={cn(cardClassName, "shadow-none")}>
-          <CardContent className="flex flex-col gap-4 pt-(--card-spacing)">
+        <Card
+          className={cn(
+            cardClassName,
+            "border-border/70 bg-card shadow-none dark:bg-card"
+          )}
+        >
+          <CardHeader className="gap-1 border-b border-border/60 pb-4">
+            <CardTitle className="text-base">Filters</CardTitle>
+            <CardDescription>
+              Refine the reporting period and patient criteria.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-5 pt-6">
             <ReportPeriodFilter
               filters={filters}
               pending={pending}
@@ -174,11 +215,11 @@ export function ReportsDashboardView({
             />
             <div
               className={cn(
-                "grid grid-cols-1 gap-3",
+                "grid grid-cols-1 gap-4",
                 showConsultationType ? "sm:grid-cols-3" : "sm:grid-cols-2"
               )}
             >
-              <label className="flex min-w-0 flex-col gap-1.5 text-xs text-muted-foreground">
+              <label className="flex min-w-0 flex-col gap-1.5 text-xs font-medium text-muted-foreground">
                 Patient Type
                 <select
                   className={selectClass}
@@ -198,7 +239,7 @@ export function ReportsDashboardView({
                 </select>
               </label>
               {showConsultationType ? (
-                <label className="flex min-w-0 flex-col gap-1.5 text-xs text-muted-foreground">
+                <label className="flex min-w-0 flex-col gap-1.5 text-xs font-medium text-muted-foreground">
                   Consultation Type
                   <select
                     className={selectClass}
@@ -217,7 +258,7 @@ export function ReportsDashboardView({
                   </select>
                 </label>
               ) : null}
-              <label className="flex min-w-0 flex-col gap-1.5 text-xs text-muted-foreground">
+              <label className="flex min-w-0 flex-col gap-1.5 text-xs font-medium text-muted-foreground">
                 Status
                 <select
                   className={selectClass}
@@ -236,63 +277,84 @@ export function ReportsDashboardView({
                 </select>
               </label>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-muted-foreground">{filterSummary}</p>
+            <div className="flex flex-col gap-2 rounded-lg bg-muted/40 px-3 py-2.5 dark:bg-muted/20 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                {filterSummary}
+              </p>
               {filters.reportPeriod === "custom" ? null : (
                 <Button
                   type="button"
                   size="sm"
                   variant="ghost"
+                  className="shrink-0 self-start sm:self-auto"
                   disabled={pending}
                   onClick={onClearFilters}
                 >
-                  Clear Filter
+                  Reset filters
                 </Button>
               )}
             </div>
             {pending ? (
-              <p className="text-xs text-muted-foreground">Updating…</p>
+              <p className="text-xs text-muted-foreground">Updating report…</p>
             ) : null}
           </CardContent>
         </Card>
       ) : null}
 
       {error ? (
-        <p className="text-sm text-destructive" role="alert">
-          Unable to Load Report. We couldn&apos;t load the report data. Please try
-          again.
-        </p>
-      ) : empty ? (
-        <p className="text-sm text-muted-foreground">
-          No data available for the selected period.
-        </p>
+        <Card className="border-destructive/30 bg-destructive/5 dark:bg-destructive/10">
+          <CardContent className="py-6">
+            <p className="text-sm text-destructive" role="alert">
+              Unable to load report data. Please try again or adjust your
+              filters.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {!error && empty ? (
+        <Card className="border-dashed border-border/70 bg-muted/20 dark:bg-muted/10">
+          <CardContent className="flex flex-col items-center justify-center gap-2 py-16 text-center">
+            <p className="text-sm font-medium text-foreground">
+              No data for this period
+            </p>
+            <p className="max-w-md text-sm text-muted-foreground">
+              Try expanding the date range or clearing filters to see clinic
+              activity.
+            </p>
+          </CardContent>
+        </Card>
       ) : null}
 
       {pending && empty ? (
-        <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-5">
           {Array.from({ length: 5 }).map((_, index) => (
-            <Skeleton key={index} className="h-24" />
+            <Skeleton key={index} className="h-28 rounded-xl" />
           ))}
         </div>
       ) : null}
 
-      {cardsLevel !== "none" ? (
-        <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
-          {kpis.map((kpi) => (
-            <StatCard
-              key={kpi.key}
-              className={cardClassName}
-              label={kpi.label}
-              value={kpi.value}
-              description={kpi.description}
-              icon={KPI_ICONS[kpi.key]}
-            />
-          ))}
+      {showContent && cardsLevel !== "none" && kpis.length > 0 ? (
+        <div className="flex flex-col gap-3">
+          <SectionLabel>Key metrics</SectionLabel>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-5">
+            {kpis.map((kpi) => (
+              <StatCard
+                key={kpi.key}
+                className={cardClassName}
+                label={kpi.label}
+                value={kpi.value}
+                description={kpi.description}
+                icon={KPI_ICONS[kpi.key]}
+              />
+            ))}
+          </div>
         </div>
       ) : null}
 
-      {chartsLevel !== "none" ? (
+      {showContent && chartsLevel !== "none" ? (
         <div className="flex flex-col gap-6">
+          <SectionLabel>Charts & tables</SectionLabel>
           {primary.map((slot) => {
             const series = chartByKey.get(slot.chartKey)
             if (!series) return null
@@ -309,7 +371,7 @@ export function ReportsDashboardView({
           })}
 
           {secondary.length > 0 ? (
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
               {secondary.map((slot) => {
                 const series = chartByKey.get(slot.chartKey)
                 if (!series) return null
