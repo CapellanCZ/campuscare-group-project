@@ -289,7 +289,7 @@ function addAutoTable(
       }
     },
   })
-  state.y = state.doc.lastAutoTable.finalY + 6
+  state.y = (state.doc.lastAutoTable?.finalY ?? state.y) + 6
 }
 
 function addKpiGrid(state: PdfLayoutState, kpis: ReportKpi[]) {
