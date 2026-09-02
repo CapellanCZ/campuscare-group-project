@@ -202,6 +202,26 @@ export async function actionRegisterWalkIn(input: {
   )
 }
 
+export async function actionRescheduleQueueAppointment(input: {
+  appointmentId: string
+  preferredDate: string
+  preferredTime: string
+  reason: string
+}) {
+  return withStaff(async (access) => {
+    const { rescheduleAppointmentReservation } = await import(
+      "@/lib/health/appointment-queue-actions"
+    )
+    return rescheduleAppointmentReservation({
+      appointmentId: input.appointmentId,
+      preferredDate: input.preferredDate,
+      preferredTime: input.preferredTime,
+      reason: input.reason,
+      staffName: access.fullName,
+    })
+  })
+}
+
 export async function actionAssignQueueNumber(
   ticketId: string,
   queueNumber: number

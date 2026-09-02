@@ -17,9 +17,64 @@ export function needsNurseIntake(row: QueueTicketRow): boolean {
   )
 }
 
-/** Patient was called and still needs check-in verification. */
+export function isWalkInTicket(row: QueueTicketRow): boolean {
+  return (row.consultationType ?? "").toLowerCase().includes("walk")
+}
+
+export function isScheduledTicket(row: QueueTicketRow): boolean {
+  return Boolean(row.appointmentId) && !isWalkInTicket(row)
+}
+
+export function canOpenNurseIntake(row: QueueTicketRow): boolean {
+  return (
+    needsNurseIntake(row) &&
+    (!isScheduledTicket(row) || Boolean(row.checkedInAt))
+  )
+}
+
+/** Patient still needs check-in verification before intake. */
 export function needsCheckInVerify(row: QueueTicketRow): boolean {
+  if (row.status === "completed" || row.status === "no_show" || row.status === "expired") {
+    return false
+  }
+  if (isScheduledTicket(row) && !row.checkedInAt) return true
   return row.status === "called" && !row.checkedInAt
+}
+
+export type QueueActionKey =
+  | "verify"
+  | "intake"
+  | "view_details"
+  | "rejoin"
+  | "skip"
+  | "reschedule"
+  | "call"
+  | "start"
+  | "complete"
+  | "no_show"
+  | "assign_number"
+  | "transfer"
+
+export function queueActionsForTicket(row: QueueTicketRow): Set<QueueActionKey> {
+  if (row.status === "completed") {
+    return new Set(["view_details"])
+  }
+  if (row.status === "no_show") {
+    return new Set(["rejoin", "skip", "reschedule"])
+  }
+  const actions = new Set<QueueActionKey>([
+    "call",
+    "start",
+    "complete",
+    "skip",
+    "no_show",
+    "assign_number",
+    "transfer",
+  ])
+  if (needsCheckInVerify(row)) actions.add("verify")
+  if (canOpenNurseIntake(row)) actions.add("intake")
+  if (row.canRejoin) actions.add("rejoin")
+  return actions
 }
 
 export function isAtSpecialtyAfterIntake(row: QueueTicketRow): boolean {
@@ -51,7 +106,9 @@ export function ticketsInNurseLane(
 export function nextNurseIntakeTicket(
   tickets: QueueTicketRow[]
 ): QueueTicketRow | null {
-  const waiting = ticketsInNurseLane(tickets, "needs_intake")
+  const waiting = ticketsInNurseLane(tickets, "needs_intake").filter(
+    canOpenNurseIntake
+  )
   const called = waiting.find((row) => row.status === "called")
   return called ?? waiting[0] ?? null
 }

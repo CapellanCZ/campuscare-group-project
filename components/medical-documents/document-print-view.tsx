@@ -82,7 +82,10 @@ export function MedicalDocumentPrintView({
     <div
       id="medical-document-print"
       data-print-layout={halfBond ? "half-bond" : "full-page"}
-      className={cn("hidden print:block", !halfBond && "medical-document-print--full-page")}
+      className={cn(
+        "hidden print:!block",
+        !halfBond && "medical-document-print--full-page"
+      )}
       aria-hidden
     >
       <MedicalDocumentPrintBody document={document} className="shadow-none" />

@@ -119,7 +119,11 @@ export function NfgClearanceForm({
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent
+            alignItemWithTrigger={false}
+            align="start"
+            className="w-max min-w-[20rem] max-w-[min(28rem,90vw)]"
+          >
             {NFG_CLEARANCE_STATUS_OPTIONS.map((item) => (
               <SelectItem key={item.value} value={item.value}>
                 {item.label}

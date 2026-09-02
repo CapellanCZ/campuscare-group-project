@@ -18,6 +18,8 @@ import {
   normalizeDocumentStatus,
 } from "@/types/medicalDocument"
 import { PatientRecordServiceError } from "@/types/patientRecord"
+import { formatMedicationsAsPrescriptionText } from "@/features/medical-documents/lib/map-consultation-context"
+import type { PrescriptionPayload } from "@/types/medicalDocument"
 
 type PatientJoin = {
   id: string
@@ -283,6 +285,22 @@ export async function getMedicalDocumentsByConsultation(
 
   if (error) mapError(error)
   return ((data ?? []) as DocumentRow[]).map(mapDocument)
+}
+
+export async function getIssuedPrescriptionForConsultation(
+  consultationId: string,
+  client?: SupabaseClient
+): Promise<{ document: MedicalDocument; text: string } | null> {
+  const documents = await getMedicalDocumentsByConsultation(consultationId, client)
+  const issued = documents.find((doc) => {
+    if (doc.documentType !== "prescription") return false
+    const status = normalizeDocumentStatus(doc.status)
+    return status === "issued" || status === "printed"
+  })
+  if (!issued) return null
+  const payload = issued.payload as PrescriptionPayload
+  const text = formatMedicationsAsPrescriptionText(payload.medications)
+  return { document: issued, text }
 }
 
 export async function getMedicalDocuments(

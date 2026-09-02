@@ -208,7 +208,10 @@ export function WalkInSheet({
               id="walkin-campus"
               value={campusId}
               onChange={setCampusId}
-              placeholder="2023-171863 or faculty/employee ID"
+              patientType={patientType === "visitor" ? "any" : patientType}
+              placeholder={
+                patientType === "employee" ? "2026-00100" : "2026-045210"
+              }
               aria-label={CAMPUS_ID_LABEL}
               disabled={pending}
             />

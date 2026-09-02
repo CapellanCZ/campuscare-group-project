@@ -64,7 +64,7 @@ const TEMPLATE_SAMPLE_ROWS = [
   ],
   [
     "employee",
-    "26-00100",
+    "2026-00100",
     "Juan",
     "",
     "Reyes",

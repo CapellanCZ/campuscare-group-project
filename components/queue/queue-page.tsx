@@ -17,7 +17,9 @@ import {
   actionTransferTicket,
   actionVerifyCheckIn,
 } from "@/lib/health/queue-server-actions"
+import { ConsultationSummaryDialog } from "@/components/consultations/consultation-summary-dialog"
 import { NurseIntakeSheet } from "@/components/queue/nurse-intake-sheet"
+import { QueueRescheduleDialog } from "@/components/queue/queue-reschedule-dialog"
 import { NurseLaneSwitcher } from "@/components/queue/nurse-lane-switcher"
 import { NurseWorkbench } from "@/components/queue/nurse-workbench"
 import { VitalsStrip } from "@/components/queue/vitals-strip"
@@ -74,8 +76,10 @@ import {
 import type { StaffAccess } from "@/lib/auth/types"
 import { ticketLabel, patientTypeLabel } from "@/lib/health/mappers"
 import {
+  canOpenNurseIntake,
   needsCheckInVerify,
   needsNurseIntake,
+  queueActionsForTicket,
   ticketsInNurseLane,
   type NurseQueueLane,
 } from "@/lib/health/nurse-queue"
@@ -157,6 +161,11 @@ export function QueuePage({
   const [nurseLane, setNurseLane] = useState<NurseQueueLane>("needs_intake")
   const [page, setPage] = useState(0)
   const [intakeTicket, setIntakeTicket] = useState<QueueTicketRow | null>(null)
+  const [viewConsultationId, setViewConsultationId] = useState<string | null>(
+    null
+  )
+  const [rescheduleTicket, setRescheduleTicket] =
+    useState<QueueTicketRow | null>(null)
   const pageSize = 8
 
   useEffect(() => {
@@ -914,7 +923,9 @@ export function QueuePage({
                     </TableHeader>
                     <TableBody>
                       {pageRows.map((row) => {
+                        const actions = queueActionsForTicket(row)
                         const showIntake = isNurse && needsNurseIntake(row)
+                        const intakeEnabled = canOpenNurseIntake(row)
                         const showVerify = isNurse && needsCheckInVerify(row)
                         const showVerified =
                           isNurse &&
@@ -1028,8 +1039,16 @@ export function QueuePage({
                                     <Button
                                       size="sm"
                                       variant="outline"
-                                      disabled={pending}
-                                      onClick={() => setIntakeTicket(row)}
+                                      disabled={pending || !intakeEnabled}
+                                      title={
+                                        intakeEnabled
+                                          ? undefined
+                                          : "Verify check-in first"
+                                      }
+                                      onClick={() => {
+                                        if (!intakeEnabled) return
+                                        setIntakeTicket(row)
+                                      }}
                                     >
                                       Intake
                                     </Button>
@@ -1048,9 +1067,31 @@ export function QueuePage({
                                       <IconDots />
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
-                                      {isNurse ? (
+                                      {actions.has("view_details") ? (
+                                        <DropdownMenuItem
+                                          onClick={() => {
+                                            if (!row.consultationId) {
+                                              queueToasts.failed(
+                                                "No consultation record is linked to this ticket."
+                                              )
+                                              return
+                                            }
+                                            setViewConsultationId(
+                                              row.consultationId
+                                            )
+                                          }}
+                                        >
+                                          View details
+                                        </DropdownMenuItem>
+                                      ) : null}
+                                      {isNurse &&
+                                      (actions.has("verify") ||
+                                        actions.has("intake") ||
+                                        actions.has("assign_number")) ? (
                                         <>
-                                          {showVerify ? null : !row.checkedInAt ? (
+                                          {showVerify ? null : actions.has(
+                                            "verify"
+                                          ) && !row.checkedInAt ? (
                                             <DropdownMenuItem
                                               onClick={() =>
                                                 run(() =>
@@ -1063,7 +1104,7 @@ export function QueuePage({
                                               Verify check-in
                                             </DropdownMenuItem>
                                           ) : null}
-                                          {needsNurseIntake(row) ? (
+                                          {actions.has("intake") ? (
                                             <DropdownMenuItem
                                               onClick={() =>
                                                 setIntakeTicket(row)
@@ -1072,40 +1113,48 @@ export function QueuePage({
                                               Intake & assign specialty
                                             </DropdownMenuItem>
                                           ) : null}
-                                          <DropdownMenuItem
-                                            onClick={() => {
-                                              const n = window.prompt(
-                                                "Assign queue number",
-                                                String(
-                                                  row.queueNumber ??
-                                                    row.queuePosition
+                                          {actions.has("assign_number") ? (
+                                            <DropdownMenuItem
+                                              onClick={() => {
+                                                const n = window.prompt(
+                                                  "Assign queue number",
+                                                  String(
+                                                    row.queueNumber ??
+                                                      row.queuePosition
+                                                  )
                                                 )
-                                              )
-                                              const parsed = Number(n)
-                                              if (!n || Number.isNaN(parsed))
-                                                return
-                                              run(() =>
-                                                actionAssignQueueNumber(
-                                                  row.ticketId,
-                                                  parsed
+                                                const parsed = Number(n)
+                                                if (!n || Number.isNaN(parsed))
+                                                  return
+                                                run(() =>
+                                                  actionAssignQueueNumber(
+                                                    row.ticketId,
+                                                    parsed
+                                                  )
                                                 )
-                                              )
-                                            }}
-                                          >
-                                            Assign queue number
-                                          </DropdownMenuItem>
-                                          <DropdownMenuSeparator />
+                                              }}
+                                            >
+                                              Assign queue number
+                                            </DropdownMenuItem>
+                                          ) : null}
+                                          {actions.has("call") ||
+                                          actions.has("start") ? (
+                                            <DropdownMenuSeparator />
+                                          ) : null}
                                         </>
                                       ) : null}
-                                      <DropdownMenuItem
-                                        onClick={() =>
-                                          run(() =>
-                                            actionRecallTicket(row.ticketId)
-                                          )
-                                        }
-                                      >
-                                        Call / recall
-                                      </DropdownMenuItem>
+                                      {actions.has("call") ? (
+                                        <DropdownMenuItem
+                                          onClick={() =>
+                                            run(() =>
+                                              actionRecallTicket(row.ticketId)
+                                            )
+                                          }
+                                        >
+                                          Call / recall
+                                        </DropdownMenuItem>
+                                      ) : null}
+                                      {actions.has("start") ? (
                                       <DropdownMenuItem
                                         onClick={() => {
                                           void confirmPreset("startConsultation", {
@@ -1137,7 +1186,9 @@ export function QueuePage({
                                                   }
                                                   consultationToasts.started()
                                                   const visitId =
+                                                    result.consultationId ??
                                                     result.appointmentId ??
+                                                    row.consultationId ??
                                                     row.appointmentId
                                                   if (!visitId) {
                                                     queueToasts.failed(
@@ -1168,6 +1219,8 @@ export function QueuePage({
                                       >
                                         Start consultation
                                       </DropdownMenuItem>
+                                      ) : null}
+                                      {actions.has("complete") ? (
                                       <DropdownMenuItem
                                         onClick={() =>
                                           run(() =>
@@ -1177,7 +1230,14 @@ export function QueuePage({
                                       >
                                         Complete
                                       </DropdownMenuItem>
+                                      ) : null}
+                                      {actions.has("skip") ||
+                                      actions.has("no_show") ||
+                                      actions.has("rejoin") ||
+                                      actions.has("reschedule") ? (
                                       <DropdownMenuSeparator />
+                                      ) : null}
+                                      {actions.has("skip") ? (
                                       <DropdownMenuItem
                                         onClick={() => {
                                           void confirmPreset("skipPatient", {
@@ -1192,6 +1252,8 @@ export function QueuePage({
                                       >
                                         Skip
                                       </DropdownMenuItem>
+                                      ) : null}
+                                      {actions.has("no_show") ? (
                                       <DropdownMenuItem
                                         disabled={row.callCount < 2}
                                         onClick={() => {
@@ -1210,7 +1272,8 @@ export function QueuePage({
                                           ? " (need 2 calls)"
                                           : ""}
                                       </DropdownMenuItem>
-                                      {row.canRejoin ? (
+                                      ) : null}
+                                      {actions.has("rejoin") ? (
                                         <DropdownMenuItem
                                           onClick={() =>
                                             run(() =>
@@ -1221,7 +1284,17 @@ export function QueuePage({
                                           Rejoin end of queue
                                         </DropdownMenuItem>
                                       ) : null}
-                                      {canTransferQueue(access.designation) ? (
+                                      {actions.has("reschedule") ? (
+                                        <DropdownMenuItem
+                                          onClick={() =>
+                                            setRescheduleTicket(row)
+                                          }
+                                        >
+                                          Reschedule
+                                        </DropdownMenuItem>
+                                      ) : null}
+                                      {actions.has("transfer") &&
+                                      canTransferQueue(access.designation) ? (
                                         <>
                                           <DropdownMenuSeparator />
                                           {(
@@ -1375,6 +1448,22 @@ export function QueuePage({
           if (!open) setIntakeTicket(null)
         }}
         onAssigned={applyOptimisticAssign}
+      />
+      <ConsultationSummaryDialog
+        consultationId={viewConsultationId}
+        open={Boolean(viewConsultationId)}
+        onOpenChange={(open) => {
+          if (!open) setViewConsultationId(null)
+        }}
+        patientName={null}
+      />
+      <QueueRescheduleDialog
+        ticket={rescheduleTicket}
+        open={Boolean(rescheduleTicket)}
+        onOpenChange={(open) => {
+          if (!open) setRescheduleTicket(null)
+        }}
+        onRescheduled={() => router.refresh()}
       />
     </div>
   )

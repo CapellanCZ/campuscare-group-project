@@ -23,15 +23,15 @@ export function NfgClearancePrint({
     (document.payload.physicianLicenseNumber as string | undefined) ?? ""
 
   return (
-    <HsoFullPageDocument className={cn("py-5", className)}>
-      <div className="rounded-sm bg-[#1e3a8a] px-4 py-3 text-white">
+    <HsoFullPageDocument className={cn("px-6 py-3", className)}>
+      <div className="rounded-sm bg-[#1e3a8a] px-3 py-2 text-white">
         <HsoHeader showNfgLogo formCode="NFG Medical Clearance Form" inverted />
-        <h1 className="mt-2 text-center text-sm font-bold tracking-wide uppercase">
+        <h1 className="mt-1 text-center text-xs font-bold tracking-wide uppercase">
           Medical Clearance — Nationalian Friendship Games
         </h1>
       </div>
 
-      <HsoFullPageSection title="Student Information">
+      <HsoFullPageSection title="Student Information" className="mt-3">
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[11px]">
           <div>
             <dt className="text-neutral-600">Name</dt>
@@ -135,7 +135,7 @@ export function NfgClearancePrint({
         ) : null}
       </HsoFullPageSection>
 
-      <footer className="mt-6 border-t border-neutral-200 pt-4 text-[11px]">
+      <footer className="mt-3 border-t border-neutral-200 pt-2 text-[11px]">
         <p className="font-semibold">{document.doctorName ?? "Physician"}</p>
         <p className="mt-1 text-neutral-600">
           Licensed No. {license || "_______________"}

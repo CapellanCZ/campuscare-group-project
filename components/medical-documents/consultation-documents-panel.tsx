@@ -29,9 +29,11 @@ import { triggerMedicalDocumentPrint } from "@/lib/print/trigger-medical-documen
 export function ConsultationDocumentsPanel({
   workspace,
   canIssue,
+  onDocumentsChange,
 }: {
   workspace: ClinicalVisitWorkspace
   canIssue: boolean
+  onDocumentsChange?: (documents: MedicalDocument[]) => void
 }) {
   const [documents, setDocuments] = useState<MedicalDocument[]>([])
   const [loading, setLoading] = useState(true)
@@ -56,7 +58,8 @@ export function ConsultationDocumentsPanel({
       return
     }
     setDocuments(result.data)
-  }, [workspace.consultationId])
+    onDocumentsChange?.(result.data)
+  }, [onDocumentsChange, workspace.consultationId])
 
   useEffect(() => {
     void loadDocuments()

@@ -6,7 +6,6 @@ import {
   IconCircleCheck,
   IconClock,
   IconDental,
-  IconFileSpreadsheet,
   IconFileTypePdf,
   IconHeartbeat,
   IconPrinter,
@@ -96,7 +95,6 @@ export function ReportsDashboardView({
   onSecondaryChange,
   onPrint,
   onExportPdf,
-  onExportExcel,
 }: {
   access: StaffAccess
   filters: ReportFilters
@@ -117,7 +115,6 @@ export function ReportsDashboardView({
   onSecondaryChange: (patch: Partial<ReportFilters>) => void
   onPrint: () => void
   onExportPdf: () => void
-  onExportExcel?: () => void
 }) {
   const d = access.designation
   const catalog = catalogFor(d)
@@ -126,7 +123,6 @@ export function ReportsDashboardView({
   const chartsLevel = getAccessLevel(d, "reports.charts")
   const cardsLevel = getAccessLevel(d, "reports.summary_cards")
   const pdfLevel = getAccessLevel(d, "reports.export_pdf")
-  const excelLevel = getAccessLevel(d, "reports.export_excel")
   const canFilters = can(d, "reports.filters")
   const showConsultationType = !catalog.lockConsultationType
   const periodLabel = formatAppliedPeriod(
@@ -165,17 +161,6 @@ export function ReportsDashboardView({
               >
                 <IconFileTypePdf className="size-4" aria-hidden />
                 Export PDF
-              </Button>
-            ) : null}
-            {excelLevel !== "none" && onExportExcel ? (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={empty || pending}
-                onClick={onExportExcel}
-              >
-                <IconFileSpreadsheet className="size-4" aria-hidden />
-                Export Excel
               </Button>
             ) : null}
             {pdfLevel !== "none" ? (

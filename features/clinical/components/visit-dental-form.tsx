@@ -17,11 +17,8 @@ import {
   DENTAL_DIAGNOSIS_OPTIONS,
   DENTAL_TREATMENT_OPTIONS,
   formatDentalAssessment,
-  formatDentalPrescription,
   parseDentalAssessment,
-  parseDentalPrescription,
   type DentalExamFields,
-  type DentalPrescriptionFields,
 } from "@/lib/health/dental-form-options"
 
 export type VisitDentalFormValue = {
@@ -32,10 +29,6 @@ export type VisitDentalFormValue = {
   softTissue: string
   diagnosis: string
   treatment: string
-  rxMedication: string
-  rxDosage: string
-  rxFrequency: string
-  rxDuration: string
   followUpRequired: "yes" | "no"
   followUpDate: string
   notes: string
@@ -51,7 +44,6 @@ export function visitDentalValueFromWorkspace(input: {
   followUpDate: string | null
 }): VisitDentalFormValue {
   const exam = parseDentalAssessment(input.assessment)
-  const rx = parseDentalPrescription(input.prescription)
   return {
     chiefComplaint: input.chiefComplaint ?? "",
     oralFindings: exam.oralFindings,
@@ -60,10 +52,6 @@ export function visitDentalValueFromWorkspace(input: {
     softTissue: exam.softTissue,
     diagnosis: input.diagnosis ?? "",
     treatment: input.treatment ?? "",
-    rxMedication: rx.medication,
-    rxDosage: rx.dosage,
-    rxFrequency: rx.frequency,
-    rxDuration: rx.duration,
     followUpRequired: input.followUpDate ? "yes" : "no",
     followUpDate: input.followUpDate?.slice(0, 10) ?? "",
     notes: input.notes ?? "",
@@ -84,12 +72,6 @@ export function serializeVisitDentalValue(form: VisitDentalFormValue): {
     gumCondition: form.gumCondition,
     softTissue: form.softTissue,
   }
-  const rx: DentalPrescriptionFields = {
-    medication: form.rxMedication,
-    dosage: form.rxDosage,
-    frequency: form.rxFrequency,
-    duration: form.rxDuration,
-  }
   const assessment = formatDentalAssessment(exam)
   const notesExtra = form.notes.trim()
   return {
@@ -98,7 +80,7 @@ export function serializeVisitDentalValue(form: VisitDentalFormValue): {
     clinicalNotes: notesExtra
       ? `${assessment}\n\nNotes: ${notesExtra}`
       : assessment,
-    prescription: formatDentalPrescription(rx),
+    prescription: "",
     treatment: form.treatment.trim(),
     followUpDate:
       form.followUpRequired === "yes" && form.followUpDate
@@ -206,46 +188,6 @@ export function VisitDentalForm({
             otherPlaceholder="Custom treatment…"
             disabled={readOnly}
           />
-
-          <p className="text-sm font-medium">Prescription</p>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field>
-              <FieldLabel htmlFor="rxMedication">Medication</FieldLabel>
-              <Input
-                id="rxMedication"
-                value={value.rxMedication}
-                disabled={readOnly}
-                onChange={(e) => update("rxMedication", e.target.value)}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="rxDosage">Dosage</FieldLabel>
-              <Input
-                id="rxDosage"
-                value={value.rxDosage}
-                disabled={readOnly}
-                onChange={(e) => update("rxDosage", e.target.value)}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="rxFrequency">Frequency</FieldLabel>
-              <Input
-                id="rxFrequency"
-                value={value.rxFrequency}
-                disabled={readOnly}
-                onChange={(e) => update("rxFrequency", e.target.value)}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="rxDuration">Duration</FieldLabel>
-              <Input
-                id="rxDuration"
-                value={value.rxDuration}
-                disabled={readOnly}
-                onChange={(e) => update("rxDuration", e.target.value)}
-              />
-            </Field>
-          </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Field>

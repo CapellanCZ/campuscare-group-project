@@ -32,24 +32,24 @@ import type { ReportChartKind, ReportChartSeries } from "@/features/reports/type
 import { cn } from "@/lib/utils"
 
 const COLORS = [
-  "hsl(var(--chart-1))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-4))",
-  "hsl(var(--chart-5))",
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
   "#64748b",
 ]
 
 const trendConfig = {
-  value: { label: "Medical", color: "hsl(var(--chart-1))" },
-  secondary: { label: "Dental", color: "hsl(var(--chart-2))" },
-  tertiary: { label: "Total", color: "hsl(var(--chart-4))" },
+  value: { label: "Medical", color: "var(--chart-1)" },
+  secondary: { label: "Dental", color: "var(--chart-2)" },
+  tertiary: { label: "Total", color: "var(--chart-4)" },
 } satisfies ChartConfig
 
 const stackedConfig = {
-  value: { label: "Student", color: "hsl(var(--chart-1))" },
-  secondary: { label: "Faculty", color: "hsl(var(--chart-2))" },
-  tertiary: { label: "Employee", color: "hsl(var(--chart-3))" },
+  value: { label: "Student", color: "var(--chart-1)" },
+  secondary: { label: "Faculty", color: "var(--chart-2)" },
+  tertiary: { label: "Employee", color: "var(--chart-3)" },
 } satisfies ChartConfig
 
 export type OpsChartSeries = {

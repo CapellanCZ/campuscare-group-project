@@ -85,6 +85,9 @@ export function ConsultationSummaryContent({
           <Row label="Diagnosis" value={visit.diagnosis} />
           <Row label="Treatment" value={visit.treatment} />
           <Row label="Prescription" value={visit.prescription} />
+          {visit.followUpDate ? (
+            <Row label="Follow-up" value={visit.followUpDate.slice(0, 10)} />
+          ) : null}
           <Row label="Provider" value={providerLabel} />
           {displayNotes ? <Row label="Notes" value={displayNotes} /> : null}
         </dl>

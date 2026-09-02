@@ -245,7 +245,8 @@ export function PatientFormSheet({
                 id="idNumber"
                 value={form.idNumber}
                 onChange={(value) => update("idNumber", value)}
-                placeholder={isStudent ? "2021-04521" : "26-00100"}
+                patientType={form.patientType === "visitor" ? "any" : form.patientType}
+                placeholder={isStudent ? "2026-045210" : "2026-00100"}
               />
             </Field>
 

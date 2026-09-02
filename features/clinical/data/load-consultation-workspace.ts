@@ -14,7 +14,10 @@ import {
 } from "@/types/patientRecord"
 import { mergeNurseVitalsIntoExam } from "@/features/physician/lib/merge-nurse-vitals"
 import type { NurseVisitVitals } from "@/features/physician/types-visit"
-import { nurseVitalsFromConsultationJson } from "@/features/physician/data/visit-chart"
+import {
+  nurseVitalsFromConsultationJson,
+  nurseVitalsFromTicket,
+} from "@/features/physician/data/visit-chart"
 
 export type ClinicalVisitRole = "physician" | "dentist"
 
@@ -68,6 +71,7 @@ export async function loadConsultationWorkspace(
       prescription,
       treatment,
       follow_up_date,
+      queue_ticket_id,
       vitals,
       patient_records (
         id,
@@ -101,9 +105,54 @@ export async function loadConsultationWorkspace(
         (patientJoin?.student_id as string | null))
       : ((patientJoin?.student_id as string | null) ?? null)
 
-  const nurseVitals = nurseVitalsFromConsultationJson(
+  let nurseVitals = nurseVitalsFromConsultationJson(
     row.vitals as Record<string, unknown> | null
   )
+
+  if (
+    !nurseVitals.bloodPressure &&
+    !nurseVitals.pulseRate &&
+    row.queue_ticket_id
+  ) {
+    const { data: vitalsRow } = await supabase
+      .from("health_queue_tickets")
+      .select(
+        `
+        vitals_bp_systolic,
+        vitals_bp_diastolic,
+        vitals_heart_rate,
+        vitals_temperature_c,
+        vitals_spo2,
+        vitals_height_cm,
+        vitals_weight_kg
+      `
+      )
+      .eq("id", row.queue_ticket_id as string)
+      .maybeSingle()
+    if (vitalsRow) {
+      nurseVitals = nurseVitalsFromTicket(vitalsRow)
+      const sys = vitalsRow.vitals_bp_systolic
+      const dia = vitalsRow.vitals_bp_diastolic
+      const hr = vitalsRow.vitals_heart_rate
+      if (sys != null && dia != null && hr != null) {
+        await supabase
+          .from("consultations")
+          .update({
+            vitals: {
+              bpSystolic: sys,
+              bpDiastolic: dia,
+              heartRate: hr,
+              temperatureC: vitalsRow.vitals_temperature_c,
+              spo2: vitalsRow.vitals_spo2,
+              heightCm: vitalsRow.vitals_height_cm,
+              weightKg: vitalsRow.vitals_weight_kg,
+            },
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", consultationId)
+      }
+    }
+  }
 
   let medicalRecord: PatientRecord | null = null
   if (patientJoin?.id) {

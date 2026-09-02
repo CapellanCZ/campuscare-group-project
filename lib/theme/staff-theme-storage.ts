@@ -15,6 +15,7 @@ export function readStaffThemeFromStorage(
   return null
 }
 
+/** Persists this account's theme. Does not touch other users' keys. */
 export function writeStaffThemeToStorage(
   userId: string,
   theme: ThemePreference

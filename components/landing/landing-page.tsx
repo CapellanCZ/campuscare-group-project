@@ -10,7 +10,7 @@ import { LandingNav } from "@/components/landing/landing-nav"
 
 export function LandingPage() {
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="landing-theme min-h-screen">
       <LandingNav />
       <main>
         <LandingHero />

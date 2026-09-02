@@ -76,6 +76,7 @@ import {
   documentStatusLabel,
   documentStatusVariant,
 } from "@/features/medical-documents/lib/document-status"
+import { isHalfBondDocument } from "@/components/medical-documents/document-print-view"
 import { triggerMedicalDocumentPrint } from "@/lib/print/trigger-medical-document-print"
 import {
   DOCUMENT_TYPE_LABELS,
@@ -291,7 +292,9 @@ export function CertificatesPage({
     setPrintDoc(document)
     startTransition(async () => {
       void logMedicalDocumentViewAction(document.id)
-      triggerMedicalDocumentPrint()
+      triggerMedicalDocumentPrint(
+        isHalfBondDocument(document) ? "half-bond" : "full-page"
+      )
     })
   }
 
@@ -541,7 +544,9 @@ export function CertificatesPage({
                               onClick={() => {
                                 setPrintDoc(row)
                                 openDocument(row)
-                                triggerMedicalDocumentPrint()
+                                triggerMedicalDocumentPrint(
+                                  isHalfBondDocument(row) ? "half-bond" : "full-page"
+                                )
                               }}
                               aria-label="Export PDF"
                             >

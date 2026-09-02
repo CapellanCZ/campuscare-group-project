@@ -2,9 +2,10 @@
 
 import { Input } from "@/components/ui/input"
 import {
-  STUDENT_ID_VALIDATION_MESSAGE,
-  formatStudentIdInput,
+  CAMPUS_ID_VALIDATION_MESSAGE,
+  formatCampusIdInput,
   hasInvalidStudentIdChars,
+  type CampusIdKind,
 } from "@/lib/students/student-id-input"
 import { cn } from "@/lib/utils"
 
@@ -16,20 +17,32 @@ type CampusIdInputProps = {
   placeholder?: string
   "aria-label"?: string
   disabled?: boolean
+  patientType?: CampusIdKind | null
 }
 
-/** Campus student/employee ID field with YYYY-XXXXXX auto-formatting. */
+function maxLengthFor(kind?: CampusIdKind | null): number {
+  if (kind === "faculty" || kind === "employee") return 10
+  return 11
+}
+
+/** Campus student/employee ID field with YYYY-XXXXX(X) auto-formatting. */
 export function CampusIdInput({
   id,
   value,
   onChange,
   className,
-  placeholder = "YYYY-XXXXXX",
+  placeholder,
   "aria-label": ariaLabel = "Campus ID",
   disabled,
+  patientType,
 }: CampusIdInputProps) {
+  const kind = patientType ?? "any"
+  const resolvedPlaceholder =
+    placeholder ??
+    (kind === "faculty" || kind === "employee" ? "2026-00100" : "2026-045210")
+
   function applyRaw(raw: string) {
-    onChange(formatStudentIdInput(raw))
+    onChange(formatCampusIdInput(raw, kind))
   }
 
   return (
@@ -39,8 +52,8 @@ export function CampusIdInput({
         value={value}
         inputMode="numeric"
         autoComplete="off"
-        maxLength={11}
-        placeholder={placeholder}
+        maxLength={maxLengthFor(kind)}
+        placeholder={resolvedPlaceholder}
         aria-label={ariaLabel}
         disabled={disabled}
         onChange={(event) => applyRaw(event.target.value)}
@@ -65,8 +78,8 @@ export function CampusIdInput({
           applyRaw(text)
         }}
       />
-      <p className="text-xs text-muted-foreground sr-only">
-        {STUDENT_ID_VALIDATION_MESSAGE}
+      <p className="sr-only text-xs text-muted-foreground">
+        {CAMPUS_ID_VALIDATION_MESSAGE}
       </p>
     </div>
   )

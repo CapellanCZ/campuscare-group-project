@@ -8,6 +8,25 @@ import type {
   PrescriptionPayload,
 } from "@/types/medicalDocument"
 
+export function formatMedicationsAsPrescriptionText(
+  medications: PrescriptionMedication[] | null | undefined
+): string {
+  return (medications ?? [])
+    .map((med) => {
+      const parts = [
+        med.name?.trim(),
+        med.strength?.trim(),
+        med.quantity?.trim() ? `Qty: ${med.quantity.trim()}` : null,
+        med.frequency?.trim(),
+        med.duration?.trim(),
+        med.instructions?.trim(),
+      ].filter(Boolean)
+      return parts.join(" — ")
+    })
+    .filter(Boolean)
+    .join("\n")
+}
+
 function parsePrescriptionLines(text: string | null): PrescriptionMedication[] {
   if (!text?.trim()) return []
   return text
@@ -122,7 +141,10 @@ export function defaultNfgClearancePayload(
     phone: ctx.phone,
     sport: null,
     campus: ctx.course,
-    emergencyContact: null,
+    emergencyContact: [record?.emergencyContactName, record?.emergencyContactPhone]
+      .map((part) => part?.trim())
+      .filter(Boolean)
+      .join(" — ") || null,
     physical: {
       height: record?.physicalExam?.height ?? vitals.height ?? null,
       weight: record?.physicalExam?.weight ?? vitals.weight ?? null,

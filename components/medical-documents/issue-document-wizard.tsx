@@ -251,7 +251,7 @@ export function IssueDocumentWizard({
           else onOpenChange(next)
         }}
       >
-        <DialogContent className="flex max-h-[min(92vh,900px)] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
+        <DialogContent className="flex max-h-[min(92vh,900px)] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-visible p-0 sm:max-w-3xl">
           <DialogHeader className="border-b px-6 py-5">
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>

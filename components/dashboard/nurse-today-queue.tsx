@@ -52,6 +52,7 @@ import {
   actionVerifyCheckIn,
 } from "@/lib/health/queue-server-actions"
 import {
+  canOpenNurseIntake,
   needsCheckInVerify,
   needsNurseIntake,
 } from "@/lib/health/nurse-queue"
@@ -292,8 +293,16 @@ export function NurseTodayQueue({
                           <Button
                             type="button"
                             size="xs"
-                            disabled={pending}
-                            onClick={() => onStartIntake(row)}
+                            disabled={pending || !canOpenNurseIntake(row)}
+                            title={
+                              canOpenNurseIntake(row)
+                                ? undefined
+                                : "Verify check-in first"
+                            }
+                            onClick={() => {
+                              if (!canOpenNurseIntake(row)) return
+                              onStartIntake(row)
+                            }}
                           >
                             Intake
                           </Button>

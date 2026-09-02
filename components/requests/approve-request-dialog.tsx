@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useTransition } from "react"
+import { useEffect, useMemo, useState, useTransition } from "react"
 import { useConfirm } from "@/components/feedback/confirm-provider"
 import { requestToasts } from "@/lib/feedback/toast-messages"
 
@@ -67,9 +67,26 @@ export function ApproveRequestDialog({
     })
   }, [open, request])
 
+  const doctorOptions = useMemo(() => {
+    if (!request?.doctorId) return doctors
+    if (doctors.some((doctor) => doctor.id === request.doctorId)) return doctors
+    const fallbackName = request.doctorName?.trim()
+    if (!fallbackName) return doctors
+    return [
+      { id: request.doctorId, fullName: fallbackName, email: null },
+      ...doctors,
+    ]
+  }, [doctors, request?.doctorId, request?.doctorName])
+
   if (!request) return null
 
   const isAdmit = mode === "admit" || request.status === "waitlisted"
+  const selectedDoctorMissing =
+    Boolean(doctorId) &&
+    !doctorOptions.some((doctor) => doctor.id === doctorId)
+  const selectedDoctorLabel =
+    request.doctorName?.trim() ||
+    (doctorId ? "Assigned doctor" : "Select doctor")
 
   function executeConfirm() {
     startTransition(async () => {
@@ -85,11 +102,11 @@ export function ApproveRequestDialog({
         return
       }
 
-      const doctor = doctors.find((item) => item.id === doctorId)
+      const doctor = doctorOptions.find((item) => item.id === doctorId)
       const result = await approveConsultationRequestAction({
         id: request!.id,
         doctorId: doctorId || null,
-        doctorName: doctor?.fullName ?? null,
+        doctorName: doctor?.fullName ?? request!.doctorName ?? null,
         scheduleAt: scheduleAt ? new Date(scheduleAt).toISOString() : null,
         location: room,
         notes: approvalNotes,
@@ -172,7 +189,12 @@ export function ApproveRequestDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Unassigned</SelectItem>
-                  {doctors.map((doctor) => (
+                  {selectedDoctorMissing ? (
+                    <SelectItem value={doctorId}>
+                      {selectedDoctorLabel}
+                    </SelectItem>
+                  ) : null}
+                  {doctorOptions.map((doctor) => (
                     <SelectItem key={doctor.id} value={doctor.id}>
                       {doctor.fullName}
                     </SelectItem>

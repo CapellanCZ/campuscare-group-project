@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState, useTransition } from "react"
+import { useCallback, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { IconCheck, IconLoader2 } from "@tabler/icons-react"
 
@@ -26,8 +26,14 @@ import {
 } from "@/components/reui/stepper"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  IssuedPrescriptionSummary,
+  issuedPrescriptionTextFromDocuments,
+} from "@/features/clinical/components/issued-prescription-summary"
+import type { MedicalDocument } from "@/types/medicalDocument"
 import { saveClinicalVisit } from "@/features/clinical/actions/consultation-visit"
 import type { ClinicalVisitWorkspace } from "@/features/clinical/data/load-consultation-workspace"
 import {
@@ -72,7 +78,15 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
   const [symptoms, setSymptoms] = useState(workspace.symptoms ?? "")
   const [diagnosis, setDiagnosis] = useState(workspace.diagnosis ?? "")
   const [clinicalNotes, setClinicalNotes] = useState(workspace.assessment ?? "")
-  const [prescription, setPrescription] = useState(workspace.prescription ?? "")
+  const [followUpDate, setFollowUpDate] = useState(
+    workspace.followUpDate?.slice(0, 10) ?? ""
+  )
+  const [issuedDocuments, setIssuedDocuments] = useState<MedicalDocument[]>([])
+  const handleDocumentsChange = useCallback((docs: MedicalDocument[]) => {
+    setIssuedDocuments(docs)
+  }, [])
+  const issuedPrescription = issuedPrescriptionTextFromDocuments(issuedDocuments)
+  const prescription = issuedPrescription || workspace.prescription || ""
   const [dentalForm, setDentalForm] = useState<VisitDentalFormValue>(() =>
     visitDentalValueFromWorkspace({
       chiefComplaint: workspace.chiefComplaint ?? workspace.symptoms,
@@ -105,14 +119,17 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
     return new Promise((resolve, reject) => {
       startTransition(async () => {
         const payload = isDentist
-          ? serializeVisitDentalValue(dentalForm)
+          ? {
+              ...serializeVisitDentalValue(dentalForm),
+              prescription,
+            }
           : {
               symptoms,
               diagnosis,
               clinicalNotes,
               prescription,
               treatment: undefined as string | undefined,
-              followUpDate: null as string | null,
+              followUpDate: followUpDate.trim() || null,
             }
 
         const result = await saveClinicalVisit({
@@ -151,13 +168,18 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
 
   function openCompletePreview() {
     const preview = isDentist
-      ? buildDentalFormConsultationPreview({ workspace, dentalForm })
+      ? buildDentalFormConsultationPreview({
+          workspace,
+          dentalForm,
+          prescription,
+        })
       : buildPhysicianConsultationPreview({
           workspace,
           symptoms,
           diagnosis,
           clinicalNotes,
           prescription,
+          followUpDate: followUpDate.trim() || null,
         })
     setSummaryPreview(preview)
     setSummaryOpen(true)
@@ -256,9 +278,12 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
           </div>
         ) : null}
 
+        <IssuedPrescriptionSummary documents={issuedDocuments} />
+
         <ConsultationDocumentsPanel
           workspace={workspace}
           canIssue={workspace.canIssueDocuments && !readOnly}
+          onDocumentsChange={handleDocumentsChange}
         />
 
         {summaryDialog}
@@ -455,16 +480,19 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="rx">Prescription</Label>
-                  <Textarea
-                    id="rx"
-                    value={prescription}
-                    onChange={(e) => setPrescription(e.target.value)}
-                    rows={5}
+                  <Label htmlFor="follow-up-date">Follow-up date (optional)</Label>
+                  <Input
+                    id="follow-up-date"
+                    type="date"
+                    value={followUpDate}
+                    onChange={(e) => setFollowUpDate(e.target.value)}
                     disabled={readOnly}
-                    className="rounded-none border-neutral-400 font-sans"
-                    placeholder="Medication, dose, frequency, duration..."
+                    className="max-w-xs rounded-none border-neutral-400 font-sans"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label>Prescription</Label>
+                  <IssuedPrescriptionSummary documents={issuedDocuments} />
                 </div>
               </StepperContent>
             </StepperPanel>
@@ -492,6 +520,7 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
           <ConsultationDocumentsPanel
             workspace={workspace}
             canIssue={workspace.canIssueDocuments && !readOnly}
+            onDocumentsChange={handleDocumentsChange}
           />
         </section>
       </HsoFormShell>

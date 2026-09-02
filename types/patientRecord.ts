@@ -337,6 +337,10 @@ export function looksLikeStudentCampusId(value: string): boolean {
   return /^\d{4}-\d{6}$/.test(value.trim())
 }
 
+export function looksLikeEmployeeCampusId(value: string): boolean {
+  return /^\d{4}-\d{5}$/.test(value.trim())
+}
+
 /** Faculty and employee share ID Number storage (`employee_id`) but are distinct roles. */
 export function patientTypeUsesEmployeeId(
   type: PatientType | null | undefined
@@ -369,6 +373,10 @@ export function resolveImportPatientType(
 
   if (studentId || (idNumber && looksLikeStudentCampusId(idNumber))) {
     return "student"
+  }
+
+  if (idNumber && looksLikeEmployeeCampusId(idNumber)) {
+    return explicit ?? "employee"
   }
 
   if (idNumber && !course) {

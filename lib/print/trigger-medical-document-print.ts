@@ -23,17 +23,17 @@ export const MEDICAL_DOCUMENT_PRINT_PAGE_CSS = `@media print {
 export const MEDICAL_DOCUMENT_FULL_PAGE_PRINT_CSS = `@media print {
   @page {
     size: letter portrait;
-    margin: 0.5in;
+    margin: 0.4in;
   }
 
   html.${ROOT_CLASS_FULL},
   html.${ROOT_CLASS_FULL} body {
-    width: auto !important;
-    height: auto !important;
-    max-height: none !important;
+    width: 8.5in !important;
+    height: 11in !important;
+    max-height: 11in !important;
     margin: 0 !important;
     padding: 0 !important;
-    overflow: visible !important;
+    overflow: hidden !important;
     background: white !important;
   }
 }`

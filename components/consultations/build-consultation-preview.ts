@@ -118,6 +118,7 @@ export function buildPhysicianConsultationPreview(params: {
   diagnosis: string
   clinicalNotes: string
   prescription: string
+  followUpDate?: string | null
 }): { visit: Consultation; ticketVitals: QueueVitals | null } {
   const { workspace } = params
   return {
@@ -126,6 +127,7 @@ export function buildPhysicianConsultationPreview(params: {
       diagnosis: params.diagnosis || null,
       assessment: params.clinicalNotes || null,
       prescription: params.prescription || null,
+      followUpDate: params.followUpDate || null,
       providerType: "physician",
       providerRole: "physician",
       station: "physician",
@@ -139,6 +141,7 @@ export function buildPhysicianConsultationPreview(params: {
 export function buildDentalFormConsultationPreview(params: {
   workspace: ClinicalVisitWorkspace
   dentalForm: VisitDentalFormValue
+  prescription?: string
 }): { visit: Consultation; ticketVitals: QueueVitals | null } {
   const payload = serializeVisitDentalValue(params.dentalForm)
   return {
@@ -147,7 +150,7 @@ export function buildDentalFormConsultationPreview(params: {
       symptoms: payload.symptoms || null,
       diagnosis: payload.diagnosis || null,
       assessment: payload.clinicalNotes || null,
-      prescription: payload.prescription || null,
+      prescription: params.prescription || payload.prescription || null,
       treatment: payload.treatment || null,
       followUpDate: payload.followUpDate,
       providerType: "dentist",

@@ -20,7 +20,6 @@ import {
   downloadClinicProgressPdf,
   printClinicProgressReport,
 } from "@/features/reports/lib/export-pdf"
-import { downloadClinicProgressExcel } from "@/features/reports/lib/export-excel"
 import type {
   ReportChartSeries,
   ReportFilters,
@@ -28,7 +27,6 @@ import type {
   ReportKpi,
   ReportTableBundle,
 } from "@/features/reports/types"
-import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import { exportReportTitle } from "@/features/reports/lib/report-scope"
 import { designationLabel } from "@/lib/health/roles"
@@ -263,31 +261,6 @@ export function HsoSummaryReportsView({
             })
           })
       }}
-      onExportExcel={
-        isAdmin && can(d, "reports.export_excel")
-          ? () => {
-              void downloadClinicProgressExcel({
-                meta: exportMeta(),
-                pack: exportPack,
-              })
-                .then(() =>
-                  appToast.success({
-                    title: "Spreadsheet downloaded.",
-                    description: "Your Excel export has been saved.",
-                  })
-                )
-                .catch((error) => {
-                  appToast.error({
-                    title: "Export failed",
-                    description:
-                      error instanceof Error
-                        ? error.message
-                        : "Could not export Excel.",
-                  })
-                })
-            }
-          : undefined
-      }
     />
   )
 }

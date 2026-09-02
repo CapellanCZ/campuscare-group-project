@@ -5,7 +5,6 @@ import { appToast } from "@/lib/feedback/app-toast"
 import { settingsToasts } from "@/lib/feedback/toast-messages"
 
 import { DemoPageHeader } from "@/components/demo/demo-page"
-import { useTheme } from "@/components/theme-provider"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -73,7 +72,6 @@ export function ProfileSettingsPage({
   /** Renders under Notification Settings in the right column (e.g. nurse capacity). */
   rightColumnExtras?: React.ReactNode
 }) {
-  const { setTheme } = useTheme()
   const fileRef = useRef<HTMLInputElement>(null)
   const [profile, setProfile] = useState(initialProfile)
   const [preferences, setPreferences] = useState(initialPreferences)
@@ -93,16 +91,11 @@ export function ProfileSettingsPage({
     setPreferences(initialPreferences)
   }, [initialProfile, initialPreferences])
 
-  useEffect(() => {
-    setTheme(preferences.theme)
-  }, [preferences.theme, setTheme])
-
   function savePrefs(
     patch: Partial<{
       notifyConsultationRequests: boolean
       notifyQueue: boolean
       notifyAnnouncements: boolean
-      theme: "light" | "dark" | "system"
     }>
   ) {
     startTransition(async () => {
@@ -112,7 +105,6 @@ export function ProfileSettingsPage({
         return
       }
       setPreferences(result.data)
-      if (patch.theme) setTheme(patch.theme)
       settingsToasts.updated()
       window.dispatchEvent(new Event("campuscare:notification-prefs"))
     })

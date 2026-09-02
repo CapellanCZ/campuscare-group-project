@@ -185,7 +185,7 @@ function mapRow(row: AppointmentRow): AppointmentRequest {
     id: row.id,
     clinicId: row.clinic_id,
     doctorId: row.doctor_id,
-    doctorName: doctor?.full_name ?? null,
+    doctorName: doctor?.full_name?.trim() || doctor?.email?.trim() || null,
     patientId: row.patient_id,
     patientName: patient?.full_name?.trim() || "Unknown patient",
     studentId: campusId,
@@ -504,6 +504,7 @@ export async function listAssignableDoctorsForAppointments(
     .from("users")
     .select("id, full_name, email")
     .in("primary_role", ["physician", "dentist"])
+    .eq("is_active", true)
     .order("full_name", { ascending: true })
 
   if (error) mapError(error)

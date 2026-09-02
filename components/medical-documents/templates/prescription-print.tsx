@@ -4,7 +4,6 @@ import {
   HsoFullPageTitle,
 } from "@/components/medical-documents/templates/shared/hso-full-page"
 import type { MedicalDocument, PrescriptionPayload } from "@/types/medicalDocument"
-import { cn } from "@/lib/utils"
 
 export function PrescriptionPrint({
   document,
@@ -19,9 +18,7 @@ export function PrescriptionPrint({
     (document.payload.physicianLicenseNumber as string | undefined) ?? ""
 
   return (
-    <HsoFullPageDocument
-      className={cn("print:break-after-page", className)}
-    >
+    <HsoFullPageDocument className={className}>
       <HsoHeader formCode="NUD-ADM-HSO Prescription Form" />
       <HsoFullPageTitle>Prescription</HsoFullPageTitle>
 

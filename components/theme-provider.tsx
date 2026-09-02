@@ -1,10 +1,15 @@
 "use client"
 
 import * as React from "react"
+import { usePathname } from "next/navigation"
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 
-import { ACTIVE_THEME_STORAGE_KEY } from "@/lib/theme/staff-theme-storage"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import {
+  isPublicAppearancePath,
+  PUBLIC_APPEARANCE_BOOTSTRAP,
+} from "@/lib/theme/appearance-scope"
+import { ACTIVE_THEME_STORAGE_KEY } from "@/lib/theme/staff-theme-storage"
 
 // next-themes injects an inline <script> to prevent theme flash (FOUC).
 // React 19 warns about script tags inside components; the script still runs
@@ -37,68 +42,25 @@ function ThemeProvider({
   children,
   ...props
 }: React.ComponentProps<typeof NextThemesProvider>) {
+  const pathname = usePathname()
+  const isPublic = isPublicAppearancePath(pathname)
+
   return (
     <NextThemesProvider
       attribute="class"
       defaultTheme="light"
-      enableSystem
+      enableSystem={!isPublic}
+      forcedTheme={isPublic ? "light" : undefined}
       disableTransitionOnChange
       storageKey={ACTIVE_THEME_STORAGE_KEY}
       {...props}
     >
+      <script dangerouslySetInnerHTML={{ __html: PUBLIC_APPEARANCE_BOOTSTRAP }} />
       <TooltipProvider>
-        <ThemeHotkey />
         {children}
       </TooltipProvider>
     </NextThemesProvider>
   )
 }
 
-function isTypingTarget(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) {
-    return false
-  }
-
-  return (
-    target.isContentEditable ||
-    target.tagName === "INPUT" ||
-    target.tagName === "TEXTAREA" ||
-    target.tagName === "SELECT"
-  )
-}
-
-function ThemeHotkey() {
-  const { resolvedTheme, setTheme } = useTheme()
-
-  React.useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.defaultPrevented || event.repeat) {
-        return
-      }
-
-      if (event.metaKey || event.ctrlKey || event.altKey) {
-        return
-      }
-
-      if ((event.key ?? "").toLowerCase() !== "d") {
-        return
-      }
-
-      if (isTypingTarget(event.target)) {
-        return
-      }
-
-      setTheme(resolvedTheme === "dark" ? "light" : "dark")
-    }
-
-    window.addEventListener("keydown", onKeyDown)
-
-    return () => {
-      window.removeEventListener("keydown", onKeyDown)
-    }
-  }, [resolvedTheme, setTheme])
-
-  return null
-}
-
-export { ThemeProvider, useTheme, ThemeHotkey }
+export { ThemeProvider, useTheme }

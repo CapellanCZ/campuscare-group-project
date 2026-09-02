@@ -1,6 +1,6 @@
 "use client"
 
-import { useTransition } from "react"
+import { useCallback, useTransition } from "react"
 
 import { useOptionalStaffAccess } from "@/components/staff-access-provider"
 import { useTheme } from "@/components/theme-provider"
@@ -15,41 +15,37 @@ export function useStaffThemeToggle() {
   const access = useOptionalStaffAccess()
   const { theme, setTheme, resolvedTheme } = useTheme()
   const [pending, startTransition] = useTransition()
+  const userId = access?.userId
   const isDark = (resolvedTheme ?? theme) === "dark"
 
-  function applyTheme(next: ThemePreference) {
-    setTheme(next)
-    if (access?.userId) {
-      writeStaffThemeToStorage(access.userId, next)
-    }
-  }
+  const persistTheme = useCallback(
+    (next: ThemePreference) => {
+      setTheme(next)
+      if (!userId) return
+      writeStaffThemeToStorage(userId, next)
+      startTransition(async () => {
+        const result = await saveThemePreferenceAction(next)
+        if (!result.ok) {
+          appToast.error({
+            title: "Unable to Save Preference",
+            description: result.error,
+          })
+        }
+      })
+    },
+    [setTheme, startTransition, userId]
+  )
 
-  function toggleTheme() {
-    const next: ThemePreference = isDark ? "light" : "dark"
-    applyTheme(next)
-    startTransition(async () => {
-      const result = await saveThemePreferenceAction(next)
-      if (!result.ok) {
-        appToast.error({
-          title: "Unable to Save Preference",
-          description: result.error,
-        })
-      }
-    })
-  }
+  const toggleTheme = useCallback(() => {
+    persistTheme(isDark ? "light" : "dark")
+  }, [isDark, persistTheme])
 
-  function setStaffTheme(next: ThemePreference) {
-    applyTheme(next)
-    startTransition(async () => {
-      const result = await saveThemePreferenceAction(next)
-      if (!result.ok) {
-        appToast.error({
-          title: "Unable to Save Preference",
-          description: result.error,
-        })
-      }
-    })
-  }
+  const setStaffTheme = useCallback(
+    (next: ThemePreference) => {
+      persistTheme(next)
+    },
+    [persistTheme]
+  )
 
   return { isDark, pending, toggleTheme, setStaffTheme }
 }
