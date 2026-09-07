@@ -10,6 +10,7 @@ type AnnouncementItem = {
   station: string
   ticket: string
   label: string
+  callKey: string
 }
 
 function readSpeakerPreference(): boolean {
@@ -54,6 +55,11 @@ function buildAnnouncement(label: string, ticket: string): string {
   return `Now serving ticket ${spokenTicket}. Please proceed to the ${label} station.`
 }
 
+function servingCallKey(board: StationBoard): string | null {
+  if (!board.nowServing) return null
+  return board.nowServingCallKey ?? `${board.station}:${board.nowServing}`
+}
+
 function findServingChanges(
   previous: StationBoard[],
   next: StationBoard[]
@@ -62,12 +68,21 @@ function findServingChanges(
 
   for (const board of next) {
     if (board.status === "on_break" || !board.nowServing) continue
+    const callKey = servingCallKey(board)
+    if (!callKey) continue
+
     const prior = previous.find((item) => item.station === board.station)
-    if (prior?.nowServing === board.nowServing) continue
+    const priorKey = prior ? servingCallKey(prior) : null
+
+    // Announce on new Now Serving OR Call/Recall of the same ticket
+    // (call key includes call_count + updated_at).
+    if (priorKey === callKey) continue
+
     changes.push({
       station: board.station,
       ticket: board.nowServing,
       label: board.label,
+      callKey,
     })
   }
 
@@ -103,9 +118,8 @@ export function useQueueAnnouncements({
       isInitialMountRef.current = false
       previousBoardsRef.current = boards
       for (const board of boards) {
-        if (board.nowServing) {
-          announcedRef.current.add(`${board.station}:${board.nowServing}`)
-        }
+        const key = servingCallKey(board)
+        if (key) announcedRef.current.add(`${board.station}:${key}`)
       }
       return
     }
@@ -114,7 +128,7 @@ export function useQueueAnnouncements({
     previousBoardsRef.current = boards
 
     for (const change of changes) {
-      const key = `${change.station}:${change.ticket}`
+      const key = `${change.station}:${change.callKey}`
       if (announcedRef.current.has(key)) continue
       announcedRef.current.add(key)
       queueRef.current.push(buildAnnouncement(change.label, change.ticket))

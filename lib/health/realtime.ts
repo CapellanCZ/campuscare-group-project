@@ -13,7 +13,7 @@ export const STAFF_REALTIME_TABLES = {
   capacity: ["clinic_consultation_capacity"] as const,
   users: ["users", "clinic_members", "admin_accounts"] as const,
   notifications: ["notifications"] as const,
-  duty: ["staff_break_status", "clinic_break_status"] as const,
+  duty: ["staff_duty_status", "staff_break_status", "clinic_break_status"] as const,
   profile: ["users", "user_preferences"] as const,
   schedule: ["doctor_availability", "clinic_office_hours"] as const,
   clinicalVisit: [
@@ -58,7 +58,7 @@ export function subscribeQueueChanges(
   )
 }
 
-/** Public display: queue tickets + clinic/staff breaks. */
+/** Public display: queue tickets + duty/break status. */
 export function subscribeDisplayChanges(
   client: SupabaseClient,
   onChange: () => void
@@ -68,6 +68,7 @@ export function subscribeDisplayChanges(
     "campuscare-queue-display",
     [
       ...STAFF_REALTIME_TABLES.queue,
+      "staff_duty_status",
       "clinic_break_status",
       "staff_break_status",
     ],

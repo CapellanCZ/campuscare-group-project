@@ -1,44 +1,73 @@
-import { DENTAL_CHIEF_COMPLAINT_OPTIONS } from "@/lib/health/dental-form-options"
-import { CHIEF_COMPLAINT_OPTIONS } from "@/lib/health/form-options"
+import {
+  STANDARD_DENTIST_CASE_LABELS,
+  STANDARD_PHYSICIAN_CASE_LABELS,
+} from "@/lib/health/health-case-options"
 
 const OTHER_LABEL = "Other"
 
 const MEDICAL_ALIASES: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /headache|migraine/i, label: "Headache" },
-  { pattern: /wound|laceration|\bcut\b|abrasion/i, label: "Wound / injury" },
-  { pattern: /injur/i, label: "Wound / injury" },
+  { pattern: /\bwounds?\b|laceration|\bcut\b|abrasion/i, label: "Wounds" },
+  { pattern: /\binjur/i, label: "Injury" },
   { pattern: /menstrual|dysmenorrhea|cramp/i, label: "Menstrual Cramps" },
-  { pattern: /\bcold\b|flu-like|influenza/i, label: "Cough / cold" },
-  { pattern: /fever/i, label: "Fever / flu-like symptoms" },
-  { pattern: /stomach|abdomen|abdominal|tummy/i, label: "Stomach pain" },
-  { pattern: /muscle pain|body pain|myalgia|body ache/i, label: "Muscle Pain / Body Pain" },
+  { pattern: /\bcold\b|flu-like|influenza/i, label: "Cold" },
+  { pattern: /fever/i, label: "Fever" },
+  { pattern: /stomach|abdomen|abdominal|tummy/i, label: "Stomach Ache" },
+  {
+    pattern: /muscle pain|body pain|myalgia|body ache/i,
+    label: "Muscle Pain / Body Pain",
+  },
   { pattern: /allerg/i, label: "Allergy" },
   { pattern: /anxi/i, label: "Anxiety" },
   { pattern: /dizz|vertigo/i, label: "Dizziness" },
   { pattern: /\bgerd\b|acid reflux|heartburn/i, label: "GERD" },
+  { pattern: /loose bowel|diarrhea|lbm/i, label: "Loose Bowel Movement" },
   { pattern: /blood pressure|\bbp\b|hypertension/i, label: "Increased BP" },
-  { pattern: /toothache|tooth ache|dental pain/i, label: "Toothache" },
   { pattern: /asthma/i, label: "Asthma" },
-  { pattern: /\bcough\b/i, label: "Cough / cold" },
+  { pattern: /chickenpox|varicella/i, label: "Chickenpox" },
+  { pattern: /\bcough\b/i, label: "Cough" },
   { pattern: /eye irritat|sore eye|conjunctiv/i, label: "Eye Irritation" },
   { pattern: /nause|vomit/i, label: "Nausea / Vomiting" },
   { pattern: /nosebleed|epistaxis/i, label: "Nosebleed" },
-  { pattern: /skin|rash|dermat/i, label: "Skin concern" },
-  { pattern: /check-?up|clearance/i, label: "Check-up / clearance" },
 ]
 
-function presetLabels(): string[] {
-  return [
-    ...CHIEF_COMPLAINT_OPTIONS.map((option) => option.value),
-    ...DENTAL_CHIEF_COMPLAINT_OPTIONS.map((option) => option.value),
-  ]
+const DENTAL_ALIASES: Array<{ pattern: RegExp; label: string }> = [
+  { pattern: /toothache|tooth ache|dental pain/i, label: "Toothache" },
+  {
+    pattern: /caries|tooth decay|cavit/i,
+    label: "Dental Caries / Tooth Decay",
+  },
+  { pattern: /gingivitis/i, label: "Gingivitis" },
+  { pattern: /periodontitis|periodontal/i, label: "Periodontitis" },
+  {
+    pattern: /ulcer|canker|aphthous/i,
+    label: "Oral Ulcer / Canker Sore",
+  },
+  { pattern: /sensitiv/i, label: "Tooth Sensitivity" },
+  { pattern: /impacted/i, label: "Impacted Tooth" },
+  { pattern: /abscess/i, label: "Dental Abscess" },
+  {
+    pattern: /broken|fractur/i,
+    label: "Broken / Fractured Tooth",
+  },
+]
+
+function presetLabels(consultationType: "medical" | "dental"): string[] {
+  return consultationType === "dental"
+    ? [...STANDARD_DENTIST_CASE_LABELS]
+    : [...STANDARD_PHYSICIAN_CASE_LABELS]
 }
 
-function exactPreset(text: string): string | null {
+function exactPreset(
+  text: string,
+  consultationType: "medical" | "dental"
+): string | null {
   const normalized = text.trim().toLowerCase()
   if (!normalized) return null
   return (
-    presetLabels().find((label) => label.toLowerCase() === normalized) ?? null
+    presetLabels(consultationType).find(
+      (label) => label.toLowerCase() === normalized
+    ) ?? null
   )
 }
 
@@ -49,22 +78,42 @@ export function normalizeHealthCase(
   const raw = (text ?? "").replace(/\s+/g, " ").trim()
   if (!raw || raw === "—") return OTHER_LABEL
 
-  const exact = exactPreset(raw)
+  const exact = exactPreset(raw, consultationType)
   if (exact) return exact
 
   const aliases =
-    consultationType === "dental"
-      ? MEDICAL_ALIASES.filter((alias) => /tooth|gum|oral|cavit/i.test(alias.label))
-      : MEDICAL_ALIASES
+    consultationType === "dental" ? DENTAL_ALIASES : MEDICAL_ALIASES
   for (const alias of aliases) {
     if (alias.pattern.test(raw)) return alias.label
   }
-  if (consultationType === "dental") {
-    for (const alias of MEDICAL_ALIASES) {
-      if (alias.pattern.test(raw)) return alias.label
-    }
-  }
   return OTHER_LABEL
+}
+
+/** Split multi-select diagnosis text into individual health-case labels. */
+export function extractHealthCaseLabels(
+  diagnosis: string | null | undefined,
+  complaint: string | null | undefined,
+  consultationType: "medical" | "dental"
+): string[] {
+  const primary =
+    diagnosis && diagnosis.trim() && diagnosis.trim() !== "—"
+      ? diagnosis
+      : complaint && complaint.trim() && complaint.trim() !== "—"
+        ? complaint
+        : ""
+  if (!primary) return [OTHER_LABEL]
+
+  const lines = primary
+    .split(/\n|,/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  if (lines.length === 0) return [OTHER_LABEL]
+
+  const labels = lines.map((line) =>
+    normalizeHealthCase(line, consultationType)
+  )
+  return labels.length > 0 ? labels : [OTHER_LABEL]
 }
 
 export type HealthCaseBucket = {
@@ -77,7 +126,7 @@ export type HealthCaseBucket = {
 
 export function rankHealthCases(
   buckets: HealthCaseBucket[],
-  topN = 8
+  topN = 20
 ): HealthCaseBucket[] {
   const ranked = [...buckets]
     .filter((bucket) => bucket.total > 0)
@@ -115,30 +164,11 @@ export function rankHealthCases(
 }
 
 /** Standard medical case rows for official HSO health-case reporting tables. */
-export const STANDARD_MEDICAL_CASE_LABELS = [
-  "Headache",
-  "Wound / injury",
-  "Menstrual Cramps",
-  "Cough / cold",
-  "Fever / flu-like symptoms",
-  "Stomach pain",
-  "Muscle Pain / Body Pain",
-  "Allergy",
-  "Anxiety",
-  "Dizziness",
-  "GERD",
-  "Increased BP",
-  "Toothache",
-  "Asthma",
-  "Eye Irritation",
-  "Nausea / Vomiting",
-  "Nosebleed",
-] as const
+export const STANDARD_MEDICAL_CASE_LABELS = [...STANDARD_PHYSICIAN_CASE_LABELS]
 
-export const STANDARD_DENTAL_CASE_LABELS = [
-  "Toothache",
-  "Oral prophylaxis",
-  "Tooth extraction",
-  "Dental check-up",
-  "Gum concern",
+export const STANDARD_DENTAL_CASE_LABELS = [...STANDARD_DENTIST_CASE_LABELS]
+
+export const ALL_STANDARD_HEALTH_CASE_LABELS = [
+  ...STANDARD_MEDICAL_CASE_LABELS,
+  ...STANDARD_DENTAL_CASE_LABELS,
 ] as const

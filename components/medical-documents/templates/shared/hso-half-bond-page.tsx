@@ -68,8 +68,13 @@ export function HsoFormPreviewFrame({ children }: { children: ReactNode }) {
   return (
     <div className="hso-form-preview-frame mx-auto w-full max-w-[816px]">
       <div className="overflow-x-auto rounded-sm bg-white shadow-md ring-1 ring-black/10">
-        <div className="mx-auto w-[8.5in] min-w-[min(100%,320px)] max-w-full">
-          {children}
+        <div
+          className="origin-top-left scale-[min(1,calc(100%/8.5in))] sm:scale-100"
+          style={{ width: "8.5in" }}
+        >
+          <div className="[&_.hso-half-bond-page]:!h-auto [&_.hso-half-bond-page]:min-h-[5.5in] [&_.hso-half-bond-page]:overflow-visible">
+            {children}
+          </div>
         </div>
       </div>
     </div>

@@ -1,6 +1,10 @@
 import { catalogFor } from "@/features/reports/role-catalog"
 import { reportPatientTypeLabel, reportPatientClass } from "@/features/reports/lib/patient-type-label"
-import { normalizeHealthCase, rankHealthCases } from "@/features/reports/lib/health-case-normalize"
+import {
+  extractHealthCaseLabels,
+  normalizeHealthCase,
+  rankHealthCases,
+} from "@/features/reports/lib/health-case-normalize"
 import { resolveReportPeriod, listPeriodDays } from "@/features/reports/lib/report-period"
 import {
   filterConsults,
@@ -192,9 +196,9 @@ function buildKpis(
     },
     avg_wait: {
       key: "avg_wait",
-      label: "Average Waiting Time",
+      label: "Estimated Average Waiting Time",
       value: `${avg(consults.map((c) => c.waitMinutes).filter((n) => n > 0)) || live.avgWait} min`,
-      description: "Minutes",
+      description: "Queue entry to called/start",
     },
     patients_served_today: {
       key: "patients_served_today",
@@ -266,6 +270,54 @@ function buildKpis(
       label: "Dental Consultations",
       value: String(dental.length),
     },
+    faculty_medical_consultations: {
+      key: "faculty_medical_consultations",
+      label: "Faculty Medical Consultations",
+      value: String(
+        medical.filter((c) => reportPatientClass(c.patientType) === "faculty")
+          .length
+      ),
+    },
+    faculty_dental_consultations: {
+      key: "faculty_dental_consultations",
+      label: "Faculty Dental Consultations",
+      value: String(
+        dental.filter((c) => reportPatientClass(c.patientType) === "faculty")
+          .length
+      ),
+    },
+    employee_medical_consultations: {
+      key: "employee_medical_consultations",
+      label: "Employee Medical Consultations",
+      value: String(
+        medical.filter((c) => reportPatientClass(c.patientType) === "employee")
+          .length
+      ),
+    },
+    employee_dental_consultations: {
+      key: "employee_dental_consultations",
+      label: "Employee Dental Consultations",
+      value: String(
+        dental.filter((c) => reportPatientClass(c.patientType) === "employee")
+          .length
+      ),
+    },
+    student_medical_consultations: {
+      key: "student_medical_consultations",
+      label: "Student Medical Consultations",
+      value: String(
+        medical.filter((c) => reportPatientClass(c.patientType) === "student")
+          .length
+      ),
+    },
+    student_dental_consultations: {
+      key: "student_dental_consultations",
+      label: "Student Dental Consultations",
+      value: String(
+        dental.filter((c) => reportPatientClass(c.patientType) === "student")
+          .length
+      ),
+    },
   }
 
   return keys.map((key) => map[key])
@@ -306,18 +358,17 @@ function buildCharts(
   const healthComplaints = countBy(
     consults
       .filter((c) => c.consultationType === "medical")
-      .map((c) => normalizeHealthCase(c.complaint === "—" ? c.diagnosis : c.complaint, "medical"))
-  ).slice(0, 8)
+      .flatMap((c) =>
+        extractHealthCaseLabels(c.diagnosis, c.complaint, "medical")
+      )
+  ).slice(0, 12)
   const dentalCases = countBy(
     consults
       .filter((c) => c.consultationType === "dental")
-      .map((c) =>
-        normalizeHealthCase(
-          c.diagnosis === "—" ? c.complaint : c.diagnosis,
-          "dental"
-        )
+      .flatMap((c) =>
+        extractHealthCaseLabels(c.diagnosis, c.complaint, "dental")
       )
-  ).slice(0, 8)
+  ).slice(0, 12)
   const diagnoses = countBy(
     consults
       .filter((c) => c.consultationType === "medical")
@@ -329,42 +380,72 @@ function buildCharts(
       .map((c) => reportPatientTypeLabel(c.patientType))
       .filter((label) => label === "Student" || label === "Faculty" || label === "Employee")
   )
+  const utilizationByType = [
+    {
+      label: "Student",
+      value: consults.filter(
+        (c) =>
+          c.consultationType === "medical" &&
+          reportPatientClass(c.patientType) === "student"
+      ).length,
+      secondary: consults.filter(
+        (c) =>
+          c.consultationType === "dental" &&
+          reportPatientClass(c.patientType) === "student"
+      ).length,
+    },
+    {
+      label: "Faculty",
+      value: consults.filter(
+        (c) =>
+          c.consultationType === "medical" &&
+          reportPatientClass(c.patientType) === "faculty"
+      ).length,
+      secondary: consults.filter(
+        (c) =>
+          c.consultationType === "dental" &&
+          reportPatientClass(c.patientType) === "faculty"
+      ).length,
+    },
+    {
+      label: "Employee",
+      value: consults.filter(
+        (c) =>
+          c.consultationType === "medical" &&
+          reportPatientClass(c.patientType) === "employee"
+      ).length,
+      secondary: consults.filter(
+        (c) =>
+          c.consultationType === "dental" &&
+          reportPatientClass(c.patientType) === "employee"
+      ).length,
+    },
+  ]
+
   const utilization = [
     {
       label: "Student Medical",
-      value: consults.filter(
-        (c) => c.consultationType === "medical" && reportPatientClass(c.patientType) === "student"
-      ).length,
+      value: utilizationByType[0].value,
     },
     {
       label: "Student Dental",
-      value: consults.filter(
-        (c) => c.consultationType === "dental" && reportPatientClass(c.patientType) === "student"
-      ).length,
+      value: utilizationByType[0].secondary,
     },
     {
       label: "Faculty Medical",
-      value: consults.filter(
-        (c) => c.consultationType === "medical" && reportPatientClass(c.patientType) === "faculty"
-      ).length,
+      value: utilizationByType[1].value,
     },
     {
       label: "Faculty Dental",
-      value: consults.filter(
-        (c) => c.consultationType === "dental" && reportPatientClass(c.patientType) === "faculty"
-      ).length,
+      value: utilizationByType[1].secondary,
     },
     {
       label: "Employee Medical",
-      value: consults.filter(
-        (c) => c.consultationType === "medical" && reportPatientClass(c.patientType) === "employee"
-      ).length,
+      value: utilizationByType[2].value,
     },
     {
       label: "Employee Dental",
-      value: consults.filter(
-        (c) => c.consultationType === "dental" && reportPatientClass(c.patientType) === "employee"
-      ).length,
+      value: utilizationByType[2].secondary,
     },
   ].filter((point) => point.value > 0)
 
@@ -373,29 +454,34 @@ function buildCharts(
       ? utilization.filter((point) => point.label.includes("Medical"))
       : designation === "dentist"
         ? utilization.filter((point) => point.label.includes("Dental"))
-        : utilization
+        : utilizationByType
+  const utilizationKind =
+    designation === "physician" || designation === "dentist" ? "hbar" : "bar"
 
   const caseBuckets = new Map<
     string,
     { student: number; faculty: number; employee: number; total: number }
   >()
   for (const consult of consults) {
-    const label = normalizeHealthCase(
-      consult.complaint === "—" ? consult.diagnosis : consult.complaint,
+    const labels = extractHealthCaseLabels(
+      consult.diagnosis,
+      consult.complaint,
       consult.consultationType
     )
-    const bucket = caseBuckets.get(label) ?? {
-      student: 0,
-      faculty: 0,
-      employee: 0,
-      total: 0,
-    }
     const classified = reportPatientClass(consult.patientType)
-    if (classified === "student") bucket.student += 1
-    else if (classified === "faculty") bucket.faculty += 1
-    else if (classified === "employee") bucket.employee += 1
-    bucket.total += 1
-    caseBuckets.set(label, bucket)
+    for (const label of labels) {
+      const bucket = caseBuckets.get(label) ?? {
+        student: 0,
+        faculty: 0,
+        employee: 0,
+        total: 0,
+      }
+      if (classified === "student") bucket.student += 1
+      else if (classified === "faculty") bucket.faculty += 1
+      else if (classified === "employee") bucket.employee += 1
+      bucket.total += 1
+      caseBuckets.set(label, bucket)
+    }
   }
   const rankedCases = rankHealthCases(
     [...caseBuckets.entries()].map(([label, counts]) => ({
@@ -496,9 +582,28 @@ function buildCharts(
           ? "Medical Service Utilization"
           : designation === "dentist"
             ? "Dental Service Utilization"
-            : "Service Utilization",
-      kind: "hbar",
+            : "Medical vs Dental by Patient Type",
+      kind: utilizationKind,
+      valueLabel: "Medical",
+      secondaryLabel: "Dental",
       points: scopedUtilization,
+    },
+    waiting_time_trend: {
+      key: "waiting_time_trend",
+      title: "Waiting Time Trend",
+      description: "Average waiting time (minutes)",
+      kind: "line",
+      valueLabel: "Avg wait (min)",
+      points: periodDays.map((ymd) => {
+        const dayConsults = consults.filter((row) => row.date === ymd)
+        const waits = dayConsults
+          .map((row) => row.waitMinutes)
+          .filter((n) => n > 0)
+        return {
+          label: ymd.slice(5),
+          value: waits.length > 0 ? avg(waits) : 0,
+        }
+      }),
     },
     health_cases: {
       key: "health_cases",

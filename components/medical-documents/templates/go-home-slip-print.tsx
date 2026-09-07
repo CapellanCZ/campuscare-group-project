@@ -34,8 +34,14 @@ export function GoHomeSlipPrint({
   className?: string
 }) {
   const payload = document.payload as GoHomeSlipPayload
+  const freeText = payload.prescribedMedication?.trim() ?? ""
   const meds = payload.medications ?? []
-  const lines = meds.length > 0 ? meds : Array.from({ length: 6 }, () => null)
+  const lines: Array<{ name: string; strength?: string | null; instructions?: string | null } | null> =
+    freeText
+      ? [{ name: freeText }]
+      : meds.length > 0
+        ? meds
+        : Array.from({ length: 6 }, () => null)
 
   return (
     <HsoFullPageDocument className={cn(className)}>

@@ -1,10 +1,7 @@
 import type { ClinicDesignation } from "@/lib/auth/types"
 
-export function reportsPageTitle(designation: ClinicDesignation): string {
-  if (designation === "physician") return "Medical Reports & Analytics"
-  if (designation === "dentist") return "Dental Reports & Analytics"
-  if (designation === "nurse") return "HSO Reports & Analytics"
-  return "Reports & Analytics"
+export function reportsPageTitle(_designation: ClinicDesignation): string {
+  return "Reports and Analytics"
 }
 
 export function reportsScopeLabel(

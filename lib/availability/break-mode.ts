@@ -2,9 +2,11 @@ import type { WebRole } from "@/lib/auth/types"
 
 export type BreakMode = "clinic" | "staff"
 
-/** Clinic-wide break for admins; personal staff break for clinical roles. */
+/**
+ * Personal staff break for clinical roles only.
+ * Admin is oversight-only and does not participate in duty/break.
+ */
 export function breakModeForRole(role: WebRole): BreakMode | null {
-  if (role === "admin") return "clinic"
   if (role === "nurse" || role === "physician" || role === "dentist") {
     return "staff"
   }
@@ -12,10 +14,10 @@ export function breakModeForRole(role: WebRole): BreakMode | null {
 }
 
 export function canUseClinicBreak(
-  role: WebRole | null | undefined,
-  mode: BreakMode | null
+  _role: WebRole | null | undefined,
+  _mode: BreakMode | null
 ): boolean {
-  return mode === "clinic" && role === "admin"
+  return false
 }
 
 export function canUseStaffBreak(

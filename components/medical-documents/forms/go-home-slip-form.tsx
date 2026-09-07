@@ -33,16 +33,18 @@ export function GoHomeSlipForm({
           placeholder="Medical reason authorizing the patient to go home"
         />
       </div>
-      {value.medications && value.medications.length > 0 ? (
-        <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-          <p className="font-medium">Medications from consultation</p>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
-            {value.medications.map((med, index) => (
-              <li key={index}>{med.name}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+      <div className="space-y-2">
+        <Label htmlFor="prescribed-medication">Prescribed Medication</Label>
+        <Textarea
+          id="prescribed-medication"
+          rows={3}
+          value={value.prescribedMedication ?? ""}
+          onChange={(e) =>
+            onChange({ ...value, prescribedMedication: e.target.value })
+          }
+          placeholder="Enter prescribed medication"
+        />
+      </div>
     </div>
   )
 }

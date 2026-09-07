@@ -228,6 +228,21 @@ export function NurseIntakeSheet({
   function onSubmit(event: React.FormEvent) {
     event.preventDefault()
     if (!ticket) return
+
+    const missing: string[] = []
+    if (!toNumber(bpSystolic) || !toNumber(bpDiastolic)) {
+      missing.push("Blood Pressure")
+    }
+    if (!toNumber(heartRate)) missing.push("Heart Rate")
+    if (!toNumber(temperatureC)) missing.push("Temperature")
+    if (!toNumber(spo2)) missing.push("SpO₂")
+    if (missing.length > 0) {
+      const message = `${missing.join(", ")} ${missing.length === 1 ? "is" : "are"} required.`
+      setError(message)
+      queueToasts.failed(message)
+      return
+    }
+
     setError(null)
     setStatusMessage("Saving vitals…")
     onAssigned?.(ticket.ticketId, toStation)
@@ -355,7 +370,7 @@ export function NurseIntakeSheet({
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   <VitalField
-                    label="BP"
+                    label="BP (required)"
                     htmlFor="intake-sys"
                     className="col-span-2"
                   >
@@ -385,7 +400,7 @@ export function NurseIntakeSheet({
                       />
                     </div>
                   </VitalField>
-                  <VitalField label="HR" htmlFor="intake-hr">
+                  <VitalField label="HR (required)" htmlFor="intake-hr">
                     <Input
                       id="intake-hr"
                       inputMode="numeric"
@@ -396,7 +411,7 @@ export function NurseIntakeSheet({
                       className="h-9 tabular-nums"
                     />
                   </VitalField>
-                  <VitalField label="Temp °C" htmlFor="intake-temp">
+                  <VitalField label="Temp °C (required)" htmlFor="intake-temp">
                     <Input
                       id="intake-temp"
                       inputMode="decimal"
@@ -407,7 +422,7 @@ export function NurseIntakeSheet({
                       className="h-9 tabular-nums"
                     />
                   </VitalField>
-                  <VitalField label="SpO₂ %" htmlFor="intake-spo2">
+                  <VitalField label="SpO₂ % (required)" htmlFor="intake-spo2">
                     <Input
                       id="intake-spo2"
                       inputMode="numeric"

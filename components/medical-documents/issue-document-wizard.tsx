@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useTransition } from "react"
+import { useEffect, useMemo, useState, useTransition } from "react"
 import { useConfirm } from "@/components/feedback/confirm-provider"
 import { documentToasts } from "@/lib/feedback/toast-messages"
 
@@ -8,10 +8,11 @@ import { GoHomeSlipForm } from "@/components/medical-documents/forms/go-home-sli
 import { MedicalCertificationForm } from "@/components/medical-documents/forms/medical-certification-form"
 import { NfgClearanceForm } from "@/components/medical-documents/forms/nfg-clearance-form"
 import { PrescriptionForm } from "@/components/medical-documents/forms/prescription-form"
+import { MedicalDocumentPreviewBody } from "@/components/medical-documents/document-print-view"
 import {
-  MedicalDocumentPreviewBody,
-} from "@/components/medical-documents/document-print-view"
-import { issueMedicalDocumentAction } from "@/features/medical-documents/actions"
+  issueMedicalDocumentAction,
+  updateMedicalDocumentAction,
+} from "@/features/medical-documents/actions"
 import {
   buildConsultationDocumentContext,
   defaultGoHomeSlipPayload,
@@ -19,7 +20,6 @@ import {
   defaultNfgClearancePayload,
   defaultPrescriptionPayload,
   purposeLabelFromPayload,
-  type ConsultationDocumentContext,
 } from "@/features/medical-documents/lib/map-consultation-context"
 import { ISSUE_DOCUMENT_TYPE_OPTIONS } from "@/features/medical-documents/lib/document-labels"
 import type { ClinicalVisitWorkspace } from "@/features/clinical/data/load-consultation-workspace"
@@ -91,13 +91,17 @@ export function IssueDocumentWizard({
   documentType,
   workspace,
   onIssued,
+  existingDocument = null,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   documentType: MedicalDocumentType
   workspace: ClinicalVisitWorkspace
   onIssued: (document: MedicalDocument) => void
+  /** When set, save updates this document instead of creating a new one. */
+  existingDocument?: MedicalDocument | null
 }) {
+  const isEditing = Boolean(existingDocument)
   const ctx = useMemo(
     () => buildConsultationDocumentContext(workspace),
     [workspace]
@@ -112,12 +116,45 @@ export function IssueDocumentWizard({
     defaultGoHomeSlipPayload(ctx)
   )
   const [rxPayload, setRxPayload] = useState<PrescriptionPayload>(() =>
-    defaultPrescriptionPayload(ctx)
+    defaultPrescriptionPayload(ctx, workspace.role)
   )
   const [nfgPayload, setNfgPayload] = useState<NfgClearancePayload>(() =>
     defaultNfgClearancePayload(workspace, ctx)
   )
   const [isPending, startTransition] = useTransition()
+
+  useEffect(() => {
+    if (!open) return
+    if (existingDocument) {
+      const p = existingDocument.payload ?? {}
+      if (documentType === "medical_certification") {
+        setCertPayload({
+          ...defaultMedicalCertificationPayload(ctx),
+          ...(p as MedicalCertificationPayload),
+        })
+      } else if (documentType === "go_home_slip") {
+        setGoHomePayload({
+          ...defaultGoHomeSlipPayload(ctx),
+          ...(p as GoHomeSlipPayload),
+        })
+      } else if (documentType === "prescription") {
+        setRxPayload({
+          ...defaultPrescriptionPayload(ctx, workspace.role),
+          ...(p as PrescriptionPayload),
+        })
+      } else if (documentType === "nfg_medical_clearance") {
+        setNfgPayload({
+          ...defaultNfgClearancePayload(workspace, ctx),
+          ...(p as NfgClearancePayload),
+        })
+      }
+      return
+    }
+    setCertPayload(defaultMedicalCertificationPayload(ctx))
+    setGoHomePayload(defaultGoHomeSlipPayload(ctx))
+    setRxPayload(defaultPrescriptionPayload(ctx, workspace.role))
+    setNfgPayload(defaultNfgClearancePayload(workspace, ctx))
+  }, [open, existingDocument, documentType, ctx, workspace])
 
   const payload = useMemo(() => {
     switch (documentType) {
@@ -146,39 +183,40 @@ export function IssueDocumentWizard({
     return "NFG Medical Clearance"
   }, [documentType, certPayload])
 
-  const previewDocument = useMemo(
-    (): MedicalDocument => ({
-      id: "preview",
-      documentNumber: "PREVIEW",
+  const previewDocument = useMemo((): MedicalDocument => {
+    const basePatient = existingDocument?.patient ?? {
+      id: ctx.patientId,
+      fullName: ctx.patientName,
+      studentId: ctx.campusId,
+      email: null,
+    }
+    return {
+      id: existingDocument?.id ?? "preview",
+      documentNumber: existingDocument?.documentNumber ?? "PREVIEW",
       documentType,
-      patientId: ctx.patientId,
-      consultationId: ctx.consultationId,
-      patientRecordId: ctx.patientRecordId,
+      patientId: existingDocument?.patientId ?? ctx.patientId,
+      consultationId: existingDocument?.consultationId ?? ctx.consultationId,
+      patientRecordId: existingDocument?.patientRecordId ?? ctx.patientRecordId,
       purpose,
-      doctorName: "Attending Physician",
+      doctorName: existingDocument?.doctorName ?? "Attending Physician",
       remarks: null,
-      status: "draft",
-      issuedAt: new Date().toISOString(),
-      validUntil: null,
-      issuedBy: null,
-      templateVersion: templateVersion(documentType),
+      status: existingDocument?.status ?? "draft",
+      issuedAt: existingDocument?.issuedAt ?? new Date().toISOString(),
+      validUntil: existingDocument?.validUntil ?? null,
+      issuedBy: existingDocument?.issuedBy ?? null,
+      templateVersion:
+        existingDocument?.templateVersion ?? templateVersion(documentType),
       payload,
       voidedBy: null,
       voidedAt: null,
       voidReason: null,
-      replacesDocumentId: null,
-      createdAt: new Date().toISOString(),
+      replacesDocumentId: existingDocument?.replacesDocumentId ?? null,
+      createdAt: existingDocument?.createdAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       certificateType: DOCUMENT_TYPE_LABELS[documentType],
-      patient: {
-        id: ctx.patientId,
-        fullName: ctx.patientName,
-        studentId: ctx.campusId,
-        email: null,
-      },
-    }),
-    [ctx, documentType, payload, purpose]
-  )
+      patient: basePatient,
+    }
+  }, [ctx, documentType, payload, purpose, existingDocument])
 
   const title =
     ISSUE_DOCUMENT_TYPE_OPTIONS.find((o) => o.type === documentType)?.title ??
@@ -189,7 +227,7 @@ export function IssueDocumentWizard({
     onOpenChange(false)
   }
 
-  function handleIssue() {
+  function handleSave() {
     const validationError = validatePayload(documentType, payload)
     if (validationError) {
       documentToasts.failed(validationError)
@@ -197,6 +235,23 @@ export function IssueDocumentWizard({
     }
 
     startTransition(async () => {
+      if (isEditing && existingDocument) {
+        const result = await updateMedicalDocumentAction({
+          id: existingDocument.id,
+          purpose,
+          payload,
+          consultationStatus: workspace.status,
+        })
+        if (!result.ok) {
+          documentToasts.failed(result.error)
+          return
+        }
+        documentToasts.finalized()
+        onIssued(result.data)
+        resetAndClose()
+        return
+      }
+
       const result = await issueMedicalDocumentAction({
         documentType,
         patientId: ctx.patientId,
@@ -222,10 +277,20 @@ export function IssueDocumentWizard({
     })
   }
 
-  function requestIssue() {
+  function requestSave() {
     const validationError = validatePayload(documentType, payload)
     if (validationError) {
       documentToasts.failed(validationError)
+      return
+    }
+
+    if (isEditing) {
+      void confirmPreset("finalizeDocument", {
+        title: "Save document changes?",
+        description: `This will update the existing ${title} for ${ctx.patientName}. The same document number will be kept.`,
+        confirmLabel: "Save changes",
+        onConfirm: handleSave,
+      })
       return
     }
 
@@ -238,7 +303,7 @@ export function IssueDocumentWizard({
       title: "Issue this document?",
       description: `This will permanently issue an official ${title} for ${ctx.patientName}. The document will be linked to this consultation and cannot be deleted — only voided if needed.`,
       confirmLabel: "Issue document",
-      onConfirm: handleIssue,
+      onConfirm: handleSave,
     })
   }
 
@@ -251,13 +316,19 @@ export function IssueDocumentWizard({
           else onOpenChange(next)
         }}
       >
-        <DialogContent className="flex max-h-[min(92vh,900px)] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-visible p-0 sm:max-w-3xl">
+        <DialogContent className="flex max-h-[min(92vh,900px)] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-visible p-0 sm:max-w-4xl">
           <DialogHeader className="border-b px-6 py-5">
-            <DialogTitle>{title}</DialogTitle>
+            <DialogTitle>
+              {isEditing ? `Edit ${title}` : title}
+            </DialogTitle>
             <DialogDescription>
               {step === "form"
-                ? "Complete the document details. Data is prefilled from this consultation."
-                : "Review the official template before issuing."}
+                ? isEditing
+                  ? "Update the document details. Saving keeps the same document record."
+                  : "Complete the document details. Data is prefilled from this consultation."
+                : isEditing
+                  ? "Review the updated template before saving."
+                  : "Review the official template before issuing."}
             </DialogDescription>
           </DialogHeader>
 
@@ -271,13 +342,23 @@ export function IssueDocumentWizard({
                   />
                 ) : null}
                 {documentType === "go_home_slip" ? (
-                  <GoHomeSlipForm value={goHomePayload} onChange={setGoHomePayload} />
+                  <GoHomeSlipForm
+                    value={goHomePayload}
+                    onChange={setGoHomePayload}
+                  />
                 ) : null}
                 {documentType === "prescription" ? (
-                  <PrescriptionForm value={rxPayload} onChange={setRxPayload} />
+                  <PrescriptionForm
+                    value={rxPayload}
+                    onChange={setRxPayload}
+                    catalog={workspace.role}
+                  />
                 ) : null}
                 {documentType === "nfg_medical_clearance" ? (
-                  <NfgClearanceForm value={nfgPayload} onChange={setNfgPayload} />
+                  <NfgClearanceForm
+                    value={nfgPayload}
+                    onChange={setNfgPayload}
+                  />
                 ) : null}
               </>
             ) : (
@@ -311,8 +392,8 @@ export function IssueDocumentWizard({
                 <Button variant="outline" onClick={() => setStep("form")}>
                   Back
                 </Button>
-                <Button onClick={requestIssue} disabled={isPending}>
-                  Confirm & Issue
+                <Button onClick={requestSave} disabled={isPending}>
+                  {isEditing ? "Confirm & Save" : "Confirm & Issue"}
                 </Button>
               </>
             )}

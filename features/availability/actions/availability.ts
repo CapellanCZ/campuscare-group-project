@@ -440,55 +440,19 @@ export async function deleteStaffWeeklySlot(
 }
 
 export async function setClinicBreak(
-  resumesAt: string
+  _resumesAt: string
 ): Promise<AvailabilityActionResult> {
-  const access = await requireAccess()
-  if (!access) return { ok: false, error: "Unauthorized." }
-  if (access.primaryRole !== "admin") {
-    return { ok: false, error: "Only admins can set a clinic break." }
+  return {
+    ok: false,
+    error: "Admin does not participate in clinic break. Use staff duty controls.",
   }
-
-  const resumes = new Date(resumesAt)
-  if (Number.isNaN(resumes.getTime()) || resumes.getTime() <= Date.now()) {
-    return {
-      ok: false,
-      error: "Choose a future reopen time for when the clinic will accept patients again.",
-    }
-  }
-
-  const supabase = await createClient()
-  const { error } = await supabase.from("clinic_break_status").upsert({
-    clinic_id: CAMPUS_CLINIC_ID,
-    is_on_break: true,
-    resumes_at: resumes.toISOString(),
-    set_by: access.userId,
-    updated_at: new Date().toISOString(),
-  })
-
-  if (error) return { ok: false, error: error.message }
-  revalidateAvailability()
-  return { ok: true, message: "Clinic is now on break." }
 }
 
 export async function clearClinicBreak(): Promise<AvailabilityActionResult> {
-  const access = await requireAccess()
-  if (!access) return { ok: false, error: "Unauthorized." }
-  if (access.primaryRole !== "admin") {
-    return { ok: false, error: "Only admins can end a clinic break." }
+  return {
+    ok: false,
+    error: "Admin does not participate in clinic break.",
   }
-
-  const supabase = await createClient()
-  const { error } = await supabase.from("clinic_break_status").upsert({
-    clinic_id: CAMPUS_CLINIC_ID,
-    is_on_break: false,
-    resumes_at: null,
-    set_by: access.userId,
-    updated_at: new Date().toISOString(),
-  })
-
-  if (error) return { ok: false, error: error.message }
-  revalidateAvailability()
-  return { ok: true, message: "Clinic break ended." }
 }
 
 export async function setStaffBreak(
@@ -513,6 +477,14 @@ export async function setStaffBreak(
   }
 
   const supabase = await createClient()
+  const duty = await getStaffDutyStatus(access.userId, supabase)
+  if (duty.status !== "available") {
+    return {
+      ok: false,
+      error: "Start duty before taking a break.",
+    }
+  }
+
   const { error } = await supabase.from("staff_break_status").upsert({
     user_id: access.userId,
     is_on_break: true,

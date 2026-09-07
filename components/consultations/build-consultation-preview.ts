@@ -117,6 +117,7 @@ export function buildPhysicianConsultationPreview(params: {
   symptoms: string
   diagnosis: string
   clinicalNotes: string
+  treatment?: string
   prescription: string
   followUpDate?: string | null
 }): { visit: Consultation; ticketVitals: QueueVitals | null } {
@@ -126,6 +127,7 @@ export function buildPhysicianConsultationPreview(params: {
       symptoms: params.symptoms || null,
       diagnosis: params.diagnosis || null,
       assessment: params.clinicalNotes || null,
+      treatment: params.treatment?.trim() || null,
       prescription: params.prescription || null,
       followUpDate: params.followUpDate || null,
       providerType: "physician",
@@ -168,41 +170,53 @@ export function buildDentalChartConsultationPreview(params: {
   patientName: string
   campusId: string | null
   chart: DentalPatientChart
-}): Consultation {
+  nurseVitals?: NurseVisitVitals | null
+}): { visit: Consultation; ticketVitals: QueueVitals | null } {
   const nameParts = params.patientName.trim().split(/\s+/).filter(Boolean)
+  const nurseVitals = params.nurseVitals ?? {
+    bloodPressure: params.chart.clinical.bloodPressure,
+    pulseRate: "",
+    temperature: "",
+    o2: "",
+    height: "",
+    weight: "",
+  }
   return {
-    id: params.consultationId ?? params.appointmentId,
-    patientId: params.appointmentId,
-    chiefComplaint: params.chart.clinical.chiefComplaint || null,
-    symptoms: params.chart.clinical.chiefComplaint || null,
-    assessment: params.chart.clinical.caseHistory || null,
-    diagnosis: params.chart.diagnosis || null,
-    treatment: params.chart.treatmentNotes || null,
-    prescription: params.chart.prescription || null,
-    providerName: null,
-    providerRole: "dentist",
-    station: "dentist",
-    status: "ongoing",
-    priority: "Normal",
-    consultationDate: new Date().toISOString(),
-    followUpDate: null,
-    notes: null,
-    queueTicketId: null,
-    consultationRequestId: null,
-    appointmentId: params.appointmentId,
-    providerType: "dentist",
-    queueNumber: null,
-    vitals: {},
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    patient: {
-      id: params.appointmentId,
-      firstName: nameParts.slice(0, -1).join(" ") || params.patientName,
-      lastName: nameParts.at(-1) ?? "",
-      studentId: params.campusId ?? params.chart.demographics.studentId,
-      employeeId: null,
-      patientType: "student",
-      fullName: params.patientName,
+    visit: {
+      id: params.consultationId ?? params.appointmentId,
+      patientId: params.appointmentId,
+      chiefComplaint: params.chart.clinical.chiefComplaint || null,
+      symptoms: params.chart.clinical.chiefComplaint || null,
+      assessment: params.chart.clinical.caseHistory || null,
+      diagnosis: params.chart.diagnosis || null,
+      treatment: params.chart.treatmentNotes || null,
+      prescription: params.chart.prescription || null,
+      providerName: null,
+      providerRole: "dentist",
+      station: "dentist",
+      status: "ongoing",
+      priority: "Normal",
+      consultationDate: new Date().toISOString(),
+      followUpDate: null,
+      notes: null,
+      queueTicketId: null,
+      consultationRequestId: null,
+      appointmentId: params.appointmentId,
+      providerType: "dentist",
+      queueNumber: null,
+      vitals: (nurseVitals as unknown as Record<string, unknown>) ?? {},
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      patient: {
+        id: params.appointmentId,
+        firstName: nameParts.slice(0, -1).join(" ") || params.patientName,
+        lastName: nameParts.at(-1) ?? "",
+        studentId: params.campusId ?? params.chart.demographics.studentId,
+        employeeId: null,
+        patientType: "student",
+        fullName: params.patientName,
+      },
     },
+    ticketVitals: nurseVitalsToQueueVitals(nurseVitals),
   }
 }

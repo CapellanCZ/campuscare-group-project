@@ -60,7 +60,10 @@ export async function loadReportsBundle(
   let error: string | null = null
 
   try {
-    const loaded = await loadLiveReportsDataset()
+    const loaded = await loadLiveReportsDataset({
+      dateFrom: merged.dateFrom,
+      dateTo: merged.dateTo,
+    })
     liveDataset = loaded.dataset
     live = loaded.live
   } catch (err) {

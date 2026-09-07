@@ -11,7 +11,6 @@ import {
 import { updateSession } from "@/lib/supabase/middleware"
 
 export async function proxy(request: NextRequest) {
-  const { supabase, user, supabaseResponse } = await updateSession(request)
   const { pathname } = request.nextUrl
 
   const isPublicDisplay =
@@ -20,10 +19,15 @@ export async function proxy(request: NextRequest) {
     pathname === "/display" ||
     pathname.startsWith("/display/")
 
-  const isDisplayLogin =
-    pathname === "/display-login" || pathname.startsWith("/display-login/")
+  // Public board is anon-readable. Skip session refresh so realtime/poll
+  // refreshes cannot hammer Supabase Auth (429 over_request_rate_limit).
+  if (isPublicDisplay) {
+    return NextResponse.next()
+  }
 
-  const isStaffArea = isStaffAreaPath(pathname) && !isPublicDisplay
+  const { supabase, user, supabaseResponse } = await updateSession(request)
+
+  const isStaffArea = isStaffAreaPath(pathname)
   const isPending = pathname.startsWith("/auth/pending")
   const isContinue = pathname.startsWith("/auth/continue")
 
@@ -106,12 +110,8 @@ export async function proxy(request: NextRequest) {
       }
     }
 
-    // Staff already signed in who hit display-login accidentally stay on their home.
-    if (isDisplayLogin && clinicRole && !isQueueDisplay) {
-      const url = request.nextUrl.clone()
-      url.pathname = home
-      return NextResponse.redirect(url)
-    }
+    // Display-login must stay reachable even when a clinical staff session exists.
+    // Staff Auth logo navigation always opens /display-login without session hijack.
   }
 
   return supabaseResponse

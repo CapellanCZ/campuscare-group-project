@@ -6,6 +6,7 @@ import { sendStaffInviteEmail } from "@/lib/auth/send-staff-invite"
 import { normalizeTimeHm } from "@/lib/availability/rules"
 import { seedDefaultStaffHours } from "@/lib/availability/seed-defaults"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { normalizeEmployeeCampusId } from "@/lib/students/student-id-input"
 import {
   MANAGED_ROLES,
   type AccountLifecycleStatus,
@@ -51,7 +52,8 @@ function normalizeLicenseNumber(value: string | null | undefined): string | null
 
 function normalizeEmployeeId(value: string | null | undefined): string | null {
   const trimmed = value?.trim() ?? ""
-  return trimmed || null
+  if (!trimmed) return null
+  return normalizeEmployeeCampusId(trimmed) || null
 }
 
 function normalizeSearch(input?: string): string {

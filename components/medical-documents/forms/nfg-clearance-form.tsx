@@ -116,16 +116,25 @@ export function NfgClearanceForm({
             onChange({ ...value, clearanceStatus })
           }}
         >
-          <SelectTrigger>
-            <SelectValue />
+          <SelectTrigger className="h-auto min-h-9 w-full max-w-full whitespace-normal text-left text-foreground *:data-[slot=select-value]:line-clamp-none *:data-[slot=select-value]:whitespace-normal *:data-[slot=select-value]:text-foreground">
+            <SelectValue placeholder="Select clearance status">
+              {(selected) =>
+                NFG_CLEARANCE_STATUS_OPTIONS.find((o) => o.value === selected)
+                  ?.label ?? (typeof selected === "string" ? selected : "")
+              }
+            </SelectValue>
           </SelectTrigger>
           <SelectContent
             alignItemWithTrigger={false}
             align="start"
-            className="w-max min-w-[20rem] max-w-[min(28rem,90vw)]"
+            className="w-max min-w-[20rem] max-w-[min(28rem,90vw)] text-popover-foreground"
           >
             {NFG_CLEARANCE_STATUS_OPTIONS.map((item) => (
-              <SelectItem key={item.value} value={item.value}>
+              <SelectItem
+                key={item.value}
+                value={item.value}
+                className="whitespace-normal"
+              >
                 {item.label}
               </SelectItem>
             ))}

@@ -60,13 +60,41 @@ export function QueueDisplay({
 
   useEffect(() => {
     const client = createClient()
-    const channel = subscribeDisplayChanges(client, () => {
-      router.refresh()
-    })
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let lastRefreshAt = 0
+    const DEBOUNCE_MS = 2500
+    const MIN_INTERVAL_MS = 4000
 
-    const poll = window.setInterval(() => router.refresh(), 15000)
+    const runRefresh = () => {
+      const now = Date.now()
+      const wait = Math.max(0, MIN_INTERVAL_MS - (now - lastRefreshAt))
+      if (wait > 0) {
+        timer = setTimeout(() => {
+          timer = null
+          lastRefreshAt = Date.now()
+          router.refresh()
+        }, wait)
+        return
+      }
+      lastRefreshAt = now
+      router.refresh()
+    }
+
+    const scheduleRefresh = () => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => {
+        timer = null
+        runRefresh()
+      }, DEBOUNCE_MS)
+    }
+
+    const channel = subscribeDisplayChanges(client, scheduleRefresh)
+
+    // Fallback poll — realtime covers most updates.
+    const poll = window.setInterval(() => router.refresh(), 60_000)
 
     return () => {
+      if (timer) clearTimeout(timer)
       window.clearInterval(poll)
       void client.removeChannel(channel)
     }
@@ -112,7 +140,11 @@ export function QueueDisplay({
                 </p>
               ) : (
                 recent.map((item) => (
-                  <RecentlyServedCard key={item.ticketId} item={item} />
+                  <RecentlyServedCard
+                    key={item.ticketId}
+                    item={item}
+                    publicDisplay
+                  />
                 ))
               )}
             </CardContent>

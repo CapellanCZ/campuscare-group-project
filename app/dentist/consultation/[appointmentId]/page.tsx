@@ -30,9 +30,10 @@ async function resolveAppointmentId(
 
   const supabase = await createClient()
 
+  // Legacy / mis-routed: param may be a consultations.id
   const { data: consultation } = await supabase
     .from("consultations")
-    .select("appointment_id")
+    .select("id, appointment_id")
     .eq("id", appointmentId)
     .maybeSingle()
 
@@ -40,20 +41,36 @@ async function resolveAppointmentId(
     return consultation.appointment_id as string
   }
 
-  const { data: ticket } = await supabase
-    .from("health_queue_tickets")
-    .select("id")
-    .or(
-      `appointment_id.eq.${appointmentId},health_appointment_id.eq.${appointmentId},id.eq.${appointmentId}`
-    )
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  let ticketId: string | null = null
 
-  if (!ticket?.id) return null
+  if (consultation?.id) {
+    const { data: byConsultation } = await supabase
+      .from("health_queue_tickets")
+      .select("id")
+      .eq("consultation_id", consultation.id)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    ticketId = (byConsultation?.id as string | undefined) ?? null
+  }
+
+  if (!ticketId) {
+    const { data: ticket } = await supabase
+      .from("health_queue_tickets")
+      .select("id")
+      .or(
+        `appointment_id.eq.${appointmentId},health_appointment_id.eq.${appointmentId},id.eq.${appointmentId},consultation_id.eq.${appointmentId}`
+      )
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    ticketId = (ticket?.id as string | undefined) ?? null
+  }
+
+  if (!ticketId) return null
 
   const ensured = await ensureVisitAppointmentForTicket({
-    ticketId: ticket.id as string,
+    ticketId,
     doctorId,
     providerType: "dentist",
   })
@@ -135,6 +152,7 @@ async function Content({ appointmentId }: { appointmentId: string }) {
       patientName={visit.patientName}
       campusId={visit.campusId}
       initialChart={visit.chart}
+      nurseVitals={visit.nurseVitals}
       readOnly={visit.appointmentStatus === "completed"}
     />
   )

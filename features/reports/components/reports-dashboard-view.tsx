@@ -16,12 +16,14 @@ import {
 } from "@tabler/icons-react"
 
 import { ReportAnalyticsCard } from "@/features/reports/components/report-analytics-card"
+import { ReportDataTable } from "@/features/reports/components/report-data-table"
 import { ReportPeriodFilter } from "@/features/reports/components/report-period-filter"
 import {
-  dashboardSlotsFor,
+  dashboardLayoutFor,
   reportsPageDescription,
 } from "@/features/reports/lib/dashboard-layout"
 import { formatAppliedPeriod } from "@/features/reports/lib/report-period"
+import { reportKpiAccentColor } from "@/features/reports/lib/patient-type-colors"
 import {
   reportsPageTitle,
   reportsScopeLabel,
@@ -58,6 +60,12 @@ const KPI_ICONS: Partial<Record<ReportKpiKey, ReactNode>> = {
   total_consultations: <IconStethoscope />,
   medical_consultations: <IconHeartbeat />,
   dental_consultations: <IconDental />,
+  faculty_medical_consultations: <IconHeartbeat />,
+  faculty_dental_consultations: <IconDental />,
+  employee_medical_consultations: <IconHeartbeat />,
+  employee_dental_consultations: <IconDental />,
+  student_medical_consultations: <IconHeartbeat />,
+  student_dental_consultations: <IconDental />,
   certs_issued: <IconCertificate />,
   avg_wait: <IconClock />,
   patients_treated: <IconUserCheck />,
@@ -118,7 +126,7 @@ export function ReportsDashboardView({
 }) {
   const d = access.designation
   const catalog = catalogFor(d)
-  const slots = dashboardSlotsFor(d)
+  const layout = dashboardLayoutFor(d)
   const scopeLabel = reportsScopeLabel(d)
   const chartsLevel = getAccessLevel(d, "reports.charts")
   const cardsLevel = getAccessLevel(d, "reports.summary_cards")
@@ -134,14 +142,34 @@ export function ReportsDashboardView({
   const chartByKey = new Map(charts.map((chart) => [chart.key, chart]))
   const tableByKind = new Map(tables.map((table) => [table.kind, table]))
 
-  const primary = slots.filter((slot) => slot.placement === "primary")
-  const secondary = slots.filter((slot) => slot.placement === "secondary")
-  const full = slots.filter((slot) => slot.placement === "full")
+  const chartSlots = layout.charts
+    .map((slot) => {
+      const series = chartByKey.get(slot.chartKey)
+      if (!series) return null
+      return { ...slot, series }
+    })
+    .filter(Boolean) as Array<{
+    chartKey: (typeof layout.charts)[number]["chartKey"]
+    title?: string
+    series: ReportChartSeries
+  }>
+
+  const tableSlots = layout.tables
+    .map((slot) => {
+      const table = tableByKind.get(slot.tableKind)
+      if (!table || table.rows.length === 0) return null
+      return { ...slot, table }
+    })
+    .filter(Boolean) as Array<{
+    tableKind: (typeof layout.tables)[number]["tableKind"]
+    title?: string
+    table: ReportTableBundle
+  }>
 
   const showContent = !empty && !error
 
   return (
-    <div className={cn("flex flex-1 flex-col gap-8", shellClassName)}>
+    <div className={cn("flex flex-1 flex-col gap-6", shellClassName)}>
       <PageIntro
         title={reportsPageTitle(d)}
         description={reportsPageDescription(d, periodLabel)}
@@ -312,82 +340,80 @@ export function ReportsDashboardView({
       ) : null}
 
       {pending && empty ? (
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-5">
-          {Array.from({ length: 5 }).map((_, index) => (
-            <Skeleton key={index} className="h-28 rounded-xl" />
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <Skeleton key={index} className="h-24 rounded-xl" />
           ))}
         </div>
       ) : null}
 
       {showContent && cardsLevel !== "none" && kpis.length > 0 ? (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-2.5">
           <SectionLabel>Key metrics</SectionLabel>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
             {kpis.map((kpi) => (
               <StatCard
                 key={kpi.key}
-                className={cardClassName}
+                className={cn(cardClassName, "[&_p.text-2xl]:text-xl")}
                 label={kpi.label}
                 value={kpi.value}
                 description={kpi.description}
                 icon={KPI_ICONS[kpi.key]}
+                accentColor={reportKpiAccentColor(kpi.key)}
               />
             ))}
           </div>
         </div>
       ) : null}
 
-      {showContent && chartsLevel !== "none" ? (
-        <div className="flex flex-col gap-6">
-          <SectionLabel>Charts & tables</SectionLabel>
-          {primary.map((slot) => {
-            const series = chartByKey.get(slot.chartKey)
-            if (!series) return null
-            return (
+      {showContent && chartsLevel !== "none" && chartSlots.length > 0 ? (
+        <div className="flex flex-col gap-2.5">
+          <SectionLabel>Analytics</SectionLabel>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {chartSlots.map((slot) => (
               <ReportAnalyticsCard
                 key={slot.chartKey}
-                series={series}
-                table={slot.tableKind ? tableByKind.get(slot.tableKind) : null}
+                series={slot.series}
                 title={slot.title}
                 elevated={elevatedCards}
-                tall
               />
-            )
-          })}
+            ))}
+          </div>
+        </div>
+      ) : null}
 
-          {secondary.length > 0 ? (
-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-              {secondary.map((slot) => {
-                const series = chartByKey.get(slot.chartKey)
-                if (!series) return null
-                return (
-                  <ReportAnalyticsCard
-                    key={slot.chartKey}
-                    series={series}
-                    table={
-                      slot.tableKind ? tableByKind.get(slot.tableKind) : null
-                    }
-                    title={slot.title}
-                    elevated={elevatedCards}
+      {showContent && chartsLevel !== "none" && tableSlots.length > 0 ? (
+        <div className="flex flex-col gap-2.5">
+          <SectionLabel>Detailed data</SectionLabel>
+          <div className="flex flex-col gap-4">
+            {tableSlots.map((slot) => (
+              <Card
+                key={slot.tableKind}
+                className={cn(
+                  elevatedCards
+                    ? "rounded-xl border border-border bg-card shadow-sm dark:border-border dark:bg-card"
+                    : "border-border/70 bg-card shadow-none dark:border-border dark:bg-card",
+                  cardClassName
+                )}
+              >
+                <CardHeader className="gap-1 pb-2">
+                  <CardTitle className="text-sm font-semibold tracking-tight sm:text-base">
+                    {slot.title ?? slot.table.title}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <ReportDataTable
+                    table={slot.table}
+                    query=""
+                    onQueryChange={() => undefined}
+                    hideTitle
+                    independentSearch
+                    compact
                   />
-                )
-              })}
-            </div>
-          ) : null}
-
-          {full.map((slot) => {
-            const series = chartByKey.get(slot.chartKey)
-            if (!series) return null
-            return (
-              <ReportAnalyticsCard
-                key={slot.chartKey}
-                series={series}
-                table={slot.tableKind ? tableByKind.get(slot.tableKind) : null}
-                title={slot.title}
-                elevated={elevatedCards}
-              />
-            )
-          })}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       ) : null}
     </div>

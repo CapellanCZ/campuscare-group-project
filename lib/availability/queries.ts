@@ -251,13 +251,6 @@ export async function assertCanAccommodate(input: {
     getClinicBreakStatus(supabase, clinicId),
   ])
 
-  if (clinicHours.length === 0) {
-    return {
-      ok: false,
-      error: "Clinic office hours are not configured yet. Ask an admin to set them.",
-    }
-  }
-
   const dutyUserId = input.clinicianUserId ?? input.actingUserId
   let staffDuty = undefined as Awaited<ReturnType<typeof getStaffDutyStatus>> | undefined
   let staffBreak: BreakStatus | null | undefined

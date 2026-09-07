@@ -45,7 +45,11 @@ export function ConsultationDocumentsPanel({
   const [previewDoc, setPreviewDoc] = useState<MedicalDocument | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [printDoc, setPrintDoc] = useState<MedicalDocument | null>(null)
+  const [editingDoc, setEditingDoc] = useState<MedicalDocument | null>(null)
   const [, startTransition] = useTransition()
+
+  const canEditExisting =
+    canIssue && workspace.status === "ongoing"
 
   const loadDocuments = useCallback(async () => {
     setLoading(true)
@@ -66,6 +70,7 @@ export function ConsultationDocumentsPanel({
   }, [loadDocuments])
 
   function handleSelectType(type: MedicalDocumentType) {
+    setEditingDoc(null)
     setSelectedType(type)
     setWizardOpen(true)
   }
@@ -140,6 +145,19 @@ export function ConsultationDocumentsPanel({
                   >
                     View
                   </Button>
+                  {canEditExisting && doc.status !== "voided" ? (
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={() => {
+                        setEditingDoc(doc)
+                        setSelectedType(doc.documentType)
+                        setWizardOpen(true)
+                      }}
+                    >
+                      Edit
+                    </Button>
+                  ) : null}
                   <Button size="xs" onClick={() => handlePrint(doc)}>
                     Print
                   </Button>
@@ -159,10 +177,15 @@ export function ConsultationDocumentsPanel({
       {selectedType ? (
         <IssueDocumentWizard
           open={wizardOpen}
-          onOpenChange={setWizardOpen}
+          onOpenChange={(next) => {
+            setWizardOpen(next)
+            if (!next) setEditingDoc(null)
+          }}
           documentType={selectedType}
           workspace={workspace}
+          existingDocument={editingDoc}
           onIssued={() => {
+            setEditingDoc(null)
             void loadDocuments()
           }}
         />

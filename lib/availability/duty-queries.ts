@@ -161,11 +161,11 @@ export async function hasActiveConsultationForUser(
 
   const station = role === "nurse" ? "nurse" : role
 
-  // Only block end duty for consultations this clinician is actively handling —
-  // not every ongoing visit at the station (which would block all staff of that role).
+  // Fetch this clinician's ongoing consultations, then ignore orphans whose
+  // linked queue ticket is already finished (completed / cancelled / no_show).
   let query = supabase
     .from("consultations")
-    .select("id", { count: "exact", head: true })
+    .select("id, queue_ticket_id, status")
     .eq("status", "ongoing")
     .eq("station", station)
     .ilike("provider_name", providerName)
@@ -174,8 +174,52 @@ export async function hasActiveConsultationForUser(
     query = query.eq("provider_type", role)
   }
 
-  const { count, error } = await query
-
+  const { data: rows, error } = await query
   if (error) throw error
-  return (count ?? 0) > 0
+  if (!rows?.length) return false
+
+  const ticketIds = rows
+    .map((row) => row.queue_ticket_id as string | null)
+    .filter((id): id is string => Boolean(id))
+
+  const terminalTicketIds = new Set<string>()
+  if (ticketIds.length > 0) {
+    const { data: tickets, error: ticketError } = await supabase
+      .from("health_queue_tickets")
+      .select("id, status")
+      .in("id", ticketIds)
+
+    if (ticketError) throw ticketError
+
+    const terminal = new Set(["completed", "expired", "no_show"])
+    for (const ticket of tickets ?? []) {
+      if (terminal.has(String(ticket.status))) {
+        terminalTicketIds.add(ticket.id as string)
+      }
+    }
+  }
+
+  const staleIds = rows
+    .filter((row) => {
+      const ticketId = row.queue_ticket_id as string | null
+      return Boolean(ticketId && terminalTicketIds.has(ticketId))
+    })
+    .map((row) => row.id as string)
+
+  // Heal stale rows so End Duty and queue UI stay in sync.
+  if (staleIds.length > 0) {
+    const now = new Date().toISOString()
+    await supabase
+      .from("consultations")
+      .update({ status: "completed", updated_at: now })
+      .in("id", staleIds)
+  }
+
+  const active = rows.filter((row) => {
+    const ticketId = row.queue_ticket_id as string | null
+    if (!ticketId) return true
+    return !terminalTicketIds.has(ticketId)
+  })
+
+  return active.length > 0
 }

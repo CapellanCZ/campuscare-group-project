@@ -47,16 +47,20 @@ import { PageHeader } from "@/features/common/components/page-header"
 import { VisitMedicalChart } from "@/features/physician/components/visit-medical-chart"
 import type { QueueVitals } from "@/lib/health/types"
 import { formatClinicDateTime } from "@/lib/physician/timezone"
+import { HealthCaseChecklist } from "@/components/clinical/health-case-checklist"
+import {
+  formatHealthCaseText,
+  parseHealthCaseSelection,
+  type HealthCaseSelection,
+} from "@/lib/health/health-case-options"
 import { cn } from "@/lib/utils"
-import { useStaffRealtimeRouterRefresh } from "@/hooks/use-staff-realtime-refresh"
-import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 import { consultationStatusLabel } from "@/types/consultation"
 import type { Consultation } from "@/types/consultation"
 import type { MedicalHistory, PhysicalExam } from "@/types/patientRecord"
 
 const steps = [
   { title: "Symptoms", description: "Chief complaint" },
-  { title: "Diagnosis", description: "Clinical assessment" },
+  { title: "Assessment", description: "Health cases" },
   { title: "Notes & Rx", description: "Plan and prescription" },
 ]
 
@@ -69,15 +73,13 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
   const isDentist = workspace.role === "dentist"
   const queuePath = isDentist ? "/dentist/queue" : "/physician/queue"
 
-  useStaffRealtimeRouterRefresh(
-    `staff-clinical-visit-${workspace.consultationId}`,
-    STAFF_REALTIME_TABLES.clinicalVisit
-  )
-
   const [step, setStep] = useState(1)
   const [symptoms, setSymptoms] = useState(workspace.symptoms ?? "")
-  const [diagnosis, setDiagnosis] = useState(workspace.diagnosis ?? "")
+  const [healthCases, setHealthCases] = useState<HealthCaseSelection>(() =>
+    parseHealthCaseSelection("physician", workspace.diagnosis)
+  )
   const [clinicalNotes, setClinicalNotes] = useState(workspace.assessment ?? "")
+  const [treatment, setTreatment] = useState(workspace.treatment ?? "")
   const [followUpDate, setFollowUpDate] = useState(
     workspace.followUpDate?.slice(0, 10) ?? ""
   )
@@ -125,10 +127,10 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
             }
           : {
               symptoms,
-              diagnosis,
+              diagnosis: formatHealthCaseText("physician", healthCases),
               clinicalNotes,
               prescription,
-              treatment: undefined as string | undefined,
+              treatment: treatment.trim() || undefined,
               followUpDate: followUpDate.trim() || null,
             }
 
@@ -176,8 +178,9 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
       : buildPhysicianConsultationPreview({
           workspace,
           symptoms,
-          diagnosis,
+          diagnosis: formatHealthCaseText("physician", healthCases),
           clinicalNotes,
+          treatment,
           prescription,
           followUpDate: followUpDate.trim() || null,
         })
@@ -454,16 +457,12 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
                   placeholder="Onset, duration, severity, associated symptoms..."
                 />
               </StepperContent>
-              <StepperContent value={2} className="space-y-2">
-                <Label htmlFor="diagnosis">Diagnosis</Label>
-                <Textarea
-                  id="diagnosis"
-                  value={diagnosis}
-                  onChange={(e) => setDiagnosis(e.target.value)}
-                  rows={6}
-                  disabled={readOnly}
-                  className="rounded-none border-neutral-400 font-sans"
-                  placeholder="Working diagnosis and differentials..."
+              <StepperContent value={2} className="space-y-4">
+                <HealthCaseChecklist
+                  catalog="physician"
+                  value={healthCases}
+                  onChange={setHealthCases}
+                  readOnly={readOnly}
                 />
               </StepperContent>
               <StepperContent value={3} className="space-y-4">
@@ -477,6 +476,18 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
                     disabled={readOnly}
                     className="rounded-none border-neutral-400 font-sans"
                     placeholder="Exam findings, advice given, follow-up plan..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="treatment">Treatment</Label>
+                  <Textarea
+                    id="treatment"
+                    value={treatment}
+                    onChange={(e) => setTreatment(e.target.value)}
+                    rows={4}
+                    disabled={readOnly}
+                    className="rounded-none border-neutral-400 font-sans"
+                    placeholder="Treatment provided or planned..."
                   />
                 </div>
                 <div className="space-y-2">

@@ -8,6 +8,7 @@ import { ReportsDashboardView } from "@/features/reports/components/reports-dash
 import type { AdminReportsAggregates } from "@/features/admin/types/ops"
 import { applyReportsFilters } from "@/features/reports/data/apply-filters"
 import { defaultFiltersFor } from "@/features/reports/data/apply-filters"
+import { fetchReportsBundleAction } from "@/features/reports/actions"
 import { buildClinicProgressNarrative } from "@/features/reports/lib/clinic-progress-narrative"
 import {
   buildFilterSummary,
@@ -78,31 +79,41 @@ function ClinicalReportsAnalyticsPage({
 }) {
   const d = access.designation
   const [filters, setFilters] = useState<ReportFilters>(initialBundle.filters)
+  const [bundleSource, setBundleSource] = useState(initialBundle)
   const [pending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(initialBundle.error ?? null)
 
+  // Debounced lightly — reports don't need sub-second freshness.
   useStaffRealtimeRouterRefresh(
     `staff-reports-${d}`,
-    STAFF_REALTIME_TABLES.reports
+    STAFF_REALTIME_TABLES.reports,
+    2500
   )
 
   useEffect(() => {
-    if (initialBundle.error) {
+    setBundleSource(initialBundle)
+    setFilters(initialBundle.filters)
+    setError(initialBundle.error ?? null)
+  }, [initialBundle])
+
+  useEffect(() => {
+    if (error) {
       appToast.error({
         title: "Unable to Load Report",
-        description: initialBundle.error,
+        description: error,
       })
     }
-  }, [initialBundle.error])
+  }, [error])
 
   const bundle = useMemo(
     () =>
       applyReportsFilters(
         d,
         filters,
-        initialBundle.live,
-        initialBundle.dataset
+        bundleSource.live,
+        bundleSource.dataset
       ),
-    [d, filters, initialBundle.live, initialBundle.dataset]
+    [d, filters, bundleSource.live, bundleSource.dataset]
   )
 
   const exportPack = useMemo(() => {
@@ -140,7 +151,36 @@ function ClinicalReportsAnalyticsPage({
       )
     )
 
+  function reloadForPeriod(next: Partial<ReportFilters>) {
+    startTransition(async () => {
+      const merged = { ...filters, ...next }
+      setFilters(merged)
+      const periodChanged =
+        next.dateFrom != null ||
+        next.dateTo != null ||
+        next.reportPeriod != null
+      if (!periodChanged) return
+
+      const result = await fetchReportsBundleAction(d, merged)
+      if (!result.ok) {
+        setError(result.error)
+        return
+      }
+      setError(null)
+      setBundleSource(result.data)
+      setFilters(result.data.filters)
+    })
+  }
+
   function updateFilters(next: Partial<ReportFilters>) {
+    const periodChanged =
+      next.dateFrom != null ||
+      next.dateTo != null ||
+      next.reportPeriod != null
+    if (periodChanged) {
+      reloadForPeriod(next)
+      return
+    }
     startTransition(() => {
       setFilters((prev) => ({ ...prev, ...next }))
     })
@@ -161,7 +201,7 @@ function ClinicalReportsAnalyticsPage({
       access={access}
       filters={filters}
       pending={pending}
-      error={initialBundle.error ?? null}
+      error={error}
       empty={empty}
       filterSummary={buildFilterSummary(filters)}
       kpis={bundle.kpis}
@@ -170,17 +210,11 @@ function ClinicalReportsAnalyticsPage({
       statusOptions={STATUS_OPTIONS}
       shellClassName="pt-2"
       onPeriodChange={(next) => {
-        if (next.reportPeriod === "custom") {
-          updateFilters(next)
-          return
-        }
-        updateFilters(next)
+        reloadForPeriod(next)
       }}
-      onApplyCustom={(next) => updateFilters(next)}
+      onApplyCustom={(next) => reloadForPeriod(next)}
       onClearFilters={() => {
-        startTransition(() => {
-          setFilters(defaultFiltersFor(d))
-        })
+        reloadForPeriod(defaultFiltersFor(d))
       }}
       onSecondaryChange={updateFilters}
       onPrint={() => {

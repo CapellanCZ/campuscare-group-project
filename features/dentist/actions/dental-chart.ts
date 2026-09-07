@@ -168,7 +168,7 @@ async function upsertStaffConsultation(params: {
   const payload = {
     patient_id: patientRecordId,
     chief_complaint: chart.clinical.chiefComplaint || null,
-    symptoms: chart.clinical.caseHistory || null,
+    symptoms: chart.clinical.chiefComplaint || null,
     assessment: toothSummary(chart),
     diagnosis: chart.diagnosis || null,
     treatment: chart.treatmentNotes || null,

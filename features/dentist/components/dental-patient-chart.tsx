@@ -1,5 +1,10 @@
 "use client"
 
+import { HealthCaseChecklist } from "@/components/clinical/health-case-checklist"
+import {
+  formatHealthCaseText,
+  parseHealthCaseSelection,
+} from "@/lib/health/health-case-options"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { HsoFormLetterhead } from "@/features/common/components/hso-form-shell"
@@ -232,6 +237,8 @@ export function DentalPatientChartForm({
   onSelectCode,
   readOnly = false,
   footer,
+  prescriptionSection,
+  nurseVitals,
 }: {
   chart: DentalPatientChart
   onChange: (next: DentalPatientChart) => void
@@ -241,6 +248,13 @@ export function DentalPatientChartForm({
   onSelectCode: (code: DentalConditionCode | null) => void
   readOnly?: boolean
   footer?: React.ReactNode
+  prescriptionSection?: React.ReactNode
+  nurseVitals?: {
+    bloodPressure: string
+    pulseRate: string
+    temperature: string
+    o2: string
+  } | null
 }) {
   function patchDemographics(patch: Partial<DentalDemographics>) {
     onChange({
@@ -566,47 +580,76 @@ export function DentalPatientChartForm({
           </div>
         </section>
 
-        <section className="mt-4 grid gap-4 border-t border-neutral-300 bg-white p-3 sm:grid-cols-3 sm:p-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="dental-dx">Diagnosis</Label>
-            <Textarea
-              id="dental-dx"
-              value={chart.diagnosis}
-              readOnly={readOnly}
-              onChange={(e) =>
-                onChange({ ...chart, diagnosis: e.target.value })
-              }
-              rows={3}
-              className="rounded-none border-neutral-400"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="dental-tx">Treatment notes</Label>
-            <Textarea
-              id="dental-tx"
-              value={chart.treatmentNotes}
-              readOnly={readOnly}
-              onChange={(e) =>
-                onChange({ ...chart, treatmentNotes: e.target.value })
-              }
-              rows={3}
-              className="rounded-none border-neutral-400"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="dental-rx">Prescription</Label>
-            <Textarea
-              id="dental-rx"
-              value={chart.prescription}
-              readOnly={readOnly}
-              onChange={(e) =>
-                onChange({ ...chart, prescription: e.target.value })
-              }
-              rows={3}
-              className="rounded-none border-neutral-400"
-            />
+        <section className="mt-4 space-y-4 border-t border-neutral-300 bg-white p-3 sm:p-4">
+          {nurseVitals &&
+          (nurseVitals.bloodPressure ||
+            nurseVitals.pulseRate ||
+            nurseVitals.temperature ||
+            nurseVitals.o2) ? (
+            <div className="space-y-2">
+              <Label>Vital Signs</Label>
+              <dl className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+                <div>
+                  <dt className="text-muted-foreground">Blood Pressure</dt>
+                  <dd className="font-medium">
+                    {nurseVitals.bloodPressure || "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Heart Rate</dt>
+                  <dd className="font-medium">
+                    {nurseVitals.pulseRate || "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Temperature</dt>
+                  <dd className="font-medium">
+                    {nurseVitals.temperature || "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">SpO₂</dt>
+                  <dd className="font-medium">{nurseVitals.o2 || "—"}</dd>
+                </div>
+              </dl>
+            </div>
+          ) : null}
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5 sm:col-span-2">
+              <HealthCaseChecklist
+                catalog="dentist"
+                value={parseHealthCaseSelection("dentist", chart.diagnosis)}
+                onChange={(next) =>
+                  onChange({
+                    ...chart,
+                    diagnosis: formatHealthCaseText("dentist", next),
+                  })
+                }
+                readOnly={readOnly}
+              />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="dental-tx">Treatment notes</Label>
+              <Textarea
+                id="dental-tx"
+                value={chart.treatmentNotes}
+                readOnly={readOnly}
+                onChange={(e) =>
+                  onChange({ ...chart, treatmentNotes: e.target.value })
+                }
+                rows={3}
+                className="rounded-none border-neutral-400"
+              />
+            </div>
           </div>
         </section>
+
+        {prescriptionSection ? (
+          <section className="border-t border-neutral-300 bg-white p-3 sm:p-4">
+            {prescriptionSection}
+          </section>
+        ) : null}
 
         {footer ? (
           <div className="border-t border-neutral-300 bg-white px-4 py-4 sm:px-6">

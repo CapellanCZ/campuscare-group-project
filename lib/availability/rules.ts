@@ -207,13 +207,20 @@ export function evaluateCanAccommodate(input: {
   staffSlots?: StaffWeeklyHour[]
   timeZone?: string
 }): AccommodateResult {
-  const clinic = evaluateClinicOpen({
-    at: input.at,
-    hours: input.clinicHours,
-    breakStatus: input.clinicBreak,
-    timeZone: input.timeZone,
-  })
-  if (!clinic.ok) return clinic
+  // Clinic office hours are planning/reference only — they must not block
+  // Start Duty or emergency work outside the published schedule.
+  // Real-time availability is Start Duty / End Duty / Break.
+  if (isBreakActive(input.clinicBreak, input.at)) {
+    const until = input.clinicBreak?.resumesAt
+      ? new Date(input.clinicBreak.resumesAt).toLocaleString("en-PH", {
+          timeZone: input.timeZone ?? CLINIC_TIMEZONE,
+        })
+      : "later"
+    return {
+      ok: false,
+      error: `The clinic is on break until ${until}. Appointments and intake are paused.`,
+    }
+  }
 
   if (input.staffDuty !== undefined) {
     const duty = evaluateStaffDuty({

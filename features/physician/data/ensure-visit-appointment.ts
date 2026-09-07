@@ -97,6 +97,30 @@ async function releaseOpenVisitWindows(
   await query
 }
 
+async function linkConsultationToAppointment(
+  supabase: SupabaseServer,
+  ticketId: string,
+  appointmentId: string
+) {
+  const { data: ticket } = await supabase
+    .from("health_queue_tickets")
+    .select("consultation_id")
+    .eq("id", ticketId)
+    .maybeSingle()
+
+  const consultationId = ticket?.consultation_id as string | null
+  if (!consultationId) return
+
+  await supabase
+    .from("consultations")
+    .update({
+      appointment_id: appointmentId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", consultationId)
+    .is("appointment_id", null)
+}
+
 /**
  * Ensure a row exists in `appointments` for this queue ticket and claim it for
  * the current physician. Queue tickets may lack appointment_id (walk-ins) or
@@ -175,6 +199,7 @@ export async function ensureVisitAppointmentForTicket(params: {
           })
           .eq("id", row.id)
       }
+      await linkConsultationToAppointment(supabase, row.id, appointmentId)
       return { ok: true, appointmentId }
     }
 
@@ -234,6 +259,8 @@ export async function ensureVisitAppointmentForTicket(params: {
         })
         .eq("id", row.id)
     }
+
+    await linkConsultationToAppointment(supabase, row.id, appointmentId)
 
     return { ok: true, appointmentId }
   }
@@ -375,6 +402,8 @@ export async function ensureVisitAppointmentForTicket(params: {
       updated_at: now.toISOString(),
     })
     .eq("id", row.id)
+
+  await linkConsultationToAppointment(supabase, row.id, appointmentId)
 
   return { ok: true, appointmentId }
 }

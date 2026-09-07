@@ -30,16 +30,54 @@ export function vitalsFromRecord(
     const n = Number(raw)
     return Number.isFinite(n) ? n : null
   }
-  return {
-    bpSystolic: num("bpSystolic") ?? num("bp_systolic"),
-    bpDiastolic: num("bpDiastolic") ?? num("bp_diastolic"),
-    heartRate: num("heartRate") ?? num("heart_rate"),
-    temperatureC: num("temperatureC") ?? num("temperature_c"),
-    spo2: num("spo2"),
-    heightCm: num("heightCm") ?? num("height_cm"),
-    weightKg: num("weightKg") ?? num("weight_kg"),
+
+  let bpSystolic = num("bpSystolic") ?? num("bp_systolic")
+  let bpDiastolic = num("bpDiastolic") ?? num("bp_diastolic")
+  const bloodPressure =
+    typeof v.bloodPressure === "string" ? v.bloodPressure.trim() : ""
+  if ((bpSystolic == null || bpDiastolic == null) && bloodPressure) {
+    const match = bloodPressure.match(/(\d+)\s*\/\s*(\d+)/)
+    if (match) {
+      bpSystolic = Number(match[1])
+      bpDiastolic = Number(match[2])
+    }
+  }
+
+  const heartRate =
+    num("heartRate") ??
+    num("heart_rate") ??
+    (typeof v.pulseRate === "string" || typeof v.pulseRate === "number"
+      ? Number(v.pulseRate)
+      : null)
+  const temperatureC =
+    num("temperatureC") ??
+    num("temperature_c") ??
+    (typeof v.temperature === "string" || typeof v.temperature === "number"
+      ? Number(v.temperature)
+      : null)
+  const spo2 =
+    num("spo2") ??
+    (typeof v.o2 === "string" || typeof v.o2 === "number"
+      ? Number(v.o2)
+      : null)
+
+  const result: QueueVitals = {
+    bpSystolic: Number.isFinite(bpSystolic) ? bpSystolic : null,
+    bpDiastolic: Number.isFinite(bpDiastolic) ? bpDiastolic : null,
+    heartRate: Number.isFinite(heartRate) ? heartRate : null,
+    temperatureC: Number.isFinite(temperatureC) ? temperatureC : null,
+    spo2: Number.isFinite(spo2) ? spo2 : null,
+    heightCm: num("heightCm") ?? num("height_cm") ?? (typeof v.height === "string" || typeof v.height === "number" ? Number(v.height) : null),
+    weightKg: num("weightKg") ?? num("weight_kg") ?? (typeof v.weight === "string" || typeof v.weight === "number" ? Number(v.weight) : null),
     respiratoryRate: num("respiratoryRate") ?? num("respiratory_rate"),
   }
+
+  const hasAny =
+    result.bpSystolic != null ||
+    result.heartRate != null ||
+    result.temperatureC != null ||
+    result.spo2 != null
+  return hasAny ? result : null
 }
 
 export function ConsultationSummaryContent({
@@ -81,8 +119,8 @@ export function ConsultationSummaryContent({
         <dl>
           <Row label="Chief complaint" value={visit.chiefComplaint} />
           <Row label="Symptoms" value={visit.symptoms} />
-          <Row label="Assessment" value={visit.assessment} />
-          <Row label="Diagnosis" value={visit.diagnosis} />
+          <Row label="Assessment / Diagnosis" value={visit.diagnosis} />
+          <Row label="Clinical notes" value={visit.assessment} />
           <Row label="Treatment" value={visit.treatment} />
           <Row label="Prescription" value={visit.prescription} />
           {visit.followUpDate ? (

@@ -2,7 +2,6 @@ import "server-only"
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import { patientMatchesSearchQuery } from "@/lib/clinical/record-scope"
 import { createClient } from "@/lib/supabase/server"
 import { ensureOperationalPatientForCertificateId } from "@/lib/students/ensure-patient"
 import {
@@ -13,7 +12,6 @@ import {
   type MedicalCertificateListParams,
   type MedicalCertificateListResult,
   type MedicalCertificatePatient,
-  type MedicalCertificateSortField,
   type MedicalCertificateStats,
   type MedicalCertificateStatus,
   type UpdateMedicalCertificateInput,
@@ -144,14 +142,6 @@ function mapCertificate(row: CertificateRow): MedicalCertificate {
   }
 }
 
-function matchesQuery(certificate: MedicalCertificate, query: string): boolean {
-  return patientMatchesSearchQuery(
-    certificate.patient.fullName,
-    certificate.patient.studentId,
-    query
-  )
-}
-
 function manilaDateParts(date = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Manila",
@@ -165,26 +155,6 @@ function manilaDateParts(date = new Date()) {
   const day = parts.find((part) => part.type === "day")?.value ?? "01"
 
   return { year, month, day, isoDate: `${year}-${month}-${day}` }
-}
-
-function sortValue(
-  certificate: MedicalCertificate,
-  sortBy: MedicalCertificateSortField
-): string | number {
-  switch (sortBy) {
-    case "issued_at":
-      return certificate.issuedAt ? Date.parse(certificate.issuedAt) : 0
-    case "created_at":
-      return Date.parse(certificate.createdAt)
-    case "status":
-      return certificate.status
-    case "certificate_type":
-      return certificate.certificateType.toLowerCase()
-    case "certificate_number":
-      return certificate.certificateNumber.toLowerCase()
-    default:
-      return certificate.createdAt
-  }
 }
 
 async function getClient(client?: SupabaseClient) {
@@ -230,8 +200,11 @@ export async function getMedicalCertificates(
   const sortDirection = params.sortDirection ?? "desc"
   const query = params.query?.trim() ?? ""
   const status = params.status ?? "all"
+  const ascending = sortDirection === "asc"
 
-  let request = supabase.from("medical_certificates").select(SELECT_WITH_PATIENT)
+  let request = supabase
+    .from("medical_certificates")
+    .select(SELECT_WITH_PATIENT, { count: "exact" })
 
   if (status !== "all") {
     request = request.eq("status", status)
@@ -240,36 +213,67 @@ export async function getMedicalCertificates(
     request = request.eq("issued_by", params.issuedBy)
   }
 
-  const { data, error } = await request
+  if (query) {
+    const escaped = query.replace(/[%_,]/g, "")
+    if (escaped) {
+      const pattern = `%${escaped}%`
+      const { data: patientHits, error: patientError } = await supabase
+        .from("patients")
+        .select("id")
+        .or(
+          [
+            `full_name.ilike.${pattern}`,
+            `student_id.ilike.${pattern}`,
+            `employee_id.ilike.${pattern}`,
+            `email.ilike.${pattern}`,
+          ].join(",")
+        )
+        .limit(200)
+
+      if (patientError) mapError(patientError)
+
+      const patientIds = (patientHits ?? []).map((row) => row.id as string)
+      const orParts = [
+        `certificate_number.ilike.${pattern}`,
+        `purpose.ilike.${pattern}`,
+        `doctor_name.ilike.${pattern}`,
+      ]
+      if (patientIds.length > 0) {
+        orParts.push(`patient_id.in.(${patientIds.join(",")})`)
+      }
+      request = request.or(orParts.join(","))
+    }
+  }
+
+  if (sortBy === "status") {
+    request = request.order("status", { ascending })
+  } else if (sortBy === "created_at") {
+    request = request.order("created_at", { ascending })
+  } else if (sortBy === "certificate_type") {
+    request = request.order("certificate_type", { ascending })
+  } else if (sortBy === "certificate_number") {
+    request = request.order("certificate_number", { ascending })
+  } else {
+    request = request.order("issued_at", {
+      ascending,
+      nullsFirst: false,
+    })
+  }
+  request = request.order("created_at", { ascending: false })
+
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+  const { data, error, count } = await request.range(from, to)
 
   if (error) mapError(error)
 
-  let items = ((data ?? []) as CertificateRow[]).map(mapCertificate)
-
-  if (query) {
-    items = items.filter((item) => matchesQuery(item, query))
-  }
-
-  items.sort((a, b) => {
-    const left = sortValue(a, sortBy)
-    const right = sortValue(b, sortBy)
-    if (left === right) {
-      return Date.parse(b.createdAt) - Date.parse(a.createdAt)
-    }
-    if (typeof left === "number" && typeof right === "number") {
-      return sortDirection === "asc" ? left - right : right - left
-    }
-    const cmp = String(left).localeCompare(String(right))
-    return sortDirection === "asc" ? cmp : -cmp
-  })
-
-  const total = items.length
+  const items = ((data ?? []) as CertificateRow[]).map(mapCertificate)
+  const total = count ?? items.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const safePage = Math.min(page, totalPages)
-  const start = (safePage - 1) * pageSize
 
   return {
-    items: items.slice(start, start + pageSize),
+    items,
     total,
     page: safePage,
     pageSize,
@@ -312,51 +316,55 @@ export async function getMedicalCertificateStats(
   client?: SupabaseClient
 ): Promise<MedicalCertificateStats> {
   const supabase = await getClient(client)
-  let request = supabase.from("medical_certificates").select("status, issued_at")
-  if (issuedBy) {
-    request = request.eq("issued_by", issuedBy)
-  }
-  const { data, error } = await request
-
-  if (error) mapError(error)
-
   const { year, month, isoDate } = manilaDateParts()
   const monthPrefix = `${year}-${month}`
+  const dayStart = `${isoDate}T00:00:00+08:00`
+  const dayEnd = `${isoDate}T23:59:59.999+08:00`
+  const monthStart = `${monthPrefix}-01T00:00:00+08:00`
 
-  let issuedThisMonth = 0
-  let issuedToday = 0
-  let drafts = 0
-  let pending = 0
+  let draftsQ = supabase
+    .from("medical_certificates")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "draft")
+  let pendingQ = supabase
+    .from("medical_certificates")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "pending")
+  let monthQ = supabase
+    .from("medical_certificates")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "issued")
+    .gte("issued_at", monthStart)
+  let todayQ = supabase
+    .from("medical_certificates")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "issued")
+    .gte("issued_at", dayStart)
+    .lte("issued_at", dayEnd)
 
-  for (const row of data ?? []) {
-    const status = row.status as string
-    const issuedAt = row.issued_at as string | null
+  if (issuedBy) {
+    draftsQ = draftsQ.eq("issued_by", issuedBy)
+    pendingQ = pendingQ.eq("issued_by", issuedBy)
+    monthQ = monthQ.eq("issued_by", issuedBy)
+    todayQ = todayQ.eq("issued_by", issuedBy)
+  }
 
-    if (status === "draft") drafts += 1
-    if (status === "pending") pending += 1
+  const [draftsRes, pendingRes, monthRes, todayRes] = await Promise.all([
+    draftsQ,
+    pendingQ,
+    monthQ,
+    todayQ,
+  ])
 
-    if (status === "issued" && issuedAt) {
-      const issuedManila = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Asia/Manila",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(new Date(issuedAt))
-
-      if (issuedManila.startsWith(monthPrefix)) {
-        issuedThisMonth += 1
-      }
-      if (issuedManila === isoDate) {
-        issuedToday += 1
-      }
-    }
+  for (const result of [draftsRes, pendingRes, monthRes, todayRes]) {
+    if (result.error) mapError(result.error)
   }
 
   return {
-    issuedThisMonth,
-    issuedToday,
-    drafts,
-    pending,
+    issuedThisMonth: monthRes.count ?? 0,
+    issuedToday: todayRes.count ?? 0,
+    drafts: draftsRes.count ?? 0,
+    pending: pendingRes.count ?? 0,
   }
 }
 

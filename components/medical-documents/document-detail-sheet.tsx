@@ -14,6 +14,7 @@ import {
   formatCertificateDate,
   formatCertificateDateTime,
 } from "@/features/certificates/lib/format"
+import { CAMPUS_ID_LABEL } from "@/types/patientRecord"
 import type { MedicalDocument } from "@/types/medicalDocument"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -25,6 +26,23 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+
+function DetailRow({
+  label,
+  value,
+}: {
+  label: string
+  value: React.ReactNode
+}) {
+  return (
+    <div className="grid gap-1 border-b border-border/70 py-3.5 last:border-b-0 sm:grid-cols-[140px_1fr] sm:gap-4">
+      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dd className="text-sm leading-relaxed font-medium break-words">
+        {value}
+      </dd>
+    </div>
+  )
+}
 
 export function DocumentDetailSheet({
   document,
@@ -48,57 +66,73 @@ export function DocumentDetailSheet({
 
   if (!document) return null
 
+  const typeLabel = documentTypeLabel(document)
+
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="flex w-full flex-col sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle>{documentTypeLabel(document)}</SheetTitle>
-            <SheetDescription>{document.documentNumber}</SheetDescription>
+        <SheetContent className="flex w-full flex-col gap-0 sm:max-w-lg print:hidden">
+          <SheetHeader className="border-b border-border/70">
+            <SheetTitle>{typeLabel}</SheetTitle>
+            <SheetDescription>
+              {document.documentNumber} · Document details
+            </SheetDescription>
           </SheetHeader>
 
-          <div className="flex-1 space-y-4 overflow-y-auto py-2 text-sm">
-            <div className="flex items-center gap-2">
-              <Badge variant={documentStatusVariant(document.status)}>
-                {documentStatusLabel(document.status)}
-              </Badge>
-              {document.status === "voided" ? (
-                <span className="text-xs text-destructive">
-                  {document.voidReason}
-                </span>
-              ) : null}
-            </div>
-
-            <dl className="space-y-2">
-              <div>
-                <dt className="text-muted-foreground">Patient</dt>
-                <dd className="font-medium">{document.patient.fullName}</dd>
-                <dd className="text-xs text-muted-foreground">
-                  {document.patient.studentId ?? "—"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Purpose</dt>
-                <dd>{document.purpose ?? "—"}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Issued</dt>
-                <dd>{formatCertificateDateTime(document.issuedAt)}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Physician</dt>
-                <dd>{document.doctorName ?? "—"}</dd>
-              </div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-1">
+            <dl>
+              <DetailRow
+                label="Status"
+                value={
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={documentStatusVariant(document.status)}>
+                      {documentStatusLabel(document.status)}
+                    </Badge>
+                    {document.status === "voided" && document.voidReason ? (
+                      <span className="text-xs font-normal text-destructive">
+                        {document.voidReason}
+                      </span>
+                    ) : null}
+                  </div>
+                }
+              />
+              <DetailRow label="Patient" value={document.patient.fullName} />
+              <DetailRow
+                label={CAMPUS_ID_LABEL}
+                value={document.patient.studentId ?? "—"}
+              />
+              <DetailRow
+                label="Document number"
+                value={document.documentNumber}
+              />
+              <DetailRow label="Document type" value={typeLabel} />
+              <DetailRow label="Purpose" value={document.purpose ?? "—"} />
+              <DetailRow
+                label="Physician"
+                value={document.doctorName ?? "—"}
+              />
+              <DetailRow
+                label="Issued"
+                value={formatCertificateDateTime(document.issuedAt)}
+              />
               {document.validUntil ? (
-                <div>
-                  <dt className="text-muted-foreground">Valid until</dt>
-                  <dd>{formatCertificateDate(document.validUntil)}</dd>
-                </div>
+                <DetailRow
+                  label="Valid until"
+                  value={formatCertificateDate(document.validUntil)}
+                />
               ) : null}
+              <DetailRow
+                label="Created"
+                value={formatCertificateDateTime(document.createdAt)}
+              />
+              <DetailRow
+                label="Updated"
+                value={formatCertificateDateTime(document.updatedAt)}
+              />
             </dl>
           </div>
 
-          <SheetFooter className="flex-row flex-wrap gap-2 sm:justify-start">
+          <SheetFooter className="gap-2 border-t border-border/70 sm:flex-row sm:flex-wrap sm:justify-start">
             <Button
               variant="outline"
               onClick={() => {
@@ -116,6 +150,9 @@ export function DocumentDetailSheet({
                 Void
               </Button>
             ) : null}
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+              Close
+            </Button>
           </SheetFooter>
         </SheetContent>
       </Sheet>

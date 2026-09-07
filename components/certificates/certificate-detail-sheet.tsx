@@ -68,10 +68,15 @@ export function CertificateDetailSheet({
   onDelete?: (certificate: MedicalCertificate) => void
 }) {
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [printing, setPrinting] = useState(false)
 
   function handlePrint() {
     if (!certificate) return
-    triggerMedicalDocumentPrint()
+    setPrinting(true)
+    window.setTimeout(() => {
+      triggerMedicalDocumentPrint()
+      window.setTimeout(() => setPrinting(false), 500)
+    }, 50)
   }
 
   const showDocActions =
@@ -186,11 +191,11 @@ export function CertificateDetailSheet({
         canPrint={canPrint}
         onPrint={() => {
           setPreviewOpen(false)
-          window.setTimeout(() => triggerMedicalDocumentPrint(), 100)
+          window.setTimeout(() => handlePrint(), 100)
         }}
       />
 
-      {certificate ? (
+      {certificate && printing ? (
         <CertificatePrintView certificate={certificate} />
       ) : null}
     </>

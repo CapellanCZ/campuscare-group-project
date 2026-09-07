@@ -37,6 +37,12 @@ export type ReportKpiKey =
   | "medical_consultations"
   | "dental_consultations"
   | "completed_consultations"
+  | "faculty_medical_consultations"
+  | "faculty_dental_consultations"
+  | "employee_medical_consultations"
+  | "employee_dental_consultations"
+  | "student_medical_consultations"
+  | "student_dental_consultations"
 
 export type ReportChartKey =
   | "monthly_consult_trend"
@@ -55,6 +61,7 @@ export type ReportChartKey =
   | "health_cases_by_patient_type"
   | "patient_type_bar"
   | "medical_dental_donut"
+  | "waiting_time_trend"
 
 export type ReportFilters = {
   reportPeriod: ReportPeriodPreset

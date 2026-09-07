@@ -12,6 +12,10 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 import { PATIENT_RECORD_SELECT_COLUMNS } from "@/lib/students/patient-record-select"
 import {
+  campusIdLookupVariants,
+  normalizeEmployeeCampusId,
+} from "@/lib/students/student-id-input"
+import {
   PatientRecordServiceError,
   allergiesSummaryFromHistory,
   CAMPUS_ID_LABEL,
@@ -220,35 +224,66 @@ export async function getPatientRecords(
   const supabase = await getClient(client)
   const page = Math.max(1, params.page ?? 1)
   const pageSize = Math.min(50, Math.max(1, params.pageSize ?? DEFAULT_PAGE_SIZE))
-  const query = params.query?.trim() ?? ""
+  const queryText = params.query?.trim() ?? ""
   const patientTypeFilter = params.patientType ?? "all"
   const sortBy = params.sortBy ?? "patient"
   const sortDir = params.sortDir ?? "asc"
 
-  const { data, error } = await supabase
+  let request = supabase
     .from("patient_records")
-    .select(`${SELECT_COLUMNS}, consultations(count)`)
-    .order("last_name", { ascending: true })
-    .order("first_name", { ascending: true })
+    .select(`${SELECT_COLUMNS}, consultations(count)`, { count: "exact" })
+
+  if (patientTypeFilter !== "all") {
+    request = request.eq("patient_type", patientTypeFilter)
+  }
+
+  if (queryText) {
+    const escaped = queryText.replace(/[%_,]/g, "")
+    if (escaped) {
+      const pattern = `%${escaped}%`
+      request = request.or(
+        [
+          `first_name.ilike.${pattern}`,
+          `last_name.ilike.${pattern}`,
+          `middle_name.ilike.${pattern}`,
+          `student_id.ilike.${pattern}`,
+          `employee_id.ilike.${pattern}`,
+          `course.ilike.${pattern}`,
+        ].join(",")
+      )
+    }
+  }
+
+  if (sortBy === "type") {
+    request = request.order("patient_type", { ascending: sortDir === "asc" })
+  } else if (sortBy === "program") {
+    request = request.order("course", {
+      ascending: sortDir === "asc",
+      nullsFirst: false,
+    })
+  } else if (sortBy === "lastVisit") {
+    request = request.order("last_visit", {
+      ascending: sortDir === "asc",
+      nullsFirst: false,
+    })
+  } else {
+    request = request
+      .order("last_name", { ascending: sortDir === "asc" })
+      .order("first_name", { ascending: sortDir === "asc" })
+  }
+
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+  const { data, error, count } = await request.range(from, to)
 
   if (error) mapError(error)
 
-  let items = ((data ?? []) as PatientRow[]).map(mapPatient)
-  if (patientTypeFilter !== "all") {
-    items = items.filter((item) => item.patientType === patientTypeFilter)
-  }
-  if (query) {
-    items = items.filter((item) => matchesQuery(item, query))
-  }
-  items = [...items].sort((a, b) => comparePatients(a, b, sortBy, sortDir))
-
-  const total = items.length
+  const total = count ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const safePage = Math.min(page, totalPages)
-  const start = (safePage - 1) * pageSize
 
   return {
-    items: items.slice(start, start + pageSize),
+    items: ((data ?? []) as PatientRow[]).map(mapPatient),
     total,
     page: safePage,
     pageSize,
@@ -362,7 +397,7 @@ export async function upsertPatientRecord(
       ? (input.studentId ?? "").trim()
       : patientType === "visitor"
         ? ""
-        : (input.employeeId ?? "").trim()
+        : normalizeEmployeeCampusId((input.employeeId ?? "").trim())
 
   if (patientType !== "visitor" && !campusId) {
     throw new PatientRecordServiceError(
@@ -373,18 +408,28 @@ export async function upsertPatientRecord(
 
   let existing: PatientRow | null = null
   if (patientType !== "visitor" && campusId) {
-    let existingQuery = supabase
-      .from("patient_records")
-      .select(`${SELECT_COLUMNS}, consultations(count)`)
-
-    existingQuery =
-      patientType === "student"
-        ? existingQuery.eq("student_id", campusId)
-        : existingQuery.eq("employee_id", campusId)
-
-    const { data, error: findError } = await existingQuery.maybeSingle()
-    if (findError) mapError(findError)
-    existing = data as PatientRow | null
+    if (patientType === "student") {
+      const { data, error: findError } = await supabase
+        .from("patient_records")
+        .select(`${SELECT_COLUMNS}, consultations(count)`)
+        .eq("student_id", campusId)
+        .maybeSingle()
+      if (findError) mapError(findError)
+      existing = data as PatientRow | null
+    } else {
+      for (const variant of campusIdLookupVariants(campusId)) {
+        const { data, error: findError } = await supabase
+          .from("patient_records")
+          .select(`${SELECT_COLUMNS}, consultations(count)`)
+          .eq("employee_id", variant)
+          .maybeSingle()
+        if (findError) mapError(findError)
+        if (data) {
+          existing = data as PatientRow
+          break
+        }
+      }
+    }
   }
 
   if (existing) {

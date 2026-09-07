@@ -3,6 +3,7 @@ import {
   HsoFullPageDocument,
   HsoFullPageTitle,
 } from "@/components/medical-documents/templates/shared/hso-full-page"
+import { formatDiagnosticRequestLines } from "@/lib/medical-documents/diagnostic-request-options"
 import type { MedicalDocument, PrescriptionPayload } from "@/types/medicalDocument"
 
 export function PrescriptionPrint({
@@ -16,6 +17,9 @@ export function PrescriptionPrint({
   const meds = payload.medications ?? []
   const license =
     (document.payload.physicianLicenseNumber as string | undefined) ?? ""
+  const diagnosticLines = payload.diagnosticRequests
+    ? formatDiagnosticRequestLines(payload.diagnosticRequests)
+    : []
 
   return (
     <HsoFullPageDocument className={className}>
@@ -78,22 +82,33 @@ export function PrescriptionPrint({
         </ol>
       </div>
 
-      <footer className="mt-14 border-t border-neutral-200 pt-5 text-[10px]">
-        <div className="grid grid-cols-3 gap-6">
-          <div>
-            <p className="font-semibold text-neutral-700">Licensed No.</p>
-            <p className="mt-1 min-h-[1.25rem] border-b border-black">
-              {license || "\u00a0"}
+      {diagnosticLines.length > 0 ? (
+        <div className="mt-6 print:break-inside-avoid">
+          {diagnosticLines.length === 1 ? (
+            <p className="text-[11px] font-semibold text-neutral-800">
+              Request for {diagnosticLines[0]}
             </p>
-          </div>
-          <div>
-            <p className="font-semibold text-neutral-700">PTR No.</p>
-            <p className="mt-1 min-h-[1.25rem] border-b border-black">&nbsp;</p>
-          </div>
-          <div>
-            <p className="font-semibold text-neutral-700">S2 No.</p>
-            <p className="mt-1 min-h-[1.25rem] border-b border-black">&nbsp;</p>
-          </div>
+          ) : (
+            <>
+              <p className="text-[11px] font-semibold text-neutral-800">
+                Request for:
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-[11px] text-neutral-800">
+                {diagnosticLines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      ) : null}
+
+      <footer className="mt-14 border-t border-neutral-200 pt-5 text-[10px]">
+        <div className="max-w-xs">
+          <p className="font-semibold text-neutral-700">Licensed No.</p>
+          <p className="mt-1 min-h-[1.25rem] border-b border-black">
+            {license || "\u00a0"}
+          </p>
         </div>
         <p className="mt-6 font-semibold">
           {document.doctorName ?? "Physician"}

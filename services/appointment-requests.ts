@@ -219,24 +219,6 @@ const SELECT_WITH_JOINS = `
   doctor:users!doctor_id ( full_name, email )
 `
 
-function matchesQuery(item: AppointmentRequest, query: string): boolean {
-  const q = query.trim().toLowerCase()
-  if (!q) return true
-  return [
-    item.patientName,
-    item.studentId,
-    item.email,
-    item.phone,
-    item.service,
-    item.reason,
-    item.doctorName,
-    item.status,
-    item.queueNumber != null ? String(item.queueNumber) : "",
-  ]
-    .filter(Boolean)
-    .some((v) => String(v).toLowerCase().includes(q))
-}
-
 export async function getAppointmentRequests(
   params: AppointmentRequestListParams = {},
   client?: SupabaseClient
@@ -246,10 +228,11 @@ export async function getAppointmentRequests(
   const page = Math.max(1, params.page ?? 1)
   const pageSize = Math.min(100, Math.max(1, params.pageSize ?? DEFAULT_PAGE_SIZE))
   const status = params.status ?? "all"
+  const queryText = params.query?.trim() ?? ""
 
   let request = supabase
     .from("appointments")
-    .select(SELECT_WITH_JOINS)
+    .select(SELECT_WITH_JOINS, { count: "exact" })
     .order("starts_at", { ascending: false })
 
   if (status !== "all") {
@@ -258,23 +241,56 @@ export async function getAppointmentRequests(
     request = request.in("status", params.statuses)
   }
 
-  const { data, error } = await request
-  if (error) mapError(error)
+  if (queryText) {
+    const escaped = queryText.replace(/[%_,]/g, "")
+    if (escaped) {
+      const pattern = `%${escaped}%`
+      const { data: patientHits, error: patientError } = await supabase
+        .from("patients")
+        .select("id")
+        .or(
+          [
+            `full_name.ilike.${pattern}`,
+            `student_id.ilike.${pattern}`,
+            `employee_id.ilike.${pattern}`,
+            `email.ilike.${pattern}`,
+            `phone.ilike.${pattern}`,
+          ].join(",")
+        )
+        .limit(200)
 
-  let items = (data ?? []).map((row) => mapRow(row as unknown as AppointmentRow))
-  if (params.query?.trim()) {
-    items = items.filter((item) => matchesQuery(item, params.query!))
+      if (patientError) mapError(patientError)
+
+      const patientIds = (patientHits ?? []).map((row) => row.id as string)
+      const orParts = [
+        `reason.ilike.${pattern}`,
+        `location.ilike.${pattern}`,
+        `status.ilike.${pattern}`,
+      ]
+      if (/^\d+$/.test(escaped)) {
+        orParts.push(`queue_number.eq.${escaped}`)
+      }
+      if (patientIds.length > 0) {
+        orParts.push(`patient_id.in.(${patientIds.join(",")})`)
+      }
+      request = request.or(orParts.join(","))
+    }
   }
 
-  const total = items.length
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+  const { data, error, count } = await request.range(from, to)
+  if (error) mapError(error)
+
+  const items = (data ?? []).map((row) => mapRow(row as unknown as AppointmentRow))
+  const total = count ?? items.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const start = (page - 1) * pageSize
-  const pageItems = items.slice(start, start + pageSize)
+  const safePage = Math.min(page, totalPages)
 
   return {
-    items: pageItems,
+    items,
     total,
-    page,
+    page: safePage,
     pageSize,
     totalPages,
   }
@@ -285,28 +301,50 @@ export async function getAppointmentRequestStats(
 ): Promise<AppointmentRequestStats> {
   await requireStaffActor()
   const supabase = await getClient(client)
-  const { data, error } = await supabase.from("appointments").select("status")
-  if (error) mapError(error)
 
-  const stats: AppointmentRequestStats = {
-    pending: 0,
-    confirmed: 0,
-    waitlisted: 0,
-    rescheduled: 0,
-    in_progress: 0,
-    completed: 0,
-    cancelled: 0,
-    no_show: 0,
-    total: (data ?? []).length,
+  const countFor = async (status?: AppointmentRequestStatus) => {
+    let q = supabase
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+    if (status) q = q.eq("status", status)
+    const { count, error } = await q
+    if (error) mapError(error)
+    return count ?? 0
   }
 
-  for (const row of data ?? []) {
-    const status = row.status as AppointmentRequestStatus
-    if (status in stats && status !== ("total" as never)) {
-      stats[status] += 1
-    }
+  const [
+    pending,
+    confirmed,
+    waitlisted,
+    rescheduled,
+    in_progress,
+    completed,
+    cancelled,
+    no_show,
+    total,
+  ] = await Promise.all([
+    countFor("pending"),
+    countFor("confirmed"),
+    countFor("waitlisted"),
+    countFor("rescheduled"),
+    countFor("in_progress"),
+    countFor("completed"),
+    countFor("cancelled"),
+    countFor("no_show"),
+    countFor(),
+  ])
+
+  return {
+    pending,
+    confirmed,
+    waitlisted,
+    rescheduled,
+    in_progress,
+    completed,
+    cancelled,
+    no_show,
+    total,
   }
-  return stats
 }
 
 export async function getAppointmentRequestById(

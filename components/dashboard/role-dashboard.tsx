@@ -118,7 +118,8 @@ export function RoleDashboard({
 }) {
   useStaffRealtimeRouterRefresh(
     `staff-dashboard-${access.designation}`,
-    STAFF_REALTIME_TABLES.dashboard
+    STAFF_REALTIME_TABLES.dashboard,
+    1200
   )
 
   if (access.designation === "nurse") {
@@ -350,10 +351,18 @@ export function RoleDashboard({
                         </div>
                         <Badge
                           variant={
-                            board.status === "active" ? "secondary" : "outline"
+                            board.status === "available"
+                              ? "default"
+                              : board.status === "on_break"
+                                ? "secondary"
+                                : "outline"
                           }
                         >
-                          {board.status}
+                          {board.status === "available"
+                            ? "Available"
+                            : board.status === "on_break"
+                              ? "On Break"
+                              : "Not Available"}
                         </Badge>
                       </div>
                     ))

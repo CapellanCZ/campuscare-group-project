@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { IconChevronLeft } from "@tabler/icons-react"
 
 import { AuthActivateStep } from "@/components/auth/auth-activate-step"
@@ -26,7 +26,6 @@ const DISPLAY_LOGIN_CLICK_WINDOW_MS = 800
 const DISPLAY_LOGIN_CLICKS_REQUIRED = 3
 
 export function AuthPage() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const [step, setStep] = useState<AuthStep>("email")
   const [email, setEmail] = useState("")
@@ -73,14 +72,15 @@ export function AuthPage() {
     }
     if (displayLoginClicks.current >= DISPLAY_LOGIN_CLICKS_REQUIRED) {
       displayLoginClicks.current = 0
-      router.push("/display-login")
+      // Hard navigation so an existing staff session cannot soft-redirect away.
+      window.location.assign("/display-login")
       return
     }
     displayLoginTimer.current = window.setTimeout(() => {
       displayLoginClicks.current = 0
       displayLoginTimer.current = null
     }, DISPLAY_LOGIN_CLICK_WINDOW_MS)
-  }, [router])
+  }, [])
 
   const validateEmail = useCallback(() => {
     const trimmedEmail = email.trim()

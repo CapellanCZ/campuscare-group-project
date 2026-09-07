@@ -116,6 +116,11 @@ export async function loadPhysicianWorkspace(): Promise<PhysicianWorkspace> {
 
   const supabase = await createClient()
 
+  const windowStart = new Date()
+  windowStart.setDate(windowStart.getDate() - 90)
+  const windowEnd = new Date()
+  windowEnd.setDate(windowEnd.getDate() + 45)
+
   const { data: appointmentRows, error: appointmentError } = await supabase
     .from("appointments")
     .select(
@@ -140,7 +145,10 @@ export async function loadPhysicianWorkspace(): Promise<PhysicianWorkspace> {
     `
     )
     .eq("doctor_id", access.userId)
+    .gte("starts_at", windowStart.toISOString())
+    .lte("starts_at", windowEnd.toISOString())
     .order("starts_at", { ascending: true })
+    .limit(500)
 
   if (appointmentError) {
     console.error("physician appointments load failed", appointmentError.message)
@@ -214,7 +222,7 @@ export async function loadPhysicianWorkspace(): Promise<PhysicianWorkspace> {
     )
     .eq("provider_type", "physician")
     .order("created_at", { ascending: false })
-
+    .limit(200)
   const consultations: PhysicianConsultation[] =
     consultationRows?.map((c) => {
       const patient = patientJoin(

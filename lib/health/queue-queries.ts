@@ -6,6 +6,7 @@ import {
 import { getActiveDutyByRole } from "@/lib/availability/duty-queries"
 import type { BreakStatus } from "@/lib/availability/types"
 import { mapTicketRow, ticketLabel, ticketStatusLabel, type RawQueueTicket } from "@/lib/health/mappers"
+import { pickNowServingTicket } from "@/lib/health/nurse-queue"
 import { stationLabel } from "@/lib/health/roles"
 import { manilaDayBounds } from "@/lib/health/time"
 import type {
@@ -135,17 +136,20 @@ export async function getStationBoards(
     const waiting = scoped
       .filter((t) => t.status === "waiting")
       .sort((a, b) => a.queuePosition - b.queuePosition)
-    const called = scoped.find(
-      (t) => t.status === "called" || t.status === "ongoing"
-    )
+    // Nurse (and any station) may have multiple called/ongoing patients.
+    // Prefer the most recently called so Call next updates Now Serving + TTS.
+    const called = pickNowServingTicket(scoped)
     const waits = waiting
       .map((t) => t.estimatedWaitMinutes)
       .filter((n): n is number => typeof n === "number")
+    const nowServing = called
+      ? ticketLabel(called.queueNumber, called.ticketCode)
+      : null
 
     return {
       station,
       label: stationLabel(station),
-      status: waiting.length || called ? "active" : "idle",
+      status: "not_available",
       waitingCount: waiting.length,
       averageWaitMinutes:
         waits.length > 0
@@ -153,8 +157,9 @@ export async function getStationBoards(
           : station === "nurse"
             ? 8
             : 10,
-      nowServing: called
-        ? ticketLabel(called.queueNumber, called.ticketCode)
+      nowServing,
+      nowServingCallKey: called
+        ? `${nowServing}:${called.callCount}:${called.updatedAt ?? ""}`
         : null,
       upcoming: waiting
         .slice(0, 3)
@@ -192,12 +197,12 @@ async function applyBreakStatusToBoards(
     }
     const roleDuty = dutyByRole[board.station]
     if (!roleDuty || roleDuty.status === "not_available") {
-      return { ...board, status: "idle", resumesAt: null }
+      return { ...board, status: "not_available", resumesAt: null }
     }
     if (roleDuty.status === "on_break") {
       return { ...board, status: "on_break", resumesAt: null }
     }
-    return { ...board, resumesAt: null }
+    return { ...board, status: "available", resumesAt: null }
   })
 }
 

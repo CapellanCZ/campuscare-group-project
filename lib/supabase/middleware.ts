@@ -31,15 +31,39 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
+  try {
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser()
 
-  if (isStaleRefreshTokenError(error)) {
-    await supabase.auth.signOut({ scope: "local" })
-    return { supabase, user: null, supabaseResponse }
+    if (isStaleRefreshTokenError(error)) {
+      await supabase.auth.signOut({ scope: "local" })
+      return { supabase, user: null, supabaseResponse }
+    }
+
+    // Auth 429s during heavy refresh storms should not take down the request.
+    if (
+      error &&
+      (error.status === 429 ||
+        error.code === "over_request_rate_limit" ||
+        /rate limit/i.test(error.message ?? ""))
+    ) {
+      console.warn(
+        "[auth] getUser rate-limited; continuing without session refresh"
+      )
+      return { supabase, user: null, supabaseResponse }
+    }
+
+    return { supabase, user, supabaseResponse }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    if (/rate limit|over_request_rate_limit|429/i.test(message)) {
+      console.warn(
+        "[auth] getUser threw rate-limit; continuing without session refresh"
+      )
+      return { supabase, user: null, supabaseResponse }
+    }
+    throw err
   }
-
-  return { supabase, user, supabaseResponse }
 }

@@ -5,9 +5,12 @@ import { cn } from "@/lib/utils"
 export function RecentlyServedCard({
   item,
   className,
+  publicDisplay = false,
 }: {
   item: RecentlyServedItem
   className?: string
+  /** Public queue board: Ticket · Designation only (no patient IDs/names). */
+  publicDisplay?: boolean
 }) {
   return (
     <div
@@ -17,10 +20,18 @@ export function RecentlyServedCard({
       )}
     >
       <div className="min-w-0">
-        <p className="truncate font-medium tabular-nums">{item.ticketLabel}</p>
-        <p className="truncate text-sm text-muted-foreground">
-          {item.patientName} · {item.assignedPersonnel || item.stationLabel}
-        </p>
+        {publicDisplay ? (
+          <p className="truncate font-medium tabular-nums">
+            {item.ticketLabel} · {item.stationLabel}
+          </p>
+        ) : (
+          <>
+            <p className="truncate font-medium tabular-nums">{item.ticketLabel}</p>
+            <p className="truncate text-sm text-muted-foreground">
+              {item.patientName} · {item.assignedPersonnel || item.stationLabel}
+            </p>
+          </>
+        )}
       </div>
       <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
         {relativeTimeFrom(item.servedAt)}

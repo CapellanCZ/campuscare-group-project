@@ -112,3 +112,24 @@ export function nextNurseIntakeTicket(
   const called = waiting.find((row) => row.status === "called")
   return called ?? waiting[0] ?? null
 }
+
+/**
+ * "Now serving" when multiple patients may be active at a station
+ * (nurse can call another while intake continues on a prior patient).
+ * Uses the most recently updated called/ongoing ticket so Call next and
+ * Call/Recall always refresh the public board + TTS for that patient.
+ */
+export function pickNowServingTicket(
+  tickets: QueueTicketRow[]
+): QueueTicketRow | null {
+  const serving = tickets.filter(
+    (t) => t.status === "called" || t.status === "ongoing"
+  )
+  if (serving.length === 0) return null
+
+  return (
+    [...serving].sort((a, b) =>
+      (b.updatedAt ?? "").localeCompare(a.updatedAt ?? "")
+    )[0] ?? null
+  )
+}

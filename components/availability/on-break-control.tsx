@@ -3,16 +3,20 @@
 import { IconPlayerPause, IconPlayerPlay } from "@tabler/icons-react"
 
 import { useOptionalBreakMode } from "@/components/availability/break-mode-context"
+import { useOptionalDutyStatus } from "@/components/availability/duty-status-control"
 import { useConfirm } from "@/components/feedback/confirm-provider"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 export function OnBreakControl({ className }: { className?: string }) {
   const breakMode = useOptionalBreakMode()
+  const duty = useOptionalDutyStatus()
   const { confirmPreset } = useConfirm()
 
   if (!breakMode?.mode) return null
   if (breakMode.active) return null
+  // Break is only for staff who are currently Available (on duty).
+  if (duty?.dutyStatus.status !== "available") return null
 
   const { pending, startBreak } = breakMode
 
@@ -36,6 +40,7 @@ export function OnBreakControl({ className }: { className?: string }) {
 
 export function BreakModeOverlay() {
   const breakMode = useOptionalBreakMode()
+  const { confirmPreset } = useConfirm()
 
   if (!breakMode?.active) return null
 
@@ -58,7 +63,17 @@ export function BreakModeOverlay() {
         >
           On Break
         </p>
-        <Button size="lg" disabled={pending} onClick={endBreak}>
+        <Button
+          size="lg"
+          disabled={pending}
+          onClick={() => {
+            void confirmPreset("resumeWork", {
+              onConfirm: async () => {
+                endBreak()
+              },
+            })
+          }}
+        >
           <IconPlayerPlay data-icon="inline-start" />
           Resume Work
         </Button>

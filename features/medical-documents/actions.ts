@@ -8,6 +8,7 @@ import {
   getMedicalDocumentsByConsultation,
   issueMedicalDocument,
   logMedicalDocumentEvent,
+  updateMedicalDocument,
   voidMedicalDocument,
 } from "@/services/medicalDocuments"
 import { getStaffProfile } from "@/services/staff-profile"
@@ -140,6 +141,31 @@ export async function issueMedicalDocumentAction(
       ...input,
       issuedBy: auth.access.userId,
       doctorName: profile?.fullName ?? auth.access.fullName,
+      licenseNumber: profile?.licenseNumber ?? null,
+    })
+    return { ok: true, data }
+  } catch (error) {
+    return toErrorResult(error)
+  }
+}
+
+export async function updateMedicalDocumentAction(input: {
+  id: string
+  purpose?: string | null
+  payload: Record<string, unknown>
+  consultationStatus: string
+}): Promise<MedicalDocumentActionResult<MedicalDocument>> {
+  const auth = await requireDocumentAccess(true)
+  if (!auth.ok) return auth
+  try {
+    const profile = await getStaffProfile(auth.access.userId)
+    const data = await updateMedicalDocument({
+      id: input.id,
+      purpose: input.purpose,
+      payload: input.payload,
+      consultationStatus: input.consultationStatus,
+      updatedBy: auth.access.userId,
+      updatedByName: profile?.fullName ?? auth.access.fullName,
       licenseNumber: profile?.licenseNumber ?? null,
     })
     return { ok: true, data }

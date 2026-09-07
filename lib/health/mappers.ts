@@ -5,6 +5,7 @@ import type {
   StationId,
   TicketStatus,
 } from "@/lib/health/types"
+import { stationLabel } from "@/lib/health/roles"
 
 const TICKET_STATUSES: TicketStatus[] = [
   "waiting",
@@ -151,7 +152,7 @@ export function patientTypeLabel(type: PatientType | null | undefined) {
 }
 
 export function ticketLabel(queueNumber: number | null, ticketCode: string) {
-  if (/^[MD]-\d+$/i.test(ticketCode)) return ticketCode
+  if (/^[MDN]-\d+$/i.test(ticketCode)) return ticketCode
   if (queueNumber != null) {
     return String(queueNumber).padStart(3, "0")
   }
@@ -167,7 +168,7 @@ export function mapTicketRow(
   const campusId =
     raw.campus_id ?? campusIdFromPatient(patient) ?? null
   const patientName = opts?.publicMode
-    ? campusId || ticketLabel(raw.queue_number, raw.ticket_code)
+    ? stationLabel(station)
     : raw.patient_name ||
       formatPatientName(patient?.full_name) ||
       "Patient"

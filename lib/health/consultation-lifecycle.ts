@@ -49,7 +49,9 @@ export function hasRequiredNurseVitals(vitals: ConsultationVitals): boolean {
   return (
     vitals.bpSystolic != null &&
     vitals.bpDiastolic != null &&
-    vitals.heartRate != null
+    vitals.heartRate != null &&
+    vitals.temperatureC != null &&
+    vitals.spo2 != null
   )
 }
 

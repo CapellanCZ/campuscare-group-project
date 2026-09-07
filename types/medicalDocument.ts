@@ -51,7 +51,15 @@ export type MedicalCertificationPayload = {
 export type GoHomeSlipPayload = {
   reason: string
   releaseDate?: string | null
+  /** Free-text prescribed medication entered by the physician. */
+  prescribedMedication?: string | null
   medications?: PrescriptionMedication[]
+}
+
+export type PrescriptionDiagnosticRequests = {
+  catalog: "physician" | "dentist"
+  selectedIds: string[]
+  othersText?: string | null
 }
 
 export type PrescriptionPayload = {
@@ -59,6 +67,8 @@ export type PrescriptionPayload = {
   patientAddress?: string | null
   patientAge?: string | null
   patientSex?: string | null
+  /** Laboratory / diagnostic checklist persisted with the prescription payload. */
+  diagnosticRequests?: PrescriptionDiagnosticRequests | null
 }
 
 export type NfgClearancePayload = {

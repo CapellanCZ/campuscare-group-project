@@ -33,14 +33,22 @@ export function MedicalCertificationPrint({
   document: MedicalDocument
   className?: string
 }) {
-  const payload = document.payload as MedicalCertificationPayload
+  const payload = (document.payload ?? {}) as Partial<MedicalCertificationPayload> &
+    Record<string, unknown>
   const license =
-    (document.payload.physicianLicenseNumber as string | undefined) ?? ""
-  const status = payload.certificationStatus
+    (payload.physicianLicenseNumber as string | undefined) ?? ""
+  const status = payload.certificationStatus ?? ""
   const treatmentSuggested =
     status === "special_placement" ? payload.treatmentSuggested ?? "" : ""
   const treatmentOptional =
     status === "special_placement" ? payload.treatmentOptional ?? "" : ""
+
+  const patientName =
+    document.patient?.fullName?.trim() || "_________________________"
+  const purpose = document.purpose?.trim() || ""
+  const examDate = formatExamDate(
+    payload.dateOfExamination ?? document.issuedAt
+  )
 
   return (
     <HsoHalfBondPage
@@ -62,12 +70,12 @@ export function MedicalCertificationPrint({
       <section className="space-y-1.5">
         <HsoFormFieldRow
           label="Patient's Name"
-          value={document.patient.fullName}
+          value={patientName}
         />
-        <HsoFormFieldRow label="Purpose" value={document.purpose ?? ""} />
+        <HsoFormFieldRow label="Purpose" value={purpose} />
         <HsoFormFieldRow
           label="Date of Examination"
-          value={formatExamDate(payload.dateOfExamination ?? document.issuedAt)}
+          value={examDate}
         />
       </section>
 

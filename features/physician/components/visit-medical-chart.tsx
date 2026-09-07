@@ -115,12 +115,16 @@ export function VisitMedicalChart({
     )
   }, [record, nurseVitals])
 
+  // Debounce parent lift so typing does not re-render the whole visit page.
   useEffect(() => {
     if (!onChartChange) return
-    onChartChange({
-      medicalHistory: history,
-      physicalExam: mergeNurseVitalsIntoExam(exam, nurseVitals),
-    })
+    const timer = window.setTimeout(() => {
+      onChartChange({
+        medicalHistory: history,
+        physicalExam: mergeNurseVitalsIntoExam(exam, nurseVitals),
+      })
+    }, 350)
+    return () => window.clearTimeout(timer)
   }, [history, exam, nurseVitals, onChartChange])
 
   if (!record) {
@@ -257,11 +261,11 @@ export function VisitMedicalChart({
           </div>
           <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-3">
             <ReadOnly label="Blood Pressure" value={nurseVitals.bloodPressure} />
-            <ReadOnly label="Pulse Rate" value={nurseVitals.pulseRate} />
+            <ReadOnly label="Heart Rate" value={nurseVitals.pulseRate} />
             <ReadOnly label="Temperature" value={nurseVitals.temperature} />
+            <ReadOnly label="SpO₂" value={nurseVitals.o2} />
             <ReadOnly label="Weight" value={nurseVitals.weight} />
             <ReadOnly label="Height" value={nurseVitals.height} />
-            <ReadOnly label="O2" value={nurseVitals.o2} />
           </dl>
         </section>
 

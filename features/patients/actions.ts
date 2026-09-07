@@ -16,6 +16,10 @@ import {
 import {
   ensurePatientFromStudentId,
 } from "@/lib/students/ensure-patient"
+import {
+  campusIdLookupVariants,
+  normalizeEmployeeCampusId,
+} from "@/lib/students/student-id-input"
 import { NO_STUDENT_FOUND } from "@/lib/students/types"
 import {
   isEnrolledVirtualId,
@@ -118,18 +122,24 @@ export async function searchPatientByStudentIdAction(
       return { ok: false, error: NO_STUDENT_FOUND, code: "not_found" }
     }
 
+    const variants = campusIdLookupVariants(id)
+    const normalizedEmployee = normalizeEmployeeCampusId(id)
+
     const listed = await listDirectoryPatientRecords({
-      query: id,
+      query: normalizedEmployee || id,
       page: 1,
-      pageSize: 5,
+      pageSize: 10,
       patientType: "all",
     })
     const exact =
-      listed.items.find(
-        (p) =>
-          p.studentId?.toLowerCase() === id.toLowerCase() ||
-          p.employeeId?.toLowerCase() === id.toLowerCase()
-      ) ?? listed.items[0]
+      listed.items.find((p) => {
+        const sid = p.studentId?.toLowerCase()
+        const eid = p.employeeId?.toLowerCase()
+        return variants.some((variant) => {
+          const v = variant.toLowerCase()
+          return sid === v || eid === v
+        })
+      }) ?? null
     if (exact) return { ok: true, data: exact }
 
     // Optional legacy fallback: enrollment bucket ensure for walk-ins not yet imported

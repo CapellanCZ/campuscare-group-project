@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, useTransition } from "react"
+import { useEffect, useMemo, useState, useTransition, useDeferredValue } from "react"
 import { useConfirm } from "@/components/feedback/confirm-provider"
 import { consultationToasts, queueToasts } from "@/lib/feedback/toast-messages"
 import { useRouter } from "next/navigation"
@@ -79,6 +79,7 @@ import {
   canOpenNurseIntake,
   needsCheckInVerify,
   needsNurseIntake,
+  pickNowServingTicket,
   queueActionsForTicket,
   ticketsInNurseLane,
   type NurseQueueLane,
@@ -146,9 +147,11 @@ export function QueuePage({
   const [localTickets, setLocalTickets] = useState(tickets)
   useStaffRealtimeRouterRefresh(
     `staff-queue-${access.designation}`,
-    STAFF_REALTIME_TABLES.queue
+    STAFF_REALTIME_TABLES.queue,
+    800
   )
   const [query, setQuery] = useState("")
+  const deferredQuery = useDeferredValue(query)
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [stationFilter, setStationFilter] = useState<string>("all")
   const [patientTypeFilter, setPatientTypeFilter] = useState<
@@ -203,12 +206,12 @@ export function QueuePage({
     let rows = localTickets
     if (isNurse) rows = ticketsInNurseLane(rows, nurseLane)
     const next = rows.filter((t) => {
-      const q = query.trim().toLowerCase()
+      const q = deferredQuery.trim().toLowerCase()
       const matchesQuery =
         isNurse || isPhysician
           ? !q ||
-            studentIdMatchesQuery(t.campusId, query) ||
-            studentIdMatchesQuery(t.studentId, query)
+            studentIdMatchesQuery(t.campusId, deferredQuery) ||
+            studentIdMatchesQuery(t.studentId, deferredQuery)
           : !q ||
             t.patientName.toLowerCase().includes(q) ||
             (t.campusId ?? "").toLowerCase().includes(q) ||
@@ -260,7 +263,7 @@ export function QueuePage({
     })
   }, [
     localTickets,
-    query,
+    deferredQuery,
     statusFilter,
     stationFilter,
     patientTypeFilter,
@@ -339,9 +342,13 @@ export function QueuePage({
           {
             label: "Current",
             value: (() => {
-              const current = localTickets.find(
-                (t) => t.status === "called" || t.status === "ongoing"
-              )
+              const pool =
+                isNurse || myStation
+                  ? localTickets.filter((t) =>
+                      isNurse ? t.station === "nurse" : t.station === myStation
+                    )
+                  : localTickets
+              const current = pickNowServingTicket(pool)
               return current
                 ? ticketLabel(current.queueNumber, current.ticketCode)
                 : "—"
@@ -1185,11 +1192,17 @@ export function QueuePage({
                                                     return
                                                   }
                                                   consultationToasts.started()
-                                                  const visitId =
-                                                    result.consultationId ??
-                                                    result.appointmentId ??
-                                                    row.consultationId ??
-                                                    row.appointmentId
+                                                  // Dentist chart is keyed by appointments.id;
+                                                  // physician clinical visit is keyed by consultations.id.
+                                                  const visitId = isDentist
+                                                    ? (result.appointmentId ??
+                                                        row.appointmentId ??
+                                                        result.consultationId ??
+                                                        row.consultationId)
+                                                    : (result.consultationId ??
+                                                        result.appointmentId ??
+                                                        row.consultationId ??
+                                                        row.appointmentId)
                                                   if (!visitId) {
                                                     queueToasts.failed(
                                                       "Consultation started, but no visit record was linked."

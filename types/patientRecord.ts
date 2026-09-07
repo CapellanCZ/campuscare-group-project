@@ -333,12 +333,14 @@ function explicitImportPatientType(
   return null
 }
 
+import { normalizeEmployeeCampusId } from "@/lib/students/student-id-input"
+
 export function looksLikeStudentCampusId(value: string): boolean {
   return /^\d{4}-\d{6}$/.test(value.trim())
 }
 
 export function looksLikeEmployeeCampusId(value: string): boolean {
-  return /^\d{4}-\d{5}$/.test(value.trim())
+  return /^\d{4}-\d{5}$/.test(normalizeEmployeeCampusId(value))
 }
 
 /** Faculty and employee share ID Number storage (`employee_id`) but are distinct roles. */
@@ -417,7 +419,15 @@ export function campusIdsFromIdNumber(
     return { ok: true, studentId: trimmed, employeeId: null }
   }
 
-  return { ok: true, studentId: null, employeeId: trimmed }
+  const employeeId = normalizeEmployeeCampusId(trimmed)
+  if (!looksLikeEmployeeCampusId(employeeId)) {
+    return {
+      ok: false,
+      error: `${CAMPUS_ID_LABEL} for faculty/employees must look like 2026-00000.`,
+    }
+  }
+
+  return { ok: true, studentId: null, employeeId }
 }
 
 export function patientTypeLabel(type: PatientType | null | undefined): string {
@@ -597,7 +607,11 @@ export function patientRecordToJson(
   const studentId =
     patientType === "student" ? emptyToNull(patient.studentId) : null
   const employeeId = usesEmployeeId
-    ? emptyToNull(patient.employeeId)
+    ? emptyToNull(
+        patient.employeeId
+          ? normalizeEmployeeCampusId(patient.employeeId)
+          : patient.employeeId
+      )
     : null
 
   if (requiresId && patientType === "student" && !studentId) {

@@ -79,10 +79,16 @@ export type QueueStats = {
 export type StationBoard = {
   station: StationId
   label: string
-  status: "active" | "idle" | "on_break"
+  /** Staff duty status for the station role (not queue activity). */
+  status: "available" | "on_break" | "not_available"
   waitingCount: number
   averageWaitMinutes: number
   nowServing: string | null
+  /**
+   * Unique per call/recall event so TTS re-announces when the same ticket
+   * is called again (includes call count + updated_at).
+   */
+  nowServingCallKey: string | null
   upcoming: string[]
   /** ISO resume time when status is on_break */
   resumesAt?: string | null

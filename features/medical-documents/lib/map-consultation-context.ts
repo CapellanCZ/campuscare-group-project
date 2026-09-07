@@ -108,12 +108,14 @@ export function defaultGoHomeSlipPayload(
   return {
     reason: "",
     releaseDate: new Date().toISOString().slice(0, 10),
+    prescribedMedication: "",
     medications: ctx.medications,
   }
 }
 
 export function defaultPrescriptionPayload(
-  ctx: ConsultationDocumentContext
+  ctx: ConsultationDocumentContext,
+  catalog: "physician" | "dentist" = "physician"
 ): PrescriptionPayload {
   return {
     medications:
@@ -123,6 +125,11 @@ export function defaultPrescriptionPayload(
     patientAddress: ctx.address,
     patientAge: ctx.age,
     patientSex: ctx.sex,
+    diagnosticRequests: {
+      catalog,
+      selectedIds: [],
+      othersText: "",
+    },
   }
 }
 

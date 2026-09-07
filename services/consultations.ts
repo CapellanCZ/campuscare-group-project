@@ -2,8 +2,7 @@ import "server-only"
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import { consultationDateInRange } from "@/lib/date/consultation-date-range"
-import { patientMatchesSearchQuery } from "@/lib/clinical/record-scope"
+import { consultationDateRangeBounds } from "@/lib/date/consultation-date-range"
 import { createClient } from "@/lib/supabase/server"
 import {
   ConsultationServiceError,
@@ -11,7 +10,6 @@ import {
   consultationMatchesProviderRole,
   consultationToJson,
   normalizeConsultationStatus,
-  resolveConsultationProviderRole,
   type Consultation,
   type ConsultationJson,
   type ConsultationListParams,
@@ -128,58 +126,6 @@ function validateCreate(input: CreateConsultationInput) {
   }
 }
 
-function matchesQuery(row: Consultation, query: string): boolean {
-  return patientMatchesSearchQuery(
-    row.patient.fullName,
-    row.patient.studentId,
-    query
-  )
-}
-
-function matchesFilters(
-  row: Consultation,
-  params: ConsultationListParams
-): boolean {
-  if (
-    params.status &&
-    params.status !== "all" &&
-    normalizeConsultationStatus(row.status) !== params.status
-  ) {
-    return false
-  }
-  if (
-    params.provider &&
-    params.provider !== "all" &&
-    (row.providerName ?? "") !== params.provider
-  ) {
-    return false
-  }
-  if (
-    params.station &&
-    params.station !== "all" &&
-    (row.station ?? "") !== params.station
-  ) {
-    return false
-  }
-  if (
-    params.providerType &&
-    params.providerType !== "all" &&
-    resolveConsultationProviderRole(row) !== params.providerType
-  ) {
-    return false
-  }
-  if (params.consultationDate && params.consultationDate !== "all") {
-    const day = row.consultationDate.slice(0, 10)
-    if (day !== params.consultationDate) return false
-  }
-  if (params.dateRange && params.dateRange !== "all_time") {
-    if (!consultationDateInRange(row.consultationDate, params.dateRange)) {
-      return false
-    }
-  }
-  return true
-}
-
 async function getClient(client?: SupabaseClient) {
   return client ?? (await createClient())
 }
@@ -258,30 +204,69 @@ export async function getConsultations(
   const supabase = await getClient(client)
   const page = Math.max(1, params.page ?? 1)
   const pageSize = Math.min(50, Math.max(1, params.pageSize ?? DEFAULT_PAGE_SIZE))
-  const query = params.query?.trim() ?? ""
+  const queryText = params.query?.trim() ?? ""
 
-  const { data, error } = await supabase
+  let request = supabase
     .from("consultations")
-    .select(SELECT_WITH_PATIENT)
+    .select(SELECT_WITH_PATIENT, { count: "exact" })
     .order("consultation_date", { ascending: false })
+
+  if (params.status && params.status !== "all") {
+    request = request.eq("status", params.status)
+  }
+  if (params.station && params.station !== "all") {
+    request = request.eq("station", params.station)
+  }
+  if (params.providerType && params.providerType !== "all") {
+    request = request.eq("provider_type", params.providerType)
+  }
+  if (params.provider && params.provider !== "all") {
+    request = request.eq("provider_name", params.provider)
+  }
+  if (params.consultationDate && params.consultationDate !== "all") {
+    const day = params.consultationDate
+    request = request
+      .gte("consultation_date", `${day}T00:00:00+08:00`)
+      .lte("consultation_date", `${day}T23:59:59.999+08:00`)
+  } else if (params.dateRange && params.dateRange !== "all_time") {
+    const bounds = consultationDateRangeBounds(params.dateRange)
+    if (bounds) {
+      request = request
+        .gte("consultation_date", `${bounds.start}T00:00:00+08:00`)
+        .lte("consultation_date", `${bounds.end}T23:59:59.999+08:00`)
+    }
+  }
+
+  if (queryText) {
+    const escaped = queryText.replace(/[%_,]/g, "")
+    if (escaped) {
+      const pattern = `%${escaped}%`
+      request = request.or(
+        [
+          `chief_complaint.ilike.${pattern}`,
+          `diagnosis.ilike.${pattern}`,
+          `symptoms.ilike.${pattern}`,
+          `provider_name.ilike.${pattern}`,
+        ].join(",")
+      )
+    }
+  }
+
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+  const { data, error, count } = await request.range(from, to)
 
   if (error) mapError(error)
 
   let items = mapConsultationsFromJson((data ?? []) as ConsultationJson[])
   items = await attachQueueNumbers(items, supabase)
 
-  if (query) {
-    items = items.filter((item) => matchesQuery(item, query))
-  }
-  items = items.filter((item) => matchesFilters(item, params))
-
-  const total = items.length
+  const total = count ?? items.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const safePage = Math.min(page, totalPages)
-  const start = (safePage - 1) * pageSize
 
   return {
-    items: items.slice(start, start + pageSize),
+    items,
     total,
     page: safePage,
     pageSize,
@@ -448,50 +433,14 @@ export async function getConsultationsForClinician(
   params: ConsultationListParams = {},
   client?: SupabaseClient
 ): Promise<ConsultationListResult> {
-  const supabase = await getClient(client)
-  const page = Math.max(1, params.page ?? 1)
-  const pageSize = Math.min(50, Math.max(1, params.pageSize ?? DEFAULT_PAGE_SIZE))
-  const query = params.query?.trim() ?? ""
-  const consultationDate =
-    params.consultationDate && params.consultationDate !== "all"
-      ? params.consultationDate
-      : "all"
-
-  const { data, error } = await supabase
-    .from("consultations")
-    .select(SELECT_WITH_PATIENT)
-    .order("consultation_date", { ascending: false })
-
-  if (error) mapError(error)
-
-  let items = mapConsultationsFromJson((data ?? []) as ConsultationJson[])
-    .filter((item) => matchesClinicianRole(item, role))
-
-  items = await attachQueueNumbers(items, supabase)
-
-  if (query) {
-    items = items.filter((item) => matchesQuery(item, query))
-  }
-  items = items.filter((item) =>
-    matchesFilters(item, {
+  return getConsultations(
+    {
       ...params,
+      providerType: role,
       station: "all",
-      consultationDate,
-    })
+    },
+    client
   )
-
-  const total = items.length
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const safePage = Math.min(page, totalPages)
-  const start = (safePage - 1) * pageSize
-
-  return {
-    items: items.slice(start, start + pageSize),
-    total,
-    page: safePage,
-    pageSize,
-    totalPages,
-  }
 }
 
 export async function getConsultationStatsForClinician(

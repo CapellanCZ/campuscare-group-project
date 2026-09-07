@@ -4,120 +4,169 @@ import type {
 } from "@/features/reports/types"
 import type { ClinicDesignation } from "@/lib/auth/types"
 
-export type DashboardSlot = {
-  placement: "primary" | "secondary" | "full"
+/** Chart widgets render in a balanced 2-column grid (never a full-bleed hero). */
+export type DashboardChartSlot = {
   chartKey: ReportChartKey
-  tableKind?: ReportKind
   title?: string
 }
 
-export function dashboardSlotsFor(
+/** Detail tables render below the chart grid. */
+export type DashboardTableSlot = {
+  tableKind: ReportKind
+  title?: string
+}
+
+export type DashboardLayout = {
+  charts: DashboardChartSlot[]
+  tables: DashboardTableSlot[]
+}
+
+export function dashboardLayoutFor(
   designation: ClinicDesignation
-): DashboardSlot[] {
+): DashboardLayout {
   if (designation === "physician") {
-    return [
-      {
-        placement: "primary",
-        chartKey: "consultation_trend",
-        tableKind: "daily_consultation",
-        title: "Medical Consultation Trend",
-      },
-      {
-        placement: "secondary",
-        chartKey: "common_health_complaints",
-        tableKind: "health_cases",
-        title: "Common Health Cases",
-      },
-      {
-        placement: "secondary",
-        chartKey: "patient_type_distribution",
-        tableKind: "patient_service_statistics",
-        title: "Patient Service Statistics",
-      },
-      {
-        placement: "full",
-        chartKey: "service_utilization",
-        tableKind: "service_utilization",
-        title: "Medical Service Utilization",
-      },
-    ]
+    return {
+      charts: [
+        {
+          chartKey: "consultation_trend",
+          title: "Medical Consultation Trend",
+        },
+        {
+          chartKey: "service_utilization",
+          title: "Medical Service Utilization",
+        },
+        {
+          chartKey: "health_cases",
+          title: "Most Common Health Cases",
+        },
+        {
+          chartKey: "health_cases_by_patient_type",
+          title: "Health Cases by Patient Type",
+        },
+        {
+          chartKey: "waiting_time_trend",
+          title: "Waiting Time Trend",
+        },
+      ],
+      tables: [
+        {
+          tableKind: "daily_consultation",
+          title: "Daily Medical Consultations",
+        },
+        {
+          tableKind: "health_cases",
+          title: "Health Cases Detail",
+        },
+        {
+          tableKind: "health_cases_by_patient_type",
+          title: "Health Cases by Patient Type",
+        },
+        {
+          tableKind: "service_utilization",
+          title: "Medical Service Utilization",
+        },
+      ],
+    }
   }
 
   if (designation === "dentist") {
-    return [
-      {
-        placement: "primary",
-        chartKey: "dental_consult_trend",
-        tableKind: "daily_dental",
-        title: "Dental Consultation Trend",
-      },
-      {
-        placement: "secondary",
-        chartKey: "common_dental_cases",
-        tableKind: "health_cases",
-        title: "Common Dental Cases",
-      },
-      {
-        placement: "secondary",
-        chartKey: "patient_type_distribution",
-        tableKind: "patient_service_statistics",
-        title: "Patient Service Statistics",
-      },
-      {
-        placement: "full",
-        chartKey: "service_utilization",
-        tableKind: "service_utilization",
-        title: "Dental Service Utilization",
-      },
-    ]
+    return {
+      charts: [
+        {
+          chartKey: "dental_consult_trend",
+          title: "Dental Consultation Trend",
+        },
+        {
+          chartKey: "service_utilization",
+          title: "Dental Service Utilization",
+        },
+        {
+          chartKey: "health_cases",
+          title: "Most Common Dental Cases",
+        },
+        {
+          chartKey: "health_cases_by_patient_type",
+          title: "Health Cases by Patient Type",
+        },
+        {
+          chartKey: "waiting_time_trend",
+          title: "Waiting Time Trend",
+        },
+      ],
+      tables: [
+        {
+          tableKind: "daily_dental",
+          title: "Daily Dental Consultations",
+        },
+        {
+          tableKind: "health_cases",
+          title: "Dental Cases Detail",
+        },
+        {
+          tableKind: "health_cases_by_patient_type",
+          title: "Health Cases by Patient Type",
+        },
+        {
+          tableKind: "service_utilization",
+          title: "Dental Service Utilization",
+        },
+      ],
+    }
   }
 
-  return [
-    {
-      placement: "primary",
-      chartKey: "consult_volume_trend",
-      tableKind: "daily_consultation",
-      title: "Consultation Trend",
-    },
-    {
-      placement: "secondary",
-      chartKey: "service_utilization",
-      tableKind: "service_utilization",
-      title: "Service Utilization",
-    },
-    {
-      placement: "secondary",
-      chartKey: "patient_type_distribution",
-      tableKind: "patient_service_statistics",
-      title: "Patient Service Statistics",
-    },
-    {
-      placement: "full",
-      chartKey: "health_cases",
-      tableKind: "health_cases",
-      title: "Health Cases",
-    },
-    {
-      placement: "full",
-      chartKey: "health_cases_by_patient_type",
-      tableKind: "health_cases_by_patient_type",
-      title: "Health Cases by Patient Type",
-    },
-  ]
+  // Nurse / admin HSO summary
+  return {
+    charts: [
+      {
+        chartKey: "consult_volume_trend",
+        title: "Consultation Trend",
+      },
+      {
+        chartKey: "service_utilization",
+        title: "Medical vs Dental by Patient Type",
+      },
+      {
+        chartKey: "health_cases",
+        title: "Most Common Health Cases",
+      },
+      {
+        chartKey: "health_cases_by_patient_type",
+        title: "Health Cases by Patient Type",
+      },
+      {
+        chartKey: "waiting_time_trend",
+        title: "Waiting Time Trend",
+      },
+      {
+        chartKey: "patient_type_distribution",
+        title: "Patient Type Distribution",
+      },
+    ],
+    tables: [
+      {
+        tableKind: "daily_consultation",
+        title: "Daily Consultations",
+      },
+      {
+        tableKind: "health_cases",
+        title: "Health Cases Detail",
+      },
+      {
+        tableKind: "health_cases_by_patient_type",
+        title: "Health Cases by Patient Type",
+      },
+      {
+        tableKind: "service_utilization",
+        title: "Service Utilization",
+      },
+    ],
+  }
 }
 
 export function reportsPageDescription(
-  designation: ClinicDesignation,
-  periodLabel: string
+  _designation: ClinicDesignation,
+  _periodLabel: string
 ): string {
-  if (designation === "physician") {
-    return `Medical consultation analytics and health case summaries for ${periodLabel}. Dental data is excluded from this view.`
-  }
-  if (designation === "dentist") {
-    return `Dental consultation analytics and case summaries for ${periodLabel}. Medical data is excluded from this view.`
-  }
-  if (designation === "nurse") {
-    return `HSO operational summary for ${periodLabel}. Aggregated counts only — no patient identifiers.`
-  }
-  return `Clinic-wide operational summary for ${periodLabel}. Aggregated counts for HSO administration.`
+  return "View and analyze health service activities and performance."
 }
+

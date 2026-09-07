@@ -29,6 +29,7 @@ import { CONSULTATION_TYPE_OPTIONS } from "@/lib/health/form-options"
 import { CampusIdInput } from "@/components/shared/campus-id-input"
 import { actionRegisterWalkIn } from "@/lib/health/queue-server-actions"
 import { searchPatientByStudentIdAction } from "@/features/patients/actions"
+import { normalizeEmployeeCampusId } from "@/lib/students/student-id-input"
 import {
   patientFullName,
   patientTypeLabel,
@@ -40,10 +41,6 @@ import { IconUserPlus } from "@tabler/icons-react"
 const DEFAULT_CONSULTATION = "Walk-in consultation"
 const WALK_IN_PATIENT_TYPES = ["student", "employee", "visitor"] as const
 type WalkInPatientType = (typeof WALK_IN_PATIENT_TYPES)[number]
-
-function looksLikeStudentId(value: string): boolean {
-  return /^\d{4}-\d{6}$/.test(value.trim())
-}
 
 function walkInTypeFromRecord(type: PatientType): WalkInPatientType {
   if (type === "student") return "student"
@@ -78,7 +75,15 @@ export function WalkInSheet({
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setDebouncedCampusId(campusId.trim())
+      const raw = campusId.trim()
+      const normalized =
+        raw && !/^\d{4}-\d{6}$/.test(raw)
+          ? normalizeEmployeeCampusId(raw) || raw
+          : raw
+      if (normalized !== campusId && /^\d{4}-\d{5}$/.test(normalized)) {
+        setCampusId(normalized)
+      }
+      setDebouncedCampusId(normalized)
     }, 300)
     return () => window.clearTimeout(timer)
   }, [campusId])
@@ -104,13 +109,18 @@ export function WalkInSheet({
         setPatientName(patientFullName(result.data))
         setPatientType(walkInTypeFromRecord(result.data.patientType))
         setNameAutoFilled(true)
-        setLookupHint("Patient record found. Name and type were filled automatically.")
+        setLookupHint(
+          "Patient record found. Name and type were filled automatically."
+        )
         return
       }
 
+      // No university patient record → treat as visitor (not affiliated).
       setNameAutoFilled(false)
-      setPatientType(looksLikeStudentId(id) ? "student" : "employee")
-      setLookupHint("No record found — enter the full name manually.")
+      setPatientType("visitor")
+      setLookupHint(
+        "No patient record found — registering as a visitor. Enter the full name manually."
+      )
     })
 
     return () => {

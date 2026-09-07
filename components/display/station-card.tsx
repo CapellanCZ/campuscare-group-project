@@ -34,10 +34,10 @@ function statusBadge(board: StationBoard) {
   if (board.status === "on_break") {
     return { label: "On Break", variant: "secondary" as const }
   }
-  if (board.status === "active") {
-    return { label: "Active", variant: "default" as const }
+  if (board.status === "available") {
+    return { label: "Available", variant: "default" as const }
   }
-  return { label: "Idle", variant: "outline" as const }
+  return { label: "Not Available", variant: "outline" as const }
 }
 
 export function StationCard({ board }: { board: StationBoard }) {
@@ -46,6 +46,7 @@ export function StationCard({ board }: { board: StationBoard }) {
   const badge = statusBadge(board)
   const resumeLabel = formatResumeClock(board.resumesAt)
   const onBreak = board.status === "on_break"
+  const notAvailable = board.status === "not_available"
 
   return (
     <Card
@@ -60,7 +61,9 @@ export function StationCard({ board }: { board: StationBoard }) {
             <span
               className={cn(
                 "flex size-8 items-center justify-center rounded-xl",
-                onBreak ? "bg-amber-500/15 text-amber-700 dark:text-amber-400" : tone.soft,
+                onBreak
+                  ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                  : tone.soft,
                 !onBreak && tone.accent
               )}
             >
@@ -78,6 +81,9 @@ export function StationCard({ board }: { board: StationBoard }) {
         >
           {board.label}
         </CardTitle>
+        <p className="text-sm font-medium text-foreground">
+          Status: {badge.label}
+        </p>
         {onBreak ? (
           <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
             {resumeLabel
@@ -98,7 +104,7 @@ export function StationCard({ board }: { board: StationBoard }) {
           )}
         >
           <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-            {onBreak ? "Station status" : "Now serving"}
+            Now serving
           </p>
           <p
             className={cn(
@@ -108,32 +114,37 @@ export function StationCard({ board }: { board: StationBoard }) {
                 : tone.accent
             )}
           >
-            {onBreak ? "BREAK" : (board.nowServing ?? "—")}
+            {onBreak
+              ? "BREAK"
+              : notAvailable && !board.nowServing
+                ? "—"
+                : (board.nowServing ?? "—")}
           </p>
+          {notAvailable && !board.nowServing ? (
+            <p className="mt-2 text-sm text-muted-foreground">No active patient</p>
+          ) : null}
         </div>
-        {!onBreak && (
-          <div>
-            <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-              Upcoming
+        <div>
+          <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+            Upcoming
+          </p>
+          {board.upcoming.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No other tickets in line
             </p>
-            {board.upcoming.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No other tickets in line
-              </p>
-            ) : (
-              <ul className="flex flex-wrap gap-2">
-                {board.upcoming.map((ticket) => (
-                  <li
-                    key={ticket}
-                    className="rounded-full bg-muted px-3 py-1 font-mono text-sm font-semibold tabular-nums"
-                  >
-                    {ticket}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
+          ) : (
+            <ul className="flex flex-wrap gap-2">
+              {board.upcoming.map((ticket) => (
+                <li
+                  key={ticket}
+                  className="rounded-full bg-muted px-3 py-1 font-mono text-sm font-semibold tabular-nums"
+                >
+                  {ticket}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </CardContent>
     </Card>
   )

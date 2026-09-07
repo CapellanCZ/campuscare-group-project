@@ -25,6 +25,11 @@ import type {
 import { createClient } from "@/lib/supabase/server"
 import { lookupEnrolledStudentById } from "@/lib/students/enrolled-dataset"
 import { ensurePatientFromEnrollment } from "@/lib/students/ensure-patient"
+import {
+  campusIdLookupVariants,
+  looksLikeEmployeeCampusId,
+  normalizeEmployeeCampusId,
+} from "@/lib/students/student-id-input"
 import { NO_STUDENT_FOUND } from "@/lib/students/types"
 import {
   ensureConsultationFromAppointment,
@@ -134,18 +139,24 @@ export async function recallTicket(params: {
     .maybeSingle()
 
   if (!ticket) return { ok: false, error: "Ticket not found." }
-  if (ticket.status !== "called" && ticket.status !== "waiting") {
-    return { ok: false, error: "Only waiting or called tickets can be recalled." }
+  if (
+    ticket.status !== "called" &&
+    ticket.status !== "waiting" &&
+    ticket.status !== "ongoing"
+  ) {
+    return { ok: false, error: "Only waiting, called, or ongoing tickets can be recalled." }
   }
 
   const nextCount = (ticket.call_count ?? 0) + 1
+  const now = new Date().toISOString()
   const { error } = await supabase
     .from("health_queue_tickets")
     .update({
-      status: "called",
+      // Keep ongoing visits in progress; still bump call metadata so display/TTS refresh.
+      status: ticket.status === "ongoing" ? "ongoing" : "called",
       call_count: nextCount,
       assigned_staff_name: params.staffName,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     })
     .eq("id", ticket.id)
 
@@ -609,7 +620,8 @@ export async function completeNurseIntakeAndAssign(params: {
   if (!hasRequiredNurseVitals(vitals)) {
     return {
       ok: false,
-      error: "Blood pressure (systolic/diastolic) and heart rate are required.",
+      error:
+        "Blood pressure, heart rate, temperature, and SpO₂ are required.",
     }
   }
 
@@ -844,8 +856,94 @@ export async function registerWalkIn(params: {
   const name = params.patientName.trim()
   if (!name) return { ok: false, error: "Enter a patient name." }
 
-  const patientType = params.patientType ?? "student"
-  const campusId = params.studentId?.trim() || null
+  const rawCampusId = params.studentId?.trim() || null
+  let patientType = params.patientType ?? "visitor"
+  let campusId =
+    rawCampusId &&
+    (patientType === "faculty" ||
+      patientType === "employee" ||
+      looksLikeEmployeeCampusId(rawCampusId))
+      ? normalizeEmployeeCampusId(rawCampusId)
+      : rawCampusId
+
+  const supabase = await createClient()
+  const { ymd } = manilaDayBounds()
+
+  // Resolve affiliation from Patient Records when an ID Number is provided.
+  if (campusId) {
+    const variants = campusIdLookupVariants(campusId)
+    let record: {
+      id: string
+      first_name: string
+      middle_name: string | null
+      last_name: string
+      student_id: string | null
+      employee_id: string | null
+      patient_type: string | null
+    } | null = null
+
+    for (const variant of variants) {
+      const { data: byStudent } = await supabase
+        .from("patient_records")
+        .select(
+          "id, first_name, middle_name, last_name, student_id, employee_id, patient_type"
+        )
+        .eq("student_id", variant)
+        .limit(1)
+        .maybeSingle()
+      if (byStudent) {
+        record = byStudent
+        break
+      }
+      const { data: byEmployee } = await supabase
+        .from("patient_records")
+        .select(
+          "id, first_name, middle_name, last_name, student_id, employee_id, patient_type"
+        )
+        .eq("employee_id", variant)
+        .limit(1)
+        .maybeSingle()
+      if (byEmployee) {
+        record = byEmployee
+        break
+      }
+    }
+
+    if (
+      record?.patient_type === "student" ||
+      record?.patient_type === "faculty" ||
+      record?.patient_type === "employee" ||
+      record?.patient_type === "visitor"
+    ) {
+      patientType = record.patient_type
+      campusId =
+        record.patient_type === "student"
+          ? record.student_id
+          : record.patient_type === "visitor"
+            ? null
+            : normalizeEmployeeCampusId(record.employee_id ?? campusId)
+
+      // Heal legacy employee IDs still stored as 26-*****
+      if (
+        record.employee_id &&
+        (record.patient_type === "faculty" ||
+          record.patient_type === "employee") &&
+        campusId &&
+        record.employee_id !== campusId
+      ) {
+        await supabase
+          .from("patient_records")
+          .update({ employee_id: campusId })
+          .eq("id", record.id)
+      }
+    } else if (patientType === "faculty" || patientType === "employee") {
+      // No university patient record → not affiliated → visitor
+      patientType = "visitor"
+    }
+  } else {
+    patientType = "visitor"
+  }
+
   const idRequired = patientType !== "visitor"
 
   if (idRequired && !campusId) {
@@ -855,12 +953,9 @@ export async function registerWalkIn(params: {
     }
   }
 
-  const supabase = await createClient()
-  const { ymd } = manilaDayBounds()
-
   let patientId: string | null = null
   let resolvedName = name
-  let resolvedCampusId = campusId
+  let resolvedCampusId = patientType === "visitor" ? null : campusId
 
   if (campusId && patientType === "student") {
     const enrolled = await lookupEnrolledStudentById(campusId)
@@ -899,17 +994,44 @@ export async function registerWalkIn(params: {
     campusId &&
     (patientType === "faculty" || patientType === "employee")
   ) {
-    const { data: byEmployee } = await supabase
-      .from("patients")
-      .select("id, full_name, student_id, employee_id, patient_type")
-      .eq("employee_id", campusId)
-      .limit(1)
-      .maybeSingle()
+    const variants = campusIdLookupVariants(campusId)
+    let byEmployee: {
+      id: string
+      full_name: string
+      student_id: string | null
+      employee_id: string | null
+      patient_type: string | null
+    } | null = null
+
+    for (const variant of variants) {
+      const { data } = await supabase
+        .from("patients")
+        .select("id, full_name, student_id, employee_id, patient_type")
+        .eq("employee_id", variant)
+        .limit(1)
+        .maybeSingle()
+      if (data) {
+        byEmployee = data
+        break
+      }
+    }
 
     if (byEmployee) {
       patientId = byEmployee.id
       resolvedName = byEmployee.full_name
-      resolvedCampusId = byEmployee.employee_id
+      resolvedCampusId = normalizeEmployeeCampusId(
+        byEmployee.employee_id ?? campusId
+      )
+      // Heal legacy IDs still stored as 26-*****
+      if (
+        byEmployee.employee_id &&
+        byEmployee.employee_id !== resolvedCampusId
+      ) {
+        await supabase
+          .from("patients")
+          .update({ employee_id: resolvedCampusId })
+          .eq("id", byEmployee.id)
+      }
     } else {
       const now = new Date().toISOString()
       const { data: created, error: createError } = await supabase
@@ -946,7 +1068,7 @@ export async function registerWalkIn(params: {
         full_name: name,
         patient_type: "visitor",
         affiliation: "visitor",
-        student_id: campusId,
+        student_id: null,
         employee_id: null,
         clinic_id: CAMPUS_CLINIC_ID,
         updated_at: now,
@@ -962,6 +1084,7 @@ export async function registerWalkIn(params: {
     }
     patientId = created.id as string
     resolvedName = created.full_name as string
+    resolvedCampusId = null
   }
 
   const consultationTypeLower = (

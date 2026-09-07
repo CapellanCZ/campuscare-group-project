@@ -19,6 +19,8 @@ type StatCardProps = {
   lowerIsBetter?: boolean
   className?: string
   icon?: React.ReactNode
+  /** Soft icon/accent tint (e.g. patient-type color). Card body stays neutral. */
+  accentColor?: string
   /** Efferd flush cell — no radius/ring when nested in PanelFrame */
   flush?: boolean
   /** Optional navigation target — overlay link keeps Card as the outer node */
@@ -35,6 +37,7 @@ export function StatCard({
   lowerIsBetter = false,
   className,
   icon,
+  accentColor,
   flush = false,
   href,
   onClick,
@@ -85,7 +88,18 @@ export function StatCard({
         </div>
         {icon ? (
           <div
-            className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary [&_svg]:size-4"
+            className={cn(
+              "flex size-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4",
+              !accentColor && "bg-primary/10 text-primary"
+            )}
+            style={
+              accentColor
+                ? {
+                    color: accentColor,
+                    backgroundColor: `color-mix(in srgb, ${accentColor} 14%, transparent)`,
+                  }
+                : undefined
+            }
             aria-hidden
           >
             {icon}

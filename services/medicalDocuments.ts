@@ -310,8 +310,13 @@ export async function getMedicalDocuments(
   const supabase = await getClient(client)
   const page = Math.max(1, params.page ?? 1)
   const pageSize = Math.min(50, Math.max(1, params.pageSize ?? 10))
+  const queryText = params.query?.trim().toLowerCase() ?? ""
 
-  let request = supabase.from("medical_certificates").select(SELECT_WITH_PATIENT)
+  let request = supabase
+    .from("medical_certificates")
+    .select(SELECT_WITH_PATIENT, { count: "exact" })
+    .order("issued_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
 
   if (params.status && params.status !== "all") {
     if (params.status === "issued") {
@@ -329,50 +334,40 @@ export async function getMedicalDocuments(
   if (params.issuedBy) {
     request = request.eq("issued_by", params.issuedBy)
   }
-
-  const { data, error } = await request
-  if (error) mapError(error)
-
-  let items = ((data ?? []) as DocumentRow[]).map(mapDocument)
-
-  const query = params.query?.trim().toLowerCase() ?? ""
-  if (query) {
-    items = items.filter(
-      (item) =>
-        item.patient.fullName.toLowerCase().includes(query) ||
-        (item.patient.studentId ?? "").toLowerCase().includes(query) ||
-        item.documentNumber.toLowerCase().includes(query)
-    )
-  }
-
   if (params.dateFrom) {
-    const from = Date.parse(params.dateFrom)
-    items = items.filter((item) => {
-      const issued = item.issuedAt ? Date.parse(item.issuedAt) : 0
-      return issued >= from
-    })
+    request = request.gte("issued_at", params.dateFrom)
   }
   if (params.dateTo) {
-    const to = Date.parse(params.dateTo)
-    items = items.filter((item) => {
-      const issued = item.issuedAt ? Date.parse(item.issuedAt) : 0
-      return issued <= to
-    })
+    request = request.lte("issued_at", `${params.dateTo}T23:59:59.999Z`)
   }
 
-  items.sort((a, b) => {
-    const left = a.issuedAt ? Date.parse(a.issuedAt) : Date.parse(a.createdAt)
-    const right = b.issuedAt ? Date.parse(b.issuedAt) : Date.parse(b.createdAt)
-    return right - left
-  })
+  if (queryText) {
+    const escaped = queryText.replace(/[%_,]/g, "")
+    if (escaped) {
+      const pattern = `%${escaped}%`
+      request = request.or(
+        [
+          `certificate_number.ilike.${pattern}`,
+          `purpose.ilike.${pattern}`,
+          `doctor_name.ilike.${pattern}`,
+        ].join(",")
+      )
+    }
+  }
 
-  const total = items.length
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+  const { data, error, count } = await request.range(from, to)
+
+  if (error) mapError(error)
+
+  const items = ((data ?? []) as DocumentRow[]).map(mapDocument)
+  const total = count ?? items.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const safePage = Math.min(page, totalPages)
-  const start = (safePage - 1) * pageSize
 
   return {
-    items: items.slice(start, start + pageSize),
+    items,
     total,
     page: safePage,
     pageSize,
@@ -466,6 +461,81 @@ export async function issueMedicalDocument(
       documentNumber: document.documentNumber,
       documentType: document.documentType,
       consultationId: document.consultationId,
+    },
+  })
+
+  return document
+}
+
+export async function updateMedicalDocument(
+  input: {
+    id: string
+    purpose?: string | null
+    payload: Record<string, unknown>
+    updatedBy: string
+    updatedByName?: string | null
+    licenseNumber?: string | null
+    consultationStatus?: string | null
+  },
+  client?: SupabaseClient
+): Promise<MedicalDocument> {
+  const supabase = await getClient(client)
+
+  const existing = await getMedicalDocumentById(input.id, supabase)
+  if (existing.status === "voided") {
+    throw new MedicalDocumentServiceError(
+      "validation",
+      "Voided documents cannot be edited."
+    )
+  }
+
+  if (
+    input.consultationStatus &&
+    input.consultationStatus !== "ongoing"
+  ) {
+    throw new MedicalDocumentServiceError(
+      "validation",
+      "Documents can only be edited while the consultation is ongoing."
+    )
+  }
+
+  const payload = {
+    ...input.payload,
+    ...(input.licenseNumber
+      ? { physicianLicenseNumber: input.licenseNumber }
+      : {}),
+  }
+
+  const { data, error } = await supabase
+    .from("medical_certificates")
+    .update({
+      purpose: input.purpose?.trim() || existing.purpose,
+      payload,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.id)
+    .neq("status", "voided")
+    .select(SELECT_WITH_PATIENT)
+    .maybeSingle()
+
+  if (error) mapError(error)
+  if (!data) {
+    throw new MedicalDocumentServiceError(
+      "not_found",
+      "Medical document not found."
+    )
+  }
+
+  const document = mapDocument(data as DocumentRow)
+
+  await appendAudit(supabase, {
+    documentId: document.id,
+    event: "UPDATE_MEDICAL_DOCUMENT",
+    actorId: input.updatedBy,
+    actorName: input.updatedByName,
+    details: {
+      documentNumber: document.documentNumber,
+      documentType: document.documentType,
     },
   })
 

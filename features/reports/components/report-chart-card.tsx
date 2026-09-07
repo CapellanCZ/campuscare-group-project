@@ -28,10 +28,15 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart"
 import { panelCardClassName } from "@/components/layout/panel-frame"
+import {
+  colorForReportLabel,
+  isPatientTypeBreakdownChart,
+  REPORT_PATIENT_TYPE_COLORS,
+} from "@/features/reports/lib/patient-type-colors"
 import type { ReportChartKind, ReportChartSeries } from "@/features/reports/types"
 import { cn } from "@/lib/utils"
 
-const COLORS = [
+const FALLBACK_COLORS = [
   "var(--chart-1)",
   "var(--chart-2)",
   "var(--chart-3)",
@@ -47,9 +52,15 @@ const trendConfig = {
 } satisfies ChartConfig
 
 const stackedConfig = {
-  value: { label: "Student", color: "var(--chart-1)" },
-  secondary: { label: "Faculty", color: "var(--chart-2)" },
-  tertiary: { label: "Employee", color: "var(--chart-3)" },
+  value: { label: "Student", color: REPORT_PATIENT_TYPE_COLORS.student },
+  secondary: { label: "Faculty", color: REPORT_PATIENT_TYPE_COLORS.faculty },
+  tertiary: { label: "Employee", color: REPORT_PATIENT_TYPE_COLORS.employee },
+} satisfies ChartConfig
+
+const patientTypeBarConfig = {
+  value: { label: "Medical", color: REPORT_PATIENT_TYPE_COLORS.student },
+  secondary: { label: "Dental", color: REPORT_PATIENT_TYPE_COLORS.student },
+  tertiary: { label: "Total", color: "var(--chart-4)" },
 } satisfies ChartConfig
 
 export type OpsChartSeries = {
@@ -68,16 +79,45 @@ export type OpsChartSeries = {
   tertiaryLabel?: string
 }
 
+function PatientTypeLegend() {
+  const items = [
+    { label: "Student", color: REPORT_PATIENT_TYPE_COLORS.student },
+    { label: "Faculty", color: REPORT_PATIENT_TYPE_COLORS.faculty },
+    { label: "Employee", color: REPORT_PATIENT_TYPE_COLORS.employee },
+  ] as const
+  return (
+    <ul className="mt-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+      {items.map((item) => (
+        <li key={item.label} className="flex items-center gap-1.5">
+          <span
+            className="size-2.5 rounded-full"
+            style={{ background: item.color }}
+            aria-hidden
+          />
+          {item.label}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function sliceColor(
+  label: string,
+  index: number,
+  usePatientTypeColors: boolean
+): string {
+  if (usePatientTypeColors) return colorForReportLabel(label)
+  return FALLBACK_COLORS[index % FALLBACK_COLORS.length]
+}
+
 export function ReportChartCard({
   series,
   elevated = false,
   embedded = false,
-  tall = false,
 }: {
   series: ReportChartSeries | OpsChartSeries
   elevated?: boolean
   embedded?: boolean
-  tall?: boolean
 }) {
   const data = series.points.map((p) => ({
     label: p.label,
@@ -86,6 +126,8 @@ export function ReportChartCard({
     tertiary: p.tertiary ?? 0,
   }))
   const kind = series.kind
+  const chartKey = series.key
+  const patientTypeBreakdown = isPatientTypeBreakdownChart(chartKey)
   const valueLabel =
     "valueLabel" in series && series.valueLabel ? series.valueLabel : "Medical"
   const secondaryLabel =
@@ -99,6 +141,8 @@ export function ReportChartCard({
   const showSecondary =
     kind === "multiline" ||
     kind === "stackedBar" ||
+    (kind === "bar" &&
+      series.points.some((p) => typeof p.secondary === "number")) ||
     (kind === "line" && series.points.some((p) => (p.secondary ?? 0) > 0))
   const showTertiary =
     kind === "multiline" ||
@@ -108,20 +152,22 @@ export function ReportChartCard({
   const empty = data.length === 0 || data.every(
     (d) => d.value === 0 && d.secondary === 0 && d.tertiary === 0
   )
-  const config = kind === "stackedBar" ? stackedConfig : trendConfig
+  const config =
+    kind === "stackedBar"
+      ? stackedConfig
+      : patientTypeBreakdown && kind === "bar"
+        ? patientTypeBarConfig
+        : trendConfig
 
   const chart = empty ? (
-    <p className="py-10 text-center text-sm text-muted-foreground">
+    <p className="flex h-[220px] items-center justify-center text-center text-sm text-muted-foreground">
       No data available for the selected period.
     </p>
   ) : (
     <>
       <ChartContainer
         config={config}
-        className={cn(
-          "aspect-[16/9] w-full",
-          tall ? "min-h-[280px]" : "min-h-[220px]"
-        )}
+        className="!aspect-auto h-[220px] w-full justify-center"
       >
         {kind === "pie" ? (
           <PieChart>
@@ -137,7 +183,7 @@ export function ReportChartCard({
               {data.map((entry, index) => (
                 <Cell
                   key={entry.label}
-                  fill={COLORS[index % COLORS.length]}
+                  fill={sliceColor(entry.label, index, patientTypeBreakdown)}
                 />
               ))}
             </Pie>
@@ -187,7 +233,23 @@ export function ReportChartCard({
               width={132}
             />
             <ChartTooltip content={<ChartTooltipContent />} />
-            <Bar dataKey="value" fill="var(--color-value)" radius={4} />
+            <Bar dataKey="value" radius={4}>
+              {data.map((entry) => (
+                <Cell
+                  key={entry.label}
+                  fill={
+                    patientTypeBreakdown
+                      ? colorForReportLabel(entry.label)
+                      : "var(--color-value)"
+                  }
+                  fillOpacity={
+                    patientTypeBreakdown && /dental/i.test(entry.label)
+                      ? 0.72
+                      : 1
+                  }
+                />
+              ))}
+            </Bar>
           </BarChart>
         ) : kind === "bar" ? (
           <BarChart data={data} margin={{ left: 8, right: 8 }}>
@@ -195,7 +257,42 @@ export function ReportChartCard({
             <XAxis dataKey="label" tickLine={false} axisLine={false} />
             <YAxis tickLine={false} axisLine={false} width={32} />
             <ChartTooltip content={<ChartTooltipContent />} />
-            <Bar dataKey="value" fill="var(--color-value)" radius={4} />
+            {showSecondary && !patientTypeBreakdown ? <Legend /> : null}
+            <Bar
+              dataKey="value"
+              name={valueLabel}
+              fill={patientTypeBreakdown ? undefined : "var(--color-value)"}
+              radius={4}
+            >
+              {patientTypeBreakdown
+                ? data.map((entry) => (
+                    <Cell
+                      key={`value-${entry.label}`}
+                      fill={colorForReportLabel(entry.label)}
+                    />
+                  ))
+                : null}
+            </Bar>
+            {showSecondary ? (
+              <Bar
+                dataKey="secondary"
+                name={secondaryLabel}
+                fill={
+                  patientTypeBreakdown ? undefined : "var(--color-secondary)"
+                }
+                radius={4}
+              >
+                {patientTypeBreakdown
+                  ? data.map((entry) => (
+                      <Cell
+                        key={`secondary-${entry.label}`}
+                        fill={colorForReportLabel(entry.label)}
+                        fillOpacity={0.72}
+                      />
+                    ))
+                  : null}
+              </Bar>
+            ) : null}
           </BarChart>
         ) : (
           <LineChart data={data} margin={{ left: 8, right: 8 }}>
@@ -236,6 +333,9 @@ export function ReportChartCard({
           </LineChart>
         )}
       </ChartContainer>
+      {patientTypeBreakdown && (kind === "bar" || kind === "hbar") ? (
+        <PatientTypeLegend />
+      ) : null}
       {kind === "pie" && total > 0 ? (
         <ul className="mt-3 grid gap-1 text-sm sm:grid-cols-2">
           {data.map((d, i) => (
@@ -246,7 +346,9 @@ export function ReportChartCard({
               <span className="flex items-center gap-2">
                 <span
                   className="size-2.5 rounded-full"
-                  style={{ background: COLORS[i % COLORS.length] }}
+                  style={{
+                    background: sliceColor(d.label, i, patientTypeBreakdown),
+                  }}
                 />
                 {d.label}
               </span>
