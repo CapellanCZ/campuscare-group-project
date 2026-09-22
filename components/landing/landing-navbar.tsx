@@ -5,6 +5,7 @@ import Link from "next/link"
 import { IconMenu2 } from "@tabler/icons-react"
 
 import { CampusCareLogo } from "@/components/campuscare-logo"
+import { scrollToId } from "@/components/landing/motion"
 import { landingNavItems } from "@/lib/landing/content"
 import { buttonVariants } from "@/components/ui/button"
 import {
@@ -53,10 +54,9 @@ export function LandingNavbar() {
   ) => {
     if (!href.startsWith("#")) return
     event.preventDefault()
-    const target = document.querySelector(href)
-    if (!(target instanceof HTMLElement)) return
-    target.scrollIntoView({ behavior: "smooth", block: "start" })
-    setActiveSection(href.replace("#", ""))
+    const sectionId = href.slice(1)
+    scrollToId(sectionId)
+    setActiveSection(sectionId)
     setIsOpen(false)
   }
 

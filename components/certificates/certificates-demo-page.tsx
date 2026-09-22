@@ -47,6 +47,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { selectItemsRecord } from "@/lib/ui/select-label"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -67,6 +68,10 @@ import { can, canMutate, getAccessLevel } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { DemoStat } from "@/lib/demo/types"
 import { cn } from "@/lib/utils"
+import {
+  staleListBusy,
+  staleListBusyClassName,
+} from "@/lib/ui/stale-list-busy"
 import type {
   MedicalCertificate,
   MedicalCertificateStats,
@@ -123,14 +128,17 @@ function toStatCards(stats: MedicalCertificateStats): DemoStat[] {
 
 function CertificatesTableSkeleton() {
   return (
-    <div className="space-y-3 p-4">
-      {Array.from({ length: 5 }).map((_, index) => (
+    <div
+      className="space-y-2 p-4"
+      role="status"
+      aria-label="Loading certificates"
+    >
+      {Array.from({ length: 3 }).map((_, index) => (
         <div key={index} className="flex items-center gap-3">
-          <Skeleton className="h-10 w-40" />
-          <Skeleton className="h-10 flex-1" />
-          <Skeleton className="h-10 w-36" />
-          <Skeleton className="h-10 w-20" />
-          <Skeleton className="h-10 w-28" />
+          <Skeleton className="h-8 w-36" />
+          <Skeleton className="h-8 flex-1" />
+          <Skeleton className="h-8 w-28" />
+          <Skeleton className="h-8 w-20" />
         </div>
       ))}
     </div>
@@ -253,9 +261,13 @@ export function CertificatesPage({
   }, [debouncedQuery, page, loadPage, documentTypeFilter, statusFilter])
 
   const statCards = useMemo(() => toStatCards(stats), [stats])
-  const showSkeleton = loading || isPending
   const rows = list.items
   const hasRows = rows.length > 0
+  const { showInitialSkeleton, isRefreshing } = staleListBusy(
+    loading,
+    rows.length,
+    isPending
+  )
 
   function openDocument(document: MedicalDocument) {
     setSelected(document)
@@ -362,6 +374,13 @@ export function CertificatesPage({
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
             <Select
               value={documentTypeFilter}
+              items={selectItemsRecord([
+                { value: "all", label: "All types" },
+                ...MEDICAL_DOCUMENT_TYPES.map((type) => ({
+                  value: type,
+                  label: DOCUMENT_TYPE_LABELS[type],
+                })),
+              ])}
               onValueChange={(value) => {
                 setDocumentTypeFilter(value as MedicalDocumentType | "all")
                 setPage(1)
@@ -381,6 +400,10 @@ export function CertificatesPage({
             </Select>
             <Select
               value={statusFilter}
+              items={selectItemsRecord([
+                { value: "all", label: "All statuses" },
+                ...DOCUMENT_STATUS_FILTER_OPTIONS,
+              ])}
               onValueChange={(value) => {
                 setStatusFilter(value as MedicalDocumentStatus | "all")
                 setPage(1)
@@ -433,7 +456,7 @@ export function CertificatesPage({
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {showSkeleton ? (
+          {showInitialSkeleton ? (
             <CertificatesTableSkeleton />
           ) : !hasRows ? (
             <Empty className="border-0">
@@ -455,7 +478,10 @@ export function CertificatesPage({
               ) : null}
             </Empty>
           ) : (
-            <>
+            <div
+              className={staleListBusyClassName(isRefreshing)}
+              aria-busy={isRefreshing || undefined}
+            >
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -585,7 +611,7 @@ export function CertificatesPage({
                     <Button
                       size="xs"
                       variant="outline"
-                      disabled={list.page <= 1 || showSkeleton}
+                      disabled={list.page <= 1 || isRefreshing}
                       onClick={() =>
                         setPage((current) => Math.max(1, current - 1))
                       }
@@ -596,7 +622,7 @@ export function CertificatesPage({
                       size="xs"
                       variant="outline"
                       disabled={
-                        list.page >= list.totalPages || showSkeleton
+                        list.page >= list.totalPages || isRefreshing
                       }
                       onClick={() =>
                         setPage((current) =>
@@ -609,7 +635,7 @@ export function CertificatesPage({
                   </div>
                 </div>
               ) : null}
-            </>
+            </div>
           )}
         </CardContent>
       </Card>

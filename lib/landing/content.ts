@@ -8,6 +8,8 @@ import {
   IconStack2,
 } from "@tabler/icons-react"
 
+import { siteRoutes } from "@/lib/site/routes"
+
 export type NavLink = {
   label: string
   href: string
@@ -209,21 +211,24 @@ export const footerContact = {
   mapsUrl:
     "https://www.google.com/maps/search/?api=1&query=National+University+Dasmarinas",
   email: "clinic@nu-dasma.edu.ph",
-  phone: "local 3515",
-  phoneTel: "0939-919-9980",
+  /** Displayed dialable number (single phone — do not duplicate in UI). */
+  phone: "0939-919-9980",
+  phoneTel: "+639399199980",
+  /** Internal PBX extension — shown as secondary text, not a second tel link. */
+  phoneLocal: "3515",
 }
 
 export const footerQuickLinks = [
   { label: "Home", href: "#home" },
   { label: "About", href: "#about" },
   { label: "Features", href: "#features" },
-  { label: "Login", href: "/login" },
+  { label: "Login", href: siteRoutes.login },
 ] as const
 
 export const footerLegalLinks = [
-  { label: "Privacy Policy", href: "/privacy" },
-  { label: "Terms of Use", href: "/terms" },
-  { label: "Data Privacy Notice", href: "/data-privacy" },
+  { label: "Privacy Policy", href: siteRoutes.privacy },
+  { label: "Terms of Use", href: siteRoutes.terms },
+  { label: "Data Privacy Notice", href: siteRoutes.dataPrivacy },
 ] as const
 
 export const footerBlurb =

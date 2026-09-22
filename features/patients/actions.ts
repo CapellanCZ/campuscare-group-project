@@ -10,6 +10,7 @@ import { loadDentalVisitChart } from "@/features/dentist/data/visit-chart"
 import type { DentalPatientChart } from "@/features/dentist/types/dental-chart"
 import {
   getDirectoryPatientRecordStats,
+  listAllDirectoryPatientRecords,
   listDirectoryPatientRecords,
   listEnrolledPatientOptions,
 } from "@/lib/students/directory"
@@ -44,6 +45,7 @@ import {
   type UpdatePatientMedicalRecordInput,
   type UpdatePatientRecordInput,
 } from "@/types/patientRecord"
+import { patientRecordToExportRow } from "@/features/patients/lib/export-patient-records"
 import {
   getConsultationVisitDetail,
   getConsultationsByPatientId,
@@ -375,6 +377,46 @@ export async function fetchPatientDocumentsAction(
       employeeId: patient.employeeId,
     })
     return { ok: true, data: filterCertificatesByScope(data, scope) }
+  } catch (error) {
+    return toErrorResult(error)
+  }
+}
+
+export async function exportPatientRecordsAction(params: {
+  query?: string
+  patientType?: PatientRecordListParams["patientType"]
+  sortBy?: PatientRecordListParams["sortBy"]
+  sortDir?: PatientRecordListParams["sortDir"]
+}): Promise<
+  PatientRecordActionResult<{
+    rows: string[][]
+    total: number
+  }>
+> {
+  try {
+    const access = await getStaffAccess()
+    if (!access || !canViewModule(access.designation, "patient_records")) {
+      return {
+        ok: false,
+        error: "You do not have access to export patient records.",
+        code: "permission",
+      }
+    }
+
+    const patients = await listAllDirectoryPatientRecords({
+      query: params.query,
+      patientType: params.patientType ?? "all",
+      sortBy: params.sortBy ?? "patient",
+      sortDir: params.sortDir ?? "asc",
+    })
+
+    return {
+      ok: true,
+      data: {
+        rows: patients.map(patientRecordToExportRow),
+        total: patients.length,
+      },
+    }
   } catch (error) {
     return toErrorResult(error)
   }

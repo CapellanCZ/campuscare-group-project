@@ -178,9 +178,13 @@ function HeaderNotificationsInbox() {
           </Badge>
         ) : null}
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-80" align="end" sideOffset={8}>
+      <DropdownMenuContent
+        className="w-80 max-h-[min(50dvh,22rem)] overflow-hidden p-0"
+        align="end"
+        sideOffset={8}
+      >
         <DropdownMenuGroup>
-          <DropdownMenuLabel className="flex items-center justify-between gap-2">
+          <DropdownMenuLabel className="flex items-center justify-between gap-2 px-3 py-2.5">
             <span>Notifications</span>
             {unreadCount > 0 ? (
               <button
@@ -200,17 +204,17 @@ function HeaderNotificationsInbox() {
               </span>
             )}
           </DropdownMenuLabel>
-          <DropdownMenuSeparator />
+          <DropdownMenuSeparator className="mx-0" />
           {items.length === 0 ? (
             <div
-              className="px-2 py-8 text-center text-sm text-muted-foreground"
+              className="px-3 py-8 text-center text-sm text-muted-foreground"
               role="status"
             >
               No notifications yet. Turn notification types on in Profile and
               Settings.
             </div>
           ) : (
-            <DropdownMenuGroup>
+            <DropdownMenuGroup className="max-h-[min(42dvh,18rem)] overflow-y-auto overscroll-contain p-1">
               {items.map((notification) => (
                 <DropdownMenuItem
                   key={notification.id}

@@ -4,7 +4,7 @@ import { LegalDocumentPage } from "@/components/legal/legal-document-page"
 import { privacyPolicy } from "@/lib/legal/content"
 
 export const metadata: Metadata = {
-  title: "Privacy Policy · CampusCare",
+  title: "Privacy Policy",
   description:
     "Privacy Policy for CampusCare and the NU Dasmariñas Health Services Office.",
 }

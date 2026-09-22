@@ -144,9 +144,19 @@ export async function downloadExcelTemplate(
   headers: string[],
   sampleRows: string[][] = []
 ) {
+  await downloadExcelData(filename, headers, sampleRows, "Import")
+}
+
+/** Write an Excel workbook from header + data rows (client-side download). */
+export async function downloadExcelData(
+  filename: string,
+  headers: string[],
+  rows: string[][],
+  sheetName = "Sheet1"
+) {
   const XLSX = await import("xlsx")
-  const worksheet = XLSX.utils.aoa_to_sheet([headers, ...sampleRows])
+  const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows])
   const workbook = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Import")
+  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName)
   XLSX.writeFile(workbook, filename)
 }

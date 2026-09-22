@@ -6,7 +6,6 @@ import { consultationToasts, queueToasts } from "@/lib/feedback/toast-messages"
 import { useRouter } from "next/navigation"
 
 import {
-  actionAssignQueueNumber,
   actionCallNext,
   actionCompleteTicket,
   actionNoShowTicket,
@@ -14,7 +13,6 @@ import {
   actionRejoinQueue,
   actionSkipTicket,
   actionStartConsultation,
-  actionTransferTicket,
   actionVerifyCheckIn,
 } from "@/lib/health/queue-server-actions"
 import { ConsultationSummaryDialog } from "@/components/consultations/consultation-summary-dialog"
@@ -87,7 +85,6 @@ import {
 import {
   canMutateQueue,
   canRegisterWalkIn,
-  canTransferQueue,
   designationLabel,
   isReadOnlyQueue,
   stationForDesignation,
@@ -1093,8 +1090,7 @@ export function QueuePage({
                                       ) : null}
                                       {isNurse &&
                                       (actions.has("verify") ||
-                                        actions.has("intake") ||
-                                        actions.has("assign_number")) ? (
+                                        actions.has("intake")) ? (
                                         <>
                                           {showVerify ? null : actions.has(
                                             "verify"
@@ -1118,30 +1114,6 @@ export function QueuePage({
                                               }
                                             >
                                               Intake & assign specialty
-                                            </DropdownMenuItem>
-                                          ) : null}
-                                          {actions.has("assign_number") ? (
-                                            <DropdownMenuItem
-                                              onClick={() => {
-                                                const n = window.prompt(
-                                                  "Assign queue number",
-                                                  String(
-                                                    row.queueNumber ??
-                                                      row.queuePosition
-                                                  )
-                                                )
-                                                const parsed = Number(n)
-                                                if (!n || Number.isNaN(parsed))
-                                                  return
-                                                run(() =>
-                                                  actionAssignQueueNumber(
-                                                    row.ticketId,
-                                                    parsed
-                                                  )
-                                                )
-                                              }}
-                                            >
-                                              Assign queue number
                                             </DropdownMenuItem>
                                           ) : null}
                                           {actions.has("call") ||
@@ -1305,34 +1277,6 @@ export function QueuePage({
                                         >
                                           Reschedule
                                         </DropdownMenuItem>
-                                      ) : null}
-                                      {actions.has("transfer") &&
-                                      canTransferQueue(access.designation) ? (
-                                        <>
-                                          <DropdownMenuSeparator />
-                                          {(
-                                            [
-                                              "physician",
-                                              "dentist",
-                                              "nurse",
-                                            ] as StationId[]
-                                          ).map((station) => (
-                                            <DropdownMenuItem
-                                              key={station}
-                                              onClick={() =>
-                                                run(() =>
-                                                  actionTransferTicket(
-                                                    row.ticketId,
-                                                    station
-                                                  )
-                                                )
-                                              }
-                                            >
-                                              Transfer to{" "}
-                                              {stationLabel(station)}
-                                            </DropdownMenuItem>
-                                          ))}
-                                        </>
                                       ) : null}
                                     </DropdownMenuContent>
                                   </DropdownMenu>

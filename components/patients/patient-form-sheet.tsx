@@ -206,6 +206,11 @@ export function PatientFormSheet({
               <FieldLabel htmlFor="patientType">Patient type *</FieldLabel>
               <Select
                 value={form.patientType}
+                items={{
+                  student: "Student",
+                  faculty: "Faculty",
+                  employee: "Employee",
+                }}
                 onValueChange={(value) => {
                   const nextType = normalizePatientType(value)
                   if (

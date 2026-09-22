@@ -171,6 +171,11 @@ export function UserInviteSheet({
                 <FieldLabel>Role</FieldLabel>
                 <Select
                   value={role}
+                  items={{
+                    nurse: "Nurse",
+                    physician: "Physician",
+                    dentist: "Dentist",
+                  }}
                   onValueChange={(value) =>
                     setRole((value as ManagedRole) ?? config.defaultCreateRole)
                   }

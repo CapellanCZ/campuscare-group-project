@@ -56,6 +56,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { selectItemsRecord } from "@/lib/ui/select-label"
 import {
   Table,
   TableBody,
@@ -74,6 +75,10 @@ import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { DemoStat } from "@/lib/demo/types"
 import { cn } from "@/lib/utils"
+import {
+  staleListBusy,
+  staleListBusyClassName,
+} from "@/lib/ui/stale-list-busy"
 import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
 import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 import {
@@ -180,14 +185,17 @@ function toStatCards(
 
 function ConsultationsTableSkeleton() {
   return (
-    <div className="space-y-3 p-4">
-      {Array.from({ length: 5 }).map((_, index) => (
+    <div
+      className="space-y-2 p-4"
+      role="status"
+      aria-label="Loading consultations"
+    >
+      {Array.from({ length: 3 }).map((_, index) => (
         <div key={index} className="flex items-center gap-3">
-          <Skeleton className="h-10 w-40" />
-          <Skeleton className="h-10 flex-1" />
-          <Skeleton className="h-10 w-28" />
-          <Skeleton className="h-10 w-36" />
-          <Skeleton className="h-10 w-40" />
+          <Skeleton className="h-8 w-36" />
+          <Skeleton className="h-8 flex-1" />
+          <Skeleton className="h-8 w-24" />
+          <Skeleton className="h-8 w-28" />
         </div>
       ))}
     </div>
@@ -366,8 +374,12 @@ export function ConsultationsPage({
       ),
     [stats, isNurse, isClinician]
   )
-  const showSkeleton = loading || isPending
   const rows = list.items
+  const { showInitialSkeleton, isRefreshing } = staleListBusy(
+    loading,
+    rows.length,
+    isPending
+  )
 
   async function applyConsultationPatch(
     row: Consultation,
@@ -481,6 +493,13 @@ export function ConsultationsPage({
             />
             <Select
               value={statusFilter}
+              items={selectItemsRecord([
+                { value: "all", label: "All statuses" },
+                ...CONSULTATION_TAB_STATUSES.map((status) => ({
+                  value: status,
+                  label: consultationStatusLabel(status),
+                })),
+              ])}
               onValueChange={(value) =>
                 setStatusFilter((value as ConsultationStatus | "all") ?? "all")
               }
@@ -500,6 +519,11 @@ export function ConsultationsPage({
             {isNurse ? (
               <Select
                 value={providerTypeFilter}
+                items={{
+                  all: "All providers",
+                  physician: "Physician",
+                  dentist: "Dentist",
+                }}
                 onValueChange={(value) =>
                   setProviderTypeFilter(
                     (value as "all" | "physician" | "dentist") ?? "all"
@@ -520,6 +544,13 @@ export function ConsultationsPage({
               <>
                 <Select
                   value={providerFilter}
+                  items={selectItemsRecord([
+                    { value: "all", label: "All providers" },
+                    ...providers.map((provider) => ({
+                      value: provider,
+                      label: provider,
+                    })),
+                  ])}
                   onValueChange={(value) => setProviderFilter(value ?? "all")}
                 >
                   <SelectTrigger className="w-[180px]">
@@ -536,6 +567,13 @@ export function ConsultationsPage({
                 </Select>
                 <Select
                   value={stationFilter}
+                  items={selectItemsRecord([
+                    { value: "all", label: "All stations" },
+                    ...stations.map((station) => ({
+                      value: station,
+                      label: station,
+                    })),
+                  ])}
                   onValueChange={(value) => setStationFilter(value ?? "all")}
                 >
                   <SelectTrigger className="w-[160px]">
@@ -554,6 +592,7 @@ export function ConsultationsPage({
             ) : null}
             <Select
               value={dateRange}
+              items={CONSULTATION_DATE_RANGE_LABELS}
               onValueChange={(value) =>
                 setDateRange((value as ConsultationDateRange) ?? "all_time")
               }
@@ -576,7 +615,7 @@ export function ConsultationsPage({
           </div>
         </CardHeader>
         <CardContent className="min-w-0 p-0">
-          {showSkeleton ? (
+          {showInitialSkeleton ? (
             <ConsultationsTableSkeleton />
           ) : rows.length === 0 ? (
             <Empty className="border-0 py-12">
@@ -592,6 +631,10 @@ export function ConsultationsPage({
               </EmptyHeader>
             </Empty>
           ) : (
+            <div
+              className={staleListBusyClassName(isRefreshing)}
+              aria-busy={isRefreshing || undefined}
+            >
             <>
             <div className="flex flex-col gap-3 p-4 md:hidden">
               {rows.map((row) => (
@@ -883,6 +926,7 @@ export function ConsultationsPage({
             </Table>
             </div>
             </>
+            </div>
           )}
         </CardContent>
       </Card>

@@ -1,7 +1,9 @@
+import { sanitizeIntakeNotesForDisplay } from "@/lib/health/intake-notes"
 import type {
   PatientType,
   QueueTicketRow,
   QueueVitals,
+  SpecialtyStationId,
   StationId,
   TicketStatus,
 } from "@/lib/health/types"
@@ -101,6 +103,25 @@ function asStatus(value: string): TicketStatus {
     : "waiting"
 }
 
+function specialtyFromConsultationType(
+  consultationType: string | null | undefined
+): SpecialtyStationId | null {
+  const s = (consultationType ?? "").toLowerCase()
+  if (!s) return null
+  if (s.includes("dental") || s.includes("dentist") || s.includes("tooth")) {
+    return "dentist"
+  }
+  if (
+    s.includes("general") ||
+    s.includes("medical") ||
+    s.includes("physician") ||
+    s.includes("doctor")
+  ) {
+    return "physician"
+  }
+  return null
+}
+
 function patientJoin(raw: RawQueueTicket["patients"]) {
   if (!raw) return null
   return Array.isArray(raw) ? (raw[0] ?? null) : raw
@@ -161,7 +182,10 @@ export function ticketLabel(queueNumber: number | null, ticketCode: string) {
 
 export function mapTicketRow(
   raw: RawQueueTicket,
-  opts?: { publicMode?: boolean }
+  opts?: {
+    publicMode?: boolean
+    accountLabels?: ReadonlyMap<string, string>
+  }
 ): QueueTicketRow {
   const patient = patientJoin(raw.patients)
   const station = asStation(raw.station)
@@ -192,7 +216,7 @@ export function mapTicketRow(
   const providerType =
     raw.provider_type === "physician" || raw.provider_type === "dentist"
       ? raw.provider_type
-      : null
+      : specialtyFromConsultationType(raw.consultation_type)
 
   const status = asStatus(raw.status)
   const rejoinCount = raw.rejoin_count ?? 0
@@ -235,7 +259,10 @@ export function mapTicketRow(
     intakeCompletedAt: raw.intake_completed_at,
     chiefComplaint: raw.chief_complaint,
     vitals,
-    intakeNotes: raw.intake_notes,
+    intakeNotes: sanitizeIntakeNotesForDisplay(
+      raw.intake_notes,
+      opts?.accountLabels
+    ),
     priority: "normal",
     consultationRequestId: raw.consultation_request_id ?? null,
     consultationId: raw.consultation_id ?? null,

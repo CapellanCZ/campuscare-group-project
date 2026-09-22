@@ -28,9 +28,16 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { selectItemsRecord } from "@/lib/ui/select-label";
 import { Delta, DeltaIcon, DeltaValue } from "@/components/delta";
 
 type PeriodDays = 7 | 30 | 60;
+
+const PERIOD_OPTIONS = [
+	{ value: "7", label: "Last 7 days" },
+	{ value: "30", label: "Last 30 days" },
+	{ value: "60", label: "Last 60 days" },
+] as const;
 
 type VolumeRow = {
 	date: string;
@@ -121,6 +128,7 @@ export function ConversationVolumeChart({
 						setPeriodDays(n as PeriodDays);
 					}}
 					value={String(periodDays)}
+					items={selectItemsRecord(PERIOD_OPTIONS)}
 				>
 					<SelectTrigger
 						aria-label="Conversation volume time range"
@@ -130,9 +138,11 @@ export function ConversationVolumeChart({
 						<SelectValue placeholder="Range" />
 					</SelectTrigger>
 					<SelectContent align="end">
-						<SelectItem value="7">Last 7 days</SelectItem>
-						<SelectItem value="30">Last 30 days</SelectItem>
-						<SelectItem value="60">Last 60 days</SelectItem>
+						{PERIOD_OPTIONS.map((option) => (
+							<SelectItem key={option.value} value={option.value}>
+								{option.label}
+							</SelectItem>
+						))}
 					</SelectContent>
 				</Select>
 			</CardHeader>

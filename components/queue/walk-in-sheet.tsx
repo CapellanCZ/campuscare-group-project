@@ -30,6 +30,7 @@ import { CampusIdInput } from "@/components/shared/campus-id-input"
 import { actionRegisterWalkIn } from "@/lib/health/queue-server-actions"
 import { searchPatientByStudentIdAction } from "@/features/patients/actions"
 import { normalizeEmployeeCampusId } from "@/lib/students/student-id-input"
+import { selectItemsRecord } from "@/lib/ui/select-label"
 import {
   patientFullName,
   patientTypeLabel,
@@ -38,7 +39,6 @@ import {
 } from "@/types/patientRecord"
 import { IconUserPlus } from "@tabler/icons-react"
 
-const DEFAULT_CONSULTATION = "Walk-in consultation"
 const WALK_IN_PATIENT_TYPES = ["student", "employee", "visitor"] as const
 type WalkInPatientType = (typeof WALK_IN_PATIENT_TYPES)[number]
 
@@ -65,8 +65,8 @@ export function WalkInSheet({
   const [campusId, setCampusId] = useState("")
   const [debouncedCampusId, setDebouncedCampusId] = useState("")
   const [patientName, setPatientName] = useState("")
-  const [patientType, setPatientType] = useState<WalkInPatientType>("visitor")
-  const [consultationType, setConsultationType] = useState(DEFAULT_CONSULTATION)
+  const [patientType, setPatientType] = useState<WalkInPatientType | "">("")
+  const [consultationType, setConsultationType] = useState("")
   const [lookupHint, setLookupHint] = useState<string | null>(null)
   const [lookupPending, setLookupPending] = useState(false)
   const [nameAutoFilled, setNameAutoFilled] = useState(false)
@@ -93,7 +93,7 @@ export function WalkInSheet({
     if (!id) {
       setLookupHint(null)
       setNameAutoFilled(false)
-      setPatientType("visitor")
+      setPatientType("")
       return
     }
 
@@ -132,8 +132,8 @@ export function WalkInSheet({
     setCampusId("")
     setDebouncedCampusId("")
     setPatientName("")
-    setPatientType("visitor")
-    setConsultationType(DEFAULT_CONSULTATION)
+    setPatientType("")
+    setConsultationType("")
     setLookupHint(null)
     setNameAutoFilled(false)
     setError(null)
@@ -148,8 +148,14 @@ export function WalkInSheet({
       setError("Enter the patient's full name.")
       return
     }
+    if (!patientType) {
+      setError("Select a patient type.")
+      return
+    }
     if (patientType !== "visitor" && !campusId.trim()) {
-      setError(`${CAMPUS_ID_LABEL} is required for ${patientType}s.`)
+      setError(
+        `${CAMPUS_ID_LABEL} is required for ${patientTypeLabel(patientType).toLowerCase()}s.`
+      )
       return
     }
     if (!consultationType.trim()) {
@@ -218,10 +224,8 @@ export function WalkInSheet({
               id="walkin-campus"
               value={campusId}
               onChange={setCampusId}
-              patientType={patientType === "visitor" ? "any" : patientType}
-              placeholder={
-                patientType === "employee" ? "2026-00100" : "2026-045210"
-              }
+              patientType={!patientType || patientType === "visitor" ? "any" : patientType}
+              placeholder="Enter ID Number"
               aria-label={CAMPUS_ID_LABEL}
               disabled={pending}
             />
@@ -245,7 +249,7 @@ export function WalkInSheet({
                 setPatientName(e.target.value)
                 setNameAutoFilled(false)
               }}
-              placeholder="Full name"
+              placeholder="Enter Full Name"
               required
               disabled={pending || (nameAutoFilled && lookupPending)}
               autoComplete="name"
@@ -255,14 +259,25 @@ export function WalkInSheet({
           <Field>
             <FieldLabel htmlFor="walkin-patient-type">Patient type</FieldLabel>
             <Select
-              value={patientType}
+              value={patientType || null}
+              items={selectItemsRecord(
+                WALK_IN_PATIENT_TYPES.map((type) => ({
+                  value: type,
+                  label: patientTypeLabel(type),
+                }))
+              )}
               onValueChange={(value) => {
-                setPatientType((value ?? "visitor") as WalkInPatientType)
+                setPatientType(
+                  value &&
+                    (WALK_IN_PATIENT_TYPES as readonly string[]).includes(value)
+                    ? (value as WalkInPatientType)
+                    : ""
+                )
               }}
               disabled={pending}
             >
               <SelectTrigger id="walkin-patient-type" className="w-full">
-                <SelectValue placeholder="Select patient type" />
+                <SelectValue placeholder="Select Patient Type" />
               </SelectTrigger>
               <SelectContent>
                 {WALK_IN_PATIENT_TYPES.map((type) => (
@@ -280,7 +295,7 @@ export function WalkInSheet({
             options={CONSULTATION_TYPE_OPTIONS}
             value={consultationType}
             onValueChange={setConsultationType}
-            placeholder="Select consultation type"
+            placeholder="Select Consultation Type"
             otherPlaceholder="e.g. Vaccination, counseling…"
             disabled={pending}
             required

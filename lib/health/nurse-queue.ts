@@ -52,8 +52,6 @@ export type QueueActionKey =
   | "start"
   | "complete"
   | "no_show"
-  | "assign_number"
-  | "transfer"
 
 export function queueActionsForTicket(row: QueueTicketRow): Set<QueueActionKey> {
   if (row.status === "completed") {
@@ -68,8 +66,6 @@ export function queueActionsForTicket(row: QueueTicketRow): Set<QueueActionKey> 
     "complete",
     "skip",
     "no_show",
-    "assign_number",
-    "transfer",
   ])
   if (needsCheckInVerify(row)) actions.add("verify")
   if (canOpenNurseIntake(row)) actions.add("intake")

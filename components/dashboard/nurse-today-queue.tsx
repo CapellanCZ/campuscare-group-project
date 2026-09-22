@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { appToast } from "@/lib/feedback/app-toast"
-import { queueToasts } from "@/lib/feedback/toast-messages"
+import { patientToasts, queueToasts } from "@/lib/feedback/toast-messages"
 import {
   IconDots,
   IconListCheck,
@@ -12,6 +12,7 @@ import {
 
 import { NurseWorkbench } from "@/components/queue/nurse-workbench"
 import { WaitStatusBadge } from "@/components/queue/wait-status-badge"
+import { PatientProfileSheet } from "@/components/patients/patient-profile-sheet"
 import { StudentIdSearchInput } from "@/components/shared/student-id-search-input"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -44,6 +45,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { panelCardClassName } from "@/components/layout/panel-frame"
+import {
+  searchPatientByStudentIdAction,
+} from "@/features/patients/actions"
 import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import {
@@ -60,6 +64,7 @@ import { canMutateQueue, canRegisterWalkIn } from "@/lib/health/roles"
 import { patientTypeLabel, ticketLabel } from "@/lib/health/mappers"
 import type { QueueTicketRow, TicketStatus } from "@/lib/health/types"
 import { studentIdDigits, studentIdMatchesQuery } from "@/lib/students/student-id-input"
+import type { PatientRecord } from "@/types/patientRecord"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 8
@@ -88,6 +93,10 @@ export function NurseTodayQueue({
   const [status, setStatus] = useState<TicketStatus | "all" | "intake">("all")
   const [page, setPage] = useState(1)
   const [pending, startTransition] = useTransition()
+  const [profilePatient, setProfilePatient] = useState<PatientRecord | null>(
+    null
+  )
+  const [loadingPatient, setLoadingPatient] = useState(false)
 
   const canCall = can(access.designation, "queue.call_next")
   const canSkip = can(access.designation, "queue.skip")
@@ -138,6 +147,33 @@ export function NurseTodayQueue({
     })
   }
 
+  async function openPatientRecord(row: QueueTicketRow) {
+    setLoadingPatient(true)
+    try {
+      const campusId = (row.campusId || row.studentId || "").trim()
+      if (!campusId) {
+        patientToasts.failed(
+          "No ID Number on this queue entry — cannot open medical records."
+        )
+        return
+      }
+
+      const result = await searchPatientByStudentIdAction(campusId)
+      if (!result.ok) {
+        patientToasts.failed(
+          result.error || "No patient medical record found for this queue entry."
+        )
+        return
+      }
+
+      setProfilePatient(result.data)
+    } catch {
+      patientToasts.failed("Could not load patient medical record.")
+    } finally {
+      setLoadingPatient(false)
+    }
+  }
+
   return (
     <Card className={cn(panelCardClassName, "gap-0 py-0", className)}>
       <NurseWorkbench
@@ -182,7 +218,8 @@ export function NurseTodayQueue({
               setQuery(next)
               setPage(1)
             }}
-            aria-label="Search today's queue by Student ID"
+            placeholder="Search by ID Number"
+            aria-label="Search by ID Number"
           />
           <select
             aria-label="Filter by status"
@@ -324,15 +361,10 @@ export function NurseTodayQueue({
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem
-                                render={
-                                  <Link
-                                    href={`/nurse/patient-records?q=${encodeURIComponent(
-                                      row.campusId ||
-                                        row.studentId ||
-                                        row.patientName
-                                    )}`}
-                                  />
-                                }
+                                disabled={loadingPatient || pending}
+                                onClick={() => {
+                                  void openPatientRecord(row)
+                                }}
                               >
                                 View patient
                               </DropdownMenuItem>
@@ -393,6 +425,14 @@ export function NurseTodayQueue({
           </div>
         ) : null}
       </CardContent>
+
+      <PatientProfileSheet
+        patient={profilePatient}
+        open={Boolean(profilePatient)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setProfilePatient(null)
+        }}
+      />
     </Card>
   )
 }

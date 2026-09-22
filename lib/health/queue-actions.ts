@@ -15,6 +15,7 @@ import {
   isReadOnlyQueue,
   stationForDesignation,
 } from "@/lib/health/roles"
+import { systemIntakeNote } from "@/lib/health/intake-notes"
 import { manilaDayBounds } from "@/lib/health/time"
 import type {
   HealthActionResult,
@@ -1322,12 +1323,17 @@ export async function approveConsultationRequest(params: {
     })
     .eq("id", params.requestId)
 
-  // Update queue ticket
+  // Update queue ticket — keep reserved specialty from the patient request
   await supabase
     .from("health_queue_tickets")
     .update({
       assigned_staff_name: params.staffName,
-      intake_notes: `Approved request ${params.requestId}. Specialty: ${suggestedSpecialty}.`,
+      provider_type: suggestedSpecialty,
+      intake_notes: systemIntakeNote({
+        action: "Approved request",
+        by: params.staffName,
+        detail: `Specialty: ${suggestedSpecialty}`,
+      }),
       status: ticket.status === "expired" ? "waiting" : ticket.status,
       updated_at: now,
     })

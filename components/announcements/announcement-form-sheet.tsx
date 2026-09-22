@@ -30,6 +30,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
+import { selectItemsRecord } from "@/lib/ui/select-label"
 import {
   ANNOUNCEMENT_AUDIENCES,
   ANNOUNCEMENT_STATUSES,
@@ -222,6 +223,18 @@ export function AnnouncementFormSheet({
               <FieldLabel>Audience</FieldLabel>
               <Select
                 value={form.audience}
+                items={selectItemsRecord([
+                  ...ANNOUNCEMENT_AUDIENCES.map((audience) => ({
+                    value: audience,
+                    label: audience,
+                  })),
+                  ...(form.audience &&
+                  !(ANNOUNCEMENT_AUDIENCES as readonly string[]).includes(
+                    form.audience
+                  )
+                    ? [{ value: form.audience, label: form.audience }]
+                    : []),
+                ])}
                 onValueChange={(value) =>
                   updateField("audience", value ?? "All")
                 }
@@ -250,6 +263,12 @@ export function AnnouncementFormSheet({
               <FieldLabel>Status</FieldLabel>
               <Select
                 value={form.status}
+                items={selectItemsRecord(
+                  ANNOUNCEMENT_STATUSES.map((status) => ({
+                    value: status,
+                    label: announcementStatusLabel(status),
+                  }))
+                )}
                 onValueChange={(value) =>
                   updateField(
                     "status",

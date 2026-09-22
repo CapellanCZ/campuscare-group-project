@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { selectItemsRecord } from "@/lib/ui/select-label"
 
 export function MedicalCertificationForm({
   value,
@@ -28,6 +29,7 @@ export function MedicalCertificationForm({
         <Label>Purpose category</Label>
         <Select
           value={value.purposeCategory}
+          items={selectItemsRecord(CERTIFICATION_PURPOSE_CATEGORIES)}
           onValueChange={(purposeCategory) => {
             if (!purposeCategory) return
             onChange({ ...value, purposeCategory })
@@ -76,18 +78,14 @@ export function MedicalCertificationForm({
         <Label>Certification status</Label>
         <Select
           value={value.certificationStatus}
+          items={selectItemsRecord(CERTIFICATION_STATUS_OPTIONS)}
           onValueChange={(certificationStatus) => {
             if (!certificationStatus) return
             onChange({ ...value, certificationStatus })
           }}
         >
           <SelectTrigger className="h-auto min-h-9 w-full max-w-full whitespace-normal text-left text-foreground *:data-[slot=select-value]:line-clamp-none *:data-[slot=select-value]:whitespace-normal *:data-[slot=select-value]:text-foreground">
-            <SelectValue placeholder="Select certification status">
-              {(selected) =>
-                CERTIFICATION_STATUS_OPTIONS.find((o) => o.value === selected)
-                  ?.label ?? (typeof selected === "string" ? selected : "")
-              }
-            </SelectValue>
+            <SelectValue placeholder="Select certification status" />
           </SelectTrigger>
           <SelectContent
             alignItemWithTrigger={false}

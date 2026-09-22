@@ -130,9 +130,32 @@ export async function listDirectoryPatientRecords(
   params: PatientRecordListParams = {},
   client?: SupabaseClient
 ): Promise<PatientRecordListResult> {
-  const supabase = client ?? (await createClient())
   const page = Math.max(1, params.page ?? 1)
   const pageSize = Math.min(50, Math.max(1, params.pageSize ?? DEFAULT_PAGE_SIZE))
+  const items = await listAllDirectoryPatientRecords(params, client)
+
+  const total = items.length
+  const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1)
+  const safePage = Math.min(page, totalPages)
+  const start = (safePage - 1) * pageSize
+
+  return {
+    items: items.slice(start, start + pageSize),
+    total,
+    page: safePage,
+    pageSize,
+    totalPages,
+  }
+}
+
+/**
+ * Full filtered directory (no pagination) — used for Excel export.
+ */
+export async function listAllDirectoryPatientRecords(
+  params: Omit<PatientRecordListParams, "page" | "pageSize"> = {},
+  client?: SupabaseClient
+): Promise<PatientRecord[]> {
+  const supabase = client ?? (await createClient())
   const query = (params.query ?? "").trim()
   const patientTypeFilter = params.patientType ?? "all"
   const sortBy = params.sortBy ?? "patient"
@@ -168,20 +191,7 @@ export async function listDirectoryPatientRecords(
     )
   }
 
-  items = [...items].sort((a, b) => comparePatients(a, b, sortBy, sortDir))
-
-  const total = items.length
-  const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1)
-  const safePage = Math.min(page, totalPages)
-  const start = (safePage - 1) * pageSize
-
-  return {
-    items: items.slice(start, start + pageSize),
-    total,
-    page: safePage,
-    pageSize,
-    totalPages,
-  }
+  return [...items].sort((a, b) => comparePatients(a, b, sortBy, sortDir))
 }
 
 export async function getDirectoryPatientRecordStats(

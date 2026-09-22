@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { ClinicDesignation } from "@/lib/auth/types"
 import { CAMPUS_CLINIC_ID } from "@/lib/auth/campus-clinic"
 import { canApproveConsultationRequest } from "@/lib/health/roles"
+import { systemIntakeNote } from "@/lib/health/intake-notes"
 import type { HealthActionResult, SpecialtyStationId } from "@/lib/health/types"
 import { createClient } from "@/lib/supabase/server"
 import { nextReservedQueueNumber } from "@/services/consultation-capacity"
@@ -210,7 +211,10 @@ export async function approveAppointmentReservation(params: {
         starts_at: appt.starts_at as string,
       },
       staffName: params.staffName,
-      intakeNotes: `Ticket created on nurse approve for appointment ${params.appointmentId}.`,
+      intakeNotes: systemIntakeNote({
+        action: "Ticket created on nurse approve",
+        by: params.staffName,
+      }),
       forceOverCapacity: true,
     })
     if (!created.ok) return { ok: false, error: created.error }
@@ -241,7 +245,10 @@ export async function approveAppointmentReservation(params: {
         starts_at: appt.starts_at as string,
       },
       staffName: params.staffName,
-      intakeNotes: `Ticket recreated on nurse approve for appointment ${params.appointmentId}.`,
+      intakeNotes: systemIntakeNote({
+        action: "Ticket recreated on nurse approve",
+        by: params.staffName,
+      }),
       forceOverCapacity: true,
     })
     if (!created.ok) return { ok: false, error: created.error }
@@ -262,7 +269,12 @@ export async function approveAppointmentReservation(params: {
     .from("health_queue_tickets")
     .update({
       assigned_staff_name: params.staffName,
-      intake_notes: `Approved appointment ${params.appointmentId}. Specialty: ${specialty}.`,
+      provider_type: specialty,
+      intake_notes: systemIntakeNote({
+        action: "Approved appointment",
+        by: params.staffName,
+        detail: `Specialty: ${specialty}`,
+      }),
       status:
         resolvedTicket?.status === "expired"
           ? "waiting"
@@ -457,7 +469,11 @@ export async function rescheduleAppointmentReservation(params: {
       starts_at: startsAt,
     },
     staffName: params.staffName,
-    intakeNotes: `Rescheduled appointment ${params.appointmentId}.`,
+    intakeNotes: systemIntakeNote({
+      action: "Rescheduled appointment",
+      by: params.staffName,
+      detail: params.reason,
+    }),
     forceOverCapacity: false,
   })
 

@@ -6,6 +6,10 @@ import {
 import { getActiveDutyByRole } from "@/lib/availability/duty-queries"
 import type { BreakStatus } from "@/lib/availability/types"
 import { mapTicketRow, ticketLabel, ticketStatusLabel, type RawQueueTicket } from "@/lib/health/mappers"
+import {
+  extractUuidsFromText,
+  formatAccountRoleLabel,
+} from "@/lib/health/intake-notes"
 import { pickNowServingTicket } from "@/lib/health/nurse-queue"
 import { stationLabel } from "@/lib/health/roles"
 import { manilaDayBounds } from "@/lib/health/time"
@@ -84,9 +88,46 @@ async function fetchJoinedTickets(): Promise<QueueTicketRow[]> {
     throw new Error(error.message)
   }
 
-  return ((tickets ?? []) as unknown as RawQueueTicket[]).map((t) =>
-    mapTicketRow(t)
+  const rawTickets = (tickets ?? []) as unknown as RawQueueTicket[]
+  const accountLabels = await resolveAccountLabelsForNotes(
+    supabase,
+    rawTickets
   )
+
+  return rawTickets.map((t) => mapTicketRow(t, { accountLabels }))
+}
+
+async function resolveAccountLabelsForNotes(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  tickets: RawQueueTicket[]
+): Promise<Map<string, string>> {
+  const uuids = new Set<string>()
+  for (const ticket of tickets) {
+    if (!ticket.intake_notes) continue
+    for (const id of extractUuidsFromText(ticket.intake_notes)) {
+      uuids.add(id)
+    }
+  }
+  if (uuids.size === 0) return new Map()
+
+  const { data: users } = await supabase
+    .from("users")
+    .select("id, full_name, primary_role")
+    .in("id", [...uuids])
+
+  const labels = new Map<string, string>()
+  for (const user of users ?? []) {
+    const id = String(user.id).toLowerCase()
+    const name = typeof user.full_name === "string" ? user.full_name.trim() : ""
+    const role =
+      typeof user.primary_role === "string" ? user.primary_role.trim() : ""
+    // Role first (Doctor / Nurse / …); fall back to account name
+    labels.set(
+      id,
+      role ? formatAccountRoleLabel(role) : name || "Staff"
+    )
+  }
+  return labels
 }
 
 export async function getTodayQueueTickets(filter?: {

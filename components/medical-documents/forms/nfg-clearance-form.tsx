@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { selectItemsRecord } from "@/lib/ui/select-label"
 
 export function NfgClearanceForm({
   value,
@@ -111,18 +112,14 @@ export function NfgClearanceForm({
         <Label>Clearance status</Label>
         <Select
           value={value.clearanceStatus}
+          items={selectItemsRecord(NFG_CLEARANCE_STATUS_OPTIONS)}
           onValueChange={(clearanceStatus) => {
             if (!clearanceStatus) return
             onChange({ ...value, clearanceStatus })
           }}
         >
           <SelectTrigger className="h-auto min-h-9 w-full max-w-full whitespace-normal text-left text-foreground *:data-[slot=select-value]:line-clamp-none *:data-[slot=select-value]:whitespace-normal *:data-[slot=select-value]:text-foreground">
-            <SelectValue placeholder="Select clearance status">
-              {(selected) =>
-                NFG_CLEARANCE_STATUS_OPTIONS.find((o) => o.value === selected)
-                  ?.label ?? (typeof selected === "string" ? selected : "")
-              }
-            </SelectValue>
+            <SelectValue placeholder="Select clearance status" />
           </SelectTrigger>
           <SelectContent
             alignItemWithTrigger={false}

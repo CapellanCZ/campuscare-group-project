@@ -3,6 +3,7 @@ import Link from "next/link"
 import { CampusCareLogo } from "@/components/campuscare-logo"
 import { Button } from "@/components/ui/button"
 import type { LegalDocument } from "@/lib/legal/content"
+import { siteRoutes } from "@/lib/site/routes"
 
 export function LegalDocumentPage({ document }: { document: LegalDocument }) {
   return (
@@ -10,7 +11,7 @@ export function LegalDocumentPage({ document }: { document: LegalDocument }) {
       <header className="border-b border-border/80">
         <div className="mx-auto flex h-16 max-w-3xl items-center justify-between gap-4 px-4 sm:px-6">
           <Link
-            href="/landing"
+            href={siteRoutes.home}
             className="flex items-center gap-2 font-semibold tracking-tight"
           >
             <CampusCareLogo
@@ -24,7 +25,7 @@ export function LegalDocumentPage({ document }: { document: LegalDocument }) {
           <Button
             size="sm"
             variant="outline"
-            render={<Link href="/landing" />}
+            render={<Link href={siteRoutes.home} />}
             nativeButton={false}
           >
             Back to home
@@ -80,6 +81,36 @@ export function LegalDocumentPage({ document }: { document: LegalDocument }) {
             )
           })}
         </div>
+
+        <nav
+          aria-label="Legal documents"
+          className="mt-12 flex flex-wrap gap-x-4 gap-y-2 border-t border-border/80 pt-6 text-sm text-muted-foreground"
+        >
+          {document.id !== "privacy" ? (
+            <Link
+              href={siteRoutes.privacy}
+              className="transition-colors hover:text-foreground"
+            >
+              Privacy Policy
+            </Link>
+          ) : null}
+          {document.id !== "terms" ? (
+            <Link
+              href={siteRoutes.terms}
+              className="transition-colors hover:text-foreground"
+            >
+              Terms of Use
+            </Link>
+          ) : null}
+          {document.id !== "data-privacy" ? (
+            <Link
+              href={siteRoutes.dataPrivacy}
+              className="transition-colors hover:text-foreground"
+            >
+              Data Privacy Notice
+            </Link>
+          ) : null}
+        </nav>
       </main>
     </div>
   )

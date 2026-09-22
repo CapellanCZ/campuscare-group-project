@@ -48,7 +48,7 @@ export function buildFilterSummary(input: {
   status: string
 }): string {
   const parts = [
-    `Report Period: ${formatPeriodLabel(input.dateFrom, input.dateTo)}`,
+    formatPeriodLabel(input.dateFrom, input.dateTo),
     `Consultation: ${input.consultationType === "all" ? "All" : input.consultationType}`,
     `Patient Type: ${
       input.patientType === "all"

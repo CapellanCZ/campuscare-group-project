@@ -5,6 +5,7 @@ export type LegalSection = {
 }
 
 export type LegalDocument = {
+  id: "privacy" | "terms" | "data-privacy"
   title: string
   lastUpdated: string
   intro: string
@@ -12,6 +13,7 @@ export type LegalDocument = {
 }
 
 export const privacyPolicy: LegalDocument = {
+  id: "privacy",
   title: "Privacy Policy",
   lastUpdated: "August 2026",
   intro:
@@ -70,6 +72,7 @@ export const privacyPolicy: LegalDocument = {
 }
 
 export const termsOfUse: LegalDocument = {
+  id: "terms",
   title: "Terms of Use",
   lastUpdated: "August 2026",
   intro:
@@ -131,6 +134,7 @@ export const termsOfUse: LegalDocument = {
 }
 
 export const dataPrivacyNotice: LegalDocument = {
+  id: "data-privacy",
   title: "Data Privacy Notice",
   lastUpdated: "August 2026",
   intro:

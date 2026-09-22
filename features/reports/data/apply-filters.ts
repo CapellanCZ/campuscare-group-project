@@ -57,9 +57,9 @@ export function defaultFiltersFor(
   designation: ClinicDesignation
 ): ReportFilters {
   const catalog = catalogFor(designation)
-  const range = resolveReportPeriod("this_month")
+  const range = resolveReportPeriod("today")
   return {
-    reportPeriod: "this_month",
+    reportPeriod: "today",
     dateFrom: range.dateFrom,
     dateTo: range.dateTo,
     consultationType: catalog.defaultConsultationType,

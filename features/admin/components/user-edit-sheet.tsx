@@ -40,6 +40,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { DAY_LABELS } from "@/lib/availability/types"
+import { dayOfWeekSelectItems, selectItemsRecord } from "@/lib/ui/select-label"
 
 type DraftSlot = StaffScheduleSlotInput & { key: string }
 
@@ -236,6 +237,12 @@ export function UserEditSheet({
                 <FieldLabel>Role</FieldLabel>
                 <Select
                   value={role}
+                  items={selectItemsRecord(
+                    config.roles.map((option) => ({
+                      value: option,
+                      label: roleLabel(option),
+                    }))
+                  )}
                   onValueChange={(value) =>
                     setRole((value as ManagedRole) ?? config.defaultCreateRole)
                   }
@@ -286,6 +293,7 @@ export function UserEditSheet({
               <div className="grid gap-2 sm:grid-cols-4">
                 <Select
                   value={dayOfWeek}
+                  items={dayOfWeekSelectItems(DAY_LABELS)}
                   onValueChange={(value) => setDayOfWeek(value ?? "1")}
                   disabled={pending || loading}
                 >

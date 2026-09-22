@@ -1,9 +1,8 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { IconClockPlus, IconTrash } from "@tabler/icons-react"
+import { IconClockPlus, IconPencil, IconTrash } from "@tabler/icons-react"
 
-import { OnBreakControl } from "@/components/availability/on-break-control"
 import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert"
 import { Badge } from "@/components/reui/badge"
 import { Button } from "@/components/ui/button"
@@ -26,6 +25,7 @@ import { useStaffRealtimeRouterRefresh } from "@/hooks/use-staff-realtime-refres
 import type { ClinicOfficeHour, StaffWeeklyHour } from "@/lib/availability/types"
 import { CLINIC_TIMEZONE, DAY_LABELS } from "@/lib/availability/types"
 import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
+import { dayOfWeekSelectItems } from "@/lib/ui/select-label"
 
 type StaffSchedulePageProps = {
   doctorName: string
@@ -46,6 +46,7 @@ export function StaffSchedulePage({
     STAFF_REALTIME_TABLES.schedule
   )
 
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [dayOfWeek, setDayOfWeek] = useState("1")
   const [startTime, setStartTime] = useState("09:00")
   const [endTime, setEndTime] = useState("12:00")
@@ -60,11 +61,31 @@ export function StaffSchedulePage({
     (a, b) => a.dayOfWeek - b.dayOfWeek || a.startTime.localeCompare(b.startTime)
   )
 
-  function addSlot() {
+  function resetForm() {
+    setEditingId(null)
+    setDayOfWeek("1")
+    setStartTime("09:00")
+    setEndTime("12:00")
+    setTimezone(availability[0]?.timezone ?? CLINIC_TIMEZONE)
+  }
+
+  function beginEdit(slot: StaffWeeklyHour) {
+    if (slot.id.startsWith("av-")) return
+    setError(null)
+    setMessage(null)
+    setEditingId(slot.id)
+    setDayOfWeek(String(slot.dayOfWeek))
+    setStartTime(slot.startTime.slice(0, 5))
+    setEndTime(slot.endTime.slice(0, 5))
+    setTimezone(slot.timezone || CLINIC_TIMEZONE)
+  }
+
+  function saveSlot() {
     setError(null)
     setMessage(null)
     startTransition(async () => {
       const result = await upsertStaffWeeklySlot({
+        id: editingId ?? undefined,
         dayOfWeek: Number(dayOfWeek),
         startTime,
         endTime,
@@ -75,7 +96,8 @@ export function StaffSchedulePage({
         setError(result.error)
         return
       }
-      setMessage("Availability slot saved.")
+      setMessage(editingId ? "Weekly hours updated." : "Availability slot saved.")
+      resetForm()
     })
   }
 
@@ -87,47 +109,45 @@ export function StaffSchedulePage({
         setError(result.error)
         return
       }
+      if (editingId === id) resetForm()
       setMessage("Slot removed.")
     })
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <PageHeader
-          title={embeddedInSettings ? "My schedule" : "Schedule"}
-          subtitle={doctorName}
-          description={
-            embeddedInSettings
-              ? "Manage your weekly availability from Profile and Settings. Appointment times must fall inside clinic hours and your schedule, and are blocked while you or the clinic are on break."
-              : "Set your weekly office hours. Appointment times must fall inside both clinic hours and your schedule, and are blocked while you or the clinic are on break."
-          }
-        />
-        <OnBreakControl className="shrink-0" />
-      </div>
+      <PageHeader
+        title={embeddedInSettings ? "My schedule" : "Schedule"}
+        subtitle={doctorName}
+        description={
+          embeddedInSettings
+            ? "Manage your weekly availability from Profile and Settings. Appointment times must fall inside clinic hours and your schedule, and are blocked while you or the clinic are on break."
+            : "Set your weekly office hours. Appointment times must fall inside both clinic hours and your schedule, and are blocked while you or the clinic are on break."
+        }
+      />
 
       {embeddedInSettings ? null : (
-      <Card className="rounded-2xl border-border/70 shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Clinic hours (read-only)</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          {clinicHours.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Clinic hours not configured yet.
-            </p>
-          ) : (
-            clinicHours.map((day) => (
-              <Badge key={day.id} variant="invert-light" size="sm">
-                {DAY_LABELS[day.dayOfWeek]}:{" "}
-                {day.isClosed
-                  ? "Closed"
-                  : `${day.startTime}–${day.endTime}`}
-              </Badge>
-            ))
-          )}
-        </CardContent>
-      </Card>
+        <Card className="rounded-2xl border-border/70 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base">Clinic hours (read-only)</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {clinicHours.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Clinic hours not configured yet.
+              </p>
+            ) : (
+              clinicHours.map((day) => (
+                <Badge key={day.id} variant="invert-light" size="sm">
+                  {DAY_LABELS[day.dayOfWeek]}:{" "}
+                  {day.isClosed
+                    ? "Closed"
+                    : `${day.startTime}–${day.endTime}`}
+                </Badge>
+              ))
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {slots.length === 0 ? (
@@ -157,12 +177,18 @@ export function StaffSchedulePage({
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="rounded-2xl border-border/70 shadow-sm">
           <CardHeader>
-            <CardTitle className="text-base">Add recurring slot</CardTitle>
+            <CardTitle className="text-base">
+              {editingId ? "Edit weekly hours" : "Add recurring slot"}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="dow">Day of week</Label>
-              <Select value={dayOfWeek} onValueChange={(v) => setDayOfWeek(v ?? "1")}>
+              <Select
+                value={dayOfWeek}
+                items={dayOfWeekSelectItems(DAY_LABELS)}
+                onValueChange={(v) => setDayOfWeek(v ?? "1")}
+              >
                 <SelectTrigger id="dow" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -204,10 +230,26 @@ export function StaffSchedulePage({
                 placeholder="Asia/Manila"
               />
             </div>
-            <Button disabled={isPending} onClick={addSlot}>
-              <IconClockPlus data-icon="inline-start" />
-              Save slot
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button disabled={isPending} onClick={saveSlot}>
+                <IconClockPlus data-icon="inline-start" />
+                {editingId ? "Save changes" : "Save slot"}
+              </Button>
+              {editingId ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isPending}
+                  onClick={() => {
+                    setError(null)
+                    setMessage(null)
+                    resetForm()
+                  }}
+                >
+                  Cancel
+                </Button>
+              ) : null}
+            </div>
           </CardContent>
         </Card>
 
@@ -236,22 +278,35 @@ export function StaffSchedulePage({
                         {slot.timezone}
                       </Badge>
                       <Badge
-                        variant={slot.isActive ? "success-light" : "warning-light"}
+                        variant={
+                          slot.isActive ? "success-light" : "warning-light"
+                        }
                         size="sm"
                       >
                         {slot.isActive ? "Active" : "Inactive"}
                       </Badge>
                     </div>
                   </div>
-                  <Button
-                    size="icon-sm"
-                    variant="outline"
-                    aria-label={`Remove ${DAY_LABELS[slot.dayOfWeek]} slot`}
-                    disabled={isPending || slot.id.startsWith("av-")}
-                    onClick={() => removeSlot(slot.id)}
-                  >
-                    <IconTrash />
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <Button
+                      size="icon-sm"
+                      variant="outline"
+                      aria-label={`Edit ${DAY_LABELS[slot.dayOfWeek]} slot`}
+                      disabled={isPending || slot.id.startsWith("av-")}
+                      onClick={() => beginEdit(slot)}
+                    >
+                      <IconPencil />
+                    </Button>
+                    <Button
+                      size="icon-sm"
+                      variant="outline"
+                      aria-label={`Remove ${DAY_LABELS[slot.dayOfWeek]} slot`}
+                      disabled={isPending || slot.id.startsWith("av-")}
+                      onClick={() => removeSlot(slot.id)}
+                    >
+                      <IconTrash />
+                    </Button>
+                  </div>
                 </div>
               ))
             )}

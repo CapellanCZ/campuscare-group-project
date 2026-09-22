@@ -3,6 +3,10 @@ import "server-only"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { consultationDateRangeBounds } from "@/lib/date/consultation-date-range"
+import {
+  CONSULTATION_LIST_STATUS_ORDER,
+  sortConsultationsForList,
+} from "@/lib/consultations/sort"
 import { createClient } from "@/lib/supabase/server"
 import {
   ConsultationServiceError,
@@ -15,6 +19,7 @@ import {
   type ConsultationListParams,
   type ConsultationListResult,
   type ConsultationStats,
+  type ConsultationStatus,
   type CreateConsultationInput,
   type UpdateConsultationInput,
 } from "@/types/consultation"
@@ -206,64 +211,122 @@ export async function getConsultations(
   const pageSize = Math.min(50, Math.max(1, params.pageSize ?? DEFAULT_PAGE_SIZE))
   const queryText = params.query?.trim() ?? ""
 
-  let request = supabase
-    .from("consultations")
-    .select(SELECT_WITH_PATIENT, { count: "exact" })
-    .order("consultation_date", { ascending: false })
-
-  if (params.status && params.status !== "all") {
-    request = request.eq("status", params.status)
-  }
-  if (params.station && params.station !== "all") {
-    request = request.eq("station", params.station)
-  }
-  if (params.providerType && params.providerType !== "all") {
-    request = request.eq("provider_type", params.providerType)
-  }
-  if (params.provider && params.provider !== "all") {
-    request = request.eq("provider_name", params.provider)
-  }
-  if (params.consultationDate && params.consultationDate !== "all") {
-    const day = params.consultationDate
-    request = request
-      .gte("consultation_date", `${day}T00:00:00+08:00`)
-      .lte("consultation_date", `${day}T23:59:59.999+08:00`)
-  } else if (params.dateRange && params.dateRange !== "all_time") {
-    const bounds = consultationDateRangeBounds(params.dateRange)
-    if (bounds) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function applyFilters(request: any, status?: ConsultationStatus | "all") {
+    const effectiveStatus =
+      status ??
+      (params.status && params.status !== "all" ? params.status : "all")
+    if (effectiveStatus !== "all") {
+      request = request.eq("status", effectiveStatus)
+    }
+    if (params.station && params.station !== "all") {
+      request = request.eq("station", params.station)
+    }
+    if (params.providerType && params.providerType !== "all") {
+      request = request.eq("provider_type", params.providerType)
+    }
+    if (params.provider && params.provider !== "all") {
+      request = request.eq("provider_name", params.provider)
+    }
+    if (params.consultationDate && params.consultationDate !== "all") {
+      const day = params.consultationDate
       request = request
-        .gte("consultation_date", `${bounds.start}T00:00:00+08:00`)
-        .lte("consultation_date", `${bounds.end}T23:59:59.999+08:00`)
+        .gte("consultation_date", `${day}T00:00:00+08:00`)
+        .lte("consultation_date", `${day}T23:59:59.999+08:00`)
+    } else if (params.dateRange && params.dateRange !== "all_time") {
+      const bounds = consultationDateRangeBounds(params.dateRange)
+      if (bounds) {
+        request = request
+          .gte("consultation_date", `${bounds.start}T00:00:00+08:00`)
+          .lte("consultation_date", `${bounds.end}T23:59:59.999+08:00`)
+      }
     }
+
+    if (queryText) {
+      const escaped = queryText.replace(/[%_,]/g, "")
+      if (escaped) {
+        const pattern = `%${escaped}%`
+        request = request.or(
+          [
+            `chief_complaint.ilike.${pattern}`,
+            `diagnosis.ilike.${pattern}`,
+            `symptoms.ilike.${pattern}`,
+            `provider_name.ilike.${pattern}`,
+          ].join(",")
+        )
+      }
+    }
+
+    return request
   }
 
-  if (queryText) {
-    const escaped = queryText.replace(/[%_,]/g, "")
-    if (escaped) {
-      const pattern = `%${escaped}%`
-      request = request.or(
-        [
-          `chief_complaint.ilike.${pattern}`,
-          `diagnosis.ilike.${pattern}`,
-          `symptoms.ilike.${pattern}`,
-          `provider_name.ilike.${pattern}`,
-        ].join(",")
+  function buildFilteredQuery(status?: ConsultationStatus | "all") {
+    return applyFilters(
+      supabase
+        .from("consultations")
+        .select(SELECT_WITH_PATIENT, { count: "exact" }),
+      status
+    )
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function applyListOrder(request: any) {
+    return request
+      .order("consultation_date", { ascending: false })
+      .order("updated_at", { ascending: false })
+      .order("id", { ascending: true })
+  }
+
+  // Paginate per status rank so waiting stays above completed without
+  // loading the entire filtered table into memory.
+  const statusBuckets: Array<ConsultationStatus | "all"> =
+    params.status && params.status !== "all"
+      ? [params.status]
+      : [...CONSULTATION_LIST_STATUS_ORDER]
+
+  const bucketCounts = await Promise.all(
+    statusBuckets.map(async (status) => {
+      const { count, error } = await applyFilters(
+        supabase
+          .from("consultations")
+          .select("id", { count: "exact", head: true }),
+        status
       )
+      if (error) mapError(error)
+      return count ?? 0
+    })
+  )
+  const total = bucketCounts.reduce((sum, count) => sum + count, 0)
+  const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1)
+  const safePage = Math.min(page, totalPages)
+  let skip = (safePage - 1) * pageSize
+  let need = pageSize
+  const rawRows: ConsultationJson[] = []
+
+  for (let i = 0; i < statusBuckets.length && need > 0; i++) {
+    const statusCount = bucketCounts[i] ?? 0
+    if (skip >= statusCount) {
+      skip -= statusCount
+      continue
     }
+
+    const from = skip
+    const to = from + need - 1
+    const { data, error } = await applyListOrder(
+      buildFilteredQuery(statusBuckets[i])
+    ).range(from, to)
+    if (error) mapError(error)
+
+    const pageRows = (data ?? []) as ConsultationJson[]
+    rawRows.push(...pageRows)
+    need -= pageRows.length
+    skip = 0
   }
 
-  const from = (page - 1) * pageSize
-  const to = from + pageSize - 1
-  const { data, error, count } = await request.range(from, to)
-
-  if (error) mapError(error)
-
-  let items = mapConsultationsFromJson((data ?? []) as ConsultationJson[])
+  let items = mapConsultationsFromJson(rawRows)
+  // Waterfall already yields list order; keep a stable tie-break sort.
+  items = sortConsultationsForList(items)
   items = await attachQueueNumbers(items, supabase)
-
-  const total = count ?? items.length
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const safePage = Math.min(page, totalPages)
 
   return {
     items,

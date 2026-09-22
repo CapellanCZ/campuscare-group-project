@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { DocumentPreviewDialog } from "@/components/medical-documents/document-preview-dialog"
 import {
@@ -40,6 +40,20 @@ type HistoryEntry =
   | { kind: "consultation"; date: string; row: Consultation }
   | { kind: "report"; date: string; row: MedicalCertificate }
 
+function historyCacheKey(
+  patient: PatientRecord,
+  stationFilter: string,
+  documentScope: ClinicalRecordScope
+) {
+  return [
+    patient.studentId ?? "",
+    patient.employeeId ?? "",
+    patient.id,
+    stationFilter,
+    documentScope,
+  ].join("|")
+}
+
 function formatHistoryDate(value: string) {
   const parsed = Date.parse(value)
   if (Number.isNaN(parsed)) return value
@@ -74,12 +88,25 @@ export function PatientHistorySheet({
   const [previewOpen, setPreviewOpen] = useState(false)
   const [chartPreviewId, setChartPreviewId] = useState<string | null>(null)
   const [chartPreviewOpen, setChartPreviewOpen] = useState(false)
+  const cacheRef = useRef(new Map<string, HistoryEntry[]>())
   const dentalOnly = stationFilter === "dentist"
 
   useEffect(() => {
     if (!open || !patient) return
     let cancelled = false
-    setLoading(true)
+    const key = historyCacheKey(
+      patient,
+      stationFilter ?? "all",
+      documentScope
+    )
+    const cached = cacheRef.current.get(key)
+    if (cached) {
+      setEntries(cached)
+      setLoading(false)
+    } else {
+      setEntries([])
+      setLoading(true)
+    }
 
     void Promise.all([
       fetchPatientConsultationHistoryAction(patient.id, stationFilter ?? "all"),
@@ -129,6 +156,7 @@ export function PatientHistorySheet({
         ),
       ].sort((a, b) => Date.parse(b.date) - Date.parse(a.date))
 
+      cacheRef.current.set(key, merged)
       setEntries(merged)
     })
 
@@ -136,6 +164,8 @@ export function PatientHistorySheet({
       cancelled = true
     }
   }, [documentScope, open, patient, stationFilter])
+
+  const showSkeleton = loading && entries.length === 0
 
   return (
     <>
@@ -163,9 +193,9 @@ export function PatientHistorySheet({
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 space-y-1 overflow-y-auto px-4 py-4 pb-6">
-            {loading ? (
-              Array.from({ length: 4 }).map((_, index) => (
-                <Skeleton key={index} className="h-16 w-full" />
+            {showSkeleton ? (
+              Array.from({ length: 3 }).map((_, index) => (
+                <Skeleton key={index} className="h-12 w-full" />
               ))
             ) : entries.length === 0 ? (
               <p className="px-2 text-sm text-muted-foreground">

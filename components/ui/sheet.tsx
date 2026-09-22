@@ -47,14 +47,22 @@ function SheetContent({
   side?: "top" | "right" | "bottom" | "left" | "center"
   showCloseButton?: boolean
 }) {
+  const viewportStyles = {
+    top: "items-start justify-center",
+    right: "items-stretch justify-end",
+    bottom: "items-end justify-center",
+    left: "items-stretch justify-start",
+    center: "items-center justify-center p-4",
+  } as const
+
   const sideStyles = {
-    top: "inset-x-0 top-0 max-h-[50vh] rounded-b-4xl",
-    right: "inset-y-0 right-0 h-full w-full max-w-[85vw] sm:max-w-lg rounded-l-4xl",
-    bottom: "inset-x-0 bottom-0 max-h-[50vh] rounded-t-4xl",
-    left: "inset-y-0 left-0 h-full w-full max-w-[85vw] sm:max-w-lg rounded-r-4xl",
+    top: "w-full max-h-[min(50vh,100%)] rounded-b-4xl",
+    right: "h-full w-full max-w-[85vw] rounded-l-4xl sm:max-w-lg",
+    bottom: "w-full max-h-[min(50vh,100%)] rounded-t-4xl",
+    left: "h-full w-full max-w-[85vw] rounded-r-4xl sm:max-w-lg",
     center:
-      "top-1/2 left-1/2 w-[min(100vw-1.5rem,36rem)] max-h-[min(92vh,960px)] -translate-x-1/2 -translate-y-1/2 rounded-2xl",
-  }
+      "w-[min(100%,36rem)] max-h-full rounded-2xl",
+  } as const
 
   const animationStyles = {
     top: "data-open:slide-in-from-top data-closed:slide-out-to-top",
@@ -62,38 +70,46 @@ function SheetContent({
     bottom: "data-open:slide-in-from-bottom data-closed:slide-out-to-bottom",
     left: "data-open:slide-in-from-left data-closed:slide-out-to-left",
     center: "data-open:zoom-in-95 data-closed:zoom-out-95",
-  }
+  } as const
 
   return (
     <SheetPortal>
       <SheetOverlay />
-      <SheetPrimitive.Popup
-        data-slot="sheet-content"
+      <SheetPrimitive.Viewport
+        data-slot="sheet-viewport"
         className={cn(
-          "fixed z-50 flex max-h-[min(92vh,960px)] flex-col overflow-hidden bg-popover bg-clip-padding text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/5 duration-100 outline-none data-open:animate-in data-closed:animate-out data-closed:fade-out-0",
-          sideStyles[side],
-          animationStyles[side],
-          className
+          "fixed inset-0 z-50 flex overflow-hidden",
+          viewportStyles[side]
         )}
-        {...props}
       >
-        {children}
-        {showCloseButton && (
-          <SheetPrimitive.Close
-            data-slot="sheet-close"
-            render={
-              <Button
-                variant="ghost"
-                className="absolute top-4 right-4"
-                size="icon-sm"
-              />
-            }
-          >
-            <IconX />
-            <span className="sr-only">Close</span>
-          </SheetPrimitive.Close>
-        )}
-      </SheetPrimitive.Popup>
+        <SheetPrimitive.Popup
+          data-slot="sheet-content"
+          className={cn(
+            "relative flex min-h-0 max-h-full flex-col overflow-hidden overscroll-contain bg-popover bg-clip-padding text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/5 duration-100 outline-none data-open:animate-in data-closed:animate-out data-closed:fade-out-0",
+            sideStyles[side],
+            animationStyles[side],
+            className
+          )}
+          {...props}
+        >
+          {children}
+          {showCloseButton && (
+            <SheetPrimitive.Close
+              data-slot="sheet-close"
+              render={
+                <Button
+                  variant="ghost"
+                  className="absolute top-4 right-4"
+                  size="icon-sm"
+                />
+              }
+            >
+              <IconX />
+              <span className="sr-only">Close</span>
+            </SheetPrimitive.Close>
+          )}
+        </SheetPrimitive.Popup>
+      </SheetPrimitive.Viewport>
     </SheetPortal>
   )
 }

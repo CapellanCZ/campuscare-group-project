@@ -34,6 +34,7 @@ import { DAY_LABELS } from "@/lib/availability/types"
 import type { StaffAccess } from "@/lib/auth/types"
 import { useStaffRealtimeRouterRefresh } from "@/hooks/use-staff-realtime-refresh"
 import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
+import { dayOfWeekSelectItems, selectItemsRecord } from "@/lib/ui/select-label"
 
 type OfficeHoursSettingsProps = {
   access: StaffAccess
@@ -273,6 +274,12 @@ export function OfficeHoursSettings({
                 <Label>Staff member</Label>
                 <Select
                   value={selectedStaffId}
+                  items={selectItemsRecord(
+                    staff.map((person) => ({
+                      value: person.userId,
+                      label: `${person.fullName} · ${person.primaryRole}`,
+                    }))
+                  )}
                   onValueChange={(value) => {
                     if (value) setSelectedStaffId(value)
                   }}
@@ -300,6 +307,7 @@ export function OfficeHoursSettings({
                   <Label>Day</Label>
                   <Select
                     value={dayOfWeek}
+                    items={dayOfWeekSelectItems(DAY_LABELS)}
                     onValueChange={(v) => setDayOfWeek(v ?? "1")}
                   >
                     <SelectTrigger>

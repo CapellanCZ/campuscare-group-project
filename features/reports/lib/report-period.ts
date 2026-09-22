@@ -20,7 +20,7 @@ export const REPORT_PERIOD_LABELS: Record<ReportPeriodPreset, string> = {
   custom: "Custom Range",
 }
 
-export const DEFAULT_REPORT_PERIOD: ReportPeriodPreset = "this_month"
+export const DEFAULT_REPORT_PERIOD: ReportPeriodPreset = "today"
 
 function manilaYmd(date = new Date()): string {
   return manilaDayBounds(date).ymd

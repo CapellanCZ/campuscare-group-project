@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useId, useState } from "react"
+import { useEffect, useId, useMemo, useState } from "react"
 
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -16,6 +16,7 @@ import {
   isPresetFormOption,
   type FormSelectOption,
 } from "@/lib/health/form-options"
+import { selectItemsRecord } from "@/lib/ui/select-label"
 import { cn } from "@/lib/utils"
 
 type SelectWithOtherFieldProps = {
@@ -71,6 +72,18 @@ export function SelectWithOtherField({
       ? value
       : null
 
+  const items = useMemo(
+    () =>
+      selectItemsRecord([
+        ...options.map((option) => ({
+          value: option.value,
+          label: option.label,
+        })),
+        { value: OTHER_SELECT_VALUE, label: otherOptionLabel },
+      ]),
+    [options, otherOptionLabel]
+  )
+
   return (
     <div className={cn("space-y-2", className)}>
       <Field className="gap-1">
@@ -79,6 +92,7 @@ export function SelectWithOtherField({
         </FieldLabel>
         <Select
           value={selectValue}
+          items={items}
           onValueChange={(next) => {
             if (!next) return
             if (next === OTHER_SELECT_VALUE) {

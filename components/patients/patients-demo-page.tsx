@@ -7,11 +7,14 @@ import {
   useRef,
   useState,
   useTransition,
+  type Dispatch,
+  type SetStateAction,
 } from "react"
 import { patientToasts } from "@/lib/feedback/toast-messages"
 import { appToast } from "@/lib/feedback/app-toast"
 
 import { PatientDocumentsSheet } from "@/components/patients/patient-documents-sheet"
+import { PatientExportButton } from "@/components/patients/patient-export-button"
 import { PatientHistorySheet } from "@/components/patients/patient-history-sheet"
 import { PatientImportSheet } from "@/components/patients/patient-import-sheet"
 import { PatientMedicalSheet } from "@/components/patients/patient-medical-sheet"
@@ -74,6 +77,11 @@ import type { DemoStat } from "@/lib/demo/types"
 import { NO_STUDENT_FOUND } from "@/lib/students/types"
 import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
 import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
+import { selectItemsRecord } from "@/lib/ui/select-label"
+import {
+  staleListBusy,
+  staleListBusyClassName,
+} from "@/lib/ui/stale-list-busy"
 import {
   patientCampusId,
   patientFullName,
@@ -134,14 +142,13 @@ function toStatCards(stats: PatientRecordStats): DemoStat[] {
 
 function PatientsTableSkeleton() {
   return (
-    <div className="space-y-3 p-4">
-      {Array.from({ length: 5 }).map((_, index) => (
+    <div className="space-y-2 p-4" role="status" aria-label="Loading patients">
+      {Array.from({ length: 3 }).map((_, index) => (
         <div key={index} className="flex items-center gap-3">
-          <Skeleton className="h-10 w-40" />
-          <Skeleton className="h-10 flex-1" />
-          <Skeleton className="h-10 w-36" />
-          <Skeleton className="h-10 w-28" />
-          <Skeleton className="h-10 w-40" />
+          <Skeleton className="h-8 w-36" />
+          <Skeleton className="h-8 flex-1" />
+          <Skeleton className="h-8 w-28" />
+          <Skeleton className="h-8 w-24" />
         </div>
       ))}
     </div>
@@ -313,38 +320,57 @@ export function PatientsPage({
     refresh()
   }
 
-  async function openEnsuredPatient(
+  function openEnsuredPatient(
     patient: PatientRecord,
-    then: (ensured: PatientRecord) => void
+    setPatient: Dispatch<SetStateAction<PatientRecord | null>>
   ) {
-    setLoading(true)
-    try {
-      const result = await ensurePatientRecordAction(patient)
-      if (!result.ok) {
-        patientToasts.failed(result.error)
-        return
-      }
-      setList((prev) => ({
-        ...prev,
-        items: prev.items.map((item) =>
-          item.id === result.data.id ||
-          (result.data.studentId != null &&
-            item.studentId === result.data.studentId)
-            ? result.data
-            : item
-        ),
-      }))
-      then(result.data)
-    } catch {
-      patientToasts.failed("Could not sync enrolled student into patient records.")
-    } finally {
-      setLoading(false)
-    }
+    // Open immediately with list row data — do not blank/reload the directory.
+    setPatient(patient)
+
+    void ensurePatientRecordAction(patient)
+      .then((result) => {
+        if (!result.ok) {
+          patientToasts.failed(result.error)
+          return
+        }
+        setList((prev) => ({
+          ...prev,
+          items: prev.items.map((item) =>
+            item.id === result.data.id ||
+            item.id === patient.id ||
+            (result.data.studentId != null &&
+              item.studentId === result.data.studentId)
+              ? result.data
+              : item
+          ),
+        }))
+        setPatient((current) => {
+          if (!current) return null
+          if (
+            current.id === patient.id ||
+            current.id === result.data.id ||
+            (result.data.studentId != null &&
+              current.studentId === result.data.studentId)
+          ) {
+            return result.data
+          }
+          return current
+        })
+      })
+      .catch(() => {
+        patientToasts.failed(
+          "Could not sync enrolled student into patient records."
+        )
+      })
   }
 
   const statCards = useMemo(() => toStatCards(stats), [stats])
-  const showSkeleton = loading || isPending
   const rows = list.items
+  const { showInitialSkeleton, isRefreshing } = staleListBusy(
+    loading,
+    rows.length,
+    isPending
+  )
   const emptyMessage = debouncedQuery
     ? NO_STUDENT_FOUND
     : patientTypeFilter !== "all"
@@ -352,7 +378,7 @@ export function PatientsPage({
       : "No patients on file yet. Use Import patients to upload a roster."
 
   return (
-    <div
+    <main
       className={cn(
         "flex flex-col gap-6",
         access.designation === "dentist" && "gap-8 pt-2"
@@ -388,6 +414,7 @@ export function PatientsPage({
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             <Select
               value={patientTypeFilter}
+              items={selectItemsRecord(PATIENT_TYPE_FILTER_OPTIONS)}
               onValueChange={(value) => {
                 setPatientTypeFilter(value as PatientRecordTypeFilter)
               }}
@@ -419,12 +446,19 @@ export function PatientsPage({
               </div>
             ) : null}
             {can(access.designation, "patients.table") ? (
-              <PatientImportSheet toolbar onImported={refresh} />
+              <>
+                <PatientImportSheet toolbar onImported={refresh} />
+                <PatientExportButton
+                  toolbar
+                  query={debouncedQuery}
+                  patientType={patientTypeFilter}
+                />
+              </>
             ) : null}
           </div>
         </CardHeader>
         <CardContent className="min-w-0 p-0">
-          {showSkeleton ? (
+          {showInitialSkeleton ? (
             <PatientsTableSkeleton />
           ) : rows.length === 0 ? (
             <Empty className="border-0 py-12">
@@ -437,7 +471,13 @@ export function PatientsPage({
               </EmptyHeader>
             </Empty>
           ) : (
-            <div className="min-w-0 overflow-x-auto">
+            <div
+              className={cn(
+                "min-w-0 overflow-x-auto",
+                staleListBusyClassName(isRefreshing)
+              )}
+              aria-busy={isRefreshing || undefined}
+            >
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
@@ -536,7 +576,7 @@ export function PatientsPage({
                               size="xs"
                               variant="outline"
                               onClick={() =>
-                                void openEnsuredPatient(row, setProfilePatient)
+                                openEnsuredPatient(row, setProfilePatient)
                               }
                             >
                               Profile
@@ -547,7 +587,7 @@ export function PatientsPage({
                               size="xs"
                               variant="outline"
                               onClick={() =>
-                                void openEnsuredPatient(row, setHistoryPatient)
+                                openEnsuredPatient(row, setHistoryPatient)
                               }
                             >
                               History
@@ -558,7 +598,7 @@ export function PatientsPage({
                               size="xs"
                               variant="outline"
                               onClick={() =>
-                                void openEnsuredPatient(row, setDocumentsPatient)
+                                openEnsuredPatient(row, setDocumentsPatient)
                               }
                             >
                               Documents
@@ -568,7 +608,7 @@ export function PatientsPage({
                             <Button
                               size="xs"
                               onClick={() =>
-                                void openEnsuredPatient(row, setMedicalPatient)
+                                openEnsuredPatient(row, setMedicalPatient)
                               }
                             >
                               Update medical
@@ -618,7 +658,7 @@ export function PatientsPage({
         }}
         documentScope={clinicalScopeForDesignation(access.designation)}
       />
-    </div>
+    </main>
   )
 }
 

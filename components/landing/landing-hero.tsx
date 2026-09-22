@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { heroCopy, heroRotatingPhrases } from "@/lib/landing/content"
+import { siteRoutes } from "@/lib/site/routes"
 
 export function LandingHero() {
   return (
@@ -54,18 +55,18 @@ export function LandingHero() {
             <Button
               size="lg"
               className="w-full sm:w-auto"
-              onClick={() => scrollToId("about")}
+              render={<Link href={siteRoutes.login} />}
+              nativeButton={false}
             >
-              Learn More
+              Login
             </Button>
             <Button
               size="lg"
               variant="outline"
               className="w-full sm:w-auto"
-              render={<Link href="/login" />}
-              nativeButton={false}
+              onClick={() => scrollToId("about")}
             >
-              Login
+              Learn More
             </Button>
           </Reveal>
         </div>

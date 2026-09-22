@@ -63,9 +63,9 @@ export function ReportPeriodFilter({
   }
 
   function clearCustom() {
-    const resolved = resolveReportPeriod("this_month")
+    const resolved = resolveReportPeriod("today")
     onChange({
-      reportPeriod: "this_month",
+      reportPeriod: "today",
       dateFrom: resolved.dateFrom,
       dateTo: resolved.dateTo,
     })

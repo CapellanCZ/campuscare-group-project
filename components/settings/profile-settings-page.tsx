@@ -6,7 +6,6 @@ import { settingsToasts } from "@/lib/feedback/toast-messages"
 
 import { DemoPageHeader } from "@/components/demo/demo-page"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -26,21 +25,12 @@ import { adminElevatedCardClassName } from "@/features/admin/lib/admin-surface"
 import { useStaffRealtimeRouterRefresh } from "@/hooks/use-staff-realtime-refresh"
 import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 import { cn } from "@/lib/utils"
-import { IconEye, IconEyeOff } from "@tabler/icons-react"
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean)
   if (parts.length === 0) return "?"
   if (parts.length === 1) return parts[0].charAt(0).toUpperCase()
   return `${parts[0].charAt(0)}${parts[1].charAt(0)}`.toUpperCase()
-}
-
-function maskLicense(value: string, visible: boolean) {
-  const trimmed = value.trim()
-  if (!trimmed) return "—"
-  if (visible || trimmed.length <= 4) return trimmed
-  const hidden = Math.max(4, trimmed.length - 4)
-  return `${"*".repeat(hidden)}${trimmed.slice(-4)}`
 }
 
 function ProfileField({
@@ -75,7 +65,6 @@ export function ProfileSettingsPage({
   const fileRef = useRef<HTMLInputElement>(null)
   const [profile, setProfile] = useState(initialProfile)
   const [preferences, setPreferences] = useState(initialPreferences)
-  const [licenseRevealed, setLicenseRevealed] = useState(false)
   const [pending, startTransition] = useTransition()
   const cardClass = elevated
     ? adminElevatedCardClassName
@@ -139,8 +128,6 @@ export function ProfileSettingsPage({
       }
     })
   }
-
-  const license = profile.licenseNumber ?? ""
 
   return (
     <div className="flex flex-col gap-8 pt-2">
@@ -219,38 +206,6 @@ export function ProfileSettingsPage({
                 label="Role"
                 value={designationLabel(profile.role)}
               />
-              <div className="flex min-w-0 items-start justify-between gap-3 border-b border-border/60 py-3">
-                <div className="min-w-0 flex-1 space-y-1">
-                  <dt className="text-sm text-muted-foreground">
-                    Professional License Number
-                  </dt>
-                  <dd className="flex items-center gap-2 text-sm font-medium text-foreground tabular-nums">
-                    <span aria-live="polite">
-                      {maskLicense(license, licenseRevealed)}
-                    </span>
-                    {license ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={
-                          licenseRevealed
-                            ? "Hide license number"
-                            : "Reveal license number"
-                        }
-                        aria-pressed={licenseRevealed}
-                        onClick={() => setLicenseRevealed((v) => !v)}
-                      >
-                        {licenseRevealed ? (
-                          <IconEyeOff className="size-4" />
-                        ) : (
-                          <IconEye className="size-4" />
-                        )}
-                      </Button>
-                    ) : null}
-                  </dd>
-                </div>
-              </div>
               <ProfileField
                 label="Department"
                 value={profile.department || "Health Services Office"}
@@ -310,3 +265,4 @@ export function ProfileSettingsPage({
     </div>
   )
 }
+

@@ -37,6 +37,10 @@ import {
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
+  staleListBusy,
+  staleListBusyClassName,
+} from "@/lib/ui/stale-list-busy"
+import {
   Table,
   TableBody,
   TableCell,
@@ -112,13 +116,17 @@ function toStatCards(stats: AnnouncementStats): DemoStat[] {
 
 function AnnouncementsTableSkeleton() {
   return (
-    <div className="space-y-3 p-4">
-      {Array.from({ length: 5 }).map((_, index) => (
+    <div
+      className="space-y-2 p-4"
+      role="status"
+      aria-label="Loading announcements"
+    >
+      {Array.from({ length: 3 }).map((_, index) => (
         <div key={index} className="flex items-center gap-3">
-          <Skeleton className="h-10 w-48" />
-          <Skeleton className="h-10 flex-1" />
-          <Skeleton className="h-10 w-24" />
-          <Skeleton className="h-10 w-28" />
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-8 flex-1" />
+          <Skeleton className="h-8 w-20" />
+          <Skeleton className="h-8 w-24" />
         </div>
       ))}
     </div>
@@ -277,10 +285,15 @@ export function AnnouncementsPage({
   }, [debouncedQuery, page, statusFilter, loadPage])
 
   const statCards = useMemo(() => toStatCards(stats), [stats])
-  const showSkeleton = loading || isPending
   const rows = list.items
   const hasRows = rows.length > 0
   const hasFeed = feed.items.length > 0
+  const { showInitialSkeleton, isRefreshing } = staleListBusy(
+    loading,
+    rows.length,
+    isPending
+  )
+  const feedBusy = staleListBusy(loading, feed.items.length, isPending)
 
   function openAnnouncement(announcement: Announcement) {
     setSelected(announcement)
@@ -392,10 +405,13 @@ export function AnnouncementsPage({
           />
         ) : null}
 
-        {showSkeleton && !hasFeed ? (
+        {feedBusy.showInitialSkeleton ? (
           <NewsFeedSkeleton />
         ) : hasFeed ? (
-          <>
+          <div
+            className={staleListBusyClassName(feedBusy.isRefreshing)}
+            aria-busy={feedBusy.isRefreshing || undefined}
+          >
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {(isPhysician && !showAllFeed
                 ? feed.items.slice(0, FEED_PREVIEW_LIMIT)
@@ -420,7 +436,7 @@ export function AnnouncementsPage({
                 </Button>
               </div>
             ) : null}
-          </>
+          </div>
         ) : (
           <Empty className="border border-dashed py-12">
             <EmptyHeader>
@@ -477,10 +493,13 @@ export function AnnouncementsPage({
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            {showSkeleton ? (
+            {showInitialSkeleton ? (
               <AnnouncementsTableSkeleton />
             ) : hasRows ? (
-              <>
+              <div
+                className={staleListBusyClassName(isRefreshing)}
+                aria-busy={isRefreshing || undefined}
+              >
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -567,7 +586,7 @@ export function AnnouncementsPage({
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={list.page <= 1 || loading}
+                        disabled={list.page <= 1 || isRefreshing}
                         onClick={() =>
                           setPage((current) => Math.max(1, current - 1))
                         }
@@ -577,7 +596,7 @@ export function AnnouncementsPage({
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={list.page >= list.totalPages || loading}
+                        disabled={list.page >= list.totalPages || isRefreshing}
                         onClick={() =>
                           setPage((current) =>
                             Math.min(list.totalPages, current + 1)
@@ -589,7 +608,7 @@ export function AnnouncementsPage({
                     </div>
                   </div>
                 ) : null}
-              </>
+              </div>
             ) : (
               <Empty className="border-0 py-12">
                 <EmptyHeader>

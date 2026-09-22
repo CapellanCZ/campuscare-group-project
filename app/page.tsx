@@ -1,6 +1,11 @@
-import { redirect } from "next/navigation"
+import { permanentRedirect } from "next/navigation"
 
-/** Site root → landing folder route. */
+import { siteRoutes } from "@/lib/site/routes"
+
+/**
+ * Canonical public site lives at `/landing`.
+ * Single permanent redirect — no chains — so crawlers index `/landing`.
+ */
 export default function RootPage() {
-  redirect("/landing")
+  permanentRedirect(siteRoutes.home)
 }

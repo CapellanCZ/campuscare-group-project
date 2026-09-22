@@ -3,10 +3,32 @@
 import * as React from "react"
 import { Select as SelectPrimitive } from "@base-ui/react/select"
 
+import { humanizeSelectLabel } from "@/lib/ui/select-label"
 import { cn } from "@/lib/utils"
 import { IconSelector, IconCheck, IconChevronUp, IconChevronDown } from "@tabler/icons-react"
 
-const Select = SelectPrimitive.Root
+/**
+ * Base UI Select shows the raw `value` in the trigger unless `items` or
+ * `itemToStringLabel` is set. Default to humanized labels when callers omit both.
+ */
+function Select<Value, Multiple extends boolean | undefined = false>({
+  items,
+  itemToStringLabel,
+  ...props
+}: SelectPrimitive.Root.Props<Value, Multiple>) {
+  return (
+    <SelectPrimitive.Root
+      {...props}
+      items={items}
+      itemToStringLabel={
+        itemToStringLabel ??
+        (items == null
+          ? (value) => humanizeSelectLabel(value)
+          : undefined)
+      }
+    />
+  )
+}
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (
@@ -63,7 +85,9 @@ function SelectContent({
   sideOffset = 4,
   align = "center",
   alignOffset = 0,
-  alignItemWithTrigger = true,
+  // false: open below the trigger so the opening click does not land on an item
+  // and immediately select it (alignItemWithTrigger stacks the active option under the pointer).
+  alignItemWithTrigger = false,
   ...props
 }: SelectPrimitive.Popup.Props &
   Pick<

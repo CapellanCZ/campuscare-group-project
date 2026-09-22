@@ -6,10 +6,8 @@ import {
   useMemo,
   useRef,
   useState,
-  useTransition,
 } from "react"
 import { requestToasts } from "@/lib/feedback/toast-messages"
-import { appToast } from "@/lib/feedback/app-toast"
 
 import {
   ConsultationRequestCard,
@@ -62,6 +60,10 @@ import {
 } from "@/types/appointmentRequest"
 import { IconClipboardList } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
+import {
+  staleListBusy,
+  staleListBusyClassName,
+} from "@/lib/ui/stale-list-busy"
 import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
 import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 
@@ -116,8 +118,8 @@ export function RequestsPage({
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<AppointmentRequest | null>(null)
   const [dialogMode, setDialogMode] = useState<RequestDialogMode | null>(null)
-  const [pending, startTransition] = useTransition()
   const skipNextFetch = useRef(true)
+  const detailRequestId = useRef<string | null>(null)
 
   const canApprove = can(access.designation, "requests.approve")
   const canDecline = can(access.designation, "requests.decline")
@@ -199,25 +201,32 @@ export function RequestsPage({
   }, [debouncedQuery, status, loadPage])
 
   const rows = list.items
+  const listBusy = staleListBusy(loading, rows.length)
   const statCards = useMemo(() => toStatCards(stats), [stats])
   const filterStatuses = isNurse
     ? NURSE_REQUEST_TAB_STATUSES
     : [...APPOINTMENT_REQUEST_STATUSES]
 
   function openRequest(row: AppointmentRequest, mode: RequestDialogMode) {
+    // Open immediately with list row data — do not blank/reload the queue.
     setSelected(row)
     setDialogMode(mode)
-    startTransition(async () => {
-      const result = await fetchConsultationRequestByIdAction(row.id)
+    detailRequestId.current = row.id
+
+    void fetchConsultationRequestByIdAction(row.id).then((result) => {
+      if (detailRequestId.current !== row.id) return
       if (!result.ok) {
         requestToasts.failed(result.error)
         return
       }
-      setSelected(result.data)
+      setSelected((current) =>
+        current?.id === result.data.id ? result.data : current
+      )
     })
   }
 
   function closeDialog() {
+    detailRequestId.current = null
     setDialogMode(null)
   }
 
@@ -248,17 +257,18 @@ export function RequestsPage({
           <CardHeader className="gap-4 border-b px-6 py-5">
             <CardTitle className="text-base">Request queue</CardTitle>
             {can(access.designation, "requests.search_filters") ? (
-              <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:gap-3">
                 {isNurse ? (
                   <StudentIdSearchInput
-                    className="sm:w-72"
+                    className="w-full sm:max-w-sm sm:flex-1"
                     value={query}
                     onChange={setQuery}
-                    placeholder="Search by Student ID"
+                    placeholder="Search by ID Number"
+                    aria-label="Search by ID Number"
                   />
                 ) : (
                   <Input
-                    className="sm:w-72"
+                    className="h-9 w-full sm:max-w-sm sm:flex-1"
                     placeholder="Search patient, ID, email, service, doctor, status"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
@@ -266,7 +276,7 @@ export function RequestsPage({
                 )}
                 <select
                   aria-label="Filter by status"
-                  className="h-9 rounded-4xl border border-border bg-input/30 px-3 text-sm"
+                  className="h-9 w-full shrink-0 rounded-4xl border border-border bg-input/30 px-3 text-sm sm:w-48"
                   value={status}
                   onChange={(e) => setStatus(e.target.value)}
                 >
@@ -281,14 +291,14 @@ export function RequestsPage({
             ) : null}
           </CardHeader>
           <CardContent className="min-w-0 p-0">
-            {loading || pending ? (
+            {listBusy.showInitialSkeleton ? (
               <div
-                className="space-y-3 p-4"
+                className="space-y-2 p-4"
                 role="status"
                 aria-label="Loading requests"
               >
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <Skeleton key={index} className="h-14 w-full" />
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <Skeleton key={index} className="h-12 w-full" />
                 ))}
               </div>
             ) : rows.length === 0 ? (
@@ -304,7 +314,13 @@ export function RequestsPage({
                 </EmptyHeader>
               </Empty>
             ) : (
-              <div className="divide-y-0">
+              <div
+                className={cn(
+                  "divide-y-0",
+                  staleListBusyClassName(listBusy.isRefreshing)
+                )}
+                aria-busy={listBusy.isRefreshing || undefined}
+              >
                 {rows.map((row) => (
                   <ConsultationRequestCard
                     key={row.id}

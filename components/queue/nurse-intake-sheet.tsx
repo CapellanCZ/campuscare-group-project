@@ -38,6 +38,16 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 
+const THIS_VISIT_PLACEHOLDERS = {
+  bpSystolic: "Enter systolic BP",
+  bpDiastolic: "Enter diastolic BP",
+  heartRate: "Enter heart rate",
+  temperature: "Enter temperature",
+  spo2: "Enter SpO₂",
+  height: "Enter height",
+  weight: "Enter weight",
+} as const
+
 type NurseIntakeSheetProps = {
   ticket: QueueTicketRow | null
   open: boolean
@@ -50,6 +60,32 @@ function toNumber(value: string): number | null {
   if (!trimmed) return null
   const n = Number(trimmed)
   return Number.isFinite(n) ? n : null
+}
+
+/** Patient-requested specialty from the ticket; nurse can still change it. */
+function defaultIntakeStation(ticket: QueueTicketRow): SpecialtyStationId {
+  if (
+    ticket.providerType === "dentist" ||
+    ticket.providerType === "physician"
+  ) {
+    return ticket.providerType
+  }
+  const service = (
+    ticket.consultationType ??
+    ticket.service ??
+    ""
+  ).toLowerCase()
+  if (
+    service.includes("dental") ||
+    service.includes("dentist") ||
+    service.includes("tooth")
+  ) {
+    return "dentist"
+  }
+  if (ticket.station === "dentist" || ticket.station === "physician") {
+    return ticket.station
+  }
+  return "physician"
 }
 
 function VitalField({
@@ -105,44 +141,23 @@ export function NurseIntakeSheet({
   )
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
+  const [visitFormKey, setVisitFormKey] = useState(0)
 
   useEffect(() => {
     if (!open || !ticket) return
     setChiefComplaint(ticket.chiefComplaint ?? "")
-    setBpSystolic(
-      ticket.vitals.bpSystolic != null ? String(ticket.vitals.bpSystolic) : ""
-    )
-    setBpDiastolic(
-      ticket.vitals.bpDiastolic != null ? String(ticket.vitals.bpDiastolic) : ""
-    )
-    setHeartRate(
-      ticket.vitals.heartRate != null ? String(ticket.vitals.heartRate) : ""
-    )
-    setTemperatureC(
-      ticket.vitals.temperatureC != null
-        ? String(ticket.vitals.temperatureC)
-        : ""
-    )
-    setSpo2(ticket.vitals.spo2 != null ? String(ticket.vitals.spo2) : "")
-    setHeightCm(
-      ticket.vitals.heightCm != null ? String(ticket.vitals.heightCm) : ""
-    )
-    setWeightKg(
-      ticket.vitals.weightKg != null ? String(ticket.vitals.weightKg) : ""
-    )
-    setRespiratoryRate(
-      ticket.vitals.respiratoryRate != null
-        ? String(ticket.vitals.respiratoryRate)
-        : ""
-    )
+    // This Visit vitals start empty — latest values are reference-only below.
+    setBpSystolic("")
+    setBpDiastolic("")
+    setHeartRate("")
+    setTemperatureC("")
+    setSpo2("")
+    setHeightCm("")
+    setWeightKg("")
+    setRespiratoryRate("")
     setIntakeNotes(ticket.intakeNotes ?? "")
-    setToStation(
-      ticket.providerType === "dentist" || ticket.providerType === "physician"
-        ? ticket.providerType
-        : ticket.station === "dentist" || ticket.station === "physician"
-          ? ticket.station
-          : "physician"
-    )
+    setVisitFormKey((key) => key + 1)
+    setToStation(defaultIntakeStation(ticket))
     setError(null)
     setStatusMessage(null)
     setLatestVitals(null)
@@ -163,24 +178,6 @@ export function NurseIntakeSheet({
       }
       setHistoryRecords(result.data)
       setLatestVitals(result.data[0] ?? null)
-
-      const currentHasVitals = hasRecordedVitals(ticket.vitals)
-      const latest = result.data[0]
-      if (!currentHasVitals && latest && hasRecordedVitals(latest.vitals)) {
-        const v = latest.vitals
-        setBpSystolic(v.bpSystolic != null ? String(v.bpSystolic) : "")
-        setBpDiastolic(v.bpDiastolic != null ? String(v.bpDiastolic) : "")
-        setHeartRate(v.heartRate != null ? String(v.heartRate) : "")
-        setTemperatureC(
-          v.temperatureC != null ? String(v.temperatureC) : ""
-        )
-        setSpo2(v.spo2 != null ? String(v.spo2) : "")
-        setHeightCm(v.heightCm != null ? String(v.heightCm) : "")
-        setWeightKg(v.weightKg != null ? String(v.weightKg) : "")
-        setRespiratoryRate(
-          v.respiratoryRate != null ? String(v.respiratoryRate) : ""
-        )
-      }
     })
 
     return () => {
@@ -329,7 +326,12 @@ export function NurseIntakeSheet({
             </DialogDescription>
           </DialogHeader>
 
-          <form className="flex min-h-0 flex-1 flex-col" onSubmit={onSubmit}>
+          <form
+            key={`intake-${ticket?.ticketId ?? "none"}-${visitFormKey}`}
+            className="flex min-h-0 flex-1 flex-col"
+            onSubmit={onSubmit}
+            autoComplete="off"
+          >
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-4">
               <SelectWithOtherField
                 key={ticket?.ticketId ?? "intake-closed"}
@@ -364,13 +366,13 @@ export function NurseIntakeSheet({
                 </p>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2" key={`this-visit-${ticket?.ticketId ?? "closed"}`}>
                 <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
                   This visit
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   <VitalField
-                    label="BP (required)"
+                    label="BP *"
                     htmlFor="intake-sys"
                     className="col-span-2"
                   >
@@ -379,11 +381,12 @@ export function NurseIntakeSheet({
                         id="intake-sys"
                         inputMode="numeric"
                         aria-label="BP systolic"
-                        placeholder="120"
+                        placeholder={THIS_VISIT_PLACEHOLDERS.bpSystolic}
+                        autoComplete="off"
                         value={bpSystolic}
                         onChange={(e) => setBpSystolic(e.target.value)}
                         disabled={pending}
-                        className="h-9 tabular-nums"
+                        className="h-9"
                       />
                       <span className="text-muted-foreground" aria-hidden>
                         /
@@ -392,82 +395,85 @@ export function NurseIntakeSheet({
                         id="intake-dia"
                         inputMode="numeric"
                         aria-label="BP diastolic"
-                        placeholder="80"
+                        placeholder={THIS_VISIT_PLACEHOLDERS.bpDiastolic}
+                        autoComplete="off"
                         value={bpDiastolic}
                         onChange={(e) => setBpDiastolic(e.target.value)}
                         disabled={pending}
-                        className="h-9 tabular-nums"
+                        className="h-9"
                       />
                     </div>
                   </VitalField>
-                  <VitalField label="HR (required)" htmlFor="intake-hr">
+                  <VitalField label="HR *" htmlFor="intake-hr">
                     <Input
                       id="intake-hr"
                       inputMode="numeric"
-                      placeholder="72"
+                      placeholder={THIS_VISIT_PLACEHOLDERS.heartRate}
+                      autoComplete="off"
                       value={heartRate}
                       onChange={(e) => setHeartRate(e.target.value)}
                       disabled={pending}
-                      className="h-9 tabular-nums"
+                      className="h-9"
                     />
                   </VitalField>
-                  <VitalField label="Temp °C (required)" htmlFor="intake-temp">
+                  <VitalField label="Temp °C *" htmlFor="intake-temp">
                     <Input
                       id="intake-temp"
                       inputMode="decimal"
-                      placeholder="36.8"
+                      placeholder={THIS_VISIT_PLACEHOLDERS.temperature}
+                      autoComplete="off"
                       value={temperatureC}
                       onChange={(e) => setTemperatureC(e.target.value)}
                       disabled={pending}
-                      className="h-9 tabular-nums"
-                    />
-                  </VitalField>
-                  <VitalField label="SpO₂ % (required)" htmlFor="intake-spo2">
-                    <Input
-                      id="intake-spo2"
-                      inputMode="numeric"
-                      placeholder="98"
-                      value={spo2}
-                      onChange={(e) => setSpo2(e.target.value)}
-                      disabled={pending}
-                      className="h-9 tabular-nums"
-                    />
-                  </VitalField>
-                  <VitalField label="Height cm" htmlFor="intake-height">
-                    <Input
-                      id="intake-height"
-                      inputMode="decimal"
-                      placeholder="165"
-                      value={heightCm}
-                      onChange={(e) => setHeightCm(e.target.value)}
-                      disabled={pending}
-                      className="h-9 tabular-nums"
+                      className="h-9"
                     />
                   </VitalField>
                   <VitalField label="Weight kg" htmlFor="intake-weight">
                     <Input
                       id="intake-weight"
                       inputMode="decimal"
-                      placeholder="60"
+                      placeholder={THIS_VISIT_PLACEHOLDERS.weight}
+                      autoComplete="off"
                       value={weightKg}
                       onChange={(e) => setWeightKg(e.target.value)}
                       disabled={pending}
-                      className="h-9 tabular-nums"
+                      className="h-9"
                     />
                   </VitalField>
-                  <VitalField
-                    label="RR"
-                    htmlFor="intake-rr"
-                    className="col-span-2"
-                  >
+                  <VitalField label="Height cm" htmlFor="intake-height">
+                    <Input
+                      id="intake-height"
+                      inputMode="decimal"
+                      placeholder={THIS_VISIT_PLACEHOLDERS.height}
+                      autoComplete="off"
+                      value={heightCm}
+                      onChange={(e) => setHeightCm(e.target.value)}
+                      disabled={pending}
+                      className="h-9"
+                    />
+                  </VitalField>
+                  <VitalField label="RR" htmlFor="intake-rr">
                     <Input
                       id="intake-rr"
                       inputMode="numeric"
-                      placeholder="16"
+                      placeholder="Enter respiratory rate"
+                      autoComplete="off"
                       value={respiratoryRate}
                       onChange={(e) => setRespiratoryRate(e.target.value)}
                       disabled={pending}
-                      className="h-9 tabular-nums"
+                      className="h-9"
+                    />
+                  </VitalField>
+                  <VitalField label="SpO₂ % *" htmlFor="intake-spo2">
+                    <Input
+                      id="intake-spo2"
+                      inputMode="numeric"
+                      placeholder={THIS_VISIT_PLACEHOLDERS.spo2}
+                      autoComplete="off"
+                      value={spo2}
+                      onChange={(e) => setSpo2(e.target.value)}
+                      disabled={pending}
+                      className="h-9"
                     />
                   </VitalField>
                 </div>
@@ -490,9 +496,6 @@ export function NurseIntakeSheet({
               <div className="space-y-1.5">
                 <p className="text-[11px] font-medium text-muted-foreground">
                   Send to
-                  {ticket?.providerType
-                    ? ` (auto: ${ticket.providerType})`
-                    : ""}
                 </p>
                 <div
                   role="radiogroup"

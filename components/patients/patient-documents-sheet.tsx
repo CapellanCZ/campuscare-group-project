@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { DocumentPreviewDialog } from "@/components/medical-documents/document-preview-dialog"
 import {
@@ -52,11 +52,25 @@ export function PatientDocumentsSheet({
   const [loading, setLoading] = useState(false)
   const [preview, setPreview] = useState<MedicalDocument | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
+  const cacheRef = useRef(new Map<string, MedicalCertificate[]>())
 
   useEffect(() => {
     if (!open || !patient) return
     let cancelled = false
-    setLoading(true)
+    const key = [
+      patient.studentId ?? "",
+      patient.employeeId ?? "",
+      patient.id,
+      documentScope,
+    ].join("|")
+    const cached = cacheRef.current.get(key)
+    if (cached) {
+      setRows(cached)
+      setLoading(false)
+    } else {
+      setRows([])
+      setLoading(true)
+    }
     void fetchPatientDocumentsAction(
       {
         studentId: patient.studentId,
@@ -74,12 +88,15 @@ export function PatientDocumentsSheet({
         setRows([])
         return
       }
+      cacheRef.current.set(key, result.data)
       setRows(result.data)
     })
     return () => {
       cancelled = true
     }
   }, [documentScope, open, patient])
+
+  const showSkeleton = loading && rows.length === 0
 
   return (
     <>
@@ -103,9 +120,9 @@ export function PatientDocumentsSheet({
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4 pb-6">
-            {loading ? (
-              Array.from({ length: 4 }).map((_, index) => (
-                <Skeleton key={index} className="h-16 w-full" />
+            {showSkeleton ? (
+              Array.from({ length: 3 }).map((_, index) => (
+                <Skeleton key={index} className="h-12 w-full" />
               ))
             ) : rows.length === 0 ? (
               <p className="px-2 text-sm text-muted-foreground">

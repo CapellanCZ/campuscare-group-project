@@ -52,11 +52,19 @@ export function mapAuthError(error: AuthLikeError, fallback: string): string {
   }
 
   if (
+    message.includes("resend_api_key") ||
+    message.includes("missing required environment variable: resend")
+  ) {
+    return "Email delivery is not configured. Ask an admin to set RESEND_API_KEY."
+  }
+
+  if (
     status === 500 ||
     name.includes("retryable") ||
     message.includes("sending magic link") ||
     message.includes("error sending") ||
     message.includes("smtp") ||
+    message.includes("could not send email via resend") ||
     (message.includes("email") && message.includes("send"))
   ) {
     return "We couldn't send the sign-in email. Please try again in a moment."

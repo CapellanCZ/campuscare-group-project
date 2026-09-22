@@ -19,6 +19,7 @@ import {
 import { asErrorMessage } from "@/lib/auth/errors"
 import { isValidEmail } from "@/lib/auth/email"
 import { markSessionStarted } from "@/lib/auth/session-timeout"
+import { siteRoutes } from "@/lib/site/routes"
 
 type AuthStep = "email" | "otp" | "activate"
 
@@ -222,7 +223,7 @@ export function AuthPage() {
           <Button
             className="absolute top-7 left-5"
             variant="ghost"
-            render={<Link href="/" />}
+            render={<Link href={siteRoutes.home} />}
             nativeButton={false}
           >
             <IconChevronLeft data-icon="inline-start" />
@@ -271,14 +272,14 @@ export function AuthPage() {
               By clicking continue, you agree to our{" "}
               <Link
                 className="underline underline-offset-4 hover:text-primary"
-                href="/terms"
+                href={siteRoutes.terms}
               >
-                Terms of Service
+                Terms of Use
               </Link>{" "}
               and{" "}
               <Link
                 className="underline underline-offset-4 hover:text-primary"
-                href="/privacy"
+                href={siteRoutes.privacy}
               >
                 Privacy Policy
               </Link>

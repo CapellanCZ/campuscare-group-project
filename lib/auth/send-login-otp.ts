@@ -117,15 +117,10 @@ export async function sendLoginOtpEmail(email: string): Promise<void> {
     throw new Error("Could not generate a verification code. Please try again.")
   }
 
-  const resendApiKey = process.env.RESEND_API_KEY?.trim()
-  if (!resendApiKey) {
-    if (process.env.NODE_ENV === "development") {
-      console.info(
-        `\n[CampusCare dev] OTP for ${normalizedEmail}: ${token}\n` +
-          `Add RESEND_API_KEY to .env.local to send real emails.\n`
-      )
-      return
-    }
+  // Never report success without a real delivery attempt. A missing key used to
+  // silently "succeed" in development (console-only OTP), which looks like
+  // "email sent" in the UI while Resend never runs.
+  if (!process.env.RESEND_API_KEY?.trim()) {
     throw new Error(
       "Missing required environment variable: RESEND_API_KEY. Add it to .env.local from https://resend.com/api-keys."
     )

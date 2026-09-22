@@ -1,5 +1,6 @@
 "use client"
 
+import { type MouseEvent } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import {
@@ -9,13 +10,26 @@ import {
 } from "@tabler/icons-react"
 
 import { CampusCareLogo } from "@/components/campuscare-logo"
-import { Reveal, ScrollFadeSection } from "@/components/landing/motion"
+import {
+  Reveal,
+  ScrollFadeSection,
+  scrollToId,
+} from "@/components/landing/motion"
 import {
   footerBlurb,
   footerContact,
   footerLegalLinks,
   footerQuickLinks,
 } from "@/lib/landing/content"
+
+function handleSectionLink(
+  event: MouseEvent<HTMLAnchorElement>,
+  href: string
+) {
+  if (!href.startsWith("#")) return
+  event.preventDefault()
+  scrollToId(href.slice(1))
+}
 
 function FooterLinkList({
   title,
@@ -43,6 +57,7 @@ function FooterLinkList({
               <a
                 href={link.href}
                 className="transition-colors hover:text-foreground"
+                onClick={(event) => handleSectionLink(event, link.href)}
               >
                 {link.label}
               </a>
@@ -62,17 +77,22 @@ export function LandingFooter() {
     >
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-2 lg:grid-cols-4 lg:gap-8 lg:py-16">
         <Reveal className="min-w-0 space-y-5">
-          <Link
-            href="#home"
-            className="inline-flex items-center gap-3 transition-opacity hover:opacity-90"
-          >
-            <CampusCareLogo
-              variant="blue"
-              alt="CampusCare"
-              className="h-10 w-auto"
-              width={56}
-              height={40}
-            />
+          <div className="flex flex-wrap items-center gap-3">
+            <a
+              href="#home"
+              className="inline-flex items-center gap-2 font-semibold tracking-tight text-foreground transition-opacity hover:opacity-90"
+              aria-label="CampusCare home"
+              onClick={(event) => handleSectionLink(event, "#home")}
+            >
+              <CampusCareLogo
+                variant="blue"
+                alt="CampusCare"
+                className="h-10 w-auto"
+                width={56}
+                height={40}
+              />
+              <span>CampusCare</span>
+            </a>
             <Image
               src="/images/NU-Logo.png"
               alt="National University"
@@ -80,7 +100,7 @@ export function LandingFooter() {
               height={40}
               className="h-10 w-auto object-contain"
             />
-          </Link>
+          </div>
 
           <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
             {footerBlurb}
@@ -135,19 +155,17 @@ export function LandingFooter() {
                 className="mt-0.5 size-4 shrink-0 text-primary"
                 aria-hidden
               />
-              <a
-                href={`tel:${footerContact.phoneTel}`}
-                className="transition-colors hover:text-foreground"
-              >
-                {footerContact.phone}
-              </a>
-
-              <a
-                href={`tel:${footerContact.phoneTel}`}
-                className="transition-colors hover:text-foreground"
-              >
-                {footerContact.phoneTel}
-              </a>
+              <div className="min-w-0">
+                <a
+                  href={`tel:${footerContact.phoneTel}`}
+                  className="transition-colors hover:text-foreground"
+                >
+                  {footerContact.phone}
+                </a>
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  Local {footerContact.phoneLocal}
+                </span>
+              </div>
             </li>
           </ul>
         </Reveal>

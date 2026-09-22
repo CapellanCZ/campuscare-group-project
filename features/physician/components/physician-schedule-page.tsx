@@ -23,6 +23,7 @@ import {
 } from "@/features/availability/actions/availability"
 import type { PhysicianWorkspace } from "@/features/physician/data/queries"
 import { CLINIC_TIMEZONE, DAY_LABELS } from "@/features/physician/types"
+import { dayOfWeekSelectItems } from "@/lib/ui/select-label"
 
 type SchedulePageProps = {
   workspace: PhysicianWorkspace
@@ -114,7 +115,11 @@ export function PhysicianSchedulePage({ workspace }: SchedulePageProps) {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="dow">Day of week</Label>
-              <Select value={dayOfWeek} onValueChange={(v) => setDayOfWeek(v ?? "1")}>
+              <Select
+                value={dayOfWeek}
+                items={dayOfWeekSelectItems(DAY_LABELS)}
+                onValueChange={(v) => setDayOfWeek(v ?? "1")}
+              >
                 <SelectTrigger id="dow" className="w-full">
                   <SelectValue />
                 </SelectTrigger>

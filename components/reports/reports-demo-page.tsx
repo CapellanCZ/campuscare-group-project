@@ -13,6 +13,11 @@ import {
 } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
+  staleListBusy,
+  staleListBusyClassName,
+} from "@/lib/ui/stale-list-busy"
+import { cn } from "@/lib/utils"
+import {
   Table,
   TableBody,
   TableCell,
@@ -67,17 +72,17 @@ function toStatCards(
 
 function ReportsSkeleton() {
   return (
-    <div className="grid gap-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div
+      className="grid gap-3"
+      role="status"
+      aria-label="Loading reports"
+    >
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
-          <Skeleton key={index} className="h-24 w-full rounded-xl" />
+          <Skeleton key={index} className="h-16 w-full rounded-xl" />
         ))}
       </div>
-      <Skeleton className="h-40 w-full rounded-xl" />
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Skeleton className="h-56 w-full rounded-xl" />
-        <Skeleton className="h-56 w-full rounded-xl" />
-      </div>
+      <Skeleton className="h-24 w-full rounded-xl" />
     </div>
   )
 }
@@ -178,7 +183,11 @@ export function ReportsPage({
   }
 
   const statCards = useMemo(() => toStatCards(report), [report])
-  const showSkeleton = loading || pending
+  const { showInitialSkeleton, isRefreshing } = staleListBusy(
+    loading,
+    1,
+    pending
+  )
 
   return (
     <div className="flex flex-col gap-4 print:p-0">
@@ -213,28 +222,32 @@ export function ReportsPage({
         </p>
       </div>
 
-      {showSkeleton ? (
+      {can(d, "reports.filters") ? (
+        <div className="flex flex-wrap gap-2 print:hidden">
+          {REPORT_RANGES.map((value) => (
+            <Button
+              key={value}
+              size="sm"
+              variant={range === value ? "default" : "outline"}
+              disabled={isRefreshing}
+              onClick={() => handleRangeChange(value)}
+            >
+              Last {value}
+            </Button>
+          ))}
+        </div>
+      ) : null}
+
+      {showInitialSkeleton ? (
         <div className="print:hidden">
           <ReportsSkeleton />
         </div>
       ) : (
-        <>
+        <div
+          className={cn("print:contents", staleListBusyClassName(isRefreshing))}
+          aria-busy={isRefreshing || undefined}
+        >
           {cardsLevel !== "none" ? <DemoStatGrid stats={statCards} /> : null}
-
-          {can(d, "reports.filters") ? (
-            <div className="flex flex-wrap gap-2 print:hidden">
-              {REPORT_RANGES.map((value) => (
-                <Button
-                  key={value}
-                  size="sm"
-                  variant={range === value ? "default" : "outline"}
-                  onClick={() => handleRangeChange(value)}
-                >
-                  Last {value}
-                </Button>
-              ))}
-            </div>
-          ) : null}
 
           {chartsLevel !== "none" ? (
             <Card className="min-w-0 shadow-none dark:ring-0">
@@ -376,7 +389,7 @@ export function ReportsPage({
               </Card>
             ) : null}
           </div>
-        </>
+        </div>
       )}
     </div>
   )

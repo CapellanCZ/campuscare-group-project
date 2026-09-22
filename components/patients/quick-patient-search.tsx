@@ -26,6 +26,7 @@ import { searchPatientRecordsAction } from "@/features/patients/actions"
 import {
   patientCampusId,
   patientFullName,
+  patientTypeLabel,
   type PatientRecord,
 } from "@/types/patientRecord"
 import { cn } from "@/lib/utils"
@@ -142,7 +143,7 @@ export function QuickPatientSearch({ className }: { className?: string }) {
                           {name}
                         </span>
                         <span className="block truncate text-xs font-normal text-muted-foreground">
-                          {patient.patientType}
+                          {patientTypeLabel(patient.patientType)}
                           {campusId ? ` · ${campusId}` : ""}
                           {patient.lastVisit
                             ? ` · last ${patient.lastVisit.slice(0, 10)}`

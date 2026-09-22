@@ -45,6 +45,13 @@ export function Scrollspy({
       if (onUpdate) onUpdate(sectionId)
       if (history && (force || prevIdTracker.current !== sectionId)) {
         window.history.replaceState({}, "", `#${sectionId}`)
+      } else if (!history && window.location.hash) {
+        // Keep in-page nav on a clean path (e.g. /landing) for audits and sharing.
+        window.history.replaceState(
+          null,
+          "",
+          `${window.location.pathname}${window.location.search}`
+        )
       }
       prevIdTracker.current = sectionId
     },

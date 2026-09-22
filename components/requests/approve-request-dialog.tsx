@@ -31,6 +31,7 @@ import {
 import {
   formatRequestDate,
 } from "@/features/requests/lib/format"
+import { selectItemsRecord } from "@/lib/ui/select-label"
 import type { AppointmentRequest } from "@/types/appointmentRequest"
 
 export function ApproveRequestDialog({
@@ -77,6 +78,28 @@ export function ApproveRequestDialog({
       ...doctors,
     ]
   }, [doctors, request?.doctorId, request?.doctorName])
+
+  const doctorSelectItems = useMemo(() => {
+    const entries: { value: string; label: string }[] = [
+      { value: "__none__", label: "Unassigned" },
+      ...doctorOptions.map((doctor) => ({
+        value: doctor.id,
+        label: doctor.fullName,
+      })),
+    ]
+    if (
+      doctorId &&
+      !doctorOptions.some((doctor) => doctor.id === doctorId)
+    ) {
+      entries.push({
+        value: doctorId,
+        label:
+          request?.doctorName?.trim() ||
+          (doctorId ? "Assigned doctor" : "Select doctor"),
+      })
+    }
+    return selectItemsRecord(entries)
+  }, [doctorId, doctorOptions, request?.doctorName])
 
   if (!request) return null
 
@@ -179,6 +202,7 @@ export function ApproveRequestDialog({
               <FieldLabel>Assign doctor</FieldLabel>
               <Select
                 value={doctorId || "__none__"}
+                items={doctorSelectItems}
                 onValueChange={(value) =>
                   setDoctorId(value === "__none__" ? "" : (value ?? ""))
                 }
