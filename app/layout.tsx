@@ -31,6 +31,17 @@ export const metadata: Metadata = {
   },
   description: landingSeo.description,
   applicationName: landingSeo.brand,
+  // Stable, crawlable brand icons for browser tabs + Google Search.
+  // Prefer public/ paths (no content-hash query) so the URL stays consistent.
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon-48.png", type: "image/png", sizes: "48x48" },
+      { url: "/icon-192.png", type: "image/png", sizes: "192x192" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", type: "image/png", sizes: "180x180" }],
+    shortcut: "/favicon.ico",
+  },
   formatDetection: {
     telephone: false,
     email: false,

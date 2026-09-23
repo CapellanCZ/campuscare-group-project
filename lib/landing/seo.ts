@@ -7,6 +7,12 @@ export function getSiteUrl(): string {
   const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim()
   if (configured) return configured.replace(/\/$/, "")
 
+  // Prefer the project's production domain (custom domain) over a preview URL.
+  const productionHost = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim()
+  if (productionHost) {
+    return `https://${productionHost.replace(/^https?:\/\//, "")}`
+  }
+
   const vercel = process.env.VERCEL_URL?.trim()
   if (vercel) {
     const host = vercel.replace(/^https?:\/\//, "")
@@ -21,7 +27,10 @@ export const landingSeo = {
   description:
     "CampusCare helps the NU Dasmariñas Health Services Office manage consultations, queues, patient records, and campus health notices in one modern workspace.",
   brand: "CampusCare",
+  /** Open Graph / Twitter share image (wide). */
   ogImagePath: "/images/CampusCareBlue.png",
+  /** Square brand mark for Organization logo + favicon-related references. */
+  brandIconPath: "/icon-192.png",
 } as const
 
 /** Private clinic surfaces must not be indexed. */
@@ -58,7 +67,7 @@ export function buildLandingJsonLd() {
         name: "NU Dasmariñas Health Services Office",
         alternateName: landingSeo.brand,
         url: siteUrl,
-        logo: `${siteUrl}${landingSeo.ogImagePath}`,
+        logo: `${siteUrl}${landingSeo.brandIconPath}`,
         areaServed: {
           "@type": "Place",
           name: "NU Dasmariñas",

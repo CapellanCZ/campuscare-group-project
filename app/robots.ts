@@ -16,6 +16,12 @@ export default function robots(): MetadataRoute.Robots {
         siteRoutes.terms,
         siteRoutes.dataPrivacy,
         siteRoutes.login,
+        "/favicon.ico",
+        "/favicon-48.png",
+        "/icon-192.png",
+        "/icon-512.png",
+        "/apple-touch-icon.png",
+        "/images/",
       ],
       disallow: [
         "/admin",
