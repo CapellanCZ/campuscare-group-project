@@ -7,6 +7,7 @@ import { appToast } from "@/lib/feedback/app-toast"
 import { staffToasts } from "@/lib/feedback/toast-messages"
 import {
   IconDots,
+  IconDownload,
   IconMailForward,
   IconPencil,
   IconSearch,
@@ -17,6 +18,7 @@ import {
 
 import {
   deleteStaffUser,
+  getClinicStaffExportRows,
   resendStaffInvite,
   setStaffUserActive,
   updateStaffUserRole,
@@ -38,6 +40,7 @@ import {
 import { UserDeleteDialog } from "@/features/admin/components/user-delete-dialog"
 import { UserEditSheet } from "@/features/admin/components/user-edit-sheet"
 import { UserImportSheet } from "@/features/admin/components/user-import-sheet"
+import { downloadExcelData } from "@/features/admin/lib/excel"
 import { UserInviteSheet } from "@/features/admin/components/user-invite-sheet"
 import {
   adminElevatedCardClassName,
@@ -204,6 +207,54 @@ export function UserDirectoryPanel({
   const [editingUser, setEditingUser] = useState<ManagedStaffUser | null>(null)
   const [, startTransition] = useTransition()
   const deferredQuery = useDeferredValue(query.trim().toLowerCase())
+
+  const [exportPending, setExportPending] = useState(false)
+
+  async function exportClinicStaffExcel() {
+    setExportPending(true)
+    try {
+      const result = await getClinicStaffExportRows()
+      if (!result.ok) {
+        appToast.error({
+          title: "Export failed",
+          description: result.error,
+        })
+        return
+      }
+      await downloadExcelData(
+        `clinic-staff-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        [
+          "Staff Name",
+          "Email",
+          "Employee ID",
+          "License No",
+          "Weekly schedule",
+          "Role",
+        ],
+        result.rows.map((row) => [
+          row.staffName,
+          row.email,
+          row.employeeId,
+          row.licenseNo,
+          row.weeklySchedule,
+          row.role,
+        ]),
+        "Clinic Staff"
+      )
+      appToast.success({
+        title: "Export ready",
+        description: `Exported ${result.rows.length} staff member${result.rows.length === 1 ? "" : "s"}.`,
+      })
+    } catch (error) {
+      appToast.error({
+        title: "Export failed",
+        description:
+          error instanceof Error ? error.message : "Could not download Excel.",
+      })
+    } finally {
+      setExportPending(false)
+    }
+  }
 
   useStaffRealtimeRouterRefresh(
     `staff-users-${directory}`,
@@ -513,7 +564,7 @@ export function UserDirectoryPanel({
           <CardTitle className="text-base">
             {config.directoryTitle}
           </CardTitle>
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             <div className="relative w-full sm:w-72">
               <IconSearch
                 className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
@@ -527,6 +578,18 @@ export function UserDirectoryPanel({
                 aria-label="Search directory"
               />
             </div>
+            {directory === "staff" ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={exportPending || users.length === 0}
+                onClick={() => void exportClinicStaffExcel()}
+              >
+                <IconDownload data-icon="inline-start" aria-hidden />
+                {exportPending ? "Exporting…" : "Export Excel"}
+              </Button>
+            ) : null}
             <UserImportSheet
               config={config}
               onImported={syncFromServer}

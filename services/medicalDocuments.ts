@@ -375,6 +375,54 @@ export async function getMedicalDocuments(
   }
 }
 
+async function loadConsultationForDocument(
+  supabase: SupabaseClient,
+  consultationId: string
+): Promise<{ id: string; status: string; patientId: string | null; providerType: string | null }> {
+  const { data, error } = await supabase
+    .from("consultations")
+    .select("id, status, patient_id, provider_type")
+    .eq("id", consultationId)
+    .maybeSingle()
+
+  if (error) mapError(error)
+  if (!data) {
+    throw new MedicalDocumentServiceError(
+      "not_found",
+      "Consultation not found for this medical document."
+    )
+  }
+
+  return {
+    id: data.id as string,
+    status: String(data.status ?? ""),
+    patientId: (data.patient_id as string | null) ?? null,
+    providerType: (data.provider_type as string | null) ?? null,
+  }
+}
+
+function assertDocumentIssuer(
+  document: MedicalDocument,
+  actorId: string,
+  action: string
+) {
+  if (!document.issuedBy || document.issuedBy !== actorId) {
+    throw new MedicalDocumentServiceError(
+      "permission",
+      `Only the clinician who issued this document can ${action} it.`
+    )
+  }
+}
+
+function assertConsultationOngoing(status: string, action: string) {
+  if (status !== "ongoing") {
+    throw new MedicalDocumentServiceError(
+      "validation",
+      `Documents can only be ${action} while the consultation is ongoing.`
+    )
+  }
+}
+
 export async function issueMedicalDocument(
   input: IssueMedicalDocumentInput,
   client?: SupabaseClient
@@ -397,6 +445,21 @@ export async function issueMedicalDocument(
     throw new MedicalDocumentServiceError(
       "validation",
       "Issuer is required to issue a medical document."
+    )
+  }
+
+  const consultation = await loadConsultationForDocument(
+    supabase,
+    input.consultationId.trim()
+  )
+  assertConsultationOngoing(consultation.status, "issued")
+  if (
+    consultation.patientId &&
+    consultation.patientId !== input.patientId.trim()
+  ) {
+    throw new MedicalDocumentServiceError(
+      "validation",
+      "Patient does not match the selected consultation."
     )
   }
 
@@ -489,15 +552,20 @@ export async function updateMedicalDocument(
     )
   }
 
-  if (
-    input.consultationStatus &&
-    input.consultationStatus !== "ongoing"
-  ) {
+  assertDocumentIssuer(existing, input.updatedBy, "edit")
+
+  if (!existing.consultationId) {
     throw new MedicalDocumentServiceError(
       "validation",
-      "Documents can only be edited while the consultation is ongoing."
+      "This document is not linked to a consultation and cannot be edited."
     )
   }
+
+  const consultation = await loadConsultationForDocument(
+    supabase,
+    existing.consultationId
+  )
+  assertConsultationOngoing(consultation.status, "edited")
 
   const payload = {
     ...input.payload,
@@ -514,6 +582,7 @@ export async function updateMedicalDocument(
       updated_at: new Date().toISOString(),
     })
     .eq("id", input.id)
+    .eq("issued_by", input.updatedBy)
     .neq("status", "voided")
     .select(SELECT_WITH_PATIENT)
     .maybeSingle()
@@ -560,6 +629,9 @@ export async function voidMedicalDocument(
     )
   }
 
+  const existing = await getMedicalDocumentById(input.id, supabase)
+  assertDocumentIssuer(existing, input.voidedBy, "void")
+
   const { data, error } = await supabase
     .from("medical_certificates")
     .update({
@@ -569,6 +641,7 @@ export async function voidMedicalDocument(
       void_reason: reason,
     })
     .eq("id", input.id)
+    .eq("issued_by", input.voidedBy)
     .neq("status", "voided")
     .select(SELECT_WITH_PATIENT)
     .maybeSingle()

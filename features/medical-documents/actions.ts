@@ -153,7 +153,8 @@ export async function updateMedicalDocumentAction(input: {
   id: string
   purpose?: string | null
   payload: Record<string, unknown>
-  consultationStatus: string
+  /** @deprecated Ignored — consultation status is loaded server-side. */
+  consultationStatus?: string
 }): Promise<MedicalDocumentActionResult<MedicalDocument>> {
   const auth = await requireDocumentAccess(true)
   if (!auth.ok) return auth
@@ -163,7 +164,6 @@ export async function updateMedicalDocumentAction(input: {
       id: input.id,
       purpose: input.purpose,
       payload: input.payload,
-      consultationStatus: input.consultationStatus,
       updatedBy: auth.access.userId,
       updatedByName: profile?.fullName ?? auth.access.fullName,
       licenseNumber: profile?.licenseNumber ?? null,

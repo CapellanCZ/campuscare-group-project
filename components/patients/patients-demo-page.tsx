@@ -411,7 +411,7 @@ export function PatientsPage({
           )}
         >
           <CardTitle className="text-base">Patient directory</CardTitle>
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
             <Select
               value={patientTypeFilter}
               items={selectItemsRecord(PATIENT_TYPE_FILTER_OPTIONS)}

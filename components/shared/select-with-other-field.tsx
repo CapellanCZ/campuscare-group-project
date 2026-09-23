@@ -58,14 +58,21 @@ export function SelectWithOtherField({
   const fieldId = id ?? autoId
   const otherId = `${fieldId}-other`
   const isPreset = isPresetFormOption(options, value)
-  const [otherMode, setOtherMode] = useState(!isPreset && value.length > 0)
+  const [otherMode, setOtherMode] = useState(
+    Boolean(value) &&
+      value !== OTHER_SELECT_VALUE &&
+      !isPresetFormOption(options, value)
+  )
 
   useEffect(() => {
     if (isPreset) setOtherMode(false)
-    else if (value.length > 0) setOtherMode(true)
+    else if (value.length > 0 && value !== OTHER_SELECT_VALUE) setOtherMode(true)
+    else if (!value) setOtherMode(false)
   }, [isPreset, value])
 
-  const showOther = otherMode || (!isPreset && value.length > 0)
+  const showOther =
+    otherMode ||
+    (Boolean(value) && value !== OTHER_SELECT_VALUE && !isPreset)
   const selectValue = showOther
     ? OTHER_SELECT_VALUE
     : isPreset

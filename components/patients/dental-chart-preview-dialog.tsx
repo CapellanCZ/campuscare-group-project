@@ -58,7 +58,7 @@ export function DentalChartPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[min(92vh,900px)] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl">
+      <DialogContent className="flex max-h-[min(92vh,900px)] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl">
         <DialogHeader className="border-b px-6 py-4 text-left">
           <DialogTitle>Dental patient chart</DialogTitle>
           <DialogDescription>

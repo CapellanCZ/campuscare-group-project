@@ -19,9 +19,22 @@ export async function proxy(request: NextRequest) {
     pathname === "/display" ||
     pathname.startsWith("/display/")
 
+  // Public marketing/legal pages: skip Supabase session refresh (TTFB / auth RTT).
+  // Auth is not required to render these; Login still establishes session client-side.
+  const isPublicMarketing =
+    pathname === "/" ||
+    pathname === "/landing" ||
+    pathname.startsWith("/landing/") ||
+    pathname === "/login" ||
+    pathname === "/privacy" ||
+    pathname === "/terms" ||
+    pathname === "/data-privacy" ||
+    pathname === "/docs" ||
+    pathname.startsWith("/docs/")
+
   // Public board is anon-readable. Skip session refresh so realtime/poll
   // refreshes cannot hammer Supabase Auth (429 over_request_rate_limit).
-  if (isPublicDisplay) {
+  if (isPublicDisplay || isPublicMarketing) {
     return NextResponse.next()
   }
 

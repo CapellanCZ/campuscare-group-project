@@ -9,6 +9,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { normalizeEmployeeCampusId } from "@/lib/students/student-id-input"
 import {
   MANAGED_ROLES,
+  STAFF_DIRECTORY_ROLES,
   type AccountLifecycleStatus,
   type AssignClinicMembershipInput,
   type CreateStaffUserInput,
@@ -27,6 +28,7 @@ import {
   type UserStatusFilter,
   isLicensedProfessionalRole,
 } from "@/features/admin/types/user-management"
+import { roleLabel } from "@/features/admin/lib/user-directory-config"
 
 type StaffProfileRow = {
   id: string
@@ -1397,5 +1399,81 @@ export async function importStaffUsersFromExcel(
         : skipped > 0
           ? `${skipped} duplicate${skipped === 1 ? "" : "s"} skipped.`
           : undefined,
+  }
+}
+
+const WEEKDAY_SHORT = [
+  "Sun",
+  "Mon",
+  "Tue",
+  "Wed",
+  "Thu",
+  "Fri",
+  "Sat",
+] as const
+
+export type ClinicStaffExportRow = {
+  staffName: string
+  email: string
+  employeeId: string
+  licenseNo: string
+  weeklySchedule: string
+  role: string
+}
+
+/** Rows for Clinic Staff Excel export (name, email, IDs, schedule, role). */
+export async function getClinicStaffExportRows(): Promise<
+  | { ok: true; rows: ClinicStaffExportRow[] }
+  | { ok: false; error: string }
+> {
+  const listed = await listStaffUsers({ roles: [...STAFF_DIRECTORY_ROLES] })
+  if (!listed.ok) return listed
+
+  const adminClientResult = getAdminClientSafe()
+  if (!adminClientResult.ok) {
+    return { ok: false, error: adminClientResult.error }
+  }
+  const adminClient = adminClientResult.client
+  const userIds = listed.users.map((user) => user.id)
+
+  const scheduleByUser = new Map<string, string[]>()
+  if (userIds.length > 0) {
+    const { data: slots, error } = await adminClient
+      .from("doctor_availability")
+      .select("doctor_id, day_of_week, start_time, end_time, is_active")
+      .in("doctor_id", userIds)
+      .order("day_of_week", { ascending: true })
+      .order("start_time", { ascending: true })
+
+    if (error) {
+      return {
+        ok: false,
+        error: `Could not load weekly schedules. ${error.message}`,
+      }
+    }
+
+    for (const slot of slots ?? []) {
+      if (slot.is_active === false) continue
+      const doctorId = String(slot.doctor_id)
+      const day = WEEKDAY_SHORT[Number(slot.day_of_week)] ?? "?"
+      const start = String(slot.start_time).slice(0, 5)
+      const end = String(slot.end_time).slice(0, 5)
+      const line = `${day} ${start}–${end}`
+      const existing = scheduleByUser.get(doctorId) ?? []
+      existing.push(line)
+      scheduleByUser.set(doctorId, existing)
+    }
+  }
+
+  return {
+    ok: true,
+    rows: listed.users.map((user) => ({
+      staffName: user.fullName,
+      email: user.email,
+      employeeId: user.employeeId?.trim() || "",
+      licenseNo: user.licenseNumber?.trim() || "",
+      weeklySchedule: (scheduleByUser.get(user.id) ?? []).join("; ") || "—",
+      role: roleLabel(user.role),
+    })),
   }
 }

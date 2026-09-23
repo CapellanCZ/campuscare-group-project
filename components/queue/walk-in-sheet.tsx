@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useTransition } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
 import { appToast } from "@/lib/feedback/app-toast"
 import { queueToasts } from "@/lib/feedback/toast-messages"
 import { useRouter } from "next/navigation"
@@ -29,8 +29,11 @@ import { CONSULTATION_TYPE_OPTIONS } from "@/lib/health/form-options"
 import { CampusIdInput } from "@/components/shared/campus-id-input"
 import { actionRegisterWalkIn } from "@/lib/health/queue-server-actions"
 import { searchPatientByStudentIdAction } from "@/features/patients/actions"
-import { normalizeEmployeeCampusId } from "@/lib/students/student-id-input"
 import { selectItemsRecord } from "@/lib/ui/select-label"
+import {
+  isCampusIdReadyForLookup,
+  studentIdDigits,
+} from "@/lib/students/student-id-input"
 import {
   patientFullName,
   patientTypeLabel,
@@ -41,6 +44,8 @@ import { IconUserPlus } from "@tabler/icons-react"
 
 const WALK_IN_PATIENT_TYPES = ["student", "employee", "visitor"] as const
 type WalkInPatientType = (typeof WALK_IN_PATIENT_TYPES)[number]
+
+const LOOKUP_DEBOUNCE_MS = 400
 
 function walkInTypeFromRecord(type: PatientType): WalkInPatientType {
   if (type === "student") return "student"
@@ -72,37 +77,53 @@ export function WalkInSheet({
   const [nameAutoFilled, setNameAutoFilled] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [formKey, setFormKey] = useState(0)
+  const lookupGen = useRef(0)
+  const campusIdDigitsRef = useRef("")
 
   useEffect(() => {
+    campusIdDigitsRef.current = studentIdDigits(campusId)
+  }, [campusId])
+
+  useEffect(() => {
+    // Debounce lookup only — never rewrite campusId from effects.
     const timer = window.setTimeout(() => {
-      const raw = campusId.trim()
-      const normalized =
-        raw && !/^\d{4}-\d{6}$/.test(raw)
-          ? normalizeEmployeeCampusId(raw) || raw
-          : raw
-      if (normalized !== campusId && /^\d{4}-\d{5}$/.test(normalized)) {
-        setCampusId(normalized)
-      }
-      setDebouncedCampusId(normalized)
-    }, 300)
+      setDebouncedCampusId(campusId.trim())
+    }, LOOKUP_DEBOUNCE_MS)
     return () => window.clearTimeout(timer)
   }, [campusId])
 
   useEffect(() => {
     const id = debouncedCampusId
-    if (!id) {
-      setLookupHint(null)
-      setNameAutoFilled(false)
-      setPatientType("")
+    const digits = studentIdDigits(id)
+
+    if (!id || !isCampusIdReadyForLookup(id)) {
+      setLookupPending(false)
+      if (!id) {
+        setLookupHint(null)
+        setNameAutoFilled(false)
+        setPatientType("")
+        setPatientName("")
+      } else {
+        setLookupHint(
+          "Enter 11 or 12 digits to look up the patient record."
+        )
+      }
       return
     }
 
+    const gen = ++lookupGen.current
+    const startedDigits = digits
     let cancelled = false
     setLookupPending(true)
     setLookupHint(null)
 
     void searchPatientByStudentIdAction(id).then((result) => {
-      if (cancelled) return
+      if (cancelled || gen !== lookupGen.current) return
+      // If the user kept typing, discard this result — never touch campusId.
+      if (campusIdDigitsRef.current !== startedDigits) {
+        setLookupPending(false)
+        return
+      }
       setLookupPending(false)
 
       if (result.ok) {
@@ -115,7 +136,6 @@ export function WalkInSheet({
         return
       }
 
-      // No university patient record → treat as visitor (not affiliated).
       setNameAutoFilled(false)
       setPatientType("visitor")
       setLookupHint(
@@ -129,6 +149,7 @@ export function WalkInSheet({
   }, [debouncedCampusId])
 
   function resetForm() {
+    lookupGen.current += 1
     setCampusId("")
     setDebouncedCampusId("")
     setPatientName("")
@@ -205,17 +226,17 @@ export function WalkInSheet({
           Register walk-in
         </DialogTrigger>
       )}
-      <DialogContent className="flex max-h-[min(90vh,640px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
-        <DialogHeader className="gap-1 border-b px-6 py-4 text-left">
+      <DialogContent className="flex max-h-[min(90vh,640px)] w-full max-w-[calc(100%-1.5rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
+        <DialogHeader className="gap-1 border-b px-4 py-4 text-left sm:px-6">
           <DialogTitle>Register walk-in</DialogTitle>
           <DialogDescription className="text-xs">
-            Enter the {CAMPUS_ID_LABEL.toLowerCase()} first. The system will look up the patient record
-            and fill in the name when found.
+            Enter the {CAMPUS_ID_LABEL.toLowerCase()} first. The system will look
+            up the patient record and fill in the name when found.
           </DialogDescription>
         </DialogHeader>
         <form
           key={formKey}
-          className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-4"
+          className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4 sm:px-6"
           onSubmit={onSubmit}
         >
           <Field>
@@ -224,18 +245,21 @@ export function WalkInSheet({
               id="walkin-campus"
               value={campusId}
               onChange={setCampusId}
-              patientType={!patientType || patientType === "visitor" ? "any" : patientType}
               placeholder="Enter ID Number"
               aria-label={CAMPUS_ID_LABEL}
               disabled={pending}
+              showValidation
             />
             {lookupPending ? (
-              <p className="text-xs text-muted-foreground">Looking up patient…</p>
+              <p className="text-xs text-muted-foreground">
+                Looking up patient…
+              </p>
             ) : lookupHint ? (
               <p className="text-xs text-muted-foreground">{lookupHint}</p>
             ) : (
               <p className="text-xs text-muted-foreground">
-                Leave blank for visitors without an {CAMPUS_ID_LABEL.toLowerCase()}.
+                Leave blank for visitors without an{" "}
+                {CAMPUS_ID_LABEL.toLowerCase()}. Use 11 or 12 digits to search.
               </p>
             )}
           </Field>
@@ -306,7 +330,11 @@ export function WalkInSheet({
             </p>
           ) : null}
           <DialogFooter className="mt-auto px-0 sm:justify-stretch">
-            <Button type="submit" disabled={pending || lookupPending} className="w-full">
+            <Button
+              type="submit"
+              disabled={pending || lookupPending}
+              className="w-full"
+            >
               {pending ? "Registering…" : "Register to nurse queue"}
             </Button>
           </DialogFooter>

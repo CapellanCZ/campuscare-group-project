@@ -152,6 +152,15 @@ export function ReportChartCard({
   const empty = data.length === 0 || data.every(
     (d) => d.value === 0 && d.secondary === 0 && d.tertiary === 0
   )
+  const hbarLabelWidth = Math.min(
+    240,
+    Math.max(
+      140,
+      ...data.map((point) => Math.ceil(point.label.length * 7.2) + 12)
+    )
+  )
+  const chartHeight =
+    kind === "hbar" ? Math.max(220, 36 + data.length * 28) : 220
   const config =
     kind === "stackedBar"
       ? stackedConfig
@@ -167,7 +176,11 @@ export function ReportChartCard({
     <>
       <ChartContainer
         config={config}
-        className="!aspect-auto h-[220px] w-full justify-center"
+        className={cn(
+          "!aspect-auto w-full justify-center",
+          kind === "hbar" ? undefined : "h-[220px]"
+        )}
+        style={kind === "hbar" ? { height: chartHeight } : undefined}
       >
         {kind === "pie" ? (
           <PieChart>
@@ -230,7 +243,9 @@ export function ReportChartCard({
               dataKey="label"
               tickLine={false}
               axisLine={false}
-              width={132}
+              width={hbarLabelWidth}
+              interval={0}
+              tick={{ fontSize: 11 }}
             />
             <ChartTooltip content={<ChartTooltipContent />} />
             <Bar dataKey="value" radius={4}>

@@ -547,17 +547,9 @@ export async function StaffSettingsPage() {
 
   if (access.primaryRole === "admin") {
     const bundle = await loadOfficeHoursBundle()
-    const { getClinicCapacities } = await import(
-      "@/services/consultation-capacity"
-    )
-    const { ConsultationCapacitySettings } = await import(
-      "@/features/admin/components/consultation-capacity-settings"
-    )
-    const capacities = await getClinicCapacities()
     return (
       <div className={adminPageShellClassName("gap-8")}>
         {profilePage}
-        <ConsultationCapacitySettings initial={capacities} />
         <OfficeHoursSettings
           access={access}
           clinicHours={bundle.clinicHours}

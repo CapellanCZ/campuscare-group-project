@@ -8,9 +8,9 @@ import { IconChevronLeft } from "@tabler/icons-react"
 import { AuthActivateStep } from "@/components/auth/auth-activate-step"
 import { AuthEmailStep } from "@/components/auth/auth-email-step"
 import { AuthOtpStep } from "@/components/auth/auth-otp-step"
-import { CampusCareLogo } from "@/components/campuscare-logo"
-import { Button } from "@/components/ui/button"
+import { CampusCareLogoStatic } from "@/components/campuscare-logo-static"
 import { FloatingPaths } from "@/components/floating-paths"
+import { Button } from "@/components/ui/button"
 import {
   RESEND_COOLDOWN_SECONDS,
   sendOtp,
@@ -182,11 +182,11 @@ export function AuthPage() {
           className="relative z-10 mr-auto cursor-default border-0 bg-transparent p-0"
           aria-label="CampusCare"
         >
-          <CampusCareLogo
+          <CampusCareLogoStatic
+            variant="blue"
             alt="CampusCare"
             className="h-10 w-auto"
             width={160}
-            height={40}
             priority
           />
         </button>

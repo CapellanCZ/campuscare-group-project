@@ -23,6 +23,8 @@ type StatCardProps = {
   accentColor?: string
   /** Efferd flush cell — no radius/ring when nested in PanelFrame */
   flush?: boolean
+  /** Tighter padding / type for dense mobile KPI grids */
+  compact?: boolean
   /** Optional navigation target — overlay link keeps Card as the outer node */
   href?: string
   /** Optional click handler (e.g. open a sheet). Ignored when `href` is set. */
@@ -39,6 +41,7 @@ export function StatCard({
   icon,
   accentColor,
   flush = false,
+  compact = false,
   href,
   onClick,
 }: StatCardProps) {
@@ -57,10 +60,13 @@ export function StatCard({
       className={cn(
         "relative min-w-0 shadow-none dark:ring-0",
         flush && panelCardClassName,
+        compact && "gap-2 py-3 data-[size=sm]:[--card-spacing:--spacing(3)]",
+        compact && "[--card-spacing:--spacing(3)] sm:[--card-spacing:--spacing(4)]",
         interactive &&
           "transition-colors hover:bg-muted/40 focus-within:bg-muted/40",
         className
       )}
+      data-size={compact ? "sm" : undefined}
     >
       {href ? (
         <Link
@@ -77,19 +83,25 @@ export function StatCard({
         />
       ) : null}
 
-      <CardHeader className="relative z-0 flex flex-row items-start justify-between gap-3 space-y-0 pb-2">
-        <div className="min-w-0 space-y-1">
-          <CardTitle className="font-normal text-xs tracking-wide text-muted-foreground uppercase">
+      <CardHeader className="relative z-0 flex flex-row items-start justify-between gap-2 space-y-0 pb-1 sm:gap-3 sm:pb-2">
+        <div className="min-w-0 space-y-0.5 sm:space-y-1">
+          <CardTitle className="font-normal text-[10px] tracking-wide text-muted-foreground uppercase sm:text-xs">
             {label}
           </CardTitle>
-          <p className="truncate text-2xl font-semibold tracking-tight tabular-nums">
+          <p
+            className={cn(
+              "truncate font-semibold tracking-tight tabular-nums",
+              compact ? "text-xl sm:text-2xl" : "text-2xl"
+            )}
+          >
             {value}
           </p>
         </div>
         {icon ? (
           <div
             className={cn(
-              "flex size-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4",
+              "flex shrink-0 items-center justify-center rounded-lg [&_svg]:size-4",
+              compact ? "size-8 sm:size-9" : "size-9",
               !accentColor && "bg-primary/10 text-primary"
             )}
             style={
@@ -122,7 +134,7 @@ export function StatCard({
           </CardDescription>
         ) : null}
         {description ? (
-          <span className="truncate text-xs text-muted-foreground">
+          <span className="line-clamp-2 text-[11px] text-muted-foreground sm:truncate sm:text-xs">
             {description}
           </span>
         ) : null}

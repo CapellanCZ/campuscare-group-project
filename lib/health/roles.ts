@@ -23,7 +23,18 @@ export function canApproveConsultationRequest(designation: ClinicDesignation) {
 }
 
 export function canTransferQueue(designation: ClinicDesignation) {
-  return designation === "nurse"
+  // Manual queue transfers: physician ↔ dentist ↔ nurse (not nurse menu).
+  return designation === "physician" || designation === "dentist"
+}
+
+/** Stations this role may transfer a ticket to from the queue actions menu. */
+export function transferTargetsForDesignation(
+  designation: ClinicDesignation
+): StationId[] {
+  if (designation === "physician") return ["dentist", "nurse"]
+  if (designation === "dentist") return ["physician", "nurse"]
+  // Nurse uses intake "Send to" — no redundant transfer menu items.
+  return []
 }
 
 export function isReadOnlyQueue(designation: ClinicDesignation) {

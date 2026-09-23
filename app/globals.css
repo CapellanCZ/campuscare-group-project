@@ -495,3 +495,53 @@
   inset-block-start: 0.625rem !important;
   color: var(--muted-foreground) !important;
 }
+
+/* Decorative landing/login paths — GPU-friendly opacity pulse (no JS motion per path) */
+@keyframes cc-floating-path-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+.cc-floating-paths path {
+  animation: cc-floating-path-pulse 22s ease-in-out infinite;
+  will-change: opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cc-floating-paths path {
+    animation: none;
+  }
+}
+
+@keyframes cc-float-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+.cc-float-slow {
+  animation: cc-float-y 7s ease-in-out infinite;
+  will-change: transform;
+}
+
+.cc-float-fast {
+  animation: cc-float-y 5.5s ease-in-out infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cc-float-slow,
+  .cc-float-fast {
+    animation: none;
+  }
+}
+

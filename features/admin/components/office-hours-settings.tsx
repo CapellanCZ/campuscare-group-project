@@ -273,11 +273,11 @@ export function OfficeHoursSettings({
               <div className="space-y-2">
                 <Label>Staff member</Label>
                 <Select
-                  value={selectedStaffId}
+                  value={selectedStaffId || null}
                   items={selectItemsRecord(
                     staff.map((person) => ({
                       value: person.userId,
-                      label: `${person.fullName} · ${person.primaryRole}`,
+                      label: `${person.fullName.trim() || person.email || "Staff"} · ${person.primaryRole}`,
                     }))
                   )}
                   onValueChange={(value) => {
@@ -290,7 +290,8 @@ export function OfficeHoursSettings({
                   <SelectContent>
                     {staff.map((person) => (
                       <SelectItem key={person.userId} value={person.userId}>
-                        {person.fullName} · {person.primaryRole}
+                        {person.fullName.trim() || person.email || "Staff"} ·{" "}
+                        {person.primaryRole}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { subscribeTables } from "@/lib/health/realtime"
 
-const DEFAULT_DEBOUNCE_MS = 300
+const DEFAULT_DEBOUNCE_MS = 1200
 
 /**
  * Silently refresh staff UIs when listed tables change.

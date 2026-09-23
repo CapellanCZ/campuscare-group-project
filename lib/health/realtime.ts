@@ -58,7 +58,7 @@ export function subscribeQueueChanges(
   )
 }
 
-/** Public display: queue tickets + duty/break status. */
+/** Public display: duty/break only — ticket PHI comes from sanitized view on refresh. */
 export function subscribeDisplayChanges(
   client: SupabaseClient,
   onChange: () => void
@@ -66,12 +66,7 @@ export function subscribeDisplayChanges(
   return subscribeTables(
     client,
     "campuscare-queue-display",
-    [
-      ...STAFF_REALTIME_TABLES.queue,
-      "staff_duty_status",
-      "clinic_break_status",
-      "staff_break_status",
-    ],
+    ["staff_duty_status", "clinic_break_status", "staff_break_status"],
     onChange
   )
 }

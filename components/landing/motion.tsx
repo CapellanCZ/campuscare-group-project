@@ -10,6 +10,8 @@ import {
 
 import { cn } from "@/lib/utils"
 
+export { scrollToId } from "@/components/landing/scroll-to-id"
+
 type RevealProps = HTMLMotionProps<"div"> & {
   children: ReactNode
   className?: string
@@ -33,7 +35,7 @@ export function Reveal({
       className={className}
       initial={{ opacity: 0, y: 36 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: false, amount: 0.2, margin: "0px 0px -8% 0px" }}
+      viewport={{ once: true, amount: 0.2, margin: "0px 0px -8% 0px" }}
       transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1], delay }}
       {...props}
     >
@@ -67,7 +69,7 @@ export function ScrollFadeSection({
       className={className}
       initial={{ opacity: 0.35, y: 48 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: false, amount: 0.15, margin: "0px 0px -10% 0px" }}
+      viewport={{ once: true, amount: 0.15, margin: "0px 0px -10% 0px" }}
       transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
     >
       {children}
@@ -164,18 +166,4 @@ export function Float({
       {children}
     </motion.div>
   )
-}
-
-/** Smooth-scroll to an in-page section without changing the URL (no hash). */
-export function scrollToId(id: string) {
-  const el = document.getElementById(id)
-  if (!el) return
-  el.scrollIntoView({ behavior: "smooth", block: "start" })
-  if (typeof window !== "undefined" && window.location.hash) {
-    window.history.replaceState(
-      null,
-      "",
-      `${window.location.pathname}${window.location.search}`
-    )
-  }
 }

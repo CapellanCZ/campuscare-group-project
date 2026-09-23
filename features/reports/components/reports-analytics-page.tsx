@@ -18,12 +18,13 @@ import {
   downloadClinicProgressPdf,
   printClinicProgressReport,
 } from "@/features/reports/lib/export-pdf"
+import { downloadClinicProgressExcel } from "@/features/reports/lib/export-excel"
 import type { ReportFilters, ReportsBundle } from "@/features/reports/types"
 import type { StaffAccess } from "@/lib/auth/types"
 import { exportReportTitle } from "@/features/reports/lib/report-scope"
 import { designationLabel } from "@/lib/health/roles"
 import type { AnnouncementListResult } from "@/types/announcement"
-import { useStaffRealtimeRouterRefresh } from "@/hooks/use-staff-realtime-refresh"
+import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
 import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 
 const STATUS_OPTIONS = ["Waiting", "Ongoing", "Completed"]
@@ -84,9 +85,21 @@ function ClinicalReportsAnalyticsPage({
   const [error, setError] = useState<string | null>(initialBundle.error ?? null)
 
   // Debounced lightly — reports don't need sub-second freshness.
-  useStaffRealtimeRouterRefresh(
+  useStaffRealtimeRefresh(
     `staff-reports-${d}`,
     STAFF_REALTIME_TABLES.reports,
+    () => {
+      startTransition(async () => {
+        const result = await fetchReportsBundleAction(d, filters)
+        if (!result.ok) {
+          setError(result.error)
+          return
+        }
+        setError(null)
+        setBundleSource(result.data)
+        setFilters(result.data.filters)
+      })
+    },
     2500
   )
 
@@ -249,6 +262,27 @@ function ClinicalReportsAnalyticsPage({
                 error instanceof Error
                   ? error.message
                   : "Could not export PDF.",
+            })
+          })
+      }}
+      onExportExcel={() => {
+        void downloadClinicProgressExcel({
+          meta: exportMeta(),
+          pack: exportPack,
+        })
+          .then(() =>
+            appToast.success({
+              title: "Excel downloaded.",
+              description: "Your report export has been saved.",
+            })
+          )
+          .catch((error) => {
+            appToast.error({
+              title: "Export failed",
+              description:
+                error instanceof Error
+                  ? error.message
+                  : "Could not export Excel.",
             })
           })
       }}

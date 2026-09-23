@@ -86,7 +86,14 @@ export function normalizeHealthCase(
   for (const alias of aliases) {
     if (alias.pattern.test(raw)) return alias.label
   }
-  return OTHER_LABEL
+
+  // Preserve free-text "other" values so charts/tables list specific cases
+  // instead of collapsing everything into a generic "Other" bucket.
+  if (/^other(\b|:|-)/i.test(raw)) {
+    const detail = raw.replace(/^other(\b|:|-)\s*/i, "").trim()
+    return detail || OTHER_LABEL
+  }
+  return raw
 }
 
 /** Split multi-select diagnosis text into individual health-case labels. */

@@ -4,8 +4,8 @@ import { type MouseEvent, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { IconMenu2, IconX } from "@tabler/icons-react"
 
-import { CampusCareLogo } from "@/components/campuscare-logo"
-import { scrollToId } from "@/components/landing/motion"
+import { CampusCareLogoStatic } from "@/components/campuscare-logo-static"
+import { scrollToId } from "@/components/landing/scroll-to-id"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
@@ -59,12 +59,11 @@ export function LandingNav() {
           aria-label="CampusCare home"
           onClick={(event) => handleSectionNav(event, "home")}
         >
-          <CampusCareLogo
+          <CampusCareLogoStatic
             variant="blue"
             alt="CampusCare"
             className="h-8 w-auto"
             width={48}
-            height={32}
             priority
           />
           <span className="truncate">CampusCare</span>
@@ -116,12 +115,11 @@ export function LandingNav() {
             <DrawerContent className="max-w-xs">
               <DrawerHeader className="flex-row items-center justify-between">
                 <DrawerTitle className="flex items-center gap-2">
-                  <CampusCareLogo
+                  <CampusCareLogoStatic
                     variant="blue"
                     alt=""
                     className="h-6 w-auto"
                     width={36}
-                    height={24}
                   />
                   CampusCare
                 </DrawerTitle>

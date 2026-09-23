@@ -1,6 +1,7 @@
 "use server"
 
 import { getStaffAccess } from "@/lib/auth/access"
+import { can } from "@/lib/auth/permissions"
 import {
   createConsultation,
   deleteConsultation,
@@ -53,6 +54,30 @@ function toErrorResult(error: unknown): ConsultationActionResult<never> {
   }
 }
 
+async function requireConsultationAccess(
+  permission:
+    | "consultations.cards"
+    | "consultations.create_record"
+    | "consultations.update_record"
+) {
+  const access = await getStaffAccess()
+  if (!access?.hasClinicMembership) {
+    return {
+      ok: false as const,
+      error: "Sign in with an approved clinic account.",
+      code: "permission",
+    }
+  }
+  if (!can(access.designation, permission)) {
+    return {
+      ok: false as const,
+      error: "You do not have permission for this consultation action.",
+      code: "permission",
+    }
+  }
+  return { ok: true as const, access }
+}
+
 async function listForCurrentStaff(params: ConsultationListParams) {
   const access = await getStaffAccess()
   if (
@@ -67,6 +92,8 @@ async function listForCurrentStaff(params: ConsultationListParams) {
 export async function fetchConsultationsAction(
   params: ConsultationListParams = {}
 ): Promise<ConsultationActionResult<ConsultationListResult>> {
+  const auth = await requireConsultationAccess("consultations.cards")
+  if (!auth.ok) return auth
   try {
     const data = await listForCurrentStaff(params)
     return { ok: true, data }
@@ -79,11 +106,13 @@ export async function searchConsultationsAction(
   query: string,
   params: Omit<ConsultationListParams, "query"> = {}
 ): Promise<ConsultationActionResult<ConsultationListResult>> {
+  const auth = await requireConsultationAccess("consultations.cards")
+  if (!auth.ok) return auth
   try {
-    const access = await getStaffAccess()
+    const access = auth.access
     if (
-      access?.primaryRole === "physician" ||
-      access?.primaryRole === "dentist"
+      access.primaryRole === "physician" ||
+      access.primaryRole === "dentist"
     ) {
       const data = await getConsultationsForClinician(access.primaryRole, {
         ...params,
@@ -101,6 +130,8 @@ export async function searchConsultationsAction(
 export async function fetchConsultationByIdAction(
   id: string
 ): Promise<ConsultationActionResult<Consultation>> {
+  const auth = await requireConsultationAccess("consultations.cards")
+  if (!auth.ok) return auth
   try {
     const data = await getConsultationById(id)
     return { ok: true, data }
@@ -112,11 +143,13 @@ export async function fetchConsultationByIdAction(
 export async function fetchConsultationStatsAction(): Promise<
   ConsultationActionResult<ConsultationStats>
 > {
+  const auth = await requireConsultationAccess("consultations.cards")
+  if (!auth.ok) return auth
   try {
-    const access = await getStaffAccess()
+    const access = auth.access
     if (
-      access?.primaryRole === "physician" ||
-      access?.primaryRole === "dentist"
+      access.primaryRole === "physician" ||
+      access.primaryRole === "dentist"
     ) {
       const data = await getConsultationStatsForClinician(access.primaryRole)
       return { ok: true, data }
@@ -131,6 +164,8 @@ export async function fetchConsultationStatsAction(): Promise<
 export async function createConsultationAction(
   input: CreateConsultationInput
 ): Promise<ConsultationActionResult<Consultation>> {
+  const auth = await requireConsultationAccess("consultations.create_record")
+  if (!auth.ok) return auth
   try {
     const data = await createConsultation(input)
     return { ok: true, data }
@@ -142,6 +177,8 @@ export async function createConsultationAction(
 export async function updateConsultationAction(
   input: UpdateConsultationInput
 ): Promise<ConsultationActionResult<Consultation>> {
+  const auth = await requireConsultationAccess("consultations.update_record")
+  if (!auth.ok) return auth
   try {
     const data = await updateConsultation(input)
     return { ok: true, data }
@@ -153,6 +190,8 @@ export async function updateConsultationAction(
 export async function deleteConsultationAction(
   id: string
 ): Promise<ConsultationActionResult<{ id: string }>> {
+  const auth = await requireConsultationAccess("consultations.update_record")
+  if (!auth.ok) return auth
   try {
     await deleteConsultation(id)
     return { ok: true, data: { id } }
@@ -164,6 +203,8 @@ export async function deleteConsultationAction(
 export async function listConsultationFilterOptionsAction(): Promise<
   ConsultationActionResult<{ providers: string[]; stations: string[] }>
 > {
+  const auth = await requireConsultationAccess("consultations.cards")
+  if (!auth.ok) return auth
   try {
     const data = await listConsultationFilterOptions()
     return { ok: true, data }

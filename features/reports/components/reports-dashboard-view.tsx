@@ -7,6 +7,7 @@ import {
   IconClock,
   IconDental,
   IconFileTypePdf,
+  IconFileSpreadsheet,
   IconHeartbeat,
   IconPrinter,
   IconStethoscope,
@@ -103,6 +104,7 @@ export function ReportsDashboardView({
   onSecondaryChange,
   onPrint,
   onExportPdf,
+  onExportExcel,
 }: {
   access: StaffAccess
   filters: ReportFilters
@@ -123,6 +125,7 @@ export function ReportsDashboardView({
   onSecondaryChange: (patch: Partial<ReportFilters>) => void
   onPrint: () => void
   onExportPdf: () => void
+  onExportExcel?: () => void
 }) {
   const d = access.designation
   const catalog = catalogFor(d)
@@ -131,6 +134,7 @@ export function ReportsDashboardView({
   const chartsLevel = getAccessLevel(d, "reports.charts")
   const cardsLevel = getAccessLevel(d, "reports.summary_cards")
   const pdfLevel = getAccessLevel(d, "reports.export_pdf")
+  const canExcel = can(d, "reports.export_excel")
   const canFilters = can(d, "reports.filters")
   const showConsultationType = !catalog.lockConsultationType
   const periodLabel = formatAppliedPeriod(
@@ -189,6 +193,17 @@ export function ReportsDashboardView({
               >
                 <IconFileTypePdf className="size-4" aria-hidden />
                 Export PDF
+              </Button>
+            ) : null}
+            {canExcel && onExportExcel ? (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={empty || pending}
+                onClick={onExportExcel}
+              >
+                <IconFileSpreadsheet className="size-4" aria-hidden />
+                Export Excel
               </Button>
             ) : null}
             {pdfLevel !== "none" ? (
@@ -340,7 +355,7 @@ export function ReportsDashboardView({
       ) : null}
 
       {pending && empty ? (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, index) => (
             <Skeleton key={index} className="h-24 rounded-xl" />
           ))}
@@ -350,7 +365,7 @@ export function ReportsDashboardView({
       {showContent && cardsLevel !== "none" && kpis.length > 0 ? (
         <div className="flex flex-col gap-2.5">
           <SectionLabel>Key metrics</SectionLabel>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
             {kpis.map((kpi) => (
               <StatCard
                 key={kpi.key}

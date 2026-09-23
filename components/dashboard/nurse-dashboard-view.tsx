@@ -24,7 +24,6 @@ import {
   PanelGrid,
   panelCardClassName,
 } from "@/components/layout/panel-frame"
-import { OnBreakControl } from "@/components/availability/on-break-control"
 import { Button } from "@/components/ui/button"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
@@ -99,12 +98,11 @@ export function NurseDashboardView({
   }, [kpis.cards])
 
   return (
-    <div className="flex flex-1 flex-col gap-10">
+    <div className="flex flex-1 flex-col gap-6 sm:gap-8 lg:gap-10">
       <PageIntro
         title={<NurseGreetingTitle firstName={firstName} />}
         action={
           <>
-            <OnBreakControl />
             {showWalkIn ? (
               <Button
                 type="button"
@@ -130,13 +128,14 @@ export function NurseDashboardView({
       <div className="flex flex-col gap-3">
         <SectionLabel>At a glance</SectionLabel>
         <PanelFrame>
-          <PanelGrid className="sm:grid-cols-2 lg:grid-cols-4">
+          <PanelGrid className="grid-cols-2 lg:grid-cols-4">
             {kpiCards.map((card) => {
               const Icon = KPI_ICONS[card.key]
               return (
                 <PanelCell key={String(card.key)}>
                   <StatCard
                     flush
+                    compact
                     label={card.label}
                     value={String(card.value)}
                     description={card.description}

@@ -15,7 +15,10 @@ import {
   actionCompleteNurseIntake,
   actionFetchPatientVitalsHistory,
 } from "@/lib/health/queue-server-actions"
-import { CHIEF_COMPLAINT_OPTIONS } from "@/lib/health/form-options"
+import {
+  CHIEF_COMPLAINT_OPTIONS,
+  OTHER_SELECT_VALUE,
+} from "@/lib/health/form-options"
 import type {
   PatientVitalsRecord,
   QueueTicketRow,
@@ -145,7 +148,10 @@ export function NurseIntakeSheet({
 
   useEffect(() => {
     if (!open || !ticket) return
-    setChiefComplaint(ticket.chiefComplaint ?? "")
+    const complaint = (ticket.chiefComplaint ?? "").trim()
+    setChiefComplaint(
+      !complaint || complaint === OTHER_SELECT_VALUE ? "" : complaint
+    )
     // This Visit vitals start empty — latest values are reference-only below.
     setBpSystolic("")
     setBpDiastolic("")
@@ -341,7 +347,7 @@ export function NurseIntakeSheet({
                 options={CHIEF_COMPLAINT_OPTIONS}
                 value={chiefComplaint}
                 onValueChange={setChiefComplaint}
-                placeholder="Select complaint"
+                placeholder="Select chief complaint"
                 otherPlaceholder="Describe the complaint…"
                 disabled={pending}
               />

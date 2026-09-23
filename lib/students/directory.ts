@@ -4,6 +4,10 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { PATIENT_RECORD_SELECT_COLUMNS } from "@/lib/students/patient-record-select"
 import { normalizeStudentId } from "@/lib/students/enrolled-dataset"
+import {
+  campusIdLookupVariants,
+  studentIdDigits,
+} from "@/lib/students/student-id-input"
 import { NO_STUDENT_FOUND } from "@/lib/students/types"
 import { createClient } from "@/lib/supabase/server"
 import {
@@ -39,21 +43,86 @@ function mapClinical(row: PatientRow): PatientRecord {
   })
 }
 
+function sanitizeDirectorySearchTerm(term: string): string {
+  return term.replace(/[%,()]/g, " ").trim()
+}
+
+/** Prefer campus-ID matching when the query is mostly digits / ID-shaped. */
+function isCampusIdSearchQuery(query: string): boolean {
+  const trimmed = query.trim()
+  if (!trimmed) return false
+  const digits = studentIdDigits(trimmed)
+  if (digits.length < 2) return false
+  const compact = trimmed.replace(/[\s-]/g, "")
+  if (!compact) return false
+  return digits.length / compact.length >= 0.7
+}
+
+function directoryIdSearchTerms(query: string): string[] {
+  const trimmed = query.trim()
+  const digits = studentIdDigits(trimmed)
+  const terms = new Set<string>()
+  for (const term of [
+    trimmed,
+    normalizeStudentId(trimmed),
+    ...campusIdLookupVariants(trimmed),
+    digits,
+  ]) {
+    const safe = sanitizeDirectorySearchTerm(term)
+    if (safe) terms.add(safe)
+  }
+  if (digits.length > 4) {
+    terms.add(`${digits.slice(0, 4)}-${digits.slice(4)}`)
+  }
+  // Allow searching by suffix (common when staff paste/type only the sequence)
+  if (digits.length >= 5) {
+    terms.add(digits.slice(-6))
+    terms.add(digits.slice(-5))
+  }
+  return [...terms]
+}
+
 function matchesQuery(patient: PatientRecord, query: string): boolean {
   const q = query.trim().toLowerCase()
   if (!q) return true
-  const haystack = [
+  const qDigits = studentIdDigits(query)
+  const fullName = patientFullName(patient).toLowerCase()
+  const sid = studentIdDigits(patient.studentId ?? "")
+  const eid = studentIdDigits(patient.employeeId ?? "")
+
+  if (isCampusIdSearchQuery(query) && qDigits.length >= 2) {
+    if (sid.includes(qDigits) || eid.includes(qDigits)) return true
+    for (const variant of campusIdLookupVariants(query)) {
+      const vd = studentIdDigits(variant)
+      if (vd && (sid === vd || eid === vd || sid.includes(vd) || eid.includes(vd))) {
+        return true
+      }
+    }
+  }
+
+  const tokens = q.split(/\s+/).filter(Boolean)
+  if (tokens.length === 0) return true
+
+  const fields = [
     patient.firstName,
     patient.middleName ?? "",
     patient.lastName,
+    fullName,
     patient.studentId ?? "",
     patient.employeeId ?? "",
     patient.course ?? "",
     patient.patientType,
-  ]
-    .join(" ")
-    .toLowerCase()
-  return haystack.includes(q)
+  ].map((value) => value.toLowerCase())
+
+  // Every token must match at least one field (supports "Juan Cruz", "BSIT 2026")
+  return tokens.every((token) => {
+    if (fields.some((field) => field.includes(token))) return true
+    const tokenDigits = studentIdDigits(token)
+    if (tokenDigits.length >= 2) {
+      return sid.includes(tokenDigits) || eid.includes(tokenDigits)
+    }
+    return false
+  })
 }
 
 function comparePatients(
@@ -130,17 +199,92 @@ export async function listDirectoryPatientRecords(
   params: PatientRecordListParams = {},
   client?: SupabaseClient
 ): Promise<PatientRecordListResult> {
+  const supabase = client ?? (await createClient())
   const page = Math.max(1, params.page ?? 1)
   const pageSize = Math.min(50, Math.max(1, params.pageSize ?? DEFAULT_PAGE_SIZE))
-  const items = await listAllDirectoryPatientRecords(params, client)
+  const query = (params.query ?? "").trim()
+  const patientTypeFilter = params.patientType ?? "all"
+  const sortBy = params.sortBy ?? "patient"
+  const sortDir = params.sortDir ?? "asc"
+  const sortColumn =
+    sortBy === "type"
+      ? "patient_type"
+      : sortBy === "program"
+        ? "course"
+        : sortBy === "lastVisit"
+          ? "last_visit"
+          : "last_name"
 
-  const total = items.length
+  let directoryQuery = supabase
+    .from("patient_records")
+    .select(`${PATIENT_RECORD_SELECT_COLUMNS}, consultations(count)`, {
+      count: "exact",
+    })
+
+  if (patientTypeFilter !== "all") {
+    directoryQuery = directoryQuery.eq("patient_type", patientTypeFilter)
+  }
+
+  if (query) {
+    if (isCampusIdSearchQuery(query)) {
+      const filters = directoryIdSearchTerms(query).flatMap((term) => [
+        `student_id.ilike.%${term}%`,
+        `employee_id.ilike.%${term}%`,
+      ])
+      if (filters.length > 0) {
+        directoryQuery = directoryQuery.or(filters.join(","))
+      }
+    } else {
+      // Tokenized name/course search: each token must match (AND of ORs).
+      const tokens = query
+        .split(/\s+/)
+        .map(sanitizeDirectorySearchTerm)
+        .filter((token) => token.length >= 1)
+      for (const token of tokens.length > 0 ? tokens : [sanitizeDirectorySearchTerm(query)]) {
+        if (!token) continue
+        directoryQuery = directoryQuery.or(
+          [
+            `first_name.ilike.%${token}%`,
+            `middle_name.ilike.%${token}%`,
+            `last_name.ilike.%${token}%`,
+            `student_id.ilike.%${token}%`,
+            `employee_id.ilike.%${token}%`,
+            `course.ilike.%${token}%`,
+          ].join(",")
+        )
+      }
+    }
+  }
+
+  const { data, error, count } = await directoryQuery
+    .order(sortColumn, { ascending: sortDir === "asc", nullsFirst: false })
+    .order("first_name", { ascending: sortDir === "asc" })
+    .range((page - 1) * pageSize, page * pageSize - 1)
+
+  if (error) {
+    throw new PatientRecordServiceError(
+      "database",
+      error.message || "Could not load patient records."
+    )
+  }
+
+  const items = await attachEditorNames(
+    ((data ?? []) as PatientRow[]).map(mapClinical),
+    supabase
+  )
+  const total = count ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1)
   const safePage = Math.min(page, totalPages)
-  const start = (safePage - 1) * pageSize
+
+  if (safePage !== page) {
+    return listDirectoryPatientRecords(
+      { ...params, page: safePage, pageSize },
+      supabase
+    )
+  }
 
   return {
-    items: items.slice(start, start + pageSize),
+    items,
     total,
     page: safePage,
     pageSize,
@@ -182,12 +326,16 @@ export async function listAllDirectoryPatientRecords(
   }
   if (query) {
     const normalizedId = normalizeStudentId(query)
+    const qDigits = studentIdDigits(query)
     items = items.filter(
       (item) =>
         matchesQuery(item, query) ||
         (normalizedId &&
           (item.studentId?.includes(normalizedId) ||
-            item.employeeId?.includes(normalizedId)))
+            item.employeeId?.includes(normalizedId))) ||
+        (qDigits.length >= 2 &&
+          (studentIdDigits(item.studentId ?? "").includes(qDigits) ||
+            studentIdDigits(item.employeeId ?? "").includes(qDigits)))
     )
   }
 

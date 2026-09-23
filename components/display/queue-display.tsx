@@ -90,8 +90,8 @@ export function QueueDisplay({
 
     const channel = subscribeDisplayChanges(client, scheduleRefresh)
 
-    // Fallback poll — realtime covers most updates.
-    const poll = window.setInterval(() => router.refresh(), 60_000)
+    // Tickets come from sanitized public_queue_display (no base-table realtime PHI).
+    const poll = window.setInterval(() => router.refresh(), 15_000)
 
     return () => {
       if (timer) clearTimeout(timer)

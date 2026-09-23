@@ -182,12 +182,12 @@ export function NurseTodayQueue({
         onStartIntake={onStartIntake}
         variant="embedded"
       />
-      <CardHeader className="gap-4 border-b px-6 py-5">
+      <CardHeader className="gap-3 border-b px-4 py-4 sm:gap-4 sm:px-6 sm:py-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 space-y-1.5">
             <CardTitle>Today&apos;s queue</CardTitle>
           </div>
-          <div className="flex flex-wrap items-center gap-2 sm:pt-0.5">
+          <div className="flex w-full flex-wrap items-stretch gap-2 sm:w-auto sm:items-center sm:pt-0.5 [&_a]:flex-1 sm:[&_a]:flex-none [&_button]:flex-1 sm:[&_button]:flex-none">
             {canCall ? (
               <Button
                 type="button"
@@ -212,7 +212,7 @@ export function NurseTodayQueue({
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <StudentIdSearchInput
-            className="min-w-0 flex-1"
+            className="min-w-0 w-full flex-1"
             value={query}
             onChange={(next) => {
               setQuery(next)
@@ -223,7 +223,7 @@ export function NurseTodayQueue({
           />
           <select
             aria-label="Filter by status"
-            className="h-9 rounded-4xl border border-border bg-input/30 px-3 text-sm"
+            className="h-9 w-full rounded-4xl border border-border bg-input/30 px-3 text-sm sm:w-auto"
             value={status}
             onChange={(event) => {
               setStatus(event.target.value as typeof status)

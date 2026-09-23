@@ -24,9 +24,64 @@ export const landingSeo = {
   ogImagePath: "/images/CampusCareBlue.png",
 } as const
 
+/** Private clinic surfaces must not be indexed. */
+export const privateSurfaceMetadata: Metadata = {
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: {
+      index: false,
+      follow: false,
+      noimageindex: true,
+    },
+  },
+}
+
+export function buildLandingJsonLd() {
+  const siteUrl = getSiteUrl()
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": `${siteUrl}/#website`,
+        url: siteUrl,
+        name: landingSeo.brand,
+        description: landingSeo.description,
+        publisher: { "@id": `${siteUrl}/#organization` },
+        inLanguage: "en-PH",
+      },
+      {
+        "@type": "Organization",
+        "@id": `${siteUrl}/#organization`,
+        name: "NU Dasmariñas Health Services Office",
+        alternateName: landingSeo.brand,
+        url: siteUrl,
+        logo: `${siteUrl}${landingSeo.ogImagePath}`,
+        areaServed: {
+          "@type": "Place",
+          name: "NU Dasmariñas",
+        },
+      },
+      {
+        "@type": "WebApplication",
+        "@id": `${siteUrl}/#app`,
+        name: landingSeo.brand,
+        url: siteUrl,
+        applicationCategory: "HealthApplication",
+        operatingSystem: "Web",
+        description: landingSeo.description,
+        provider: { "@id": `${siteUrl}/#organization` },
+      },
+    ],
+  }
+}
+
 export function buildLandingMetadata(): Metadata {
   const siteUrl = getSiteUrl()
   const ogImage = `${siteUrl}${landingSeo.ogImagePath}`
+  const canonical = `${siteUrl}${siteRoutes.home}`
 
   return {
     title: {
@@ -46,7 +101,7 @@ export function buildLandingMetadata(): Metadata {
       "medical certificates",
     ],
     alternates: {
-      canonical: siteRoutes.home,
+      canonical,
     },
     robots: {
       index: true,
@@ -62,7 +117,7 @@ export function buildLandingMetadata(): Metadata {
     openGraph: {
       type: "website",
       locale: "en_PH",
-      url: siteRoutes.home,
+      url: canonical,
       siteName: landingSeo.brand,
       title: landingSeo.title,
       description: landingSeo.description,

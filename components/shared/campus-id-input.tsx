@@ -1,8 +1,14 @@
 "use client"
 
+import { useState } from "react"
+
 import { Input } from "@/components/ui/input"
 import {
+  CAMPUS_ID_MAX_DIGITS,
+  CAMPUS_ID_MAX_DIGITS_MESSAGE,
   CAMPUS_ID_VALIDATION_MESSAGE,
+  campusIdDigitCount,
+  campusIdInputMaxLength,
   formatCampusIdInput,
   hasInvalidStudentIdChars,
   type CampusIdKind,
@@ -18,11 +24,8 @@ type CampusIdInputProps = {
   "aria-label"?: string
   disabled?: boolean
   patientType?: CampusIdKind | null
-}
-
-function maxLengthFor(kind?: CampusIdKind | null): number {
-  if (kind === "faculty" || kind === "employee") return 10
-  return 11
+  /** When true, show inline validation for non-digits / over-length. */
+  showValidation?: boolean
 }
 
 /** Campus student/employee ID field with YYYY-XXXXX(X) auto-formatting. */
@@ -35,13 +38,25 @@ export function CampusIdInput({
   "aria-label": ariaLabel = "Campus ID",
   disabled,
   patientType,
+  showValidation = false,
 }: CampusIdInputProps) {
-  const kind = patientType ?? "any"
+  // Always format with "any" so live typing is never truncated when parent
+  // flips patient type (employee max used to cut digits mid-entry).
+  const kind: CampusIdKind = "any"
+  const [charError, setCharError] = useState(false)
+  const overLength = campusIdDigitCount(value) > CAMPUS_ID_MAX_DIGITS
   const resolvedPlaceholder =
     placeholder ??
-    (kind === "faculty" || kind === "employee" ? "2026-00100" : "2026-045210")
+    (patientType === "faculty" || patientType === "employee"
+      ? "2026-00100"
+      : "2026-045210")
 
   function applyRaw(raw: string) {
+    if (hasInvalidStudentIdChars(raw)) {
+      setCharError(true)
+    } else {
+      setCharError(false)
+    }
     onChange(formatCampusIdInput(raw, kind))
   }
 
@@ -52,9 +67,10 @@ export function CampusIdInput({
         value={value}
         inputMode="numeric"
         autoComplete="off"
-        maxLength={maxLengthFor(kind)}
+        maxLength={campusIdInputMaxLength(kind)}
         placeholder={resolvedPlaceholder}
         aria-label={ariaLabel}
+        aria-invalid={charError || overLength || undefined}
         disabled={disabled}
         onChange={(event) => applyRaw(event.target.value)}
         onKeyDown={(event) => {
@@ -66,21 +82,26 @@ export function CampusIdInput({
             !event.altKey
           ) {
             event.preventDefault()
+            setCharError(true)
           }
         }}
         onPaste={(event) => {
           const text = event.clipboardData.getData("text")
-          if (hasInvalidStudentIdChars(text)) {
-            event.preventDefault()
-            return
-          }
           event.preventDefault()
           applyRaw(text)
         }}
       />
-      <p className="sr-only text-xs text-muted-foreground">
-        {CAMPUS_ID_VALIDATION_MESSAGE}
-      </p>
+      {showValidation && charError ? (
+        <p className="text-xs text-destructive" role="alert">
+          {CAMPUS_ID_VALIDATION_MESSAGE}
+        </p>
+      ) : showValidation && overLength ? (
+        <p className="text-xs text-destructive" role="alert">
+          {CAMPUS_ID_MAX_DIGITS_MESSAGE}
+        </p>
+      ) : (
+        <p className="sr-only">{CAMPUS_ID_VALIDATION_MESSAGE}</p>
+      )}
     </div>
   )
 }

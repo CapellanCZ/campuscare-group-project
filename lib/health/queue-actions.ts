@@ -1,4 +1,5 @@
 import { CAMPUS_ID_LABEL } from "@/types/patientRecord"
+import { getStaffAccess } from "@/lib/auth/access"
 import type { ClinicDesignation } from "@/lib/auth/types"
 import { CAMPUS_CLINIC_ID } from "@/lib/auth/campus-clinic"
 import { assertCanAccommodate } from "@/lib/availability/queries"
@@ -14,6 +15,8 @@ import {
   canVerifyCheckIn,
   isReadOnlyQueue,
   stationForDesignation,
+  stationLabel,
+  transferTargetsForDesignation,
 } from "@/lib/health/roles"
 import { systemIntakeNote } from "@/lib/health/intake-notes"
 import { manilaDayBounds } from "@/lib/health/time"
@@ -46,7 +49,20 @@ import {
 } from "@/lib/health/consultation-lifecycle"
 import type { ConsultationProviderType } from "@/lib/health/consultation-workflow"
 
+async function requireSessionRole(designation: ClinicDesignation) {
+  const access = await getStaffAccess()
+  if (!access?.hasClinicMembership) {
+    return "Sign in with an approved clinic account." as const
+  }
+  if (access.designation !== designation) {
+    return "Session role does not match this queue action." as const
+  }
+  return null
+}
+
 async function requireMutable(designation: ClinicDesignation) {
+  const sessionDenied = await requireSessionRole(designation)
+  if (sessionDenied) return sessionDenied
   if (isReadOnlyQueue(designation) || !canMutateQueue(designation)) {
     return "You do not have permission to change the queue." as const
   }
@@ -563,6 +579,8 @@ export async function verifyCheckIn(params: {
   designation: ClinicDesignation
   ticketId: string
 }): Promise<HealthActionResult> {
+  const sessionDenied = await requireSessionRole(params.designation)
+  if (sessionDenied) return { ok: false, error: sessionDenied }
   if (!canVerifyCheckIn(params.designation)) {
     return { ok: false, error: "Only nurses can verify check-in." }
   }
@@ -604,7 +622,9 @@ export async function completeNurseIntakeAndAssign(params: {
   actingUserId?: string
   intake: NurseIntakeInput
 }): Promise<HealthActionResult> {
-  if (!canTransferQueue(params.designation)) {
+  const sessionDenied = await requireSessionRole(params.designation)
+  if (sessionDenied) return { ok: false, error: sessionDenied }
+  if (params.designation !== "nurse") {
     return { ok: false, error: "Only nurses can complete intake and assign specialty." }
   }
 
@@ -766,27 +786,37 @@ export async function transferTicket(params: {
   ticketId: string
   toStation: StationId
 }): Promise<HealthActionResult> {
-  if (!canTransferQueue(params.designation)) {
-    return { ok: false, error: "Only nurses can transfer queues." }
+  const sessionDenied = await requireSessionRole(params.designation)
+  if (sessionDenied) return { ok: false, error: sessionDenied }
+  const allowedTargets = transferTargetsForDesignation(params.designation)
+  if (
+    !canTransferQueue(params.designation) ||
+    !allowedTargets.includes(params.toStation)
+  ) {
+    return {
+      ok: false,
+      error: "You cannot transfer this ticket to that station.",
+    }
   }
 
   const supabase = await createClient()
   const { data: ticket } = await supabase
     .from("health_queue_tickets")
-    .select("id")
+    .select("id, station")
     .eq("id", params.ticketId)
     .maybeSingle()
 
   if (!ticket) return { ok: false, error: "Ticket not found." }
 
+  if ((ticket.station as StationId | null) === params.toStation) {
+    return { ok: false, error: "Ticket is already at that station." }
+  }
+
   const consultationId = await resolveConsultationIdForTicket(
     params.ticketId,
     supabase
   )
-  if (
-    consultationId &&
-    (params.toStation === "physician" || params.toStation === "dentist")
-  ) {
+  if (consultationId) {
     await setConsultationStatus({
       consultationId,
       status: "waiting",
@@ -828,7 +858,10 @@ export async function transferTicket(params: {
     }
   }
 
-  return { ok: true, message: `Transferred to ${params.toStation}.` }
+  return {
+    ok: true,
+    message: `Transferred to ${stationLabel(params.toStation)}.`,
+  }
 }
 
 export async function registerWalkIn(params: {
@@ -841,6 +874,8 @@ export async function registerWalkIn(params: {
   staffName: string
   actingUserId?: string
 }): Promise<HealthActionResult> {
+  const sessionDenied = await requireSessionRole(params.designation)
+  if (sessionDenied) return { ok: false, error: sessionDenied }
   if (!canRegisterWalkIn(params.designation)) {
     return { ok: false, error: "Only nurses can register walk-ins." }
   }
@@ -1226,6 +1261,8 @@ export async function approveConsultationRequest(params: {
     queueNumber?: number | null
   }
 > {
+  const sessionDenied = await requireSessionRole(params.designation)
+  if (sessionDenied) return { ok: false, error: sessionDenied }
   if (!canApproveConsultationRequest(params.designation)) {
     return { ok: false, error: "Only nurses can approve consultation requests." }
   }
@@ -1359,6 +1396,8 @@ export async function admitWaitlistedConsultationRequest(params: {
 }): Promise<
   HealthActionResult & { ticketCode?: string; queueNumber?: number }
 > {
+  const sessionDenied = await requireSessionRole(params.designation)
+  if (sessionDenied) return { ok: false, error: sessionDenied }
   if (!canApproveConsultationRequest(params.designation)) {
     return { ok: false, error: "Only nurses can admit waitlisted requests." }
   }
@@ -1452,6 +1491,8 @@ export async function assignQueueNumber(params: {
   ticketId: string
   queueNumber: number
 }): Promise<HealthActionResult> {
+  const sessionDenied = await requireSessionRole(params.designation)
+  if (sessionDenied) return { ok: false, error: sessionDenied }
   if (!canVerifyCheckIn(params.designation)) {
     return { ok: false, error: "Only nurses can assign queue numbers." }
   }

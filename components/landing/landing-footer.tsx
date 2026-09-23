@@ -1,35 +1,18 @@
-"use client"
-
-import { type MouseEvent } from "react"
-import Image from "next/image"
 import Link from "next/link"
 import {
   IconMail,
   IconMapPin,
   IconPhone,
 } from "@tabler/icons-react"
+import Image from "next/image"
 
-import { CampusCareLogo } from "@/components/campuscare-logo"
-import {
-  Reveal,
-  ScrollFadeSection,
-  scrollToId,
-} from "@/components/landing/motion"
+import { CampusCareLogoStatic } from "@/components/campuscare-logo-static"
 import {
   footerBlurb,
   footerContact,
   footerLegalLinks,
   footerQuickLinks,
 } from "@/lib/landing/content"
-
-function handleSectionLink(
-  event: MouseEvent<HTMLAnchorElement>,
-  href: string
-) {
-  if (!href.startsWith("#")) return
-  event.preventDefault()
-  scrollToId(href.slice(1))
-}
 
 function FooterLinkList({
   title,
@@ -57,7 +40,6 @@ function FooterLinkList({
               <a
                 href={link.href}
                 className="transition-colors hover:text-foreground"
-                onClick={(event) => handleSectionLink(event, link.href)}
               >
                 {link.label}
               </a>
@@ -69,35 +51,39 @@ function FooterLinkList({
   )
 }
 
+/** Server-rendered footer — no motion/JS; NU logo lazy below the fold. */
 export function LandingFooter() {
+  const year = new Date().getFullYear()
+
   return (
-    <ScrollFadeSection
+    <section
       id="contact"
       className="scroll-mt-20 border-t border-border/60 bg-muted/40 text-foreground"
     >
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-2 lg:grid-cols-4 lg:gap-8 lg:py-16">
-        <Reveal className="min-w-0 space-y-5">
+        <div className="min-w-0 space-y-5">
           <div className="flex flex-wrap items-center gap-3">
             <a
               href="#home"
               className="inline-flex items-center gap-2 font-semibold tracking-tight text-foreground transition-opacity hover:opacity-90"
               aria-label="CampusCare home"
-              onClick={(event) => handleSectionLink(event, "#home")}
             >
-              <CampusCareLogo
+              <CampusCareLogoStatic
                 variant="blue"
                 alt="CampusCare"
                 className="h-10 w-auto"
                 width={56}
-                height={40}
               />
               <span>CampusCare</span>
             </a>
             <Image
               src="/images/NU-Logo.png"
               alt="National University"
-              width={56}
+              width={40}
               height={40}
+              sizes="40px"
+              loading="lazy"
+              style={{ width: "auto" }}
               className="h-10 w-auto object-contain"
             />
           </div>
@@ -105,17 +91,12 @@ export function LandingFooter() {
           <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
             {footerBlurb}
           </p>
-        </Reveal>
+        </div>
 
-        <Reveal delay={0.05}>
-          <FooterLinkList title="Quick Links" links={footerQuickLinks} />
-        </Reveal>
+        <FooterLinkList title="Quick Links" links={footerQuickLinks} />
+        <FooterLinkList title="Legal" links={footerLegalLinks} />
 
-        <Reveal delay={0.08}>
-          <FooterLinkList title="Legal" links={footerLegalLinks} />
-        </Reveal>
-
-        <Reveal delay={0.11} className="min-w-0 space-y-4">
+        <div className="min-w-0 space-y-4">
           <h3 className="text-xs font-semibold tracking-[0.14em] text-foreground uppercase">
             Contact
           </h3>
@@ -168,17 +149,16 @@ export function LandingFooter() {
               </div>
             </li>
           </ul>
-        </Reveal>
+        </div>
       </div>
 
       <div className="border-t border-border/70">
         <div className="mx-auto max-w-6xl px-4 py-6 text-center text-xs text-muted-foreground sm:px-6">
           <p>
-            © {new Date().getFullYear()} CampusCare · NU Dasmariñas HSO · All
-            Rights Reserved.
+            © {year} CampusCare · NU Dasmariñas HSO · All Rights Reserved.
           </p>
         </div>
       </div>
-    </ScrollFadeSection>
+    </section>
   )
 }

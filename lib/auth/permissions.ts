@@ -180,7 +180,7 @@ const MATRIX: Record<Permission, RoleAccess> = {
   "reports.consultation": roles(ALL, ALL, ALL, ALL),
   "reports.certificate": roles(ALL, VIEW, ALL, ALL),
   "reports.export_pdf": roles(ALL, VIEW, VIEW, VIEW),
-  "reports.export_excel": roles(ALL, NONE, NONE, NONE),
+  "reports.export_excel": roles(ALL, VIEW, VIEW, VIEW),
 
   // Announcements
   "announcements.cards": roles(ALL, ALL, ALL, ALL),

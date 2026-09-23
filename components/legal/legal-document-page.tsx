@@ -1,6 +1,6 @@
 import Link from "next/link"
 
-import { CampusCareLogo } from "@/components/campuscare-logo"
+import { CampusCareLogoStatic } from "@/components/campuscare-logo-static"
 import { Button } from "@/components/ui/button"
 import type { LegalDocument } from "@/lib/legal/content"
 import { siteRoutes } from "@/lib/site/routes"
@@ -14,11 +14,11 @@ export function LegalDocumentPage({ document }: { document: LegalDocument }) {
             href={siteRoutes.home}
             className="flex items-center gap-2 font-semibold tracking-tight"
           >
-            <CampusCareLogo
+            <CampusCareLogoStatic
               alt="CampusCare"
               className="h-8 w-auto"
               width={48}
-              height={32}
+              priority
             />
             <span>CampusCare</span>
           </Link>

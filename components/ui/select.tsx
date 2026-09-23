@@ -7,9 +7,44 @@ import { humanizeSelectLabel } from "@/lib/ui/select-label"
 import { cn } from "@/lib/utils"
 import { IconSelector, IconCheck, IconChevronUp, IconChevronDown } from "@tabler/icons-react"
 
+function labelFromSelectItems(
+  items: unknown,
+  value: unknown
+): string | undefined {
+  if (value == null || items == null) return undefined
+  const key = String(value)
+  if (Array.isArray(items)) {
+    const match = items.find((item) => {
+      if (item == null) return false
+      if (typeof item === "string" || typeof item === "number") {
+        return String(item) === key
+      }
+      if (typeof item === "object" && "value" in item) {
+        return String((item as { value: unknown }).value) === key
+      }
+      return false
+    })
+    if (match == null) return undefined
+    if (typeof match === "string" || typeof match === "number") {
+      return String(match)
+    }
+    if (typeof match === "object" && "label" in match) {
+      const label = (match as { label?: unknown }).label
+      return label == null ? undefined : String(label)
+    }
+    return undefined
+  }
+  if (typeof items === "object") {
+    const label = (items as Record<string, unknown>)[key]
+    return label == null ? undefined : String(label)
+  }
+  return undefined
+}
+
 /**
  * Base UI Select shows the raw `value` in the trigger unless `items` or
- * `itemToStringLabel` is set. Default to humanized labels when callers omit both.
+ * `itemToStringLabel` is set. Always resolve labels from `items` when present,
+ * then humanize sentinels like `all_time` / `__other__` (never show raw keys/UUIDs).
  */
 function Select<Value, Multiple extends boolean | undefined = false>({
   items,
@@ -22,9 +57,8 @@ function Select<Value, Multiple extends boolean | undefined = false>({
       items={items}
       itemToStringLabel={
         itemToStringLabel ??
-        (items == null
-          ? (value) => humanizeSelectLabel(value)
-          : undefined)
+        ((value) =>
+          labelFromSelectItems(items, value) ?? humanizeSelectLabel(value))
       }
     />
   )
@@ -88,11 +122,18 @@ function SelectContent({
   // false: open below the trigger so the opening click does not land on an item
   // and immediately select it (alignItemWithTrigger stacks the active option under the pointer).
   alignItemWithTrigger = false,
+  // Keep menus opening downward inside dialogs (avoid flip-to-top clipping).
+  collisionAvoidance = { side: "none", align: "none", fallbackAxisSide: "none" },
   ...props
 }: SelectPrimitive.Popup.Props &
   Pick<
     SelectPrimitive.Positioner.Props,
-    "align" | "alignOffset" | "side" | "sideOffset" | "alignItemWithTrigger"
+    | "align"
+    | "alignOffset"
+    | "side"
+    | "sideOffset"
+    | "alignItemWithTrigger"
+    | "collisionAvoidance"
   >) {
   return (
     <SelectPrimitive.Portal>
@@ -102,6 +143,7 @@ function SelectContent({
         align={align}
         alignOffset={alignOffset}
         alignItemWithTrigger={alignItemWithTrigger}
+        collisionAvoidance={collisionAvoidance}
         className="isolate z-50"
       >
         <SelectPrimitive.Popup

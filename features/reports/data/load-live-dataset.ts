@@ -141,12 +141,16 @@ export async function loadLiveReportsDataset(range?: {
 }> {
   const supabase = await createClient()
   const today = manilaDayBounds()
-  const fromBounds = range
-    ? manilaDayBounds(new Date(`${range.dateFrom}T12:00:00+08:00`))
-    : null
-  const toBounds = range
-    ? manilaDayBounds(new Date(`${range.dateTo}T12:00:00+08:00`))
-    : null
+  const effectiveRange = range ?? {
+    dateFrom: today.ymd,
+    dateTo: today.ymd,
+  }
+  const fromBounds = manilaDayBounds(
+    new Date(`${effectiveRange.dateFrom}T12:00:00+08:00`)
+  )
+  const toBounds = manilaDayBounds(
+    new Date(`${effectiveRange.dateTo}T12:00:00+08:00`)
+  )
 
   const [
     consultationRows,
@@ -184,11 +188,8 @@ export async function loadLiveReportsDataset(range?: {
           )
           .order("consultation_date", { ascending: true })
           .order("id", { ascending: true })
-        if (fromBounds && toBounds) {
-          query = query
-            .gte("consultation_date", fromBounds.startIso)
-            .lte("consultation_date", toBounds.endIso)
-        }
+          .gte("consultation_date", fromBounds.startIso)
+          .lte("consultation_date", toBounds.endIso)
         return query.range(from, to)
       })
     ),
@@ -214,21 +215,17 @@ export async function loadLiveReportsDataset(range?: {
           )
           .order("created_at", { ascending: true })
           .order("id", { ascending: true })
-        if (fromBounds && toBounds) {
-          query = query
-            .gte("created_at", fromBounds.startIso)
-            .lte("created_at", toBounds.endIso)
-        }
+          .gte("created_at", fromBounds.startIso)
+          .lte("created_at", toBounds.endIso)
         return query.range(from, to)
       })
     ),
     fetchRelationOrEmpty(() =>
-      fromBounds && toBounds
-        ? fetchAllRows((from, to) =>
-            supabase
-              .from("medical_certificates")
-              .select(
-                `
+      fetchAllRows((from, to) =>
+        supabase
+          .from("medical_certificates")
+          .select(
+            `
         id,
         certificate_type,
         doctor_name,
@@ -242,14 +239,13 @@ export async function loadLiveReportsDataset(range?: {
           patient_type
         )
       `
-              )
-              .gte("issued_at", fromBounds.startIso)
-              .lte("issued_at", toBounds.endIso)
-              .order("issued_at", { ascending: true })
-              .order("id", { ascending: true })
-              .range(from, to)
           )
-        : Promise.resolve([])
+          .gte("issued_at", fromBounds.startIso)
+          .lte("issued_at", toBounds.endIso)
+          .order("issued_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to)
+      )
     ),
     fetchRelationOrEmpty(() =>
       fetchAllRows((from, to) => {
@@ -268,11 +264,8 @@ export async function loadLiveReportsDataset(range?: {
           )
           .order("created_at", { ascending: true })
           .order("id", { ascending: true })
-        if (fromBounds && toBounds) {
-          query = query
-            .gte("created_at", fromBounds.startIso)
-            .lte("created_at", toBounds.endIso)
-        }
+          .gte("created_at", fromBounds.startIso)
+          .lte("created_at", toBounds.endIso)
         return query.range(from, to)
       })
     ),
@@ -298,11 +291,8 @@ export async function loadLiveReportsDataset(range?: {
           )
           .order("created_at", { ascending: true })
           .order("id", { ascending: true })
-        if (fromBounds && toBounds) {
-          query = query
-            .gte("created_at", fromBounds.startIso)
-            .lte("created_at", toBounds.endIso)
-        }
+          .gte("created_at", fromBounds.startIso)
+          .lte("created_at", toBounds.endIso)
         return query.range(from, to)
       })
     ),
@@ -324,11 +314,8 @@ export async function loadLiveReportsDataset(range?: {
           )
           .order("created_at", { ascending: true })
           .order("id", { ascending: true })
-        if (fromBounds && toBounds) {
-          query = query
-            .gte("created_at", fromBounds.startIso)
-            .lte("created_at", toBounds.endIso)
-        }
+          .gte("created_at", fromBounds.startIso)
+          .lte("created_at", toBounds.endIso)
         return query.range(from, to)
       })
     ),

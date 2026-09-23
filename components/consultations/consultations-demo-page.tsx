@@ -485,7 +485,7 @@ export function ConsultationsPage({
             )}
           >
             <Input
-              className="w-full min-w-[12rem] sm:w-56"
+              className="w-full min-w-0 sm:w-56"
               placeholder={PATIENT_SEARCH_PLACEHOLDER}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -504,7 +504,7 @@ export function ConsultationsPage({
                 setStatusFilter((value as ConsultationStatus | "all") ?? "all")
               }
             >
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-full min-w-0 sm:w-[180px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -530,7 +530,7 @@ export function ConsultationsPage({
                   )
                 }
               >
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full min-w-0 sm:w-[180px]">
                   <SelectValue placeholder="Provider" />
                 </SelectTrigger>
                 <SelectContent>
@@ -553,7 +553,7 @@ export function ConsultationsPage({
                   ])}
                   onValueChange={(value) => setProviderFilter(value ?? "all")}
                 >
-                  <SelectTrigger className="w-[180px]">
+                  <SelectTrigger className="w-full min-w-0 sm:w-[180px]">
                     <SelectValue placeholder="Provider" />
                   </SelectTrigger>
                   <SelectContent>
@@ -576,7 +576,7 @@ export function ConsultationsPage({
                   ])}
                   onValueChange={(value) => setStationFilter(value ?? "all")}
                 >
-                  <SelectTrigger className="w-[160px]">
+                  <SelectTrigger className="w-full min-w-0 sm:w-[160px]">
                     <SelectValue placeholder="Station" />
                   </SelectTrigger>
                   <SelectContent>
@@ -597,7 +597,7 @@ export function ConsultationsPage({
                 setDateRange((value as ConsultationDateRange) ?? "all_time")
               }
             >
-              <SelectTrigger className="w-[160px]">
+              <SelectTrigger className="w-full min-w-0 sm:w-[160px]">
                 <SelectValue placeholder="Date range" />
               </SelectTrigger>
               <SelectContent>

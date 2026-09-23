@@ -48,7 +48,7 @@ function DialogViewport({
       data-slot="dialog-viewport"
       className={cn(
         // Keeps the popup on-screen; overflow stays inside the popup, not the page.
-        "fixed inset-0 z-50 flex items-center justify-center overflow-hidden p-4",
+        "fixed inset-0 z-50 flex items-end justify-center overflow-hidden p-3 sm:items-center sm:p-4",
         className
       )}
       {...props}

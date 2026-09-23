@@ -5,7 +5,7 @@ import {
   type ClinicalRecordScope,
 } from "@/lib/clinical/record-scope"
 import { getStaffAccess } from "@/lib/auth/access"
-import { canViewModule } from "@/lib/auth/permissions"
+import { can, canViewModule } from "@/lib/auth/permissions"
 import { loadDentalVisitChart } from "@/features/dentist/data/visit-chart"
 import type { DentalPatientChart } from "@/features/dentist/types/dental-chart"
 import {
@@ -19,7 +19,7 @@ import {
 } from "@/lib/students/ensure-patient"
 import {
   campusIdLookupVariants,
-  normalizeEmployeeCampusId,
+  studentIdDigits,
 } from "@/lib/students/student-id-input"
 import { NO_STUDENT_FOUND } from "@/lib/students/types"
 import {
@@ -92,9 +92,35 @@ function toErrorResult(error: unknown): PatientRecordActionResult<never> {
   }
 }
 
+async function requirePatientAccess(
+  permission:
+    | "patients.search"
+    | "patients.edit_information"
+    | "patients.update_medical"
+) {
+  const access = await getStaffAccess()
+  if (!access?.hasClinicMembership) {
+    return {
+      ok: false as const,
+      error: "Sign in with an approved clinic account.",
+      code: "permission",
+    }
+  }
+  if (!can(access.designation, permission)) {
+    return {
+      ok: false as const,
+      error: "You do not have permission for this patient action.",
+      code: "permission",
+    }
+  }
+  return { ok: true as const, access }
+}
+
 export async function fetchPatientRecordsAction(
   params: PatientRecordListParams = {}
 ): Promise<PatientRecordActionResult<PatientRecordListResult>> {
+  const auth = await requirePatientAccess("patients.search")
+  if (!auth.ok) return auth
   try {
     const data = await listDirectoryPatientRecords(params)
     return { ok: true, data }
@@ -107,6 +133,8 @@ export async function searchPatientRecordsAction(
   query: string,
   params: Omit<PatientRecordListParams, "query"> = {}
 ): Promise<PatientRecordActionResult<PatientRecordListResult>> {
+  const auth = await requirePatientAccess("patients.search")
+  if (!auth.ok) return auth
   try {
     const data = await listDirectoryPatientRecords({ ...params, query })
     return { ok: true, data }
@@ -118,6 +146,8 @@ export async function searchPatientRecordsAction(
 export async function searchPatientByStudentIdAction(
   studentId: string
 ): Promise<PatientRecordActionResult<PatientRecord>> {
+  const auth = await requirePatientAccess("patients.search")
+  if (!auth.ok) return auth
   try {
     const id = studentId.trim()
     if (!id) {
@@ -125,21 +155,35 @@ export async function searchPatientByStudentIdAction(
     }
 
     const variants = campusIdLookupVariants(id)
-    const normalizedEmployee = normalizeEmployeeCampusId(id)
+    const qDigits = studentIdDigits(id)
 
     const listed = await listDirectoryPatientRecords({
-      query: normalizedEmployee || id,
+      query: id,
       page: 1,
-      pageSize: 10,
+      pageSize: 20,
       patientType: "all",
     })
     const exact =
       listed.items.find((p) => {
-        const sid = p.studentId?.toLowerCase()
-        const eid = p.employeeId?.toLowerCase()
+        const sid = (p.studentId ?? "").toLowerCase()
+        const eid = (p.employeeId ?? "").toLowerCase()
+        const sidDigits = studentIdDigits(p.studentId ?? "")
+        const eidDigits = studentIdDigits(p.employeeId ?? "")
+        if (
+          qDigits.length >= 11 &&
+          qDigits.length <= 12 &&
+          (sidDigits === qDigits || eidDigits === qDigits)
+        ) {
+          return true
+        }
         return variants.some((variant) => {
           const v = variant.toLowerCase()
-          return sid === v || eid === v
+          const vd = studentIdDigits(variant)
+          return (
+            sid === v ||
+            eid === v ||
+            (vd.length >= 7 && (sidDigits === vd || eidDigits === vd))
+          )
         })
       }) ?? null
     if (exact) return { ok: true, data: exact }
@@ -158,6 +202,8 @@ export async function searchPatientByStudentIdAction(
 export async function ensurePatientRecordAction(
   patient: PatientRecord
 ): Promise<PatientRecordActionResult<PatientRecord>> {
+  const auth = await requirePatientAccess("patients.search")
+  if (!auth.ok) return auth
   try {
     const studentId =
       studentIdFromVirtualId(patient.id) ?? patient.studentId?.trim() ?? ""
@@ -180,6 +226,8 @@ export async function ensurePatientRecordAction(
 export async function ensureCertificatePatientByStudentIdAction(
   studentId: string
 ): Promise<PatientRecordActionResult<MedicalCertificatePatient>> {
+  const auth = await requirePatientAccess("patients.search")
+  if (!auth.ok) return auth
   try {
     const id = studentId.trim()
     if (!id) {
@@ -207,6 +255,8 @@ export async function ensureCertificatePatientByStudentIdAction(
 export async function listEnrolledCertificatePatientsAction(): Promise<
   PatientRecordActionResult<MedicalCertificatePatient[]>
 > {
+  const auth = await requirePatientAccess("patients.search")
+  if (!auth.ok) return auth
   try {
     const listed = await listDirectoryPatientRecords({
       page: 1,
@@ -230,6 +280,8 @@ export async function listEnrolledCertificatePatientsAction(): Promise<
 export async function fetchPatientRecordByIdAction(
   id: string
 ): Promise<PatientRecordActionResult<PatientRecord>> {
+  const auth = await requirePatientAccess("patients.search")
+  if (!auth.ok) return auth
   try {
     const data = await getPatientRecordById(id)
     return { ok: true, data }
@@ -241,6 +293,8 @@ export async function fetchPatientRecordByIdAction(
 export async function fetchPatientRecordStatsAction(): Promise<
   PatientRecordActionResult<PatientRecordStats>
 > {
+  const auth = await requirePatientAccess("patients.search")
+  if (!auth.ok) return auth
   try {
     const data = await getDirectoryPatientRecordStats()
     return { ok: true, data }
@@ -252,6 +306,8 @@ export async function fetchPatientRecordStatsAction(): Promise<
 export async function createPatientRecordAction(
   input: CreatePatientRecordInput
 ): Promise<PatientRecordActionResult<PatientRecord>> {
+  const auth = await requirePatientAccess("patients.edit_information")
+  if (!auth.ok) return auth
   try {
     const data = await createPatientRecord(input)
     return { ok: true, data }
@@ -263,6 +319,8 @@ export async function createPatientRecordAction(
 export async function updatePatientRecordAction(
   input: UpdatePatientRecordInput
 ): Promise<PatientRecordActionResult<PatientRecord>> {
+  const auth = await requirePatientAccess("patients.edit_information")
+  if (!auth.ok) return auth
   try {
     const data = await updatePatientRecord(input)
     return { ok: true, data }
@@ -274,6 +332,8 @@ export async function updatePatientRecordAction(
 export async function updatePatientMedicalRecordAction(
   input: UpdatePatientMedicalRecordInput
 ): Promise<PatientRecordActionResult<PatientRecord>> {
+  const auth = await requirePatientAccess("patients.update_medical")
+  if (!auth.ok) return auth
   try {
     const data = await updatePatientMedicalRecord(input)
     return { ok: true, data }
@@ -285,6 +345,8 @@ export async function updatePatientMedicalRecordAction(
 export async function deletePatientRecordAction(
   id: string
 ): Promise<PatientRecordActionResult<{ id: string }>> {
+  const auth = await requirePatientAccess("patients.edit_information")
+  if (!auth.ok) return auth
   try {
     await deletePatientRecord(id)
     return { ok: true, data: { id } }
@@ -296,6 +358,8 @@ export async function deletePatientRecordAction(
 export async function listPatientOptionsAction(
   query = ""
 ): Promise<PatientRecordActionResult<PatientRecord[]>> {
+  const auth = await requirePatientAccess("patients.search")
+  if (!auth.ok) return auth
   try {
     const data = await listEnrolledPatientOptions(query)
     return { ok: true, data }
@@ -308,6 +372,8 @@ export async function fetchPatientConsultationHistoryAction(
   patientId: string,
   stationFilter: "dentist" | "physician" | "nurse" | "all" = "all"
 ): Promise<PatientRecordActionResult<Consultation[]>> {
+  const auth = await requirePatientAccess("patients.search")
+  if (!auth.ok) return auth
   try {
     const data = await getConsultationsByPatientId(patientId, { stationFilter })
     return { ok: true, data }
@@ -324,6 +390,8 @@ export async function fetchConsultationVisitDetailAction(
     ticketVitals: QueueVitals | null
   }>
 > {
+  const auth = await requirePatientAccess("patients.search")
+  if (!auth.ok) return auth
   try {
     const data = await getConsultationVisitDetail(consultationId)
     return { ok: true, data }
@@ -371,6 +439,8 @@ export async function fetchPatientDocumentsAction(
   patient: Pick<PatientRecord, "studentId" | "employeeId">,
   scope: ClinicalRecordScope = "all"
 ): Promise<PatientRecordActionResult<MedicalCertificate[]>> {
+  const auth = await requirePatientAccess("patients.search")
+  if (!auth.ok) return auth
   try {
     const data = await getMedicalCertificatesForPatientRecord({
       studentId: patient.studentId,
@@ -425,6 +495,10 @@ export async function exportPatientRecordsAction(params: {
 export async function importPatientRecordsFromExcelAction(
   formData: FormData
 ): Promise<PatientRecordImportActionResult> {
+  const auth = await requirePatientAccess("patients.edit_information")
+  if (!auth.ok) {
+    return { ok: false, error: auth.error, code: auth.code }
+  }
   try {
     const result = await importPatientRecordsFromExcel(formData)
     const parts: string[] = []

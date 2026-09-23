@@ -13,6 +13,7 @@ import {
   actionRejoinQueue,
   actionSkipTicket,
   actionStartConsultation,
+  actionTransferTicket,
   actionVerifyCheckIn,
 } from "@/lib/health/queue-server-actions"
 import { ConsultationSummaryDialog } from "@/components/consultations/consultation-summary-dialog"
@@ -89,6 +90,7 @@ import {
   isReadOnlyQueue,
   stationForDesignation,
   stationLabel,
+  transferTargetsForDesignation,
 } from "@/lib/health/roles"
 import type {
   ActivityItem,
@@ -497,7 +499,7 @@ export function QueuePage({
                 />
               ) : null}
 
-              <CardContent className="px-0 pb-0">
+              <CardContent className="min-w-0 px-0 pb-0">
                 {pageRows.length === 0 ? (
                   <p className="px-6 py-10 text-sm text-muted-foreground">
                     {isNurse && nurseLane === "needs_intake"
@@ -505,6 +507,7 @@ export function QueuePage({
                       : "No tickets match these filters."}
                   </p>
                 ) : (
+                  <div className="w-full overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow className="hover:bg-transparent">
@@ -1188,7 +1191,6 @@ export function QueuePage({
                                                   router.push(
                                                     `/${rolePath}/consultation/${visitId}`
                                                   )
-                                                  router.refresh()
                                                 })
                                                 return
                                               }
@@ -1278,6 +1280,33 @@ export function QueuePage({
                                           Reschedule
                                         </DropdownMenuItem>
                                       ) : null}
+                                      {transferTargetsForDesignation(
+                                        access.designation
+                                      ).length > 0 &&
+                                      row.status !== "completed" &&
+                                      row.status !== "no_show" ? (
+                                        <>
+                                          <DropdownMenuSeparator />
+                                          {transferTargetsForDesignation(
+                                            access.designation
+                                          ).map((target) => (
+                                            <DropdownMenuItem
+                                              key={target}
+                                              onClick={() =>
+                                                run(() =>
+                                                  actionTransferTicket(
+                                                    row.ticketId,
+                                                    target
+                                                  )
+                                                )
+                                              }
+                                            >
+                                              Transfer to{" "}
+                                              {stationLabel(target)}
+                                            </DropdownMenuItem>
+                                          ))}
+                                        </>
+                                      ) : null}
                                     </DropdownMenuContent>
                                   </DropdownMenu>
                                 </div>
@@ -1288,6 +1317,7 @@ export function QueuePage({
                       })}
                     </TableBody>
                   </Table>
+                  </div>
                 )}
                 <div className="flex items-center justify-between gap-2 border-t px-6 py-2.5">
                   <p className="text-xs text-muted-foreground">

@@ -5,7 +5,11 @@ import { IconSearch } from "@tabler/icons-react"
 
 import { Input } from "@/components/ui/input"
 import {
+  CAMPUS_ID_MAX_DIGITS,
+  CAMPUS_ID_MAX_DIGITS_MESSAGE,
   STUDENT_ID_VALIDATION_MESSAGE,
+  campusIdDigitCount,
+  campusIdInputMaxLength,
   formatStudentIdInput,
   hasInvalidStudentIdChars,
 } from "@/lib/students/student-id-input"
@@ -33,6 +37,7 @@ export function StudentIdSearchInput({
   id,
 }: StudentIdSearchInputProps) {
   const [showError, setShowError] = useState(false)
+  const overLength = campusIdDigitCount(value) > CAMPUS_ID_MAX_DIGITS
 
   function applyRaw(raw: string) {
     if (hasInvalidStudentIdChars(raw)) {
@@ -59,9 +64,9 @@ export function StudentIdSearchInput({
           value={value}
           inputMode="numeric"
           autoComplete="off"
-          maxLength={11}
+          maxLength={campusIdInputMaxLength("student")}
           aria-label={ariaLabel}
-          aria-invalid={showError || undefined}
+          aria-invalid={showError || overLength || undefined}
           onChange={(event) => applyRaw(event.target.value)}
           onKeyDown={(event) => {
             if (
@@ -77,16 +82,18 @@ export function StudentIdSearchInput({
           }}
           onPaste={(event) => {
             const text = event.clipboardData.getData("text")
-            if (hasInvalidStudentIdChars(text)) {
-              event.preventDefault()
-              applyRaw(text)
-            }
+            event.preventDefault()
+            applyRaw(text)
           }}
         />
       </div>
       {showError ? (
         <p className="text-xs text-destructive" role="alert">
           {STUDENT_ID_VALIDATION_MESSAGE}
+        </p>
+      ) : overLength ? (
+        <p className="text-xs text-destructive" role="alert">
+          {CAMPUS_ID_MAX_DIGITS_MESSAGE}
         </p>
       ) : null}
     </div>

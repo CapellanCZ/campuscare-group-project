@@ -121,10 +121,10 @@ async function resolveAccountLabelsForNotes(
     const name = typeof user.full_name === "string" ? user.full_name.trim() : ""
     const role =
       typeof user.primary_role === "string" ? user.primary_role.trim() : ""
-    // Role first (Doctor / Nurse / …); fall back to account name
+    // Prefer provider display name; fall back to role label (Doctor / Nurse / …)
     labels.set(
       id,
-      role ? formatAccountRoleLabel(role) : name || "Staff"
+      name || (role ? formatAccountRoleLabel(role) : "Staff")
     )
   }
   return labels
@@ -358,9 +358,21 @@ export async function getPublicQueueSnapshot(): Promise<{
   const supabase = await createClient()
   const clinicBreakPromise = getClinicBreakStatus(supabase)
 
+  type ViewRow = {
+    ticket_id: string
+    queue_number: number | null
+    ticket_code: string
+    ticket_status: string
+    estimated_wait_minutes: number | null
+    ticket_updated_at: string | null
+    station: string | null
+  }
+
   const { data, error } = await supabase
     .from("public_queue_display")
-    .select("*")
+    .select(
+      "ticket_id, queue_number, ticket_code, ticket_status, estimated_wait_minutes, ticket_updated_at, station"
+    )
     .order("queue_number", { ascending: true })
 
   if (error) {
@@ -375,21 +387,6 @@ export async function getPublicQueueSnapshot(): Promise<{
       totalWaiting: 0,
       clinicBreak,
     }
-  }
-
-  type ViewRow = {
-    ticket_id: string
-    queue_number: number | null
-    ticket_code: string
-    ticket_status: string
-    estimated_wait_minutes: number | null
-    ticket_updated_at: string | null
-    patient_display_name: string | null
-    station: string | null
-    assigned_personnel: string | null
-    provider_queue: string | null
-    workflow_status: string | null
-    consultation_type: string | null
   }
 
   const rows = (data ?? []) as ViewRow[]
@@ -412,9 +409,9 @@ export async function getPublicQueueSnapshot(): Promise<{
         call_count: 0,
         rejoin_count: 0,
         patient_name: null,
-        campus_id: r.patient_display_name,
-        consultation_type: r.consultation_type,
-        assigned_staff_name: r.assigned_personnel,
+        campus_id: null,
+        consultation_type: null,
+        assigned_staff_name: null,
         chief_complaint: null,
         vitals_bp_systolic: null,
         vitals_bp_diastolic: null,
@@ -438,7 +435,12 @@ export async function getPublicQueueSnapshot(): Promise<{
     boards,
     recentlyServed: await getRecentlyServed(8, tickets),
     totalWaiting: tickets.filter((t) => t.status === "waiting").length,
-    clinicBreak,
+    clinicBreak: {
+      isOnBreak: clinicBreak.isOnBreak,
+      resumesAt: clinicBreak.resumesAt,
+      setBy: null,
+      updatedAt: clinicBreak.updatedAt,
+    },
   }
 }
 

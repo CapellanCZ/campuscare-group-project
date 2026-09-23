@@ -137,7 +137,14 @@ export function DutyStatusBadge({ className }: { className?: string }) {
   )
 }
 
-export function DutyStatusControl({ className }: { className?: string }) {
+export function DutyStatusControl({
+  className,
+  compact = false,
+}: {
+  className?: string
+  /** Hide status badge on narrow headers; keep Start/End Duty actionable. */
+  compact?: boolean
+}) {
   const ctx = useOptionalDutyStatus()
   const breakMode = useOptionalBreakMode()
   const { confirmPreset } = useConfirm()
@@ -186,12 +193,19 @@ export function DutyStatusControl({ className }: { className?: string }) {
   }
 
   return (
-    <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      <DutyStatusBadge />
+    <div className={cn("flex flex-wrap items-center gap-1.5 sm:gap-2", className)}>
+      <DutyStatusBadge className={cn(compact && "hidden sm:inline-flex")} />
       {dutyStatus.status === "not_available" ? (
         <Button size="sm" disabled={pending} onClick={handleStartDuty}>
           <IconPlayerPlay data-icon="inline-start" />
-          Start Duty
+          {compact ? (
+            <>
+              <span className="sm:hidden">Duty</span>
+              <span className="hidden sm:inline">Start Duty</span>
+            </>
+          ) : (
+            "Start Duty"
+          )}
         </Button>
       ) : (
         <Button
@@ -201,7 +215,14 @@ export function DutyStatusControl({ className }: { className?: string }) {
           onClick={handleEndDuty}
         >
           <IconPlayerStop data-icon="inline-start" />
-          End Duty
+          {compact ? (
+            <>
+              <span className="sm:hidden">End</span>
+              <span className="hidden sm:inline">End Duty</span>
+            </>
+          ) : (
+            "End Duty"
+          )}
         </Button>
       )}
     </div>

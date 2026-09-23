@@ -20,7 +20,6 @@ import {
   PanelGrid,
   panelCardClassName,
 } from "@/components/layout/panel-frame"
-import { OnBreakControl } from "@/components/availability/on-break-control"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -127,21 +126,18 @@ export function DentistDashboardView({
   const kpiCards = useMemo(() => kpis.cards.slice(0, 5), [kpis.cards])
 
   return (
-    <div className="flex flex-1 flex-col gap-8">
+    <div className="flex flex-1 flex-col gap-6 sm:gap-8">
       <div className="flex flex-col gap-4">
         <PageIntro
           title={`Welcome back, Dr. ${displayName}!`}
           action={
-            <>
-              <OnBreakControl />
-              <Button
-                size="sm"
-                render={<Link href="/dentist/queue" />}
-                nativeButton={false}
-              >
-                Open queue
-              </Button>
-            </>
+            <Button
+              size="sm"
+              render={<Link href="/dentist/queue" />}
+              nativeButton={false}
+            >
+              Open queue
+            </Button>
           }
         />
       </div>
@@ -149,13 +145,14 @@ export function DentistDashboardView({
       <div className="flex flex-col gap-3">
         <SectionLabel>At a glance</SectionLabel>
         <PanelFrame>
-          <PanelGrid className="sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <PanelGrid className="grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {kpiCards.map((card) => {
               const Icon = KPI_ICONS[String(card.key)]
               return (
                 <PanelCell key={String(card.key)}>
                   <StatCard
                     flush
+                    compact
                     label={card.label}
                     value={String(card.value)}
                     description={card.description}

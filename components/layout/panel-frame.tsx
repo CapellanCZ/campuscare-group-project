@@ -15,12 +15,12 @@ export function PageIntro({
   return (
     <div
       className={cn(
-        "flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between",
+        "flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4",
         className
       )}
     >
       <div className="flex min-w-0 flex-col gap-1.5">
-        <h1 className="font-semibold text-2xl leading-tight tracking-tight text-balance">
+        <h1 className="text-xl font-semibold leading-tight tracking-tight text-balance sm:text-2xl">
           {title}
         </h1>
         {description ? (
@@ -30,7 +30,9 @@ export function PageIntro({
         ) : null}
       </div>
       {action ? (
-        <div className="flex shrink-0 flex-wrap items-center gap-2">{action}</div>
+        <div className="flex w-full min-w-0 flex-wrap items-stretch gap-2 sm:w-auto sm:shrink-0 sm:items-center [&_a]:min-w-0 [&_a]:flex-1 sm:[&_a]:flex-none [&_button]:min-w-0 [&_button]:flex-1 sm:[&_button]:flex-none">
+          {action}
+        </div>
       ) : null}
     </div>
   )

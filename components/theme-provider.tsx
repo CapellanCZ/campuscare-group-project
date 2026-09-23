@@ -56,9 +56,7 @@ function ThemeProvider({
       {...props}
     >
       <script dangerouslySetInnerHTML={{ __html: PUBLIC_APPEARANCE_BOOTSTRAP }} />
-      <TooltipProvider>
-        {children}
-      </TooltipProvider>
+      {isPublic ? children : <TooltipProvider>{children}</TooltipProvider>}
     </NextThemesProvider>
   )
 }

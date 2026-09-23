@@ -1,57 +1,49 @@
-"use client"
-
 import Link from "next/link"
 
 import { FloatingPaths } from "@/components/floating-paths"
-import {
-  Float,
-  FloatingOrb,
-  Reveal,
-  TextRotator,
-  scrollToId,
-} from "@/components/landing/motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { heroCopy, heroRotatingPhrases } from "@/lib/landing/content"
 import { siteRoutes } from "@/lib/site/routes"
 
+/**
+ * Server-rendered hero — LCP headline is in the initial HTML with no client JS.
+ * Decorative paths/orbs are CSS-animated; mock cards use CSS float.
+ */
 export function LandingHero() {
   return (
     <section
       id="home"
       className="relative overflow-hidden border-b border-border/60"
     >
-      <div className="absolute inset-0 opacity-40">
+      <div className="absolute inset-0 opacity-40" aria-hidden>
         <FloatingPaths position={1} />
         <FloatingPaths position={-1} />
       </div>
-      <FloatingOrb className="bg-primary/15 -left-16 top-24 size-48 blur-3xl" />
-      <FloatingOrb
-        className="bg-primary/10 right-0 top-40 size-64 blur-3xl"
-        duration={14}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -left-16 top-24 size-48 rounded-full bg-primary/15 blur-3xl motion-safe:animate-pulse"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute right-0 top-40 size-64 rounded-full bg-primary/10 blur-3xl motion-safe:animate-pulse"
       />
 
       <div className="relative mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 md:py-24 lg:grid-cols-2 lg:items-center lg:gap-12 lg:py-28">
         <div className="min-w-0 space-y-6">
-          <Reveal>
-            <p className="text-sm font-semibold tracking-wide text-primary uppercase">
-              {heroCopy.brand}
-            </p>
-          </Reveal>
-          <Reveal delay={0.08}>
-            <h1 className="text-balance text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-              {heroCopy.headline}
-            </h1>
-          </Reveal>
-          <Reveal delay={0.14}>
-            <TextRotator phrases={heroRotatingPhrases} />
-          </Reveal>
-          <Reveal delay={0.2}>
-            <p className="max-w-xl text-pretty text-base text-muted-foreground sm:text-lg">
-              {heroCopy.description}
-            </p>
-          </Reveal>
-          <Reveal delay={0.26} className="flex flex-col gap-3 sm:flex-row">
+          <p className="text-sm font-semibold tracking-wide text-primary uppercase">
+            {heroCopy.brand}
+          </p>
+          <h1 className="text-balance text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
+            {heroCopy.headline}
+          </h1>
+          <p className="text-sm font-medium text-primary md:text-base">
+            {heroRotatingPhrases[0]}
+          </p>
+          <p className="max-w-xl text-pretty text-base text-muted-foreground sm:text-lg">
+            {heroCopy.description}
+          </p>
+          <div className="flex flex-col gap-3 sm:flex-row">
             <Button
               size="lg"
               className="w-full sm:w-auto"
@@ -64,15 +56,16 @@ export function LandingHero() {
               size="lg"
               variant="outline"
               className="w-full sm:w-auto"
-              onClick={() => scrollToId("about")}
+              render={<a href="#about" />}
+              nativeButton={false}
             >
               Learn More
             </Button>
-          </Reveal>
+          </div>
         </div>
 
-        <Reveal delay={0.18} className="relative min-w-0">
-          <Float className="relative" duration={7} y={14}>
+        <div className="relative min-w-0">
+          <div className="relative motion-safe:cc-float-slow">
             <Card className="shadow-lg ring-border/20">
               <CardHeader className="border-b border-border/60">
                 <CardTitle className="text-lg">Clinic queue overview</CardTitle>
@@ -82,9 +75,21 @@ export function LandingHero() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {[
-                  { name: "Consultation desk", status: "3 waiting", tone: "primary" },
-                  { name: "Certificate requests", status: "2 in review", tone: "muted" },
-                  { name: "Announcements", status: "Vaccine drive Fri", tone: "muted" },
+                  {
+                    name: "Consultation desk",
+                    status: "3 waiting",
+                    tone: "primary" as const,
+                  },
+                  {
+                    name: "Certificate requests",
+                    status: "2 in review",
+                    tone: "muted" as const,
+                  },
+                  {
+                    name: "Announcements",
+                    status: "Vaccine drive Fri",
+                    tone: "muted" as const,
+                  },
                 ].map((row) => (
                   <div
                     key={row.name}
@@ -106,13 +111,9 @@ export function LandingHero() {
                 ))}
               </CardContent>
             </Card>
-          </Float>
+          </div>
 
-          <Float
-            className="absolute -right-2 -bottom-4 hidden w-44 sm:block md:-right-4"
-            duration={5.5}
-            y={10}
-          >
+          <div className="absolute -right-2 -bottom-4 hidden w-44 motion-safe:cc-float-fast sm:block md:-right-4">
             <Card size="sm" className="shadow-md">
               <CardContent className="space-y-1 pt-(--card-spacing)">
                 <p className="text-xs font-medium text-muted-foreground">
@@ -124,8 +125,8 @@ export function LandingHero() {
                 <p className="text-xs text-primary">Ready in ~8 min</p>
               </CardContent>
             </Card>
-          </Float>
-        </Reveal>
+          </div>
+        </div>
       </div>
     </section>
   )

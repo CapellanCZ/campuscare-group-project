@@ -213,7 +213,7 @@ export function RoleDashboard({
         <PanelFrame>
           <PanelGrid
             className={cn(
-              "sm:grid-cols-2",
+              "grid-cols-2",
               kpiCards.length >= 3 && "lg:grid-cols-3",
               kpiCards.length >= 4 && "xl:grid-cols-4",
               kpiCards.length >= 5 && "xl:grid-cols-3 2xl:grid-cols-6"
@@ -225,6 +225,7 @@ export function RoleDashboard({
                 <PanelCell key={String(card.key)}>
                   <StatCard
                     flush
+                    compact
                     label={card.label}
                     value={String(card.value)}
                     description={card.description}

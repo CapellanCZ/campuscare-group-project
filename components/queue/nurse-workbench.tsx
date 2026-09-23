@@ -39,13 +39,14 @@ function WorkbenchBody({
           </Badge>
         </div>
         {next ? (
-          <p className="mt-1 min-w-0 truncate text-sm">
-            <span className="font-semibold tabular-nums">
+          <div className="mt-1 min-w-0">
+            <p className="truncate text-sm font-semibold tabular-nums">
               {ticketLabel(next.queueNumber, next.ticketCode)}
-            </span>
-            <span className="text-muted-foreground"> · </span>
-            <span className="font-medium">{next.patientName}</span>
-          </p>
+            </p>
+            <p className="truncate text-sm font-medium text-foreground">
+              {next.patientName}
+            </p>
+          </div>
         ) : (
           <p className="mt-1 text-sm text-muted-foreground">Intake clear</p>
         )}
