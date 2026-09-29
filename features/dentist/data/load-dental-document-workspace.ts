@@ -2,6 +2,10 @@ import "server-only"
 
 import type { ClinicalVisitWorkspace } from "@/features/clinical/data/load-consultation-workspace"
 import { loadConsultationWorkspace } from "@/features/clinical/data/load-consultation-workspace"
+import {
+  nurseVitalsFromConsultationJson,
+  nurseVitalsFromTicket,
+} from "@/features/physician/data/visit-chart"
 import { getStaffAccess } from "@/lib/auth/access"
 import { can } from "@/lib/auth/permissions"
 import {
@@ -177,6 +181,8 @@ export async function ensureDentalDocumentWorkspace(
         follow_up_date,
         appointment_id,
         patient_id,
+        vitals,
+        queue_ticket_id,
         patient_records (
           id,
           first_name,
@@ -213,6 +219,32 @@ export async function ensureDentalDocumentWorkspace(
           .filter(Boolean)
           .join(" ") || "Patient"
 
+    let nurseVitals = nurseVitalsFromConsultationJson(
+      row.vitals as Record<string, unknown> | null
+    )
+    if (
+      !nurseVitals.bloodPressure &&
+      !nurseVitals.pulseRate &&
+      row.queue_ticket_id
+    ) {
+      const { data: vitalsRow } = await supabase
+        .from("health_queue_tickets")
+        .select(
+          `
+          vitals_bp_systolic,
+          vitals_bp_diastolic,
+          vitals_heart_rate,
+          vitals_temperature_c,
+          vitals_spo2,
+          vitals_height_cm,
+          vitals_weight_kg
+        `
+        )
+        .eq("id", row.queue_ticket_id as string)
+        .maybeSingle()
+      if (vitalsRow) nurseVitals = nurseVitalsFromTicket(vitalsRow)
+    }
+
     const workspace: ClinicalVisitWorkspace = {
       consultationId,
       role: "dentist",
@@ -232,14 +264,7 @@ export async function ensureDentalDocumentWorkspace(
       patientRecordId: row.patient_id as string,
       priorRecordsCount: 0,
       medicalRecord,
-      nurseVitals: {
-        bloodPressure: "",
-        pulseRate: "",
-        temperature: "",
-        o2: "",
-        height: "",
-        weight: "",
-      },
+      nurseVitals,
       dashboardPath: "/dentist/dashboard",
       canIssueDocuments: true,
     }

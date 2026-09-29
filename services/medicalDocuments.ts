@@ -132,6 +132,18 @@ function mapError(error: { message: string; code?: string }): never {
   )
 }
 
+function isUniqueDocumentNumberViolation(error: {
+  message: string
+  code?: string
+}): boolean {
+  const message = error.message.toLowerCase()
+  return (
+    error.code === "23505" ||
+    message.includes("medical_certificates_certificate_number_key") ||
+    (message.includes("duplicate key") && message.includes("certificate_number"))
+  )
+}
+
 function mapDocument(row: DocumentRow): MedicalDocument {
   const docType = row.document_type ?? "medical_certification"
   if (!isDocumentType(docType)) {
@@ -208,11 +220,17 @@ async function generateDocumentNumber(
     }
   }
 
+  // Guaranteed-unique fallback when RPC is unavailable — never reuse Date.now stamps.
   const year = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Manila",
     year: "numeric",
   }).format(new Date())
-  return `${prefix}-${year}-${String(Date.now()).slice(-6)}`
+  const unique = globalThis.crypto?.randomUUID?.().replace(/-/g, "").slice(0, 10)
+  const suffix =
+    unique && unique.length >= 8
+      ? unique
+      : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
+  return `${prefix}-${year}-${suffix}`
 }
 
 async function appendAudit(
@@ -478,7 +496,7 @@ export async function issueMedicalDocument(
     throw error
   }
 
-  const documentNumber = await generateDocumentNumber(
+  const documentNumberSeed = await generateDocumentNumber(
     supabase,
     input.documentType
   )
@@ -490,30 +508,57 @@ export async function issueMedicalDocument(
       : {}),
   }
 
-  const { data, error } = await supabase
-    .from("medical_certificates")
-    .insert({
-      patient_id: operationalPatientId,
-      certificate_number: documentNumber,
-      certificate_type: certificateTypeLabel(input.documentType),
-      document_type: input.documentType,
-      purpose: input.purpose?.trim() || null,
-      doctor_name: input.doctorName?.trim() || null,
-      remarks: null,
-      status: "issued",
-      issued_at: issuedAt,
-      issued_by: input.issuedBy.trim(),
-      consultation_id: input.consultationId.trim(),
-      patient_record_id: input.patientRecordId?.trim() || null,
-      payload,
-      template_version: input.templateVersion ?? "1",
-    })
-    .select(SELECT_WITH_PATIENT)
-    .single()
+  const maxAttempts = 4
+  let lastError: { message: string; code?: string } | null = null
+  let data: DocumentRow | null = null
 
-  if (error) mapError(error)
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const documentNumber =
+      attempt === 0
+        ? documentNumberSeed
+        : await generateDocumentNumber(supabase, input.documentType)
 
-  const document = mapDocument(data as DocumentRow)
+    const insertResult = await supabase
+      .from("medical_certificates")
+      .insert({
+        patient_id: operationalPatientId,
+        certificate_number: documentNumber,
+        certificate_type: certificateTypeLabel(input.documentType),
+        document_type: input.documentType,
+        purpose: input.purpose?.trim() || null,
+        doctor_name: input.doctorName?.trim() || null,
+        remarks: null,
+        status: "issued",
+        issued_at: issuedAt,
+        issued_by: input.issuedBy.trim(),
+        consultation_id: input.consultationId.trim(),
+        patient_record_id: input.patientRecordId?.trim() || null,
+        payload,
+        template_version: input.templateVersion ?? "1",
+      })
+      .select(SELECT_WITH_PATIENT)
+      .single()
+
+    if (!insertResult.error) {
+      data = insertResult.data as DocumentRow
+      break
+    }
+
+    lastError = insertResult.error
+    if (!isUniqueDocumentNumberViolation(insertResult.error)) {
+      mapError(insertResult.error)
+    }
+  }
+
+  if (!data) {
+    if (lastError) mapError(lastError)
+    throw new MedicalDocumentServiceError(
+      "database",
+      "Could not allocate a unique document number. Please try again."
+    )
+  }
+
+  const document = mapDocument(data)
 
   await appendAudit(supabase, {
     documentId: document.id,

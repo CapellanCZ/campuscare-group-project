@@ -37,11 +37,11 @@ function ShellBody({
         aria-hidden={locked || undefined}
       >
         <AppSidebar />
-        <SidebarInset className="min-w-0 overflow-x-hidden">
+        <SidebarInset className="min-w-0">
           <AppHeader />
           <div
             className={cn(
-              "flex min-w-0 flex-1 flex-col p-3 pb-8 sm:p-4 sm:pb-6 md:p-6",
+              "flex min-w-0 flex-1 flex-col overflow-x-clip p-3 pb-8 sm:p-4 sm:pb-6 md:p-6",
               "mx-auto w-full max-w-(--app-wrapper-max-width)",
               isAdmin && "bg-muted/30"
             )}

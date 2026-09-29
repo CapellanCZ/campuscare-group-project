@@ -42,14 +42,20 @@ import {
 } from "@/types/patientRecord"
 import { IconUserPlus } from "@tabler/icons-react"
 
-const WALK_IN_PATIENT_TYPES = ["student", "employee", "visitor"] as const
+const WALK_IN_PATIENT_TYPES = [
+  "student",
+  "faculty",
+  "employee",
+  "visitor",
+] as const
 type WalkInPatientType = (typeof WALK_IN_PATIENT_TYPES)[number]
 
 const LOOKUP_DEBOUNCE_MS = 400
 
 function walkInTypeFromRecord(type: PatientType): WalkInPatientType {
   if (type === "student") return "student"
-  if (type === "faculty" || type === "employee") return "employee"
+  if (type === "faculty") return "faculty"
+  if (type === "employee") return "employee"
   return "visitor"
 }
 
@@ -98,16 +104,10 @@ export function WalkInSheet({
 
     if (!id || !isCampusIdReadyForLookup(id)) {
       setLookupPending(false)
-      if (!id) {
-        setLookupHint(null)
-        setNameAutoFilled(false)
-        setPatientType("")
-        setPatientName("")
-      } else {
-        setLookupHint(
-          "Enter 11 or 12 digits to look up the patient record."
-        )
-      }
+      setLookupHint(null)
+      setNameAutoFilled(false)
+      setPatientType("")
+      setPatientName("")
       return
     }
 
@@ -184,8 +184,7 @@ export function WalkInSheet({
       return
     }
 
-    const backendPatientType: PatientType =
-      patientType === "employee" ? "employee" : patientType
+    const backendPatientType: PatientType = patientType
 
     startTransition(async () => {
       const result = await actionRegisterWalkIn({
@@ -259,7 +258,8 @@ export function WalkInSheet({
             ) : (
               <p className="text-xs text-muted-foreground">
                 Leave blank for visitors without an{" "}
-                {CAMPUS_ID_LABEL.toLowerCase()}. Use 11 or 12 digits to search.
+                {CAMPUS_ID_LABEL.toLowerCase()}. Enter an ID to look up an
+                existing patient record.
               </p>
             )}
           </Field>

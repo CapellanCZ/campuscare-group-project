@@ -157,36 +157,83 @@ export async function searchPatientByStudentIdAction(
     const variants = campusIdLookupVariants(id)
     const qDigits = studentIdDigits(id)
 
+    // Exact column match first — avoids false misses from paginated directory search.
+    const { createClient } = await import("@/lib/supabase/server")
+    const { PATIENT_RECORD_SELECT_COLUMNS } = await import(
+      "@/lib/students/patient-record-select"
+    )
+    const { patientRecordFromJson } = await import("@/types/patientRecord")
+    const supabase = await createClient()
+
+    const orParts = new Set<string>()
+    for (const variant of variants) {
+      const v = variant.trim()
+      if (!v) continue
+      orParts.add(`student_id.eq.${v}`)
+      orParts.add(`employee_id.eq.${v}`)
+    }
+    if (qDigits.length >= 1 && qDigits.length <= 12) {
+      const dashed =
+        qDigits.length > 4
+          ? `${qDigits.slice(0, 4)}-${qDigits.slice(4)}`
+          : qDigits
+      orParts.add(`student_id.eq.${dashed}`)
+      orParts.add(`employee_id.eq.${dashed}`)
+      orParts.add(`student_id.eq.${qDigits}`)
+      orParts.add(`employee_id.eq.${qDigits}`)
+    }
+
+    if (orParts.size > 0) {
+      const { data: exactRows } = await supabase
+        .from("patient_records")
+        .select(PATIENT_RECORD_SELECT_COLUMNS)
+        .or([...orParts].join(","))
+        .limit(10)
+
+      const exactHit = (exactRows ?? []).find((row) => {
+        const sidDigits = studentIdDigits(
+          (row as { student_id?: string | null }).student_id ?? ""
+        )
+        const eidDigits = studentIdDigits(
+          (row as { employee_id?: string | null }).employee_id ?? ""
+        )
+        if (qDigits.length >= 1 && (sidDigits === qDigits || eidDigits === qDigits)) {
+          return true
+        }
+        return variants.some((variant) => {
+          const vd = studentIdDigits(variant)
+          return vd.length >= 1 && (sidDigits === vd || eidDigits === vd)
+        })
+      })
+
+      if (exactHit) {
+        return {
+          ok: true,
+          data: patientRecordFromJson(exactHit as never),
+        }
+      }
+    }
+
+    // Directory fallback for fuzzy/partial matches already in the first page.
     const listed = await listDirectoryPatientRecords({
       query: id,
       page: 1,
       pageSize: 20,
       patientType: "all",
     })
-    const exact =
+    const listedExact =
       listed.items.find((p) => {
-        const sid = (p.studentId ?? "").toLowerCase()
-        const eid = (p.employeeId ?? "").toLowerCase()
         const sidDigits = studentIdDigits(p.studentId ?? "")
         const eidDigits = studentIdDigits(p.employeeId ?? "")
-        if (
-          qDigits.length >= 11 &&
-          qDigits.length <= 12 &&
-          (sidDigits === qDigits || eidDigits === qDigits)
-        ) {
+        if (qDigits.length >= 1 && (sidDigits === qDigits || eidDigits === qDigits)) {
           return true
         }
         return variants.some((variant) => {
-          const v = variant.toLowerCase()
           const vd = studentIdDigits(variant)
-          return (
-            sid === v ||
-            eid === v ||
-            (vd.length >= 7 && (sidDigits === vd || eidDigits === vd))
-          )
+          return vd.length >= 1 && (sidDigits === vd || eidDigits === vd)
         })
       }) ?? null
-    if (exact) return { ok: true, data: exact }
+    if (listedExact) return { ok: true, data: listedExact }
 
     // Optional legacy fallback: enrollment bucket ensure for walk-ins not yet imported
     const ensured = await ensurePatientFromStudentId(id)

@@ -106,8 +106,8 @@ function asStatus(value: string): TicketStatus {
 function specialtyFromConsultationType(
   consultationType: string | null | undefined
 ): SpecialtyStationId | null {
-  const s = (consultationType ?? "").toLowerCase()
-  if (!s) return null
+  const s = (consultationType ?? "").toLowerCase().trim()
+  if (!s || s === "other" || s === "__other__") return null
   if (s.includes("dental") || s.includes("dentist") || s.includes("tooth")) {
     return "dentist"
   }

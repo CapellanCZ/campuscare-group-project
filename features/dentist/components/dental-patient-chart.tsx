@@ -493,44 +493,32 @@ export function DentalPatientChartForm({
               readOnly={readOnly}
               onChange={(v) => patchClinical({ operations: v })}
             />
-            <div className="grid grid-cols-[10.5rem_minmax(0,1fr)] items-end gap-x-3 py-1">
-              <span className="pb-1 text-sm font-medium text-neutral-900">
+            <div className="grid grid-cols-[10.5rem_repeat(3,minmax(0,1fr))] items-start justify-items-center gap-x-3 border-t border-neutral-300 py-3 [&>span:first-child]:justify-self-start">
+              <span className="pt-0.5 text-sm font-medium text-neutral-900">
                 Blood Sugar
               </span>
-              <div className="grid grid-cols-3 gap-3">
-                {(
-                  [
-                    { value: "normal", label: "Normal" },
-                    { value: "high", label: "High" },
-                    { value: "low", label: "Low" },
-                  ] as const
-                ).map((opt) => {
-                  const checked = c.bloodSugar === opt.value
-                  return (
-                    <div key={opt.value} className="flex flex-col items-center gap-1">
-                      <button
-                        type="button"
-                        disabled={readOnly}
-                        onClick={() =>
-                          patchClinical({
-                            bloodSugar: checked
-                              ? ""
-                              : (opt.value as BloodSugarLevel),
-                          })
-                        }
-                        className={cn(
-                          "h-7 w-full border-b border-neutral-800 bg-transparent",
-                          checked && "bg-neutral-100"
-                        )}
-                        aria-label={opt.label}
-                      />
-                      <span className="text-center text-xs text-neutral-900">
-                        {opt.label}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
+              {(
+                [
+                  { value: "normal", label: "Normal" },
+                  { value: "high", label: "High" },
+                  { value: "low", label: "Low" },
+                ] as const
+              ).map((opt) => (
+                <ExamCheckbox
+                  key={opt.value}
+                  label={opt.label}
+                  checked={c.bloodSugar === opt.value}
+                  readOnly={readOnly}
+                  onChange={() =>
+                    patchClinical({
+                      bloodSugar:
+                        c.bloodSugar === opt.value
+                          ? ""
+                          : (opt.value as BloodSugarLevel),
+                    })
+                  }
+                />
+              ))}
             </div>
             <UnderlineField
               label="Bleeding Time (Value)"
@@ -616,7 +604,7 @@ export function DentalPatientChartForm({
           ) : null}
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5 sm:col-span-2">
+            <div className="space-y-1.5 sm:col-span-2 [&_[data-slot=checkbox]]:border-neutral-700 [&_[data-slot=checkbox]]:bg-white [&_[data-slot=checkbox]]:dark:border-neutral-700 [&_[data-slot=checkbox]]:dark:bg-white [&_[data-slot=checkbox]]:dark:data-checked:border-neutral-900 [&_[data-slot=checkbox]]:dark:data-checked:bg-neutral-900 [&_[data-slot=checkbox]]:dark:data-checked:text-white">
               <HealthCaseChecklist
                 catalog="dentist"
                 value={parseHealthCaseSelection("dentist", chart.diagnosis)}

@@ -7,6 +7,18 @@ import type { Consultation } from "@/types/consultation"
 import type { QueueVitals } from "@/lib/health/types"
 import { patientFullName } from "@/types/patientRecord"
 
+/** Parse vitals that may include units ("98%", "170 cm", "65 kg", "36.5°C"). */
+function parseVitalNumber(
+  value: string | number | null | undefined
+): number | null {
+  if (value == null || value === "") return null
+  if (typeof value === "number") return Number.isFinite(value) ? value : null
+  const match = String(value).replace(/,/g, "").match(/-?\d+(\.\d+)?/)
+  if (!match) return null
+  const n = Number(match[0])
+  return Number.isFinite(n) ? n : null
+}
+
 function nurseVitalsToQueueVitals(vitals: NurseVisitVitals): QueueVitals | null {
   const bp = vitals.bloodPressure?.trim()
   let bpSystolic: number | null = null
@@ -18,20 +30,27 @@ function nurseVitalsToQueueVitals(vitals: NurseVisitVitals): QueueVitals | null 
       bpDiastolic = Number(match[2])
     }
   }
+  const heartRate = parseVitalNumber(vitals.pulseRate)
+  const temperatureC = parseVitalNumber(vitals.temperature)
+  const spo2 = parseVitalNumber(vitals.o2)
+  const heightCm = parseVitalNumber(vitals.height)
+  const weightKg = parseVitalNumber(vitals.weight)
   const hasAny =
     bpSystolic != null ||
-    vitals.pulseRate?.trim() ||
-    vitals.temperature?.trim() ||
-    vitals.o2?.trim()
+    heartRate != null ||
+    temperatureC != null ||
+    spo2 != null ||
+    heightCm != null ||
+    weightKg != null
   if (!hasAny) return null
   return {
     bpSystolic,
     bpDiastolic,
-    heartRate: vitals.pulseRate ? Number(vitals.pulseRate) : null,
-    temperatureC: vitals.temperature ? Number(vitals.temperature) : null,
-    spo2: vitals.o2 ? Number(vitals.o2) : null,
-    heightCm: vitals.height ? Number(vitals.height) : null,
-    weightKg: vitals.weight ? Number(vitals.weight) : null,
+    heartRate,
+    temperatureC,
+    spo2,
+    heightCm,
+    weightKg,
     respiratoryRate: null,
   }
 }

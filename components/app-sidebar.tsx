@@ -75,7 +75,7 @@ export function AppSidebar() {
           </SidebarMenu>
         ) : null}
         <div className="border-t px-4 pt-4 pb-2 transition-opacity group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:opacity-0">
-          <p className="text-nowrap text-[9px] text-muted-foreground">
+          <p className="text-wrap break-words text-[9px] text-muted-foreground">
             © {new Date().getFullYear()} CampusCare · NU Dasmariñas
           </p>
         </div>

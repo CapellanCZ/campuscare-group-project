@@ -13,6 +13,7 @@ import {
   formatRequestDate,
   formatRequestDateTime,
 } from "@/features/requests/lib/format"
+import { displayConsultationLabel } from "@/lib/health/consultation-display"
 import type { AppointmentRequest } from "@/types/appointmentRequest"
 
 function DetailRow({
@@ -41,6 +42,8 @@ export function ViewRequestDialog({
 }) {
   if (!request) return null
 
+  const serviceLabel = displayConsultationLabel(request.service, request.reason)
+
   const statusTone =
     request.status === "cancelled" || request.status === "no_show"
       ? "destructive"
@@ -56,7 +59,7 @@ export function ViewRequestDialog({
         <DialogHeader>
           <DialogTitle className="pr-8">{request.patientName}</DialogTitle>
           <DialogDescription>
-            {request.service} · {consultationRequestStatusLabel(request.status)}
+            {serviceLabel} · {consultationRequestStatusLabel(request.status)}
           </DialogDescription>
         </DialogHeader>
 
@@ -75,7 +78,7 @@ export function ViewRequestDialog({
             <DetailRow label="Student ID" value={request.studentId} />
             <DetailRow label="Email" value={request.email} />
             <DetailRow label="Phone" value={request.phone} />
-            <DetailRow label="Service" value={request.service} />
+            <DetailRow label="Service" value={serviceLabel} />
             <DetailRow
               label="Provider type"
               value={
@@ -99,7 +102,9 @@ export function ViewRequestDialog({
               value={formatRequestDate(request.preferredDate)}
             />
             <DetailRow label="Preferred time" value={request.preferredTime} />
-            <DetailRow label="Reason" value={request.reason} />
+            {serviceLabel !== (request.reason ?? "").trim() ? (
+              <DetailRow label="Reason" value={request.reason} />
+            ) : null}
             <DetailRow
               label="Submitted"
               value={formatRequestDateTime(request.createdAt)}

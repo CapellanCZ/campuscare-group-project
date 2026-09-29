@@ -26,6 +26,7 @@ import { WaitStatusBadge } from "@/components/queue/wait-status-badge"
 import { WalkInSheet } from "@/components/queue/walk-in-sheet"
 import { StudentIdSearchInput } from "@/components/shared/student-id-search-input"
 import { DENTIST_PATIENT_SEARCH_PLACEHOLDER } from "@/lib/students/patient-search-copy"
+import { displayConsultationLabel } from "@/lib/health/consultation-display"
 import { ActivityFeed } from "@/components/shared/activity-feed"
 import { RecentlyServedCard } from "@/components/shared/recently-served-card"
 import { StatCard } from "@/components/shared/stat-card"
@@ -952,7 +953,10 @@ export function QueuePage({
                                   {row.campusId ?? "—"}
                                 </TableCell>
                                 <TableCell className="hidden max-w-[11rem] truncate lg:table-cell">
-                                  {row.consultationType ?? "—"}
+                                  {displayConsultationLabel(
+                                    row.consultationType,
+                                    row.chiefComplaint
+                                  )}
                                 </TableCell>
                                 <TableCell>
                                   <Badge variant="outline">
@@ -974,9 +978,10 @@ export function QueuePage({
                                   </Badge>
                                 </TableCell>
                                 <TableCell className="hidden max-w-[12rem] truncate md:table-cell">
-                                  {row.chiefComplaint ||
-                                    row.consultationType ||
-                                    "—"}
+                                  {displayConsultationLabel(
+                                    row.chiefComplaint || row.consultationType,
+                                    row.chiefComplaint
+                                  )}
                                 </TableCell>
                                 <TableCell>
                                   <WaitStatusBadge
@@ -993,7 +998,10 @@ export function QueuePage({
                             ) : (
                               <>
                                 <TableCell className="hidden max-w-36 truncate md:table-cell">
-                                  {row.consultationType}
+                                  {displayConsultationLabel(
+                                    row.consultationType,
+                                    row.chiefComplaint
+                                  )}
                                 </TableCell>
                                 <TableCell className="hidden min-w-40 lg:table-cell">
                                   <VitalsStrip

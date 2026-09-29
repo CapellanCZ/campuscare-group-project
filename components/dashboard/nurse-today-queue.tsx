@@ -63,6 +63,7 @@ import {
 import { canMutateQueue, canRegisterWalkIn } from "@/lib/health/roles"
 import { patientTypeLabel, ticketLabel } from "@/lib/health/mappers"
 import type { QueueTicketRow, TicketStatus } from "@/lib/health/types"
+import { displayConsultationLabel } from "@/lib/health/consultation-display"
 import { studentIdDigits, studentIdMatchesQuery } from "@/lib/students/student-id-input"
 import type { PatientRecord } from "@/types/patientRecord"
 import { cn } from "@/lib/utils"
@@ -70,11 +71,19 @@ import { cn } from "@/lib/utils"
 const PAGE_SIZE = 8
 
 function consultationLabel(row: QueueTicketRow) {
+  const shown = displayConsultationLabel(
+    row.consultationType || row.service,
+    row.chiefComplaint
+  )
   const raw = (row.consultationType || row.service || "").toLowerCase()
-  if (row.station === "dentist" || raw.includes("dental")) return "Dental"
-  if (raw.includes("medical") || row.station === "physician") return "Medical"
+  if (row.station === "dentist" || row.providerType === "dentist" || raw.includes("dental")) {
+    return shown === "—" || /^other$/i.test(shown) ? "Dental" : shown
+  }
+  if (raw.includes("medical") || row.station === "physician" || row.providerType === "physician") {
+    return shown === "—" || /^other$/i.test(shown) ? "Medical" : shown
+  }
   if (raw.includes("walk")) return "Walk-in"
-  return row.consultationType || row.service || "General"
+  return shown
 }
 
 export function NurseTodayQueue({

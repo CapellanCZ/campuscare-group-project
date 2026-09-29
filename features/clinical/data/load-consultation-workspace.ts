@@ -109,11 +109,21 @@ export async function loadConsultationWorkspace(
     row.vitals as Record<string, unknown> | null
   )
 
-  if (
-    !nurseVitals.bloodPressure &&
-    !nurseVitals.pulseRate &&
-    row.queue_ticket_id
-  ) {
+  let ticketId = (row.queue_ticket_id as string | null) ?? null
+  if (!ticketId && row.appointment_id) {
+    const { data: linkedTicket } = await supabase
+      .from("health_queue_tickets")
+      .select("id")
+      .or(
+        `appointment_id.eq.${row.appointment_id},health_appointment_id.eq.${row.appointment_id}`
+      )
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    ticketId = linkedTicket?.id ?? null
+  }
+
+  if (!nurseVitals.bloodPressure && !nurseVitals.pulseRate && ticketId) {
     const { data: vitalsRow } = await supabase
       .from("health_queue_tickets")
       .select(
@@ -127,7 +137,7 @@ export async function loadConsultationWorkspace(
         vitals_weight_kg
       `
       )
-      .eq("id", row.queue_ticket_id as string)
+      .eq("id", ticketId)
       .maybeSingle()
     if (vitalsRow) {
       nurseVitals = nurseVitalsFromTicket(vitalsRow)
@@ -147,6 +157,9 @@ export async function loadConsultationWorkspace(
               heightCm: vitalsRow.vitals_height_cm,
               weightKg: vitalsRow.vitals_weight_kg,
             },
+            ...(row.queue_ticket_id
+              ? {}
+              : { queue_ticket_id: ticketId }),
             updated_at: new Date().toISOString(),
           })
           .eq("id", consultationId)

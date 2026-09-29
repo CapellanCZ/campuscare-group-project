@@ -30,6 +30,9 @@ export function AuthEmailStep({
   return (
     <>
       <div className="flex flex-col space-y-1">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+          Sign in
+        </p>
         <h1 className="text-2xl font-bold tracking-wide">Sign in</h1>
         <p className="text-base text-muted-foreground">
           Enter your work email and we&apos;ll send a one-time password.

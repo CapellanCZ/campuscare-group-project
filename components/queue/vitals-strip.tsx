@@ -26,9 +26,15 @@ export function formatVitalsLine(vitals: QueueVitals) {
   if (bp) parts.push(`BP ${bp}`)
   if (vitals.heartRate != null) parts.push(`HR ${vitals.heartRate}`)
   if (vitals.temperatureC != null) parts.push(`${vitals.temperatureC}°C`)
-  if (vitals.spo2 != null) parts.push(`SpO₂ ${vitals.spo2}%`)
-  if (vitals.heightCm != null) parts.push(`${vitals.heightCm} cm`)
-  if (vitals.weightKg != null) parts.push(`${vitals.weightKg} kg`)
+  if (vitals.spo2 != null && Number.isFinite(vitals.spo2)) {
+    parts.push(`SpO₂ ${vitals.spo2}%`)
+  }
+  if (vitals.heightCm != null && Number.isFinite(vitals.heightCm)) {
+    parts.push(`${vitals.heightCm} cm`)
+  }
+  if (vitals.weightKg != null && Number.isFinite(vitals.weightKg)) {
+    parts.push(`${vitals.weightKg} kg`)
+  }
   if (vitals.respiratoryRate != null) parts.push(`RR ${vitals.respiratoryRate}`)
   return parts.join(" · ")
 }

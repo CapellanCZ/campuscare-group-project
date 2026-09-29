@@ -1,6 +1,9 @@
 import "server-only"
 
-import { nurseVitalsFromTicket } from "@/features/physician/data/visit-chart"
+import {
+  nurseVitalsFromConsultationJson,
+  nurseVitalsFromTicket,
+} from "@/features/physician/data/visit-chart"
 import type { NurseVisitVitals } from "@/features/physician/types-visit"
 import {
   emptyDentalPatientChart,
@@ -219,7 +222,9 @@ export async function loadDentalVisitChart(input: {
     const { data: ticket } = await supabase
       .from("health_queue_tickets")
       .select("id")
-      .eq("appointment_id", input.appointmentId)
+      .or(
+        `appointment_id.eq.${input.appointmentId},health_appointment_id.eq.${input.appointmentId}`
+      )
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -250,6 +255,58 @@ export async function loadDentalVisitChart(input: {
       typeof vitalsRow?.chief_complaint === "string"
         ? vitalsRow.chief_complaint
         : null
+  }
+
+  // Mirror physician: fall back to consultations.vitals when ticket vitals empty.
+  if (!nurseVitals.bloodPressure && !nurseVitals.pulseRate) {
+    const { data: consultRow } = await supabase
+      .from("consultations")
+      .select("vitals, queue_ticket_id, chief_complaint")
+      .eq("appointment_id", input.appointmentId)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (consultRow) {
+      if (!ticketId && consultRow.queue_ticket_id) {
+        ticketId = consultRow.queue_ticket_id as string
+        const { data: vitalsRow } = await supabase
+          .from("health_queue_tickets")
+          .select(
+            `
+            chief_complaint,
+            vitals_bp_systolic,
+            vitals_bp_diastolic,
+            vitals_heart_rate,
+            vitals_temperature_c,
+            vitals_spo2,
+            vitals_height_cm,
+            vitals_weight_kg
+          `
+          )
+          .eq("id", ticketId)
+          .maybeSingle()
+        if (vitalsRow) {
+          nurseVitals = nurseVitalsFromTicket(vitalsRow)
+          ticketComplaint =
+            typeof vitalsRow.chief_complaint === "string"
+              ? vitalsRow.chief_complaint
+              : ticketComplaint
+        }
+      }
+
+      if (!nurseVitals.bloodPressure && !nurseVitals.pulseRate) {
+        nurseVitals = nurseVitalsFromConsultationJson(
+          consultRow.vitals as Record<string, unknown> | null
+        )
+      }
+      if (
+        !ticketComplaint &&
+        typeof consultRow.chief_complaint === "string"
+      ) {
+        ticketComplaint = consultRow.chief_complaint
+      }
+    }
   }
 
   // Fallback: chart embedded in appointment_consultations notes.

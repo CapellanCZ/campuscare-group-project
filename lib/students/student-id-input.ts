@@ -3,7 +3,7 @@
  * or `2026-00100` (faculty/employees: 4-digit year + 5 digits).
  * Legacy faculty/employee IDs `26-00100` normalize to `2026-00100`.
  * Search inputs accept digits only and auto-insert the dash for display.
- * Max digit length is 12 (11–12 digit searches are supported).
+ * Max digit length is 12. Lookup runs for any non-empty digit length up to that max.
  *
  * IMPORTANT: Live typing must never rewrite a modern year prefix (e.g. 2026 → 2020).
  * Legacy `20YY` expansion only runs on complete legacy forms, never on partial modern IDs.
@@ -20,7 +20,7 @@ export const CAMPUS_ID_VALIDATION_MESSAGE =
 export const CAMPUS_ID_MAX_DIGITS_MESSAGE =
   "ID number must not exceed 12 digits."
 
-/** Absolute max digits for campus IDs in search/registration (11 or 12 are valid). */
+/** Absolute max digits for campus IDs in search/registration. */
 export const CAMPUS_ID_MAX_DIGITS = 12
 
 function maxDigitsFor(kind?: CampusIdKind | null): number {
@@ -138,12 +138,12 @@ export function isCampusIdDigitLengthAllowed(value: string): boolean {
 }
 
 /**
- * Walk-in / ID lookup should wait until the user has enough digits
- * (11 or 12). Avoids mid-typing fetches that race with input state.
+ * Walk-in / ID lookup is eligible for any non-empty ID within the max digit length.
+ * Matching still requires an existing patient record for the entered value.
  */
 export function isCampusIdReadyForLookup(value: string): boolean {
   const n = campusIdDigitCount(value)
-  return n >= 11 && n <= CAMPUS_ID_MAX_DIGITS
+  return n >= 1 && n <= CAMPUS_ID_MAX_DIGITS
 }
 
 /** Formatted value is empty or a plausible partial/complete campus ID. */

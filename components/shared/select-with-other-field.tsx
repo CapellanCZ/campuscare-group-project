@@ -33,6 +33,11 @@ type SelectWithOtherFieldProps = {
   required?: boolean
   className?: string
   labelClassName?: string
+  /**
+   * When true and the value is a non-preset custom string, hide the Other
+   * select and show only the free-text field (label stays the primary field label).
+   */
+  preferCustomValueOnly?: boolean
 }
 
 /**
@@ -53,6 +58,7 @@ export function SelectWithOtherField({
   required,
   className,
   labelClassName,
+  preferCustomValueOnly = false,
 }: SelectWithOtherFieldProps) {
   const autoId = useId()
   const fieldId = id ?? autoId
@@ -73,6 +79,9 @@ export function SelectWithOtherField({
   const showOther =
     otherMode ||
     (Boolean(value) && value !== OTHER_SELECT_VALUE && !isPreset)
+  const hasCustomValue =
+    showOther && Boolean(value) && value !== OTHER_SELECT_VALUE && !isPreset
+  const customOnly = preferCustomValueOnly && hasCustomValue
   const selectValue = showOther
     ? OTHER_SELECT_VALUE
     : isPreset
@@ -93,63 +102,95 @@ export function SelectWithOtherField({
 
   return (
     <div className={cn("space-y-2", className)}>
-      <Field className="gap-1">
-        <FieldLabel htmlFor={fieldId} className={labelClassName}>
-          {label}
-        </FieldLabel>
-        <Select
-          value={selectValue}
-          items={items}
-          onValueChange={(next) => {
-            if (!next) return
-            if (next === OTHER_SELECT_VALUE) {
-              setOtherMode(true)
-              if (isPreset) onValueChange("")
-              return
-            }
-            setOtherMode(false)
-            onValueChange(next)
-          }}
-          disabled={disabled}
-        >
-          <SelectTrigger
-            id={fieldId}
-            className="w-full"
-            aria-label={label}
-            disabled={disabled}
-          >
-            <SelectValue placeholder={placeholder} />
-          </SelectTrigger>
-          <SelectContent>
-            {options.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-            <SelectItem value={OTHER_SELECT_VALUE}>{otherOptionLabel}</SelectItem>
-          </SelectContent>
-        </Select>
-      </Field>
-
-      {showOther ? (
-        <Field
-          className="gap-1 duration-150 animate-in fade-in-0 slide-in-from-top-1"
-          data-slot="select-other"
-        >
+      {customOnly ? (
+        <Field className="gap-1">
           <FieldLabel htmlFor={otherId} className={labelClassName}>
-            {otherLabel}
+            {label}
           </FieldLabel>
           <Input
             id={otherId}
-            value={isPreset ? "" : value}
+            value={value}
             onChange={(event) => onValueChange(event.target.value)}
             placeholder={otherPlaceholder}
             disabled={disabled}
             required={required}
             autoComplete="off"
           />
+          <button
+            type="button"
+            className="text-left text-[11px] text-muted-foreground underline-offset-2 hover:underline"
+            disabled={disabled}
+            onClick={() => {
+              setOtherMode(false)
+              onValueChange("")
+            }}
+          >
+            Choose a preset instead
+          </button>
         </Field>
-      ) : null}
+      ) : (
+        <>
+          <Field className="gap-1">
+            <FieldLabel htmlFor={fieldId} className={labelClassName}>
+              {label}
+            </FieldLabel>
+            <Select
+              value={selectValue}
+              items={items}
+              onValueChange={(next) => {
+                if (!next) return
+                if (next === OTHER_SELECT_VALUE) {
+                  setOtherMode(true)
+                  if (isPreset) onValueChange("")
+                  return
+                }
+                setOtherMode(false)
+                onValueChange(next)
+              }}
+              disabled={disabled}
+            >
+              <SelectTrigger
+                id={fieldId}
+                className="w-full"
+                aria-label={label}
+                disabled={disabled}
+              >
+                <SelectValue placeholder={placeholder} />
+              </SelectTrigger>
+              <SelectContent>
+                {options.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+                <SelectItem value={OTHER_SELECT_VALUE}>
+                  {otherOptionLabel}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+
+          {showOther ? (
+            <Field
+              className="gap-1 duration-150 animate-in fade-in-0 slide-in-from-top-1"
+              data-slot="select-other"
+            >
+              <FieldLabel htmlFor={otherId} className={labelClassName}>
+                {otherLabel}
+              </FieldLabel>
+              <Input
+                id={otherId}
+                value={isPreset ? "" : value}
+                onChange={(event) => onValueChange(event.target.value)}
+                placeholder={otherPlaceholder}
+                disabled={disabled}
+                required={required}
+                autoComplete="off"
+              />
+            </Field>
+          ) : null}
+        </>
+      )}
     </div>
   )
 }

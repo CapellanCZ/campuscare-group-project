@@ -31,6 +31,7 @@ import {
 import {
   formatRequestDate,
 } from "@/features/requests/lib/format"
+import { displayConsultationLabel } from "@/lib/health/consultation-display"
 import { selectItemsRecord } from "@/lib/ui/select-label"
 import type { AppointmentRequest } from "@/types/appointmentRequest"
 
@@ -181,7 +182,7 @@ export function ApproveRequestDialog({
           </p>
           <p>
             <span className="text-muted-foreground">Service:</span>{" "}
-            {request.service}
+            {displayConsultationLabel(request.service, request.reason)}
           </p>
           <p>
             <span className="text-muted-foreground">Preferred:</span>{" "}

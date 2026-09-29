@@ -19,6 +19,7 @@ import {
   CHIEF_COMPLAINT_OPTIONS,
   OTHER_SELECT_VALUE,
 } from "@/lib/health/form-options"
+import { stripOtherReasonPrefix } from "@/lib/health/consultation-display"
 import type {
   PatientVitalsRecord,
   QueueTicketRow,
@@ -73,20 +74,24 @@ function defaultIntakeStation(ticket: QueueTicketRow): SpecialtyStationId {
   ) {
     return ticket.providerType
   }
+  if (ticket.station === "dentist" || ticket.station === "physician") {
+    return ticket.station
+  }
   const service = (
     ticket.consultationType ??
     ticket.service ??
     ""
   ).toLowerCase()
+  // Never infer specialty from free-text "Other".
+  if (service === "other" || service === OTHER_SELECT_VALUE) {
+    return "physician"
+  }
   if (
     service.includes("dental") ||
     service.includes("dentist") ||
     service.includes("tooth")
   ) {
     return "dentist"
-  }
-  if (ticket.station === "dentist" || ticket.station === "physician") {
-    return ticket.station
   }
   return "physician"
 }
@@ -148,7 +153,7 @@ export function NurseIntakeSheet({
 
   useEffect(() => {
     if (!open || !ticket) return
-    const complaint = (ticket.chiefComplaint ?? "").trim()
+    const complaint = stripOtherReasonPrefix(ticket.chiefComplaint)
     setChiefComplaint(
       !complaint || complaint === OTHER_SELECT_VALUE ? "" : complaint
     )
@@ -349,6 +354,7 @@ export function NurseIntakeSheet({
                 onValueChange={setChiefComplaint}
                 placeholder="Select chief complaint"
                 otherPlaceholder="Describe the complaint…"
+                preferCustomValueOnly
                 disabled={pending}
               />
 
@@ -504,6 +510,7 @@ export function NurseIntakeSheet({
                   Send to
                 </p>
                 <div
+                  key={`send-to-${ticket?.ticketId ?? "closed"}`}
                   role="radiogroup"
                   aria-label="Specialty station"
                   className="grid grid-cols-2 gap-1.5"

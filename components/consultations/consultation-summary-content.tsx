@@ -27,7 +27,10 @@ export function vitalsFromRecord(
   const num = (key: string) => {
     const raw = v[key]
     if (raw == null || raw === "") return null
-    const n = Number(raw)
+    if (typeof raw === "number") return Number.isFinite(raw) ? raw : null
+    const match = String(raw).replace(/,/g, "").match(/-?\d+(\.\d+)?/)
+    if (!match) return null
+    const n = Number(match[0])
     return Number.isFinite(n) ? n : null
   }
 
@@ -44,22 +47,12 @@ export function vitalsFromRecord(
   }
 
   const heartRate =
-    num("heartRate") ??
-    num("heart_rate") ??
-    (typeof v.pulseRate === "string" || typeof v.pulseRate === "number"
-      ? Number(v.pulseRate)
-      : null)
+    num("heartRate") ?? num("heart_rate") ?? num("pulseRate")
   const temperatureC =
-    num("temperatureC") ??
-    num("temperature_c") ??
-    (typeof v.temperature === "string" || typeof v.temperature === "number"
-      ? Number(v.temperature)
-      : null)
-  const spo2 =
-    num("spo2") ??
-    (typeof v.o2 === "string" || typeof v.o2 === "number"
-      ? Number(v.o2)
-      : null)
+    num("temperatureC") ?? num("temperature_c") ?? num("temperature")
+  const spo2 = num("spo2") ?? num("o2")
+  const heightCm = num("heightCm") ?? num("height_cm") ?? num("height")
+  const weightKg = num("weightKg") ?? num("weight_kg") ?? num("weight")
 
   const result: QueueVitals = {
     bpSystolic: Number.isFinite(bpSystolic) ? bpSystolic : null,
@@ -67,8 +60,8 @@ export function vitalsFromRecord(
     heartRate: Number.isFinite(heartRate) ? heartRate : null,
     temperatureC: Number.isFinite(temperatureC) ? temperatureC : null,
     spo2: Number.isFinite(spo2) ? spo2 : null,
-    heightCm: num("heightCm") ?? num("height_cm") ?? (typeof v.height === "string" || typeof v.height === "number" ? Number(v.height) : null),
-    weightKg: num("weightKg") ?? num("weight_kg") ?? (typeof v.weight === "string" || typeof v.weight === "number" ? Number(v.weight) : null),
+    heightCm: Number.isFinite(heightCm) ? heightCm : null,
+    weightKg: Number.isFinite(weightKg) ? weightKg : null,
     respiratoryRate: num("respiratoryRate") ?? num("respiratory_rate"),
   }
 
@@ -76,7 +69,9 @@ export function vitalsFromRecord(
     result.bpSystolic != null ||
     result.heartRate != null ||
     result.temperatureC != null ||
-    result.spo2 != null
+    result.spo2 != null ||
+    result.heightCm != null ||
+    result.weightKg != null
   return hasAny ? result : null
 }
 

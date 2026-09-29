@@ -6,6 +6,7 @@ import {
   consultationRequestStatusLabel,
   formatRequestDate,
 } from "@/features/requests/lib/format"
+import { displayConsultationLabel } from "@/lib/health/consultation-display"
 import type { AppointmentRequest, AppointmentRequestStatus } from "@/types/appointmentRequest"
 import { cn } from "@/lib/utils"
 
@@ -54,7 +55,7 @@ export function ConsultationRequestCard({
 
   const metaParts = [
     request.studentId || null,
-    request.service,
+    displayConsultationLabel(request.service, request.reason),
     preferred || null,
     request.queueNumber != null ? `#${request.queueNumber}` : null,
   ].filter(Boolean)
