@@ -45,7 +45,18 @@ import {
   type UpdatePatientMedicalRecordInput,
   type UpdatePatientRecordInput,
 } from "@/types/patientRecord"
-import { patientRecordToExportRow } from "@/features/patients/lib/export-patient-records"
+import { loadPatientRecordsExportAssociations } from "@/features/patients/data/load-patient-records-export"
+import { executeClinicalRestore } from "@/features/patients/data/restore-patient-records"
+import {
+  buildPatientRecordsExportWorkbook,
+  type PatientRecordsExportWorkbook,
+} from "@/features/patients/lib/export-patient-records"
+import {
+  isClinicalExportPackage,
+  parseClinicalRestorePackage,
+  planClinicalRestore,
+} from "@/features/patients/lib/restore-patient-records"
+import { parseExcelSheets } from "@/features/admin/lib/excel"
 import {
   getConsultationVisitDetail,
   getConsultationsByPatientId,
@@ -504,15 +515,22 @@ export async function exportPatientRecordsAction(params: {
   patientType?: PatientRecordListParams["patientType"]
   sortBy?: PatientRecordListParams["sortBy"]
   sortDir?: PatientRecordListParams["sortDir"]
-}): Promise<
-  PatientRecordActionResult<{
-    rows: string[][]
-    total: number
-  }>
-> {
+}): Promise<PatientRecordActionResult<PatientRecordsExportWorkbook>> {
   try {
     const access = await getStaffAccess()
     if (!access || !canViewModule(access.designation, "patient_records")) {
+      return {
+        ok: false,
+        error: "You do not have access to export patient records.",
+        code: "permission",
+      }
+    }
+    // Role scope is derived server-side only — never accept client override.
+    if (
+      access.designation !== "nurse" &&
+      access.designation !== "physician" &&
+      access.designation !== "dentist"
+    ) {
       return {
         ok: false,
         error: "You do not have access to export patient records.",
@@ -527,12 +545,20 @@ export async function exportPatientRecordsAction(params: {
       sortDir: params.sortDir ?? "asc",
     })
 
+    const { consultations, documents } =
+      await loadPatientRecordsExportAssociations(patients)
+
+    const workbook = buildPatientRecordsExportWorkbook({
+      designation: access.designation,
+      patients,
+      consultations,
+      documents,
+      patientTypeFilter: params.patientType ?? "all",
+    })
+
     return {
       ok: true,
-      data: {
-        rows: patients.map(patientRecordToExportRow),
-        total: patients.length,
-      },
+      data: workbook,
     }
   } catch (error) {
     return toErrorResult(error)
@@ -542,17 +568,122 @@ export async function exportPatientRecordsAction(params: {
 export async function importPatientRecordsFromExcelAction(
   formData: FormData
 ): Promise<PatientRecordImportActionResult> {
-  const auth = await requirePatientAccess("patients.edit_information")
-  if (!auth.ok) {
-    return { ok: false, error: auth.error, code: auth.code }
-  }
   try {
+    const access = await getStaffAccess()
+    if (!access?.hasClinicMembership) {
+      return {
+        ok: false,
+        error: "Sign in with an approved clinic account.",
+        code: "permission",
+      }
+    }
+
+    const file = formData.get("file")
+    if (!(file instanceof File) || file.size === 0) {
+      return {
+        ok: false,
+        error: "Choose an Excel file to import.",
+        code: "validation",
+      }
+    }
+
+    const buffer = await file.arrayBuffer()
+    const sheets = await parseExcelSheets(buffer)
+
+    // CampusCare clinical export (multi-sheet) → import personal + clinical data.
+    if (isClinicalExportPackage(sheets)) {
+      if (!canViewModule(access.designation, "patient_records")) {
+        return {
+          ok: false,
+          error: "You do not have access to import patient records.",
+          code: "permission",
+        }
+      }
+      if (
+        access.designation !== "nurse" &&
+        access.designation !== "physician" &&
+        access.designation !== "dentist"
+      ) {
+        return {
+          ok: false,
+          error: "You do not have access to import clinical patient records.",
+          code: "permission",
+        }
+      }
+
+      const parsed = parseClinicalRestorePackage(sheets)
+      const plan = planClinicalRestore({
+        designation: access.designation,
+        package: parsed,
+      })
+      if (plan.blockingErrors.length > 0) {
+        return {
+          ok: false,
+          error: plan.blockingErrors.slice(0, 3).join(" · "),
+          code: "validation",
+        }
+      }
+
+      const result = await executeClinicalRestore({
+        plan,
+        issuedByUserId: access.userId,
+      })
+
+      const parts: string[] = []
+      if (result.patientsCreated > 0) {
+        parts.push(`${result.patientsCreated} patients created`)
+      }
+      if (result.patientsUpdated > 0) {
+        parts.push(`${result.patientsUpdated} patients updated`)
+      }
+      if (result.profilesUpdated > 0) {
+        parts.push(`${result.profilesUpdated} medical profiles`)
+      }
+      if (result.consultationsCreated > 0) {
+        parts.push(`${result.consultationsCreated} consultations`)
+      }
+      if (result.vitalsUpdated > 0) {
+        parts.push(`${result.vitalsUpdated} vitals`)
+      }
+      if (result.documentsCreated > 0) {
+        parts.push(`${result.documentsCreated} documents`)
+      }
+
+      const warningParts: string[] = []
+      if (result.counts.ignoredSheets.length > 0) {
+        warningParts.push(
+          `Outside your role scope (skipped): ${result.counts.ignoredSheets.join(", ")}.`
+        )
+      }
+      if (result.failures.length > 0) {
+        warningParts.push(
+          `${result.failures.length} row(s) failed. ${result.failures.slice(0, 3).join(" · ")}`
+        )
+      }
+
+      return {
+        ok: true,
+        message:
+          parts.length > 0
+            ? `Import complete: ${parts.join(", ")}.`
+            : "Import finished.",
+        warning: warningParts.length > 0 ? warningParts.join(" ") : undefined,
+      }
+    }
+
+    // Roster / campus template → demographics upsert only.
+    if (!can(access.designation, "patients.edit_information")) {
+      return {
+        ok: false,
+        error: "You do not have permission for this patient action.",
+        code: "permission",
+      }
+    }
+
     const result = await importPatientRecordsFromExcel(formData)
     const parts: string[] = []
     if (result.created > 0) {
-      parts.push(
-        `${result.created} created`
-      )
+      parts.push(`${result.created} created`)
     }
     if (result.updated > 0) {
       parts.push(`${result.updated} updated`)

@@ -138,6 +138,32 @@ export async function parseExcelRows(buffer: ArrayBuffer): Promise<ExcelRow[]> {
   return allRows
 }
 
+/** Parse workbook into sheet-name → keyed rows (preserves sheet boundaries). */
+export async function parseExcelSheets(
+  buffer: ArrayBuffer
+): Promise<Map<string, ExcelRow[]>> {
+  const XLSX = await import("xlsx")
+  const workbook = XLSX.read(buffer, { type: "array", cellDates: true })
+  const sheets = new Map<string, ExcelRow[]>()
+
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName]
+    const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+      header: 1,
+      defval: "",
+      raw: false,
+    })
+    if (matrix.length === 0) {
+      sheets.set(sheetName, [])
+      continue
+    }
+    const headerRowIndex = detectHeaderRowIndex(matrix)
+    sheets.set(sheetName, matrixToKeyedRows(matrix, headerRowIndex, sheetName))
+  }
+
+  return sheets
+}
+
 /** Lazy-loads xlsx only when the user downloads a template (keeps page compile light). */
 export async function downloadExcelTemplate(
   filename: string,
@@ -154,9 +180,31 @@ export async function downloadExcelData(
   rows: string[][],
   sheetName = "Sheet1"
 ) {
+  await downloadExcelWorkbook(filename, [{ name: sheetName, headers, rows }])
+}
+
+/** Write a multi-sheet Excel workbook (client-side download). */
+export async function downloadExcelWorkbook(
+  filename: string,
+  sheets: Array<{ name: string; headers: string[]; rows: string[][] }>
+) {
   const XLSX = await import("xlsx")
-  const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows])
   const workbook = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName)
+  const usedNames = new Set<string>()
+
+  for (const sheet of sheets) {
+    const baseName = sheet.name.replace(/[\\/?*[\]]/g, "").slice(0, 31) || "Sheet"
+    let name = baseName
+    let suffix = 2
+    while (usedNames.has(name)) {
+      const trimmed = baseName.slice(0, Math.max(1, 31 - String(suffix).length - 1))
+      name = `${trimmed}_${suffix}`
+      suffix += 1
+    }
+    usedNames.add(name)
+    const worksheet = XLSX.utils.aoa_to_sheet([sheet.headers, ...sheet.rows])
+    XLSX.utils.book_append_sheet(workbook, worksheet, name)
+  }
+
   XLSX.writeFile(workbook, filename)
 }

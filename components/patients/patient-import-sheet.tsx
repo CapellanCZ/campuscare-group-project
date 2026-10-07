@@ -135,9 +135,8 @@ export function PatientImportSheet({
         <DialogHeader className="border-b px-6 py-5 text-left">
           <DialogTitle>Import patients</DialogTitle>
           <DialogDescription>
-            Upload an Excel or CSV roster. Rows upsert into Patient Records and
-            the operational patients table by ID number. NU campus student
-            datasets (BASIC INFORMATION header) are supported.
+            Upload a roster template, campus Excel file, or a Patient Records
+            workbook previously exported from CampusCare.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -145,15 +144,17 @@ export function PatientImportSheet({
           onSubmit={onSubmit}
         >
           <p className="text-sm text-muted-foreground">
-            Template columns:{" "}
-            <span className="font-medium text-foreground">
-              patient_type, id_number, first_name, last_name, course
-            </span>{" "}
-            (student | faculty | employee | visitor). Faculty and employee use
-            the same id_number column — set patient_type, role, designation, or
-            occupation to the role (or use separate Faculty / Employee sheets).
-            Campus rosters with ID number / First Name / Last Name also work and
-            import civil status, religion, and guardian details when present.
+            <span className="font-medium text-foreground">Roster / campus file:</span>{" "}
+            imports personal information (
+            patient_type, id_number, first_name, last_name, course, and related
+            fields).
+          </p>
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">CampusCare export:</span>{" "}
+            imports personal information plus role-scoped clinical sheets
+            (medical profile, consultations, vitals, and documents). Nurse
+            exports include medical and dental; physician and dentist exports
+            stay within their specialty.
           </p>
           <Button
             type="button"

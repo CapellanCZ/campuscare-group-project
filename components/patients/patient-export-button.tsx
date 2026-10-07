@@ -3,12 +3,8 @@
 import { useTransition } from "react"
 import { IconDownload } from "@tabler/icons-react"
 
-import { downloadExcelData } from "@/features/admin/lib/excel"
+import { downloadExcelWorkbook } from "@/features/admin/lib/excel"
 import { exportPatientRecordsAction } from "@/features/patients/actions"
-import {
-  PATIENT_RECORD_EXPORT_HEADERS,
-  patientRecordsExportFilename,
-} from "@/features/patients/lib/export-patient-records"
 import { Button } from "@/components/ui/button"
 import { patientToasts } from "@/lib/feedback/toast-messages"
 import { appToast } from "@/lib/feedback/app-toast"
@@ -39,7 +35,7 @@ export function PatientExportButton({
         return
       }
 
-      if (result.data.rows.length === 0) {
+      if (result.data.patientCount === 0 || result.data.sheets.length === 0) {
         appToast.warning({
           title: "Nothing to export",
           description: "No patient records match the current filters.",
@@ -47,18 +43,14 @@ export function PatientExportButton({
         return
       }
 
-      await downloadExcelData(
-        patientRecordsExportFilename(patientType),
-        [...PATIENT_RECORD_EXPORT_HEADERS],
-        result.data.rows,
-        "Patients"
-      )
+      await downloadExcelWorkbook(result.data.filename, result.data.sheets)
 
+      const sheetCount = result.data.sheets.length
       appToast.success({
         title: "Export ready",
-        description: `Downloaded ${result.data.rows.length} patient record${
-          result.data.rows.length === 1 ? "" : "s"
-        }.`,
+        description: `Downloaded ${result.data.patientCount} patient record${
+          result.data.patientCount === 1 ? "" : "s"
+        } across ${sheetCount} sheet${sheetCount === 1 ? "" : "s"}.`,
       })
     })
   }
