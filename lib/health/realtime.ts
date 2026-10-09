@@ -35,16 +35,14 @@ export const STAFF_REALTIME_TABLES = {
     "medical_certificates",
     "patient_records",
   ] as const,
+  // Keep to tables that drive home KPIs / queue — avoid reload storms from
+  // certificates, announcements, or directory edits while on dashboard.
   dashboard: [
     "appointments",
     "consultation_requests",
     "health_queue_tickets",
     "health_appointments",
-    "announcements",
-    "clinic_consultation_capacity",
     "consultations",
-    "medical_certificates",
-    "patient_records",
   ] as const,
 } as const
 

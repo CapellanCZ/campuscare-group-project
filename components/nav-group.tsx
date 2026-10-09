@@ -21,42 +21,66 @@ import {
 import type { SidebarNavGroup, SidebarNavItem } from "@/components/app-shared"
 import { useOptionalNavPending } from "@/components/dashboard/nav-pending"
 import { useStaffAccess } from "@/components/staff-access-provider"
-import { prefetchAnnouncementsPage } from "@/features/announcements/lib/prefetch-announcements"
-import { prefetchCertificatesPage } from "@/features/certificates/lib/prefetch-certificates"
-import { prefetchConsultationsPage } from "@/features/consultations/lib/prefetch-consultations"
-import { prefetchDashboardPage } from "@/features/dashboard/lib/prefetch-dashboard"
-import { prefetchPatientsPage } from "@/features/patients/lib/prefetch-patients"
-import { prefetchQueuePage } from "@/features/queue/lib/prefetch-queue"
-import { prefetchRequestsPage } from "@/features/requests/lib/prefetch-requests"
 import { IconChevronRight } from "@tabler/icons-react"
 
-function warmRouteData(href: string, role: string | null | undefined) {
-  if (!role) return
-  const clinicRole = role as "nurse" | "physician" | "dentist" | "admin"
+type ClinicRole = "nurse" | "physician" | "dentist" | "admin"
+
+/**
+ * Warm feature data only for the destination being opened.
+ * Dynamic imports keep unused prefetch→action graphs out of the sidebar chunk.
+ */
+async function warmRouteData(href: string, role: ClinicRole) {
   if (href.includes("/consultations")) {
-    prefetchConsultationsPage(clinicRole)
+    const { prefetchConsultationsPage } = await import(
+      "@/features/consultations/lib/prefetch-consultations"
+    )
+    prefetchConsultationsPage(role)
+    return
   }
   if (href.includes("/queue") && !href.includes("/display")) {
-    prefetchQueuePage(clinicRole)
+    const { prefetchQueuePage } = await import(
+      "@/features/queue/lib/prefetch-queue"
+    )
+    prefetchQueuePage(role)
+    return
   }
   if (href.includes("/requests")) {
-    prefetchRequestsPage(clinicRole)
+    const { prefetchRequestsPage } = await import(
+      "@/features/requests/lib/prefetch-requests"
+    )
+    prefetchRequestsPage(role)
+    return
   }
   if (href.includes("/patients")) {
-    prefetchPatientsPage(clinicRole)
+    const { prefetchPatientsPage } = await import(
+      "@/features/patients/lib/prefetch-patients"
+    )
+    prefetchPatientsPage(role)
+    return
   }
   if (href.includes("/certificates")) {
-    prefetchCertificatesPage(clinicRole)
+    const { prefetchCertificatesPage } = await import(
+      "@/features/certificates/lib/prefetch-certificates"
+    )
+    prefetchCertificatesPage(role)
+    return
   }
   if (href.includes("/announcements")) {
-    prefetchAnnouncementsPage(clinicRole)
+    const { prefetchAnnouncementsPage } = await import(
+      "@/features/announcements/lib/prefetch-announcements"
+    )
+    prefetchAnnouncementsPage(role)
+    return
   }
   if (
     href.endsWith("/dashboard") ||
     href === `/${role}` ||
     href === `/${role}/`
   ) {
-    prefetchDashboardPage(clinicRole)
+    const { prefetchDashboardPage } = await import(
+      "@/features/dashboard/lib/prefetch-dashboard"
+    )
+    prefetchDashboardPage(role)
   }
 }
 
@@ -64,11 +88,10 @@ function useNavLinkHandlers() {
   const { isMobile, setOpenMobile } = useSidebar()
   const navPending = useOptionalNavPending()
   const { primaryRole, designation } = useStaffAccess()
-  const role = primaryRole ?? designation
+  const role = (primaryRole ?? designation) as ClinicRole | null
 
   return (href: string) => ({
     onClick: (event: MouseEvent<HTMLAnchorElement>) => {
-      // Let modified clicks (new tab) use the native link.
       if (
         event.metaKey ||
         event.ctrlKey ||
@@ -78,19 +101,20 @@ function useNavLinkHandlers() {
       ) {
         return
       }
-      // Do not preventDefault — Next uses the prefetched RSC payload.
-      // markPending paints the optimistic destination shell immediately.
-      if (navPending?.isPending && navPending.activePath === href.split("?")[0]) {
+      if (
+        navPending?.isPending &&
+        navPending.activePath === href.split("?")[0]
+      ) {
         event.preventDefault()
         return
       }
       navPending?.markPending(href)
-      warmRouteData(href, role)
+      if (role) void warmRouteData(href, role)
       if (isMobile) setOpenMobile(false)
     },
     onMouseEnter: () => {
+      // RSC prefetch only — do not fire feature server actions on hover.
       navPending?.prefetch(href)
-      warmRouteData(href, role)
     },
   })
 }

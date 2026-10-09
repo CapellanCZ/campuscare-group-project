@@ -13,10 +13,10 @@ import {
 import {
   clearClinicBreak,
   clearStaffBreak,
-  loadMyBreakBundle,
   setClinicBreak,
   setStaffBreak,
 } from "@/features/availability/actions/availability"
+import { loadBreakBundleOnce } from "@/lib/availability/load-break-bundle-client"
 import {
   DUTY_REFRESH_EVENT,
   emitDutyRefresh,
@@ -30,7 +30,6 @@ import {
   getSessionBreakBundle,
   getSessionDutyStatus,
   patchSessionDutyStatus,
-  saveSessionBreakBundle,
 } from "@/lib/availability/session-duty-cache"
 import type { BreakStatus, StaffDutyStatus } from "@/lib/availability/types"
 import type { WebRole } from "@/lib/auth/types"
@@ -88,8 +87,7 @@ export function BreakModeProvider({
 
   const refresh = useCallback(() => {
     if (!canClinic && !canStaff) return
-    void loadMyBreakBundle().then((bundle) => {
-      saveSessionBreakBundle(bundle)
+    void loadBreakBundleOnce().then((bundle) => {
       setClinicBreakState(bundle.clinicBreak)
       setStaffBreakState(bundle.staffBreak)
       setDutyStatus(bundle.dutyStatus)
@@ -99,9 +97,8 @@ export function BreakModeProvider({
   useEffect(() => {
     if (!canClinic && !canStaff) return
     let cancelled = false
-    void loadMyBreakBundle().then((bundle) => {
+    void loadBreakBundleOnce().then((bundle) => {
       if (cancelled) return
-      saveSessionBreakBundle(bundle)
       setClinicBreakState(bundle.clinicBreak)
       setStaffBreakState(bundle.staffBreak)
       setDutyStatus(bundle.dutyStatus)

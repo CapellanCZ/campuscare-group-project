@@ -1,7 +1,5 @@
 "use client"
 
-import { useMemo } from "react"
-
 import { cn } from "@/lib/utils"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { AppHeader } from "@/components/app-header"
@@ -23,12 +21,6 @@ import { StaffThemeController } from "@/components/staff-theme-provider"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { ThemePreference } from "@/lib/theme/staff-theme-storage"
 import { breakModeForRole } from "@/lib/availability/break-mode"
-import {
-  buildStaffFooterNav,
-  buildStaffNavGroups,
-  filterNavGroupsForRole,
-  flattenNavItems,
-} from "@/lib/navigation/staff-nav"
 
 function ShellBody({
   children,
@@ -92,18 +84,15 @@ export function AppShell({
 }) {
   const role = access.primaryRole
   const breakMode = breakModeForRole(role)
-  const prefetchHrefs = useMemo(() => {
-    const groups = filterNavGroupsForRole(role, buildStaffNavGroups(role))
-    const footer = buildStaffFooterNav(role)
-    return flattenNavItems(groups, footer).map((item) => item.path)
-  }, [role])
 
   return (
     <StaffAccessProvider access={access}>
       <StaffThemeController userId={access.userId} initialTheme={initialTheme}>
         <BreakModeProvider mode={breakMode} role={role}>
           <DutyStatusProvider role={role}>
-            <NavPendingProvider prefetchHrefs={prefetchHrefs}>
+            {/* No idle bulk router.prefetch — that pulled every staff RSC
+                (auth + page) after mount. Hover/click still prefetches. */}
+            <NavPendingProvider>
               <StaffRealtimeShell />
               <ShellBody isAdmin={role === "admin"}>{children}</ShellBody>
             </NavPendingProvider>

@@ -29,10 +29,12 @@ function hrefPath(href: string): string {
 
 export function NavPendingProvider({
   children,
-  prefetchHrefs = [],
 }: {
   children: React.ReactNode
-  /** Warm the client router cache for these routes after idle. */
+  /**
+   * @deprecated Unused — idle prefetch of all role routes pulled unused RSCs
+   * on every shell mount. Kept optional for call-site compatibility only.
+   */
   prefetchHrefs?: string[]
 }) {
   const pathname = usePathname()
@@ -53,35 +55,6 @@ export function NavPendingProvider({
   useEffect(() => {
     onPathnameChange(pathname)
   }, [pathname])
-
-  useEffect(() => {
-    if (prefetchHrefs.length === 0) return
-
-    const unique = [...new Set(prefetchHrefs.map(hrefPath))]
-    let cancelled = false
-    const run = () => {
-      if (cancelled) return
-      for (const href of unique) {
-        router.prefetch(href)
-      }
-    }
-
-    let idleHandle: number | ReturnType<typeof setTimeout>
-    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-      idleHandle = window.requestIdleCallback(run, { timeout: 1500 })
-    } else {
-      idleHandle = setTimeout(run, 200)
-    }
-
-    return () => {
-      cancelled = true
-      if (typeof window !== "undefined" && "cancelIdleCallback" in window) {
-        window.cancelIdleCallback(idleHandle as number)
-      } else {
-        clearTimeout(idleHandle as ReturnType<typeof setTimeout>)
-      }
-    }
-  }, [prefetchHrefs, router])
 
   const markPending = useCallback(
     (href: string) => {

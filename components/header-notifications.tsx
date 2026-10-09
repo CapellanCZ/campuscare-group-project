@@ -34,6 +34,12 @@ import {
   getSessionNotifications,
   saveSessionNotifications,
 } from "@/lib/notifications/session-notifications-cache"
+import {
+  clearSessionNotifyPrefs,
+  getSessionNotifyPrefs,
+  getSessionNotifyPrefsOrDefault,
+  saveSessionNotifyPrefs,
+} from "@/lib/notifications/session-prefs-cache"
 import { cn } from "@/lib/utils"
 
 function relativeTime(iso: string) {
@@ -78,50 +84,65 @@ function HeaderNotificationsInbox() {
   const [usingFallback, setUsingFallback] = useState(false)
   const [pending, startTransition] = useTransition()
 
-  const load = useCallback(() => {
-    startTransition(async () => {
-      const [notificationsResult, preferencesResult] = await Promise.all([
-        fetchNotificationsAction(),
-        fetchPreferencesAction(),
-      ])
+  const load = useCallback(
+    (options?: { refreshPrefs?: boolean }) => {
+      startTransition(async () => {
+        const needPrefs =
+          Boolean(options?.refreshPrefs) || getSessionNotifyPrefs() == null
 
-      const preferences = preferencesResult.ok
-        ? preferencesResult.data
-        : {
-            notifyConsultationRequests: true,
-            notifyQueue: true,
-            notifyAnnouncements: true,
-          }
+        const [notificationsResult, preferencesResult] = await Promise.all([
+          fetchNotificationsAction(),
+          needPrefs
+            ? fetchPreferencesAction()
+            : Promise.resolve({ ok: false as const, error: "cached" }),
+        ])
 
-      const live =
-        notificationsResult.ok && notificationsResult.data.length > 0
-          ? notificationsResult.data
-          : buildFallbackNotifications(designation)
+        if (preferencesResult.ok) {
+          saveSessionNotifyPrefs({
+            notifyConsultationRequests:
+              preferencesResult.data.notifyConsultationRequests,
+            notifyQueue: preferencesResult.data.notifyQueue,
+            notifyAnnouncements: preferencesResult.data.notifyAnnouncements,
+          })
+        }
 
-      setUsingFallback(
-        !(notificationsResult.ok && notificationsResult.data.length > 0)
-      )
-      const next = filterNotificationsByPrefs(live, preferences)
-      saveSessionNotifications(next)
-      setItems(next)
-    })
-  }, [designation])
+        const preferences = getSessionNotifyPrefsOrDefault()
+
+        const live =
+          notificationsResult.ok && notificationsResult.data.length > 0
+            ? notificationsResult.data
+            : buildFallbackNotifications(designation)
+
+        setUsingFallback(
+          !(notificationsResult.ok && notificationsResult.data.length > 0)
+        )
+        const next = filterNotificationsByPrefs(live, preferences)
+        saveSessionNotifications(next)
+        setItems(next)
+      })
+    },
+    [designation]
+  )
 
   useStaffRealtimeRefresh(
     userId ? `staff-notifications-${userId}` : "staff-notifications",
     STAFF_REALTIME_TABLES.notifications,
-    load,
+    () => load(),
     300,
     userId ? { notifications: `user_id=eq.${userId}` } : undefined
   )
 
   useEffect(() => {
     load()
-    const id = window.setInterval(load, 300_000)
-    window.addEventListener("campuscare:notification-prefs", load)
+    const id = window.setInterval(() => load(), 300_000)
+    const onPrefs = () => {
+      clearSessionNotifyPrefs()
+      load({ refreshPrefs: true })
+    }
+    window.addEventListener("campuscare:notification-prefs", onPrefs)
     return () => {
       window.clearInterval(id)
-      window.removeEventListener("campuscare:notification-prefs", load)
+      window.removeEventListener("campuscare:notification-prefs", onPrefs)
     }
   }, [load])
 

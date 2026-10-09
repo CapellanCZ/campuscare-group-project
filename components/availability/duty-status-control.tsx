@@ -21,15 +21,14 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   endDutyAction,
-  loadMyBreakBundle,
   startDutyAction,
 } from "@/features/availability/actions/availability"
+import { loadBreakBundleOnce } from "@/lib/availability/load-break-bundle-client"
 import { dutyStatusLabel } from "@/lib/availability/types"
 import type { DutyStatusValue, StaffDutyStatus } from "@/lib/availability/types"
 import {
   getSessionDutyStatus,
   patchSessionDutyStatus,
-  saveSessionBreakBundle,
 } from "@/lib/availability/session-duty-cache"
 import { dutyToasts } from "@/lib/feedback/toast-messages"
 import type { WebRole } from "@/lib/auth/types"
@@ -62,8 +61,7 @@ export function DutyStatusProvider({
 
   const refresh = useCallback(() => {
     if (!clinical) return
-    void loadMyBreakBundle().then((bundle) => {
-      saveSessionBreakBundle(bundle)
+    void loadBreakBundleOnce().then((bundle) => {
       setDutyStatus(bundle.dutyStatus)
     })
   }, [clinical])
@@ -76,9 +74,8 @@ export function DutyStatusProvider({
   useEffect(() => {
     if (!clinical) return
     let cancelled = false
-    void loadMyBreakBundle().then((bundle) => {
+    void loadBreakBundleOnce().then((bundle) => {
       if (cancelled) return
-      saveSessionBreakBundle(bundle)
       setDutyStatus(bundle.dutyStatus)
     })
     return () => {

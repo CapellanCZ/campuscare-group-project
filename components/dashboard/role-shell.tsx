@@ -1,12 +1,9 @@
 "use client"
 
-import { useMemo } from "react"
-
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { RoleSidebar } from "@/components/dashboard/role-sidebar"
 import { RoleHeader } from "@/components/dashboard/role-header"
 import { NavPendingProvider, useNavPending } from "@/components/dashboard/nav-pending"
-import { collectRoleNavHrefs } from "@/lib/navigation/role-nav"
 import type { WebRole } from "@/lib/auth/types"
 
 type RoleShellProps = {
@@ -72,10 +69,8 @@ export function RoleShell({
   staffEmail,
   children,
 }: RoleShellProps) {
-  const prefetchHrefs = useMemo(() => collectRoleNavHrefs(role), [role])
-
   return (
-    <NavPendingProvider prefetchHrefs={prefetchHrefs}>
+    <NavPendingProvider>
       <ShellContent role={role} staffName={staffName} staffEmail={staffEmail}>
         {children}
       </ShellContent>
