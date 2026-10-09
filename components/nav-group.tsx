@@ -21,9 +21,13 @@ import {
 import type { SidebarNavGroup, SidebarNavItem } from "@/components/app-shared"
 import { useOptionalNavPending } from "@/components/dashboard/nav-pending"
 import { useStaffAccess } from "@/components/staff-access-provider"
+import { prefetchAnnouncementsPage } from "@/features/announcements/lib/prefetch-announcements"
+import { prefetchCertificatesPage } from "@/features/certificates/lib/prefetch-certificates"
 import { prefetchConsultationsPage } from "@/features/consultations/lib/prefetch-consultations"
 import { prefetchDashboardPage } from "@/features/dashboard/lib/prefetch-dashboard"
+import { prefetchPatientsPage } from "@/features/patients/lib/prefetch-patients"
 import { prefetchQueuePage } from "@/features/queue/lib/prefetch-queue"
+import { prefetchRequestsPage } from "@/features/requests/lib/prefetch-requests"
 import { IconChevronRight } from "@tabler/icons-react"
 
 function warmRouteData(href: string, role: string | null | undefined) {
@@ -34,6 +38,18 @@ function warmRouteData(href: string, role: string | null | undefined) {
   }
   if (href.includes("/queue") && !href.includes("/display")) {
     prefetchQueuePage(clinicRole)
+  }
+  if (href.includes("/requests")) {
+    prefetchRequestsPage(clinicRole)
+  }
+  if (href.includes("/patients")) {
+    prefetchPatientsPage(clinicRole)
+  }
+  if (href.includes("/certificates")) {
+    prefetchCertificatesPage(clinicRole)
+  }
+  if (href.includes("/announcements")) {
+    prefetchAnnouncementsPage(clinicRole)
   }
   if (
     href.endsWith("/dashboard") ||

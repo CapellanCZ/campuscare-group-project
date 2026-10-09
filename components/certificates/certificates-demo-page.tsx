@@ -61,6 +61,10 @@ import {
   fetchMedicalCertificateStatsAction,
 } from "@/features/certificates/actions"
 import {
+  getCachedCertificates,
+  loadCertificatesBundle,
+} from "@/features/certificates/lib/prefetch-certificates"
+import {
   fetchMedicalDocumentsAction,
   logMedicalDocumentViewAction,
 } from "@/features/medical-documents/actions"
@@ -160,13 +164,16 @@ export function CertificatesPage({
   initialError?: string | null
   hydrateFromCache?: boolean
 }) {
+  const cached = hydrateFromCache
+    ? getCachedCertificates(access.designation)
+    : null
   const [query, setQuery] = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const [page, setPage] = useState(1)
-  const [list, setList] = useState(initialList)
-  const [stats, setStats] = useState(initialStats)
+  const [list, setList] = useState(cached?.list ?? initialList)
+  const [stats, setStats] = useState(cached?.stats ?? initialStats)
   const [loading, setLoading] = useState(
-    () => hydrateFromCache || initialList.items.length === 0
+    () => hydrateFromCache && !cached && initialList.items.length === 0
   )
   const [documentTypeFilter, setDocumentTypeFilter] = useState<
     MedicalDocumentType | "all"
@@ -184,9 +191,8 @@ export function CertificatesPage({
   const [deleting, setDeleting] = useState<MedicalCertificate | null>(null)
   const [printDoc, setPrintDoc] = useState<MedicalDocument | null>(null)
   const [isPending, startTransition] = useTransition()
-  const skipNextFetch = useRef(
-    !hydrateFromCache && initialList.items.length > 0
-  )
+  const skipNextFetch = useRef(true)
+  const hydratedRef = useRef(false)
 
   const d = access.designation
   const isPhysician = d === "physician"
@@ -214,42 +220,71 @@ export function CertificatesPage({
     return () => window.clearTimeout(timer)
   }, [query, debouncedQuery])
 
-  const loadPage = useCallback(async (nextQuery: string, nextPage: number) => {
-    setLoading(true)
-    try {
-      const [listResult, statsResult] = await Promise.all([
-        fetchMedicalDocumentsAction({
-          query: nextQuery,
-          page: nextPage,
-          pageSize: PAGE_SIZE,
-          documentType: documentTypeFilter,
-          status: statusFilter,
-        }),
-        fetchMedicalCertificateStatsAction(),
-      ])
+  const loadPage = useCallback(
+    async (
+      nextQuery: string,
+      nextPage: number,
+      options?: { silent?: boolean }
+    ) => {
+      const silent = Boolean(options?.silent)
+      const isDefault =
+        hydrateFromCache &&
+        !nextQuery.trim() &&
+        nextPage === 1 &&
+        documentTypeFilter === "all" &&
+        statusFilter === "all"
 
-      if (!listResult.ok) {
-        documentToasts.failed(listResult.error)
-        return
-      }
-      if (!statsResult.ok) {
-        documentToasts.failed(statsResult.error)
-        return
-      }
+      if (!silent) setLoading(true)
+      try {
+        if (isDefault) {
+          const bundle = await loadCertificatesBundle(access.designation, {
+            force: true,
+          })
+          setList(bundle.list)
+          setStats(bundle.stats)
+          return
+        }
 
-      setList(listResult.data)
-      setStats(statsResult.data)
-    } catch {
-      documentToasts.failed(
-        "Unable to reach the database. Check your connection and try again."
-      )
-    } finally {
-      setLoading(false)
-    }
-  }, [documentTypeFilter, statusFilter])
+        const [listResult, statsResult] = await Promise.all([
+          fetchMedicalDocumentsAction({
+            query: nextQuery,
+            page: nextPage,
+            pageSize: PAGE_SIZE,
+            documentType: documentTypeFilter,
+            status: statusFilter,
+          }),
+          fetchMedicalCertificateStatsAction(),
+        ])
+
+        if (!listResult.ok) {
+          documentToasts.failed(listResult.error)
+          return
+        }
+        if (!statsResult.ok) {
+          documentToasts.failed(statsResult.error)
+          return
+        }
+
+        setList(listResult.data)
+        setStats(statsResult.data)
+      } catch {
+        documentToasts.failed(
+          "Unable to reach the database. Check your connection and try again."
+        )
+      } finally {
+        setLoading(false)
+      }
+    },
+    [
+      access.designation,
+      documentTypeFilter,
+      hydrateFromCache,
+      statusFilter,
+    ]
+  )
 
   const refresh = useCallback(async () => {
-    await loadPage(debouncedQuery, page)
+    await loadPage(debouncedQuery, page, { silent: true })
   }, [debouncedQuery, page, loadPage])
 
   const { schedule: scheduleRefresh } = useInstantListRefresh(refresh, 400)
@@ -259,6 +294,27 @@ export function CertificatesPage({
     STAFF_REALTIME_TABLES.certificates,
     scheduleRefresh
   )
+
+  useEffect(() => {
+    if (!hydrateFromCache || hydratedRef.current) return
+    hydratedRef.current = true
+    const hit = getCachedCertificates(access.designation)
+    if (hit) {
+      setList(hit.list)
+      setStats(hit.stats)
+      setLoading(false)
+    }
+    void loadCertificatesBundle(access.designation, { force: Boolean(hit) })
+      .then((bundle) => {
+        setList(bundle.list)
+        setStats(bundle.stats)
+        setLoading(false)
+      })
+      .catch(() => {
+        setLoading(false)
+        if (!hit) void loadPage("", 1)
+      })
+  }, [access.designation, hydrateFromCache, loadPage])
 
   useEffect(() => {
     if (skipNextFetch.current) {

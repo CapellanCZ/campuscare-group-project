@@ -207,7 +207,7 @@ export function QueuePage({
     `staff-queue-${access.designation}`,
     STAFF_REALTIME_TABLES.queue,
     () => {
-      staffCacheInvalidate(queueCacheKey(access.designation))
+      // Silent soft refresh — do not flip dataLoading / skeleton.
       void loadQueueBundle(access.designation, { force: true })
         .then((bundle) => {
           setLocalTickets(bundle.tickets)

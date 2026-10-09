@@ -10,7 +10,9 @@ import {
   panelCardClassName,
 } from "@/components/layout/panel-frame"
 import { useOptionalNavPending } from "@/components/dashboard/nav-pending"
+import { useStaffAccess } from "@/components/staff-access-provider"
 import { Skeleton } from "@/components/ui/skeleton"
+import { staffRouteHasWarmCache } from "@/lib/ui/staff-data-cache"
 import {
   Card,
   CardContent,
@@ -358,12 +360,21 @@ function OptimisticRouteShell({ path }: { path: string }) {
 export function StaffNavOutlet({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const navPending = useOptionalNavPending()
+  const { primaryRole, designation } = useStaffAccess()
+  const role = primaryRole ?? designation
   const pendingPath = navPending?.activePath ?? null
+  // Skip optimistic skeleton when session cache already has this route
+  // (including empty lists) — real page paints instantly from cache.
+  const warm =
+    Boolean(pendingPath) &&
+    Boolean(role) &&
+    staffRouteHasWarmCache(pendingPath!, role)
   const showShell =
     Boolean(navPending?.isPending) &&
     Boolean(pendingPath) &&
     pendingPath !== pathname &&
-    !pathname.startsWith(`${pendingPath}/`)
+    !pathname.startsWith(`${pendingPath}/`) &&
+    !warm
 
   if (showShell && pendingPath) {
     return <OptimisticRouteShell path={pendingPath} />

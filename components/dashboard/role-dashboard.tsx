@@ -76,7 +76,6 @@ import { cn } from "@/lib/utils"
 import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
 import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 import { appToast } from "@/lib/feedback/app-toast"
-import { staffCacheInvalidate, dashboardCacheKey } from "@/lib/ui/staff-data-cache"
 
 const KPI_ICONS: Record<
   string,
@@ -167,6 +166,7 @@ export function RoleDashboard({
       applyBundle(setBundle, hit)
       setDataLoading(false)
     }
+    // Soft revalidate never flips dataLoading — avoids skeleton flash on revisit.
     void loadDashboardBundle(access.designation, { force: Boolean(hit) })
       .then((next) => {
         applyBundle(setBundle, next)
@@ -190,7 +190,7 @@ export function RoleDashboard({
     `staff-dashboard-${access.designation}`,
     STAFF_REALTIME_TABLES.dashboard,
     () => {
-      staffCacheInvalidate(dashboardCacheKey(access.designation))
+      // Silent refresh — keep current KPIs visible while updating.
       void loadDashboardBundle(access.designation, { force: true })
         .then((next) => applyBundle(setBundle, next))
         .catch(() => undefined)

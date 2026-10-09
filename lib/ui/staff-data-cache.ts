@@ -80,10 +80,56 @@ export function queueCacheKey(role: string): string {
   return `queue:v1:${role}`
 }
 
+export function requestsCacheKey(role: string): string {
+  return `requests:v1:${role}`
+}
+
+export function patientsCacheKey(role: string): string {
+  return `patients:v1:${role}`
+}
+
+export function certificatesCacheKey(role: string): string {
+  return `certificates:v1:${role}`
+}
+
+export function announcementsCacheKey(role: string): string {
+  return `announcements:v1:${role}`
+}
+
 export function patientHistoryCacheKey(
   patientId: string,
   stationFilter: string,
   documentScope: string
 ): string {
   return `patient-history:v1:${patientId}:${stationFilter}:${documentScope}`
+}
+
+/** True when this route already has a session payload (including empty lists). */
+export function staffRouteHasWarmCache(path: string, role: string): boolean {
+  const parts = path.split("/").filter(Boolean)
+  const segment = parts.length < 2 ? "dashboard" : (parts[1] ?? "dashboard")
+  const kind = segment === "dashboard" ? "dashboard" : segment
+
+  switch (kind) {
+    case "queue":
+      return staffCacheGet(queueCacheKey(role)) != null
+    case "consultations":
+      return staffCacheGet(consultationsCacheKey(role)) != null
+    case "requests":
+      return staffCacheGet(requestsCacheKey(role)) != null
+    case "patients":
+    case "bin":
+      return staffCacheGet(patientsCacheKey(role)) != null
+    case "certificates":
+    case "medical-certificates":
+      return staffCacheGet(certificatesCacheKey(role)) != null
+    case "announcements":
+      return staffCacheGet(announcementsCacheKey(role)) != null
+    case "dashboard":
+    default:
+      if (parts.length < 2 || segment === "dashboard") {
+        return staffCacheGet(dashboardCacheKey(role)) != null
+      }
+      return false
+  }
 }

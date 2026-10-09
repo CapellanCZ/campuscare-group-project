@@ -84,6 +84,11 @@ import {
   searchPatientRecordsAction,
 } from "@/features/patients/actions"
 import { prefetchPatientHistory } from "@/features/patients/lib/prefetch-patient-history"
+import {
+  getCachedPatients,
+  loadPatientsBundle,
+  savePatientsCache,
+} from "@/features/patients/lib/prefetch-patients"
 import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { DemoStat } from "@/lib/demo/types"
@@ -181,6 +186,9 @@ export function PatientsPage({
   initialError?: string | null
   hydrateFromCache?: boolean
 }) {
+  const sessionCached = hydrateFromCache
+    ? getCachedPatients(access.designation)
+    : null
   const [query, setQuery] = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const [patientTypeFilter, setPatientTypeFilter] =
@@ -189,10 +197,11 @@ export function PatientsPage({
     useState<PatientRecordSortColumn>("patient")
   const [sortDirection, setSortDirection] =
     useState<ColumnSortDirection>("asc")
-  const [list, setList] = useState(initialList)
-  const [stats, setStats] = useState(initialStats)
+  const [list, setList] = useState(sessionCached?.list ?? initialList)
+  const [stats, setStats] = useState(sessionCached?.stats ?? initialStats)
   const [loading, setLoading] = useState(
-    () => hydrateFromCache || initialList.items.length === 0
+    () =>
+      hydrateFromCache && !sessionCached && initialList.items.length === 0
   )
   const [medicalPatient, setMedicalPatient] = useState<PatientRecord | null>(
     null
@@ -202,16 +211,17 @@ export function PatientsPage({
   const [documentsPatient, setDocumentsPatient] = useState<PatientRecord | null>(
     null
   )
-  const [page, setPage] = useState(initialList.page ?? 1)
+  const [page, setPage] = useState(
+    () => sessionCached?.list.page ?? initialList.page ?? 1
+  )
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const [selectionScope, setSelectionScope] =
     useState<PatientSelectionScope>("none")
   const [selectingAll, setSelectingAll] = useState(false)
   const [archivePending, setArchivePending] = useState(false)
   const [isPending, startTransition] = useTransition()
-  const skipNextFetch = useRef(
-    !hydrateFromCache && initialList.items.length > 0
-  )
+  const skipNextFetch = useRef(true)
+  const hydratedRef = useRef(false)
   const selectionQueryScopeRef = useRef("")
   const mountedRef = useRef(false)
   const { confirmPreset } = useConfirm()
@@ -307,7 +317,11 @@ export function PatientsPage({
   const loadPage = useCallback(
     async (
       nextPage: number,
-      options: { includeStats?: boolean; force?: boolean } = {}
+      options: {
+        includeStats?: boolean
+        force?: boolean
+        silent?: boolean
+      } = {}
     ) => {
       pageCache.setScope(queryScope)
 
@@ -339,7 +353,7 @@ export function PatientsPage({
         return
       }
 
-      setLoading(true)
+      if (!options.silent) setLoading(true)
       try {
         const listPromise = pageCache.fetchPage(nextPage, fetchListPage, {
           bypassCache: options.force,
@@ -353,6 +367,18 @@ export function PatientsPage({
         setList(data)
         setPage(data.page)
         pageCache.prefetchAdjacent(data.page, data.totalPages, fetchListPage)
+        // Persist default first-page roster for instant revisits.
+        if (
+          hydrateFromCache &&
+          nextPage === 1 &&
+          !debouncedQuery.trim() &&
+          patientTypeFilter === "all"
+        ) {
+          savePatientsCache(access.designation, {
+            list: data,
+            stats,
+          })
+        }
       } catch {
         if (!mountedRef.current) return
         patientToasts.failed(
@@ -362,7 +388,17 @@ export function PatientsPage({
         if (mountedRef.current) setLoading(false)
       }
     },
-    [fetchListPage, pageCache, queryScope, refreshStats]
+    [
+      access.designation,
+      debouncedQuery,
+      fetchListPage,
+      hydrateFromCache,
+      pageCache,
+      patientTypeFilter,
+      queryScope,
+      refreshStats,
+      stats,
+    ]
   )
 
   const refresh = useCallback(() => {
@@ -384,16 +420,47 @@ export function PatientsPage({
   }, [loadPage, pageCache])
 
   useEffect(() => {
+    if (!hydrateFromCache || hydratedRef.current) return
+    hydratedRef.current = true
+    const hit = getCachedPatients(access.designation)
+    if (hit) {
+      setList(hit.list)
+      setStats(hit.stats)
+      setPage(hit.list.page)
+      setLoading(false)
+      pageCache.setScope(queryScope)
+      pageCache.put(hit.list)
+    }
+    void loadPatientsBundle(access.designation, { force: Boolean(hit) })
+      .then((bundle) => {
+        if (!mountedRef.current) return
+        setList(bundle.list)
+        setStats(bundle.stats)
+        setPage(bundle.list.page)
+        setLoading(false)
+        pageCache.setScope(queryScope)
+        pageCache.put(bundle.list)
+      })
+      .catch(() => {
+        if (!mountedRef.current) return
+        setLoading(false)
+        if (!hit) void loadPage(1, { includeStats: true })
+      })
+  }, [access.designation, hydrateFromCache, loadPage, pageCache, queryScope])
+
+  useEffect(() => {
     if (skipNextFetch.current) {
       skipNextFetch.current = false
-      // Prefetch neighbors for SSR first page immediately.
-      pageCache.setScope(queryScope)
-      pageCache.put(initialList)
-      pageCache.prefetchAdjacent(
-        initialList.page,
-        initialList.totalPages,
-        fetchListPage
-      )
+      const seed = sessionCached?.list ?? initialList
+      if (seed.items.length > 0 || sessionCached) {
+        pageCache.setScope(queryScope)
+        pageCache.put(seed)
+        pageCache.prefetchAdjacent(
+          seed.page,
+          seed.totalPages,
+          fetchListPage
+        )
+      }
       selectionQueryScopeRef.current = queryScope
       return
     }
@@ -406,14 +473,22 @@ export function PatientsPage({
       return "none"
     })
     void loadPage(page)
-  }, [fetchListPage, initialList, loadPage, page, pageCache, queryScope])
+  }, [
+    fetchListPage,
+    initialList,
+    loadPage,
+    page,
+    pageCache,
+    queryScope,
+    sessionCached,
+  ])
 
   useStaffRealtimeRefresh(
     `staff-patients-${access.designation}`,
     STAFF_REALTIME_TABLES.patients,
     () => {
       pageCache.invalidate()
-      void loadPage(page, { includeStats: true, force: true })
+      void loadPage(page, { includeStats: true, force: true, silent: true })
     },
     500
   )

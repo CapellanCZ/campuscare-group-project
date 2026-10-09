@@ -55,6 +55,10 @@ import {
   searchAnnouncementsAction,
 } from "@/features/announcements/actions"
 import {
+  getCachedAnnouncements,
+  loadAnnouncementsBundle,
+} from "@/features/announcements/lib/prefetch-announcements"
+import {
   announcementStatusLabel,
   formatAnnouncementDateTime,
 } from "@/features/announcements/lib/format"
@@ -160,17 +164,22 @@ export function AnnouncementsPage({
   hydrateFromCache?: boolean
 }) {
   const { confirmPreset } = useConfirm()
+  const cached = hydrateFromCache
+    ? getCachedAnnouncements(access.designation)
+    : null
   const [query, setQuery] = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
   const [page, setPage] = useState(1)
-  const [feed, setFeed] = useState(initialFeed)
-  const [list, setList] = useState(initialList)
-  const [stats, setStats] = useState(initialStats)
+  const [feed, setFeed] = useState(cached?.feed ?? initialFeed)
+  const [list, setList] = useState(cached?.list ?? initialList)
+  const [stats, setStats] = useState(cached?.stats ?? initialStats)
   const [loading, setLoading] = useState(
     () =>
-      hydrateFromCache ||
-      (initialFeed.items.length === 0 && initialList.items.length === 0)
+      hydrateFromCache &&
+      !cached &&
+      initialFeed.items.length === 0 &&
+      initialList.items.length === 0
   )
   const [selected, setSelected] = useState<Announcement | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -182,10 +191,8 @@ export function AnnouncementsPage({
   const [deleting, setDeleting] = useState<Announcement | null>(null)
   const [isPending, startTransition] = useTransition()
   const [showAllFeed, setShowAllFeed] = useState(false)
-  const skipNextFetch = useRef(
-    !hydrateFromCache &&
-      (initialFeed.items.length > 0 || initialList.items.length > 0)
-  )
+  const skipNextFetch = useRef(true)
+  const hydratedRef = useRef(false)
 
   const d = access.designation
   const isPhysician = d === "physician"
@@ -212,10 +219,29 @@ export function AnnouncementsPage({
     async (
       nextQuery: string,
       nextPage: number,
-      nextStatus: StatusFilter = statusFilter
+      nextStatus: StatusFilter = statusFilter,
+      options?: { silent?: boolean }
     ) => {
-      setLoading(true)
+      const silent = Boolean(options?.silent)
+      const isDefault =
+        hydrateFromCache &&
+        !nextQuery.trim() &&
+        nextPage === 1 &&
+        nextStatus === "all" &&
+        !showAllFeed
+
+      if (!silent) setLoading(true)
       try {
+        if (isDefault) {
+          const bundle = await loadAnnouncementsBundle(access.designation, {
+            force: true,
+          })
+          setFeed(bundle.feed)
+          if (canManage) setList(bundle.list)
+          setStats(bundle.stats)
+          return
+        }
+
         const feedPromise = searchAnnouncementsAction(nextQuery, {
           page: 1,
           pageSize: showAllFeed ? 48 : FEED_PAGE_SIZE,
@@ -271,11 +297,17 @@ export function AnnouncementsPage({
         setLoading(false)
       }
     },
-    [statusFilter, canManage, showAllFeed]
+    [
+      access.designation,
+      canManage,
+      hydrateFromCache,
+      showAllFeed,
+      statusFilter,
+    ]
   )
 
   const refresh = useCallback(async () => {
-    await loadPage(debouncedQuery, page, statusFilter)
+    await loadPage(debouncedQuery, page, statusFilter, { silent: true })
   }, [debouncedQuery, page, statusFilter, loadPage])
 
   const { schedule: scheduleRefresh } = useInstantListRefresh(refresh, 400)
@@ -310,6 +342,29 @@ export function AnnouncementsPage({
       }
     })
   }
+
+  useEffect(() => {
+    if (!hydrateFromCache || hydratedRef.current) return
+    hydratedRef.current = true
+    const hit = getCachedAnnouncements(access.designation)
+    if (hit) {
+      setFeed(hit.feed)
+      setList(hit.list)
+      setStats(hit.stats)
+      setLoading(false)
+    }
+    void loadAnnouncementsBundle(access.designation, { force: Boolean(hit) })
+      .then((bundle) => {
+        setFeed(bundle.feed)
+        setList(bundle.list)
+        setStats(bundle.stats)
+        setLoading(false)
+      })
+      .catch(() => {
+        setLoading(false)
+        if (!hit) void loadPage("", 1, "all")
+      })
+  }, [access.designation, hydrateFromCache, loadPage])
 
   useEffect(() => {
     if (skipNextFetch.current) {

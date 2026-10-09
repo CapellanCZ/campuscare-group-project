@@ -46,6 +46,11 @@ import {
   fetchConsultationRequestStatsAction,
   fetchConsultationRequestsAction,
 } from "@/features/requests/actions"
+import {
+  getCachedRequests,
+  loadRequestsBundle,
+  saveRequestsCache,
+} from "@/features/requests/lib/prefetch-requests"
 import { consultationRequestStatusLabel } from "@/features/requests/lib/format"
 import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
@@ -113,19 +118,21 @@ export function RequestsPage({
   hydrateFromCache?: boolean
 }) {
   const isNurse = access.designation === "nurse"
+  const cached = hydrateFromCache
+    ? getCachedRequests(access.designation)
+    : null
   const [query, setQuery] = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const [status, setStatus] = useState<string>("all")
-  const [list, setList] = useState(initialList)
-  const [stats, setStats] = useState(initialStats)
+  const [list, setList] = useState(cached?.list ?? initialList)
+  const [stats, setStats] = useState(cached?.stats ?? initialStats)
   const [loading, setLoading] = useState(
-    () => hydrateFromCache || initialList.items.length === 0
+    () => hydrateFromCache && !cached && initialList.items.length === 0
   )
   const [selected, setSelected] = useState<AppointmentRequest | null>(null)
   const [dialogMode, setDialogMode] = useState<RequestDialogMode | null>(null)
-  const skipNextFetch = useRef(
-    !hydrateFromCache && initialList.items.length > 0
-  )
+  const skipNextFetch = useRef(true)
+  const hydratedRef = useRef(false)
   const detailRequestId = useRef<string | null>(null)
 
   const canApprove = can(access.designation, "requests.approve")
@@ -147,9 +154,26 @@ export function RequestsPage({
   }, [query, debouncedQuery])
 
   const loadPage = useCallback(
-    async (nextQuery: string, nextStatus: string) => {
-      setLoading(true)
+    async (
+      nextQuery: string,
+      nextStatus: string,
+      options?: { silent?: boolean }
+    ) => {
+      const silent = Boolean(options?.silent)
+      const isDefault =
+        !nextQuery.trim() && nextStatus === "all" && hydrateFromCache
+
+      if (!silent) setLoading(true)
       try {
+        if (isDefault) {
+          const bundle = await loadRequestsBundle(access.designation, {
+            force: true,
+          })
+          setList(bundle.list)
+          setStats(bundle.stats)
+          return
+        }
+
         const [listResult, statsResult] = await Promise.all([
           fetchConsultationRequestsAction({
             query: nextQuery,
@@ -176,6 +200,12 @@ export function RequestsPage({
         }
         setList(listResult.data)
         setStats(statsResult.data)
+        if (isDefault) {
+          saveRequestsCache(access.designation, {
+            list: listResult.data,
+            stats: statsResult.data,
+          })
+        }
       } catch {
         requestToasts.failed(
           "Unable to reach the database. Check your connection and try again."
@@ -184,11 +214,11 @@ export function RequestsPage({
         setLoading(false)
       }
     },
-    [isNurse]
+    [access.designation, hydrateFromCache, isNurse]
   )
 
   const refresh = useCallback(async () => {
-    await loadPage(debouncedQuery, status)
+    await loadPage(debouncedQuery, status, { silent: true })
   }, [debouncedQuery, status, loadPage])
 
   const { schedule: scheduleRefresh } = useInstantListRefresh(refresh, 400)
@@ -198,6 +228,27 @@ export function RequestsPage({
     STAFF_REALTIME_TABLES.requests,
     scheduleRefresh
   )
+
+  useEffect(() => {
+    if (!hydrateFromCache || hydratedRef.current) return
+    hydratedRef.current = true
+    const hit = getCachedRequests(access.designation)
+    if (hit) {
+      setList(hit.list)
+      setStats(hit.stats)
+      setLoading(false)
+    }
+    void loadRequestsBundle(access.designation, { force: Boolean(hit) })
+      .then((bundle) => {
+        setList(bundle.list)
+        setStats(bundle.stats)
+        setLoading(false)
+      })
+      .catch(() => {
+        setLoading(false)
+        if (!hit) void loadPage("", "all")
+      })
+  }, [access.designation, hydrateFromCache, loadPage])
 
   useEffect(() => {
     if (skipNextFetch.current) {
