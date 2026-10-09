@@ -14,6 +14,7 @@ import {
   listArchivedDirectoryPatientRecords,
   listDirectoryPatientRecords,
   listEnrolledPatientOptions,
+  listMatchingPatientRecordIds,
 } from "@/lib/students/directory"
 import {
   ensurePatientFromStudentId,
@@ -424,6 +425,21 @@ export async function archivePatientRecordsAction(
   if (!auth.ok) return auth
   try {
     const data = await archivePatientRecords(ids)
+    return { ok: true, data }
+  } catch (error) {
+    return toErrorResult(error)
+  }
+}
+
+export async function listMatchingPatientRecordIdsAction(
+  params: Omit<PatientRecordListParams, "page" | "pageSize"> & {
+    archived?: boolean
+  } = {}
+): Promise<PatientRecordActionResult<string[]>> {
+  const auth = await requirePatientAccess("patients.search")
+  if (!auth.ok) return auth
+  try {
+    const data = await listMatchingPatientRecordIds(params)
     return { ok: true, data }
   } catch (error) {
     return toErrorResult(error)

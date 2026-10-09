@@ -24,8 +24,14 @@ import {
 import {
   deleteArchivedPatientRecordsAction,
   listArchivedPatientRecordsAction,
+  listMatchingPatientRecordIdsAction,
 } from "@/features/patients/actions"
 import { useCachedPatientPages } from "@/features/patients/hooks/use-cached-patient-pages"
+import {
+  PatientSelectAllBanner,
+  PatientSelectScopeControl,
+  type PatientSelectionScope,
+} from "@/components/patients/patient-select-scope-control"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -120,9 +126,13 @@ export function PatientsBinPage({
   const [page, setPage] = useState(initialList.page ?? 1)
   const [loading, setLoading] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
+  const [selectionScope, setSelectionScope] =
+    useState<PatientSelectionScope>("none")
+  const [selectingAll, setSelectingAll] = useState(false)
   const [deletePending, setDeletePending] = useState(false)
   const [isPending, startTransition] = useTransition()
   const skipNextFetch = useRef(true)
+  const selectionQueryScopeRef = useRef("")
   const mountedRef = useRef(false)
   const pageCache = useCachedPatientPages()
 
@@ -242,9 +252,16 @@ export function PatientsBinPage({
         initialList.totalPages,
         fetchListPage
       )
+      selectionQueryScopeRef.current = queryScope
       return
     }
-    setSelectedIds(new Set())
+    const filtersChanged = selectionQueryScopeRef.current !== queryScope
+    selectionQueryScopeRef.current = queryScope
+    setSelectionScope((current) => {
+      if (current === "all" && !filtersChanged) return current
+      setSelectedIds(new Set())
+      return "none"
+    })
     void loadPage(page)
   }, [fetchListPage, initialList, loadPage, page, pageCache, queryScope])
 
@@ -284,6 +301,7 @@ export function PatientsBinPage({
     selectedVisibleCount > 0 && !allVisibleSelected
 
   function toggleRow(patientId: string, checked: boolean) {
+    setSelectionScope("none")
     setSelectedIds((prev) => {
       const next = new Set(prev)
       if (checked) next.add(patientId)
@@ -292,19 +310,34 @@ export function PatientsBinPage({
     })
   }
 
-  function toggleSelectAll(checked: boolean) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (checked) {
-        for (const id of visibleIds) next.add(id)
-      } else {
-        for (const id of visibleIds) next.delete(id)
+  function selectCurrentPage() {
+    setSelectionScope("page")
+    setSelectedIds(new Set(visibleIds))
+  }
+
+  async function selectAllMatching() {
+    if (selectingAll) return
+    setSelectingAll(true)
+    try {
+      const result = await listMatchingPatientRecordIdsAction({
+        query: debouncedQuery,
+        sortBy: sortColumn,
+        sortDir: activeSortDir,
+        archived: true,
+      })
+      if (!result.ok) {
+        patientToasts.failed(result.error)
+        return
       }
-      return next
-    })
+      setSelectionScope("all")
+      setSelectedIds(new Set(result.data))
+    } finally {
+      setSelectingAll(false)
+    }
   }
 
   function clearSelection() {
+    setSelectionScope("none")
     setSelectedIds(new Set())
   }
 
@@ -358,7 +391,11 @@ export function PatientsBinPage({
   function requestDeleteSelected() {
     const ids = [...selectedIds]
     const noun = ids.length === 1 ? "patient record" : "patient records"
-    permanentlyDelete(ids, `${ids.length} archived ${noun}`)
+    const label =
+      selectionScope === "all"
+        ? `all ${ids.length} matching archived ${noun}`
+        : `${ids.length} archived ${noun}`
+    permanentlyDelete(ids, label)
   }
 
   const { showInitialSkeleton, isRefreshing } = staleListBusy(
@@ -404,7 +441,11 @@ export function PatientsBinPage({
                 <span className="font-medium tabular-nums">
                   {selectedIds.size}
                 </span>{" "}
-                selected
+                {selectionScope === "all"
+                  ? "matching patients selected"
+                  : selectionScope === "page"
+                    ? "on this page selected"
+                    : "selected"}
               </p>
               <div className="flex flex-wrap gap-2">
                 {canDelete ? (
@@ -412,7 +453,7 @@ export function PatientsBinPage({
                     type="button"
                     size="sm"
                     variant="outline"
-                    disabled={deletePending}
+                    disabled={deletePending || selectingAll}
                     onClick={requestDeleteSelected}
                   >
                     Delete
@@ -422,7 +463,7 @@ export function PatientsBinPage({
                   type="button"
                   size="sm"
                   variant="ghost"
-                  disabled={deletePending}
+                  disabled={deletePending || selectingAll}
                   onClick={clearSelection}
                 >
                   Clear
@@ -430,6 +471,17 @@ export function PatientsBinPage({
               </div>
             </div>
           ) : null}
+          <PatientSelectAllBanner
+            pageCount={visibleIds.length}
+            totalMatching={list.total}
+            scope={selectionScope}
+            selectingAll={selectingAll}
+            noun="archived patients"
+            onSelectAllMatching={() => {
+              void selectAllMatching()
+            }}
+            onClear={clearSelection}
+          />
 
           <CardContent className="min-w-0 p-0">
             {showInitialSkeleton ? (
@@ -459,19 +511,21 @@ export function PatientsBinPage({
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
-                      <TableHead className="h-12 w-12 px-4">
-                        <Checkbox
-                          checked={allVisibleSelected}
-                          indeterminate={someVisibleSelected}
-                          disabled={rows.length === 0}
-                          onCheckedChange={(value) =>
-                            toggleSelectAll(!!value)
-                          }
-                          aria-label={
-                            allVisibleSelected
-                              ? "Deselect all archived patients"
-                              : "Select all archived patients"
-                          }
+                      <TableHead className="h-12 w-14 px-3">
+                        <PatientSelectScopeControl
+                          pageCount={visibleIds.length}
+                          totalMatching={list.total}
+                          scope={selectionScope}
+                          allPageSelected={allVisibleSelected}
+                          somePageSelected={someVisibleSelected}
+                          selectingAll={selectingAll}
+                          disabled={deletePending}
+                          noun="archived patients"
+                          onSelectPage={selectCurrentPage}
+                          onSelectAllMatching={() => {
+                            void selectAllMatching()
+                          }}
+                          onClear={clearSelection}
                         />
                       </TableHead>
                       <TableHead className="h-12 px-4">

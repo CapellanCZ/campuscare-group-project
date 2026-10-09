@@ -58,6 +58,59 @@ function isCampusIdSearchQuery(query: string): boolean {
   return digits.length / compact.length >= 0.7
 }
 
+/** Shared text / type filters for directory list + matching-id queries. */
+function applyDirectoryFilters<
+  T extends {
+    eq: (column: string, value: string) => T
+    or: (filters: string) => T
+  },
+>(
+  directoryQuery: T,
+  params: Pick<PatientRecordListParams, "query" | "patientType">
+): T {
+  let next = directoryQuery
+  const patientTypeFilter = params.patientType ?? "all"
+  const query = (params.query ?? "").trim()
+
+  if (patientTypeFilter !== "all") {
+    next = next.eq("patient_type", patientTypeFilter)
+  }
+
+  if (!query) return next
+
+  if (isCampusIdSearchQuery(query)) {
+    const filters = directoryIdSearchTerms(query).flatMap((term) => [
+      `student_id.ilike.%${term}%`,
+      `employee_id.ilike.%${term}%`,
+    ])
+    if (filters.length > 0) {
+      next = next.or(filters.join(","))
+    }
+    return next
+  }
+
+  const tokens = query
+    .split(/\s+/)
+    .map(sanitizeDirectorySearchTerm)
+    .filter((token) => token.length >= 1)
+  for (const token of tokens.length > 0
+    ? tokens
+    : [sanitizeDirectorySearchTerm(query)]) {
+    if (!token) continue
+    next = next.or(
+      [
+        `first_name.ilike.%${token}%`,
+        `middle_name.ilike.%${token}%`,
+        `last_name.ilike.%${token}%`,
+        `student_id.ilike.%${token}%`,
+        `employee_id.ilike.%${token}%`,
+        `course.ilike.%${token}%`,
+      ].join(",")
+    )
+  }
+  return next
+}
+
 function directoryIdSearchTerms(query: string): string[] {
   const trimmed = query.trim()
   const digits = studentIdDigits(trimmed)
@@ -215,47 +268,15 @@ export async function listDirectoryPatientRecords(
           ? "last_visit"
           : "last_name"
 
-  let directoryQuery = supabase
-    .from("patient_records")
-    .select(`${PATIENT_RECORD_SELECT_COLUMNS}, consultations(count)`, {
-      count: "exact",
-    })
-    .is("archived_at", null)
-
-  if (patientTypeFilter !== "all") {
-    directoryQuery = directoryQuery.eq("patient_type", patientTypeFilter)
-  }
-
-  if (query) {
-    if (isCampusIdSearchQuery(query)) {
-      const filters = directoryIdSearchTerms(query).flatMap((term) => [
-        `student_id.ilike.%${term}%`,
-        `employee_id.ilike.%${term}%`,
-      ])
-      if (filters.length > 0) {
-        directoryQuery = directoryQuery.or(filters.join(","))
-      }
-    } else {
-      // Tokenized name/course search: each token must match (AND of ORs).
-      const tokens = query
-        .split(/\s+/)
-        .map(sanitizeDirectorySearchTerm)
-        .filter((token) => token.length >= 1)
-      for (const token of tokens.length > 0 ? tokens : [sanitizeDirectorySearchTerm(query)]) {
-        if (!token) continue
-        directoryQuery = directoryQuery.or(
-          [
-            `first_name.ilike.%${token}%`,
-            `middle_name.ilike.%${token}%`,
-            `last_name.ilike.%${token}%`,
-            `student_id.ilike.%${token}%`,
-            `employee_id.ilike.%${token}%`,
-            `course.ilike.%${token}%`,
-          ].join(",")
-        )
-      }
-    }
-  }
+  const directoryQuery = applyDirectoryFilters(
+    supabase
+      .from("patient_records")
+      .select(`${PATIENT_RECORD_SELECT_COLUMNS}, consultations(count)`, {
+        count: "exact",
+      })
+      .is("archived_at", null),
+    { query, patientType: patientTypeFilter }
+  )
 
   const { data, error, count } = await directoryQuery
     .order(sortColumn, { ascending: sortDir === "asc", nullsFirst: false })
@@ -367,46 +388,15 @@ export async function listArchivedDirectoryPatientRecords(
           ? "last_visit"
           : "last_name"
 
-  let directoryQuery = supabase
-    .from("patient_records")
-    .select(`${PATIENT_RECORD_SELECT_COLUMNS}, consultations(count)`, {
-      count: "exact",
-    })
-    .not("archived_at", "is", null)
-
-  if (patientTypeFilter !== "all") {
-    directoryQuery = directoryQuery.eq("patient_type", patientTypeFilter)
-  }
-
-  if (query) {
-    if (isCampusIdSearchQuery(query)) {
-      const filters = directoryIdSearchTerms(query).flatMap((term) => [
-        `student_id.ilike.%${term}%`,
-        `employee_id.ilike.%${term}%`,
-      ])
-      if (filters.length > 0) {
-        directoryQuery = directoryQuery.or(filters.join(","))
-      }
-    } else {
-      const tokens = query
-        .split(/\s+/)
-        .map(sanitizeDirectorySearchTerm)
-        .filter((token) => token.length >= 1)
-      for (const token of tokens.length > 0 ? tokens : [sanitizeDirectorySearchTerm(query)]) {
-        if (!token) continue
-        directoryQuery = directoryQuery.or(
-          [
-            `first_name.ilike.%${token}%`,
-            `middle_name.ilike.%${token}%`,
-            `last_name.ilike.%${token}%`,
-            `student_id.ilike.%${token}%`,
-            `employee_id.ilike.%${token}%`,
-            `course.ilike.%${token}%`,
-          ].join(",")
-        )
-      }
-    }
-  }
+  const directoryQuery = applyDirectoryFilters(
+    supabase
+      .from("patient_records")
+      .select(`${PATIENT_RECORD_SELECT_COLUMNS}, consultations(count)`, {
+        count: "exact",
+      })
+      .not("archived_at", "is", null),
+    { query, patientType: patientTypeFilter }
+  )
 
   const { data, error, count } = await directoryQuery
     .order("archived_at", { ascending: false, nullsFirst: false })
@@ -443,6 +433,52 @@ export async function listArchivedDirectoryPatientRecords(
     pageSize,
     totalPages,
   }
+}
+
+/**
+ * IDs for every patient matching the current directory filters (active or bin).
+ * Used for “Select all matching” archive / permanent-delete.
+ */
+export async function listMatchingPatientRecordIds(
+  params: Omit<PatientRecordListParams, "page" | "pageSize"> & {
+    archived?: boolean
+  } = {},
+  client?: SupabaseClient
+): Promise<string[]> {
+  const supabase = client ?? (await createClient())
+  const archived = Boolean(params.archived)
+  const ids: string[] = []
+  const pageSize = 1000
+  let from = 0
+
+  for (;;) {
+    let pageQuery = supabase.from("patient_records").select("id")
+    pageQuery = archived
+      ? pageQuery.not("archived_at", "is", null)
+      : pageQuery.is("archived_at", null)
+    pageQuery = applyDirectoryFilters(pageQuery, {
+      query: params.query,
+      patientType: params.patientType,
+    })
+
+    const { data, error } = await pageQuery
+      .order("id", { ascending: true })
+      .range(from, from + pageSize - 1)
+
+    if (error) {
+      throw new PatientRecordServiceError(
+        "database",
+        error.message || "Could not load matching patient ids."
+      )
+    }
+
+    const batch = ((data ?? []) as Array<{ id: string }>).map((row) => row.id)
+    ids.push(...batch)
+    if (batch.length < pageSize) break
+    from += pageSize
+  }
+
+  return ids
 }
 
 export async function getDirectoryPatientRecordStats(

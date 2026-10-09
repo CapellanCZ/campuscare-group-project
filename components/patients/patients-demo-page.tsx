@@ -23,6 +23,11 @@ import { PatientImportSheet } from "@/components/patients/patient-import-sheet"
 import { PatientMedicalSheet } from "@/components/patients/patient-medical-sheet"
 import { PatientProfileSheet } from "@/components/patients/patient-profile-sheet"
 import {
+  PatientSelectAllBanner,
+  PatientSelectScopeControl,
+  type PatientSelectionScope,
+} from "@/components/patients/patient-select-scope-control"
+import {
   clinicalScopeForDesignation,
   historyStationFilterForDesignation,
 } from "@/lib/clinical/record-scope"
@@ -75,6 +80,7 @@ import {
   archivePatientRecordsAction,
   ensurePatientRecordAction,
   fetchPatientRecordStatsAction,
+  listMatchingPatientRecordIdsAction,
   searchPatientRecordsAction,
 } from "@/features/patients/actions"
 import { prefetchPatientHistory } from "@/features/patients/lib/prefetch-patient-history"
@@ -194,9 +200,13 @@ export function PatientsPage({
   )
   const [page, setPage] = useState(initialList.page ?? 1)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
+  const [selectionScope, setSelectionScope] =
+    useState<PatientSelectionScope>("none")
+  const [selectingAll, setSelectingAll] = useState(false)
   const [archivePending, setArchivePending] = useState(false)
   const [isPending, startTransition] = useTransition()
   const skipNextFetch = useRef(true)
+  const selectionQueryScopeRef = useRef("")
   const mountedRef = useRef(false)
   const { confirmPreset } = useConfirm()
   const router = useRouter()
@@ -360,6 +370,7 @@ export function PatientsPage({
   // Realtime + post-import: jump to page 1 so new roster rows are visible.
   const refreshAfterImport = useCallback(() => {
     pageCache.invalidate()
+    setSelectionScope("none")
     setSelectedIds(new Set())
     setPage(1)
     startTransition(() => {
@@ -378,9 +389,17 @@ export function PatientsPage({
         initialList.totalPages,
         fetchListPage
       )
+      selectionQueryScopeRef.current = queryScope
       return
     }
-    setSelectedIds(new Set())
+    const filtersChanged = selectionQueryScopeRef.current !== queryScope
+    selectionQueryScopeRef.current = queryScope
+    setSelectionScope((current) => {
+      // Keep “select all matching” while paging the same filter set.
+      if (current === "all" && !filtersChanged) return current
+      setSelectedIds(new Set())
+      return "none"
+    })
     void loadPage(page)
   }, [fetchListPage, initialList, loadPage, page, pageCache, queryScope])
 
@@ -483,6 +502,7 @@ export function PatientsPage({
     selectedVisibleCount > 0 && !allVisibleSelected
 
   function toggleRow(patientId: string, checked: boolean) {
+    setSelectionScope("none")
     setSelectedIds((prev) => {
       const next = new Set(prev)
       if (checked) next.add(patientId)
@@ -491,19 +511,35 @@ export function PatientsPage({
     })
   }
 
-  function toggleSelectAll(checked: boolean) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (checked) {
-        for (const id of visibleIds) next.add(id)
-      } else {
-        for (const id of visibleIds) next.delete(id)
+  function selectCurrentPage() {
+    setSelectionScope("page")
+    setSelectedIds(new Set(visibleIds))
+  }
+
+  async function selectAllMatching() {
+    if (selectingAll) return
+    setSelectingAll(true)
+    try {
+      const result = await listMatchingPatientRecordIdsAction({
+        query: debouncedQuery,
+        patientType: patientTypeFilter,
+        sortBy: sortColumn,
+        sortDir: activeSortDir,
+        archived: false,
+      })
+      if (!result.ok) {
+        patientToasts.failed(result.error)
+        return
       }
-      return next
-    })
+      setSelectionScope("all")
+      setSelectedIds(new Set(result.data))
+    } finally {
+      setSelectingAll(false)
+    }
   }
 
   function clearSelection() {
+    setSelectionScope("none")
     setSelectedIds(new Set())
   }
 
@@ -511,10 +547,14 @@ export function PatientsPage({
     const ids = [...selectedIds]
     if (ids.length === 0 || archivePending) return
     const noun = ids.length === 1 ? "patient" : "patients"
+    const scopeNote =
+      selectionScope === "all"
+        ? ` all ${ids.length} matching ${noun}`
+        : ` ${ids.length} selected ${noun}`
 
     void confirmPreset("archive", {
       title: ids.length === 1 ? "Archive Patient?" : "Archive Patients?",
-      description: `Move ${ids.length} selected ${noun} to Bin? They will leave the active directory until permanently deleted.`,
+      description: `Move${scopeNote} to Bin? They will leave the active directory until permanently deleted.`,
       confirmLabel: "Archive",
       onConfirm: async () => {
         setArchivePending(true)
@@ -653,7 +693,11 @@ export function PatientsPage({
               <span className="font-medium tabular-nums">
                 {selectedIds.size}
               </span>{" "}
-              selected
+              {selectionScope === "all"
+                ? "matching patients selected"
+                : selectionScope === "page"
+                  ? "on this page selected"
+                  : "selected"}
             </p>
             <div className="flex flex-wrap gap-2">
               {canArchive ? (
@@ -661,7 +705,7 @@ export function PatientsPage({
                   type="button"
                   size="sm"
                   variant="outline"
-                  disabled={archivePending}
+                  disabled={archivePending || selectingAll}
                   onClick={requestArchiveSelected}
                 >
                   Archive
@@ -671,7 +715,7 @@ export function PatientsPage({
                 type="button"
                 size="sm"
                 variant="ghost"
-                disabled={archivePending}
+                disabled={archivePending || selectingAll}
                 onClick={clearSelection}
               >
                 Clear
@@ -679,6 +723,16 @@ export function PatientsPage({
             </div>
           </div>
         ) : null}
+        <PatientSelectAllBanner
+          pageCount={visibleIds.length}
+          totalMatching={list.total}
+          scope={selectionScope}
+          selectingAll={selectingAll}
+          onSelectAllMatching={() => {
+            void selectAllMatching()
+          }}
+          onClear={clearSelection}
+        />
 
         <CardContent className="min-w-0 p-0">
           {showInitialSkeleton ? (
@@ -704,17 +758,20 @@ export function PatientsPage({
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="h-12 w-12 px-4">
-                    <Checkbox
-                      checked={allVisibleSelected}
-                      indeterminate={someVisibleSelected}
-                      disabled={rows.length === 0}
-                      onCheckedChange={(value) => toggleSelectAll(!!value)}
-                      aria-label={
-                        allVisibleSelected
-                          ? "Deselect all visible patients"
-                          : "Select all visible patients"
-                      }
+                  <TableHead className="h-12 w-14 px-3">
+                    <PatientSelectScopeControl
+                      pageCount={visibleIds.length}
+                      totalMatching={list.total}
+                      scope={selectionScope}
+                      allPageSelected={allVisibleSelected}
+                      somePageSelected={someVisibleSelected}
+                      selectingAll={selectingAll}
+                      disabled={archivePending}
+                      onSelectPage={selectCurrentPage}
+                      onSelectAllMatching={() => {
+                        void selectAllMatching()
+                      }}
+                      onClear={clearSelection}
                     />
                   </TableHead>
                   <TableHead className="h-12 px-4">
