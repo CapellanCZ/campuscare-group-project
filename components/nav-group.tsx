@@ -23,6 +23,7 @@ import { useOptionalNavPending } from "@/components/dashboard/nav-pending"
 import { useStaffAccess } from "@/components/staff-access-provider"
 import { prefetchConsultationsPage } from "@/features/consultations/lib/prefetch-consultations"
 import { prefetchDashboardPage } from "@/features/dashboard/lib/prefetch-dashboard"
+import { prefetchQueuePage } from "@/features/queue/lib/prefetch-queue"
 import { IconChevronRight } from "@tabler/icons-react"
 
 function warmRouteData(href: string, role: string | null | undefined) {
@@ -30,6 +31,9 @@ function warmRouteData(href: string, role: string | null | undefined) {
   const clinicRole = role as "nurse" | "physician" | "dentist" | "admin"
   if (href.includes("/consultations")) {
     prefetchConsultationsPage(clinicRole)
+  }
+  if (href.includes("/queue") && !href.includes("/display")) {
+    prefetchQueuePage(clinicRole)
   }
   if (
     href.endsWith("/dashboard") ||

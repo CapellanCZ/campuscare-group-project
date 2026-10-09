@@ -76,6 +76,10 @@ export function dashboardCacheKey(role: string): string {
   return `dashboard:v1:${role}`
 }
 
+export function queueCacheKey(role: string): string {
+  return `queue:v1:${role}`
+}
+
 export function patientHistoryCacheKey(
   patientId: string,
   stationFilter: string,

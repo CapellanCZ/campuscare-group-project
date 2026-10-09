@@ -152,18 +152,22 @@ export function CertificatesPage({
   initialList,
   initialStats,
   initialError,
+  hydrateFromCache = false,
 }: {
   access: StaffAccess
   initialList: MedicalDocumentListResult
   initialStats: MedicalCertificateStats
   initialError?: string | null
+  hydrateFromCache?: boolean
 }) {
   const [query, setQuery] = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const [page, setPage] = useState(1)
   const [list, setList] = useState(initialList)
   const [stats, setStats] = useState(initialStats)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(
+    () => hydrateFromCache || initialList.items.length === 0
+  )
   const [documentTypeFilter, setDocumentTypeFilter] = useState<
     MedicalDocumentType | "all"
   >("all")
@@ -180,7 +184,9 @@ export function CertificatesPage({
   const [deleting, setDeleting] = useState<MedicalCertificate | null>(null)
   const [printDoc, setPrintDoc] = useState<MedicalDocument | null>(null)
   const [isPending, startTransition] = useTransition()
-  const skipNextFetch = useRef(true)
+  const skipNextFetch = useRef(
+    !hydrateFromCache && initialList.items.length > 0
+  )
 
   const d = access.designation
   const isPhysician = d === "physician"

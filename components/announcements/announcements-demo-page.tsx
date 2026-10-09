@@ -150,12 +150,14 @@ export function AnnouncementsPage({
   initialList,
   initialStats,
   initialError,
+  hydrateFromCache = false,
 }: {
   access: StaffAccess
   initialFeed: AnnouncementListResult
   initialList: AnnouncementListResult
   initialStats: AnnouncementStats
   initialError?: string | null
+  hydrateFromCache?: boolean
 }) {
   const { confirmPreset } = useConfirm()
   const [query, setQuery] = useState("")
@@ -165,7 +167,11 @@ export function AnnouncementsPage({
   const [feed, setFeed] = useState(initialFeed)
   const [list, setList] = useState(initialList)
   const [stats, setStats] = useState(initialStats)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(
+    () =>
+      hydrateFromCache ||
+      (initialFeed.items.length === 0 && initialList.items.length === 0)
+  )
   const [selected, setSelected] = useState<Announcement | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [articleOpen, setArticleOpen] = useState(false)
@@ -176,7 +182,10 @@ export function AnnouncementsPage({
   const [deleting, setDeleting] = useState<Announcement | null>(null)
   const [isPending, startTransition] = useTransition()
   const [showAllFeed, setShowAllFeed] = useState(false)
-  const skipNextFetch = useRef(true)
+  const skipNextFetch = useRef(
+    !hydrateFromCache &&
+      (initialFeed.items.length > 0 || initialList.items.length > 0)
+  )
 
   const d = access.designation
   const isPhysician = d === "physician"

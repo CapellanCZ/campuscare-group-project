@@ -173,11 +173,13 @@ export function PatientsPage({
   initialList,
   initialStats,
   initialError,
+  hydrateFromCache = false,
 }: {
   access: StaffAccess
   initialList: PatientRecordListResult
   initialStats: PatientRecordStats
   initialError?: string | null
+  hydrateFromCache?: boolean
 }) {
   const [query, setQuery] = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
@@ -189,7 +191,9 @@ export function PatientsPage({
     useState<ColumnSortDirection>("asc")
   const [list, setList] = useState(initialList)
   const [stats, setStats] = useState(initialStats)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(
+    () => hydrateFromCache || initialList.items.length === 0
+  )
   const [medicalPatient, setMedicalPatient] = useState<PatientRecord | null>(
     null
   )
@@ -205,7 +209,9 @@ export function PatientsPage({
   const [selectingAll, setSelectingAll] = useState(false)
   const [archivePending, setArchivePending] = useState(false)
   const [isPending, startTransition] = useTransition()
-  const skipNextFetch = useRef(true)
+  const skipNextFetch = useRef(
+    !hydrateFromCache && initialList.items.length > 0
+  )
   const selectionQueryScopeRef = useRef("")
   const mountedRef = useRef(false)
   const { confirmPreset } = useConfirm()

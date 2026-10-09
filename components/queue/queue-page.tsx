@@ -1,9 +1,21 @@
 "use client"
 
-import { useEffect, useMemo, useState, useTransition, useDeferredValue } from "react"
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  useDeferredValue,
+} from "react"
 import { useConfirm } from "@/components/feedback/confirm-provider"
 import { consultationToasts, queueToasts } from "@/lib/feedback/toast-messages"
 import { useRouter } from "next/navigation"
+import {
+  getCachedQueue,
+  loadQueueBundle,
+} from "@/features/queue/lib/prefetch-queue"
+import { queueCacheKey, staffCacheInvalidate } from "@/lib/ui/staff-data-cache"
 
 import {
   actionCallNext,
@@ -30,8 +42,9 @@ import { displayConsultationLabel } from "@/lib/health/consultation-display"
 import { ActivityFeed } from "@/components/shared/activity-feed"
 import { RecentlyServedCard } from "@/components/shared/recently-served-card"
 import { StatCard } from "@/components/shared/stat-card"
-import { useStaffRealtimeRouterRefresh } from "@/hooks/use-staff-realtime-refresh"
+import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
 import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   PageIntro,
   PanelCell,
@@ -128,11 +141,12 @@ const STATUS_OPTIONS: Array<{ value: TicketStatus | "all"; label: string }> = [
 
 export function QueuePage({
   access,
-  tickets,
-  stats,
-  boards,
-  recent,
-  activity,
+  tickets: initialTickets,
+  stats: initialStats,
+  boards: initialBoards,
+  recent: initialRecent,
+  activity: initialActivity,
+  hydrateFromCache = false,
 }: {
   access: StaffAccess
   tickets: QueueTicketRow[]
@@ -140,14 +154,70 @@ export function QueuePage({
   boards: StationBoard[]
   recent: RecentlyServedItem[]
   activity: ActivityItem[]
+  hydrateFromCache?: boolean
 }) {
   const router = useRouter()
   const { confirmPreset } = useConfirm()
   const [pending, startTransition] = useTransition()
-  const [localTickets, setLocalTickets] = useState(tickets)
-  useStaffRealtimeRouterRefresh(
+  const cached = hydrateFromCache
+    ? getCachedQueue(access.designation)
+    : null
+  const [localTickets, setLocalTickets] = useState(
+    () => cached?.tickets ?? initialTickets
+  )
+  const [stats, setStats] = useState(() => cached?.stats ?? initialStats)
+  const [boards, setBoards] = useState(() => cached?.boards ?? initialBoards)
+  const [recent, setRecent] = useState(() => cached?.recent ?? initialRecent)
+  const [activity, setActivity] = useState(
+    () => cached?.activity ?? initialActivity
+  )
+  const [dataLoading, setDataLoading] = useState(
+    () => hydrateFromCache && !cached && initialTickets.length === 0
+  )
+  const hydratedRef = useRef(false)
+
+  useEffect(() => {
+    if (!hydrateFromCache || hydratedRef.current) return
+    hydratedRef.current = true
+    const hit = getCachedQueue(access.designation)
+    if (hit) {
+      setLocalTickets(hit.tickets)
+      setStats(hit.stats)
+      setBoards(hit.boards)
+      setRecent(hit.recent)
+      setActivity(hit.activity)
+      setDataLoading(false)
+    }
+    void loadQueueBundle(access.designation, { force: Boolean(hit) })
+      .then((bundle) => {
+        setLocalTickets(bundle.tickets)
+        setStats(bundle.stats)
+        setBoards(bundle.boards)
+        setRecent(bundle.recent)
+        setActivity(bundle.activity)
+        setDataLoading(false)
+      })
+      .catch(() => {
+        setDataLoading(false)
+        if (!hit) queueToasts.failed("Could not load the queue.")
+      })
+  }, [access.designation, hydrateFromCache])
+
+  useStaffRealtimeRefresh(
     `staff-queue-${access.designation}`,
     STAFF_REALTIME_TABLES.queue,
+    () => {
+      staffCacheInvalidate(queueCacheKey(access.designation))
+      void loadQueueBundle(access.designation, { force: true })
+        .then((bundle) => {
+          setLocalTickets(bundle.tickets)
+          setStats(bundle.stats)
+          setBoards(bundle.boards)
+          setRecent(bundle.recent)
+          setActivity(bundle.activity)
+        })
+        .catch(() => undefined)
+    },
     500
   )
   const [query, setQuery] = useState("")
@@ -172,8 +242,9 @@ export function QueuePage({
   const pageSize = 8
 
   useEffect(() => {
-    setLocalTickets(tickets)
-  }, [tickets])
+    if (hydrateFromCache) return
+    setLocalTickets(initialTickets)
+  }, [hydrateFromCache, initialTickets])
 
   const readOnly = isReadOnlyQueue(access.designation)
   const canMutate = canMutateQueue(access.designation)
@@ -420,8 +491,27 @@ export function QueuePage({
               variant="outline"
               size="icon-sm"
               aria-label="Refresh queue"
-              disabled={pending}
-              onClick={() => router.refresh()}
+              disabled={pending || dataLoading}
+              onClick={() => {
+                if (hydrateFromCache) {
+                  staffCacheInvalidate(queueCacheKey(access.designation))
+                  setDataLoading(true)
+                  void loadQueueBundle(access.designation, { force: true })
+                    .then((bundle) => {
+                      setLocalTickets(bundle.tickets)
+                      setStats(bundle.stats)
+                      setBoards(bundle.boards)
+                      setRecent(bundle.recent)
+                      setActivity(bundle.activity)
+                    })
+                    .catch(() =>
+                      queueToasts.failed("Could not refresh the queue.")
+                    )
+                    .finally(() => setDataLoading(false))
+                  return
+                }
+                router.refresh()
+              }}
             >
               <IconRefresh />
             </Button>
@@ -445,7 +535,12 @@ export function QueuePage({
           ) : isPhysician || isDentist ? null : (
             cards.map((card) => (
               <PanelCell key={card.label}>
-                <StatCard flush label={card.label} value={card.value} />
+                <StatCard
+                  flush
+                  label={card.label}
+                  value={card.value}
+                  loading={dataLoading}
+                />
               </PanelCell>
             ))
           )}
@@ -513,7 +608,13 @@ export function QueuePage({
               ) : null}
 
               <CardContent className="min-w-0 px-0 pb-0">
-                {pageRows.length === 0 ? (
+                {dataLoading ? (
+                  <div className="space-y-3 px-6 py-6" role="status" aria-label="Loading queue">
+                    <Skeleton className="h-10 w-full rounded-lg" />
+                    <Skeleton className="h-10 w-full rounded-lg" />
+                    <Skeleton className="h-10 w-3/4 rounded-lg" />
+                  </div>
+                ) : pageRows.length === 0 ? (
                   <p className="px-6 py-10 text-sm text-muted-foreground">
                     {isNurse && nurseLane === "needs_intake"
                       ? "No patients waiting for intake."

@@ -52,14 +52,16 @@ function ShellBody({
       >
         <AppSidebar />
         <SidebarInset className="min-w-0">
+          {/* Thin top edge only — destinations are auth-only shells, so this
+              should flash briefly; data loads inside the page. */}
           <div
             className={cn(
-              "pointer-events-none absolute inset-x-0 top-0 z-40 h-1 overflow-hidden bg-primary/15 transition-opacity",
+              "pointer-events-none absolute inset-x-0 top-0 z-40 h-0.5 overflow-hidden transition-opacity duration-150",
               navigating ? "opacity-100" : "opacity-0"
             )}
             aria-hidden
           >
-            <div className="h-full w-2/5 animate-nav-progress bg-primary" />
+            <div className="h-full w-1/3 animate-nav-progress bg-primary" />
           </div>
           <AppHeader />
           <div
@@ -68,10 +70,7 @@ function ShellBody({
               "mx-auto w-full max-w-(--app-wrapper-max-width)",
               isAdmin && "bg-muted/30"
             )}
-            aria-busy={navigating || undefined}
           >
-            {/* Keep current page mounted during nav. No full-page skeleton —
-                only in-page data regions skeletonize while Supabase loads. */}
             {children}
           </div>
         </SidebarInset>

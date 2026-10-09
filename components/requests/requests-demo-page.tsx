@@ -104,11 +104,13 @@ export function RequestsPage({
   initialList,
   initialStats,
   initialError,
+  hydrateFromCache = false,
 }: {
   access: StaffAccess
   initialList: AppointmentRequestListResult
   initialStats: AppointmentRequestStats
   initialError?: string | null
+  hydrateFromCache?: boolean
 }) {
   const isNurse = access.designation === "nurse"
   const [query, setQuery] = useState("")
@@ -116,10 +118,14 @@ export function RequestsPage({
   const [status, setStatus] = useState<string>("all")
   const [list, setList] = useState(initialList)
   const [stats, setStats] = useState(initialStats)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(
+    () => hydrateFromCache || initialList.items.length === 0
+  )
   const [selected, setSelected] = useState<AppointmentRequest | null>(null)
   const [dialogMode, setDialogMode] = useState<RequestDialogMode | null>(null)
-  const skipNextFetch = useRef(true)
+  const skipNextFetch = useRef(
+    !hydrateFromCache && initialList.items.length > 0
+  )
   const detailRequestId = useRef<string | null>(null)
 
   const canApprove = can(access.designation, "requests.approve")
