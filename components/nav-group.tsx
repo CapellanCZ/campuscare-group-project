@@ -19,17 +19,26 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import type { SidebarNavGroup, SidebarNavItem } from "@/components/app-shared"
+import { useOptionalNavPending } from "@/components/dashboard/nav-pending"
 import { IconChevronRight } from "@tabler/icons-react"
 
-function useCloseMobileSidebar() {
+function useNavLinkHandlers() {
   const { isMobile, setOpenMobile } = useSidebar()
-  return () => {
-    if (isMobile) setOpenMobile(false)
-  }
+  const navPending = useOptionalNavPending()
+
+  return (href: string) => ({
+    onClick: () => {
+      navPending?.markPending(href)
+      if (isMobile) setOpenMobile(false)
+    },
+    onMouseEnter: () => {
+      navPending?.prefetch(href)
+    },
+  })
 }
 
 export function NavGroup({ label, items }: SidebarNavGroup) {
-  const closeMobile = useCloseMobileSidebar()
+  const linkHandlers = useNavLinkHandlers()
 
   return (
     <SidebarGroup>
@@ -43,7 +52,10 @@ export function NavGroup({ label, items }: SidebarNavGroup) {
               <SidebarMenuButton
                 isActive={item.isActive}
                 render={
-                  <Link href={item.path ?? "#"} onClick={closeMobile} />
+                  <Link
+                    href={item.path ?? "#"}
+                    {...(item.path ? linkHandlers(item.path) : {})}
+                  />
                 }
               >
                 {item.icon}
@@ -58,7 +70,7 @@ export function NavGroup({ label, items }: SidebarNavGroup) {
 }
 
 function CollapsibleNavItem({ item }: { item: SidebarNavItem }) {
-  const closeMobile = useCloseMobileSidebar()
+  const linkHandlers = useNavLinkHandlers()
   const shouldOpen =
     !!item.isActive || !!item.subItems?.some((sub) => !!sub.isActive)
   const [open, setOpen] = useState(shouldOpen)
@@ -88,7 +100,10 @@ function CollapsibleNavItem({ item }: { item: SidebarNavItem }) {
               <SidebarMenuSubButton
                 isActive={subItem.isActive}
                 render={
-                  <Link href={subItem.path ?? "#"} onClick={closeMobile} />
+                  <Link
+                    href={subItem.path ?? "#"}
+                    {...(subItem.path ? linkHandlers(subItem.path) : {})}
+                  />
                 }
               >
                 {subItem.icon}

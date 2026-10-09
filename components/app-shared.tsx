@@ -85,9 +85,12 @@ export function getNavGroupsForRole(
 }
 
 export function getFooterNavLinks(
-  designation: ClinicDesignation = "admin"
+  designation: ClinicDesignation = "admin",
+  pathname?: string
 ): SidebarNavItem[] {
-  return buildStaffFooterNav(designation).map((item) => toSidebarItem(item))
+  return buildStaffFooterNav(designation).map((item) =>
+    toSidebarItem(item, pathname)
+  )
 }
 
 /** @deprecated Prefer getNavGroupsForRole — kept for any remaining static imports */

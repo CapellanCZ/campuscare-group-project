@@ -17,6 +17,8 @@ type NavPendingContextValue = {
   activePath: string
   isPending: boolean
   navigate: (href: string) => void
+  /** Mark a native <Link> navigation as in-flight so the active tab flips immediately. */
+  markPending: (href: string) => void
   prefetch: (href: string) => void
 }
 
@@ -83,15 +85,24 @@ export function NavPendingProvider({
     }
   }, [prefetchHrefs, router])
 
+  const markPending = useCallback(
+    (href: string) => {
+      const next = hrefPath(href)
+      if (!next || next === pathname) return
+      setPendingHref(next)
+    },
+    [pathname]
+  )
+
   const navigate = useCallback(
     (href: string) => {
       if (hrefPath(href) === pathname) return
-      setPendingHref(href)
+      markPending(href)
       startTransition(() => {
         router.push(href)
       })
     },
-    [pathname, router]
+    [markPending, pathname, router]
   )
 
   const prefetch = useCallback(
@@ -108,9 +119,10 @@ export function NavPendingProvider({
       activePath,
       isPending: isPending || pendingHref !== null,
       navigate,
+      markPending,
       prefetch,
     }),
-    [activePath, isPending, navigate, pendingHref, prefetch]
+    [activePath, isPending, markPending, navigate, pendingHref, prefetch]
   )
 
   return (
@@ -126,4 +138,8 @@ export function useNavPending(): NavPendingContextValue {
     throw new Error("useNavPending must be used within NavPendingProvider")
   }
   return ctx
+}
+
+export function useOptionalNavPending() {
+  return useContext(NavPendingContext)
 }

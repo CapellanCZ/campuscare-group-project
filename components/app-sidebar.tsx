@@ -20,11 +20,14 @@ import {
   getNavGroupsForRole,
 } from "@/components/app-shared"
 import { CampusCareLogo } from "@/components/campuscare-logo"
+import { useOptionalNavPending } from "@/components/dashboard/nav-pending"
 import { useStaffAccess } from "@/components/staff-access-provider"
 import { staffBasePath } from "@/lib/auth/home-path"
 
 export function AppSidebar() {
   const pathname = usePathname()
+  const navPending = useOptionalNavPending()
+  const activePath = navPending?.activePath ?? pathname
   const { primaryRole, designation } = useStaffAccess()
   const { isMobile, setOpenMobile } = useSidebar()
   const role = primaryRole ?? designation
@@ -32,9 +35,13 @@ export function AppSidebar() {
   const closeMobile = () => {
     if (isMobile) setOpenMobile(false)
   }
+  const onNavClick = (href: string) => {
+    navPending?.markPending(href)
+    closeMobile()
+  }
 
-  const groups = getNavGroupsForRole(role, pathname)
-  const footerNavLinks = getFooterNavLinks(role)
+  const groups = getNavGroupsForRole(role, activePath)
+  const footerNavLinks = getFooterNavLinks(role, activePath)
 
   return (
     <Sidebar
@@ -47,7 +54,16 @@ export function AppSidebar() {
       variant="sidebar"
     >
       <SidebarHeader className="h-14 justify-center border-b px-2">
-        <SidebarMenuButton render={<Link href={base} onClick={closeMobile} />}>
+        <SidebarMenuButton
+          isActive={activePath === base || activePath === `${base}/`}
+          render={
+            <Link
+              href={base}
+              onClick={() => onNavClick(base)}
+              onMouseEnter={() => navPending?.prefetch(base)}
+            />
+          }
+        >
           <CampusCareLogo className="size-5" width={20} height={20} alt="" />
           <span className="font-medium text-foreground!">CampusCare</span>
         </SidebarMenuButton>
@@ -65,7 +81,16 @@ export function AppSidebar() {
                 <SidebarMenuButton
                   className="text-muted-foreground"
                   size="sm"
-                  render={<Link href={item.path ?? base} onClick={closeMobile} />}
+                  isActive={item.isActive}
+                  render={
+                    <Link
+                      href={item.path ?? base}
+                      onClick={() => onNavClick(item.path ?? base)}
+                      onMouseEnter={() =>
+                        navPending?.prefetch(item.path ?? base)
+                      }
+                    />
+                  }
                 >
                   {item.icon}
                   <span className="font-medium">{item.title}</span>
