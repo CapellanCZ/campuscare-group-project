@@ -276,11 +276,11 @@ export function NurseTodayQueue({
                   <TableHead className="pl-6">#</TableHead>
                   <TableHead>Patient</TableHead>
                   <TableHead className="hidden sm:table-cell">Type</TableHead>
-                  <TableHead className="hidden md:table-cell">
-                    Consultation
-                  </TableHead>
+                  <TableHead className="hidden md:table-cell">Consult</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="pr-6">Actions</TableHead>
+                  <TableHead className="hidden lg:table-cell">Wait</TableHead>
+                  <TableHead className="hidden xl:table-cell">Assigned</TableHead>
+                  <TableHead className="pr-6 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

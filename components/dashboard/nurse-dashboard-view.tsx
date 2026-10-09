@@ -25,6 +25,7 @@ import {
   panelCardClassName,
 } from "@/components/layout/panel-frame"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
 import { canRegisterWalkIn } from "@/lib/health/roles"
@@ -35,6 +36,7 @@ import type {
   QueueTicketRow,
   RecentlyServedItem,
 } from "@/lib/health/types"
+import { cn } from "@/lib/utils"
 
 const KPI_ICONS: Record<
   string,
@@ -175,14 +177,30 @@ export function NurseDashboardView({
         <PanelFrame>
           <PanelGrid className="lg:grid-cols-2">
             <PanelCell className="lg:col-span-2">
-              <NurseRequestsPanel access={access} summary={summary} />
+              {dataLoading ? (
+                <div className={cn(panelCardClassName, "space-y-3 p-6")}>
+                  <Skeleton className="h-5 w-40" />
+                  <Skeleton className="h-16 w-full rounded-lg" />
+                  <Skeleton className="h-16 w-full rounded-lg" />
+                </div>
+              ) : (
+                <NurseRequestsPanel access={access} summary={summary} />
+              )}
             </PanelCell>
             <PanelCell className="lg:col-span-2">
-              <ActivityFeed
-                className={panelCardClassName}
-                items={activity.slice(0, 6)}
-                title="Recent activity"
-              />
+              {dataLoading ? (
+                <div className={cn(panelCardClassName, "space-y-3 p-6")}>
+                  <Skeleton className="h-5 w-36" />
+                  <Skeleton className="h-12 w-full rounded-lg" />
+                  <Skeleton className="h-12 w-full rounded-lg" />
+                </div>
+              ) : (
+                <ActivityFeed
+                  className={panelCardClassName}
+                  items={activity.slice(0, 6)}
+                  title="Recent activity"
+                />
+              )}
             </PanelCell>
           </PanelGrid>
         </PanelFrame>

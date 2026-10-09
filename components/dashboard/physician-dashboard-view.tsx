@@ -64,6 +64,9 @@ const KPI_ICONS: Record<
   serving: IconStethoscope,
   completed: IconUserHeart,
   appointments: IconCalendarEvent,
+  appts: IconCalendarEvent,
+  patients: IconUserHeart,
+  current: IconStethoscope,
   requests: IconClipboardList,
   queue: IconListCheck,
 }

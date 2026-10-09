@@ -10,7 +10,6 @@ import { QueuePage } from "@/components/queue/queue-page"
 import { RequestsPage } from "@/components/requests/requests-demo-page"
 import { ReportsAnalyticsPage } from "@/features/reports/components/reports-analytics-page"
 import { loadReportsBundle } from "@/features/reports/data/queries"
-import { loadAdminOpsSnapshot } from "@/features/admin/data/ops-snapshot"
 import { loadOfficeHoursBundle } from "@/features/availability/actions/availability"
 import { OfficeHoursSettings } from "@/features/admin/components/office-hours-settings"
 import { adminPageShellClassName } from "@/features/admin/lib/admin-surface"
@@ -57,11 +56,6 @@ import { getStaffAccess } from "@/lib/auth/access"
 import { canMutate } from "@/lib/auth/permissions"
 import { requireStaffModule } from "@/lib/auth/require-module"
 import {
-  enrichDashboardKpis,
-  getDashboardBundle,
-} from "@/lib/health/dashboard-queries"
-import { loadRoleDashboardSummary } from "@/lib/health/load-role-dashboard-summary"
-import {
   computeQueueStats,
   getQueueActivity,
   getNurseRecentlyServed,
@@ -75,43 +69,8 @@ export async function StaffHomePage() {
   const access = await getStaffAccess()
   if (!access?.hasClinicMembership) redirect("/login")
 
-  const bundle = await getDashboardBundle(access.designation)
-  const summary = await loadRoleDashboardSummary({
-    designation: access.designation,
-    userId: access.userId,
-    allTickets: bundle.allTickets,
-    checkedIn: bundle.stats.checkedIn,
-  })
-  const kpis = enrichDashboardKpis(
-    access.designation,
-    bundle.kpis,
-    summary,
-    bundle.allTickets
-  )
-
-  const recent =
-    access.designation === "nurse"
-      ? await getNurseRecentlyServed(6, bundle.allTickets)
-      : bundle.recent
-
-  const ops =
-    access.designation === "admin"
-      ? await loadAdminOpsSnapshot()
-      : null
-
-  return (
-    <RoleDashboard
-      access={access}
-      kpis={kpis}
-      tickets={bundle.tickets}
-      boards={bundle.boards}
-      activity={bundle.activity}
-      recent={recent}
-      stats={bundle.stats}
-      summary={summary}
-      ops={ops}
-    />
-  )
+  // Auth-only RSC: chrome paints immediately; KPI/queue data loads on the client.
+  return <RoleDashboard access={access} hydrateFromCache />
 }
 
 export async function StaffQueuePage() {

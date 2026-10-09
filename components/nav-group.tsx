@@ -22,14 +22,21 @@ import type { SidebarNavGroup, SidebarNavItem } from "@/components/app-shared"
 import { useOptionalNavPending } from "@/components/dashboard/nav-pending"
 import { useStaffAccess } from "@/components/staff-access-provider"
 import { prefetchConsultationsPage } from "@/features/consultations/lib/prefetch-consultations"
+import { prefetchDashboardPage } from "@/features/dashboard/lib/prefetch-dashboard"
 import { IconChevronRight } from "@tabler/icons-react"
 
 function warmRouteData(href: string, role: string | null | undefined) {
   if (!role) return
+  const clinicRole = role as "nurse" | "physician" | "dentist" | "admin"
   if (href.includes("/consultations")) {
-    prefetchConsultationsPage(
-      role as "nurse" | "physician" | "dentist" | "admin"
-    )
+    prefetchConsultationsPage(clinicRole)
+  }
+  if (
+    href.endsWith("/dashboard") ||
+    href === `/${role}` ||
+    href === `/${role}/`
+  ) {
+    prefetchDashboardPage(clinicRole)
   }
 }
 

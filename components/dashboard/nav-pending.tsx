@@ -8,7 +8,6 @@ import {
   useEffectEvent,
   useMemo,
   useState,
-  useTransition,
 } from "react"
 import { usePathname, useRouter } from "next/navigation"
 
@@ -39,7 +38,6 @@ export function NavPendingProvider({
   const pathname = usePathname()
   const router = useRouter()
   const [pendingHref, setPendingHref] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
 
   const onPathnameChange = useEffectEvent((next: string) => {
     setPendingHref((current) => {
@@ -98,9 +96,9 @@ export function NavPendingProvider({
     (href: string) => {
       if (hrefPath(href) === pathname) return
       markPending(href)
-      startTransition(() => {
-        router.push(href)
-      })
+      // Push outside startTransition so auth-only destinations mount
+      // immediately; in-page data regions handle their own loading.
+      router.push(href)
     },
     [markPending, pathname, router]
   )
@@ -117,12 +115,12 @@ export function NavPendingProvider({
   const value = useMemo(
     () => ({
       activePath,
-      isPending: isPending || pendingHref !== null,
+      isPending: pendingHref !== null,
       navigate,
       markPending,
       prefetch,
     }),
-    [activePath, isPending, markPending, navigate, pendingHref, prefetch]
+    [activePath, markPending, navigate, pendingHref, prefetch]
   )
 
   return (
