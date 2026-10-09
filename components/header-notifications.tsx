@@ -30,6 +30,10 @@ import {
   filterNotificationsByPrefs,
   type HeaderStaffNotification,
 } from "@/lib/notifications/header-notifications"
+import {
+  getSessionNotifications,
+  saveSessionNotifications,
+} from "@/lib/notifications/session-notifications-cache"
 import { cn } from "@/lib/utils"
 
 function relativeTime(iso: string) {
@@ -68,7 +72,9 @@ function HeaderNotificationsInbox() {
   const access = useOptionalStaffAccess()
   const designation = access?.primaryRole ?? "physician"
   const userId = access?.userId
-  const [items, setItems] = useState<HeaderStaffNotification[]>([])
+  const [items, setItems] = useState<HeaderStaffNotification[]>(
+    () => getSessionNotifications() ?? []
+  )
   const [usingFallback, setUsingFallback] = useState(false)
   const [pending, startTransition] = useTransition()
 
@@ -95,7 +101,9 @@ function HeaderNotificationsInbox() {
       setUsingFallback(
         !(notificationsResult.ok && notificationsResult.data.length > 0)
       )
-      setItems(filterNotificationsByPrefs(live, preferences))
+      const next = filterNotificationsByPrefs(live, preferences)
+      saveSessionNotifications(next)
+      setItems(next)
     })
   }, [designation])
 
@@ -125,11 +133,13 @@ function HeaderNotificationsInbox() {
         const result = await markAllNotificationsReadAction()
         if (!result.ok) return
       }
-      setItems((current) =>
-        current.map((item) =>
+      setItems((current) => {
+        const next = current.map((item) =>
           item.unread ? { ...item, unread: false } : item
         )
-      )
+        saveSessionNotifications(next)
+        return next
+      })
     })
   }
 
@@ -139,10 +149,13 @@ function HeaderNotificationsInbox() {
         if (!isFallbackId(notification.id) && !usingFallback) {
           await markNotificationReadAction(notification.id)
         }
-        setItems((current) =>
-          current.map((item) =>
+        setItems((current) => {
+          const next = current.map((item) =>
             item.id === notification.id ? { ...item, unread: false } : item
           )
+          saveSessionNotifications(next)
+          return next
+        }
         )
       }
       if (notification.href) router.push(notification.href)

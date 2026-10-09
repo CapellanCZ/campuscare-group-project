@@ -13,14 +13,18 @@ import { HeaderNotifications } from "@/components/header-notifications"
 import { NavUser } from "@/components/nav-user"
 import { OnBreakControl } from "@/components/availability/on-break-control"
 import { DutyStatusControl } from "@/components/availability/duty-status-control"
+import { useOptionalNavPending } from "@/components/dashboard/nav-pending"
 import { useOptionalStaffAccess } from "@/components/staff-access-provider"
 import { stripStaffBasePath } from "@/lib/auth/home-path"
 
 export function AppHeader() {
   const pathname = usePathname()
+  const navPending = useOptionalNavPending()
+  // Prefer optimistic path so the title flips with the tab, not after RSC.
+  const headerPath = navPending?.activePath ?? pathname
   const access = useOptionalStaffAccess()
-  const activeItem = resolveActiveNav(pathname, access?.primaryRole)
-  const relative = stripStaffBasePath(pathname)
+  const activeItem = resolveActiveNav(headerPath, access?.primaryRole)
+  const relative = stripStaffBasePath(headerPath)
   const page =
     activeItem ??
     (relative === "/settings" || relative.startsWith("/settings/")

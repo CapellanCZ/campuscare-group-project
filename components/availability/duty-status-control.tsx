@@ -26,6 +26,11 @@ import {
 } from "@/features/availability/actions/availability"
 import { dutyStatusLabel } from "@/lib/availability/types"
 import type { DutyStatusValue, StaffDutyStatus } from "@/lib/availability/types"
+import {
+  getSessionDutyStatus,
+  patchSessionDutyStatus,
+  saveSessionBreakBundle,
+} from "@/lib/availability/session-duty-cache"
 import { dutyToasts } from "@/lib/feedback/toast-messages"
 import type { WebRole } from "@/lib/auth/types"
 import { cn } from "@/lib/utils"
@@ -41,13 +46,6 @@ type DutyContextValue = {
 
 const DutyContext = createContext<DutyContextValue | null>(null)
 
-const DEFAULT_DUTY: StaffDutyStatus = {
-  status: "not_available",
-  dutyStartedAt: null,
-  dutyEndedAt: null,
-  updatedAt: null,
-}
-
 export function DutyStatusProvider({
   role,
   children,
@@ -57,16 +55,21 @@ export function DutyStatusProvider({
 }) {
   const clinical =
     role === "nurse" || role === "physician" || role === "dentist"
-  const [dutyStatus, setDutyStatus] = useState<StaffDutyStatus>(DEFAULT_DUTY)
+  // Seed from session cache so soft-nav remounts do not flash "Not Available".
+  const [dutyStatus, setDutyStatus] = useState<StaffDutyStatus>(
+    getSessionDutyStatus
+  )
 
   const refresh = useCallback(() => {
     if (!clinical) return
     void loadMyBreakBundle().then((bundle) => {
+      saveSessionBreakBundle(bundle)
       setDutyStatus(bundle.dutyStatus)
     })
   }, [clinical])
 
   const applyOptimistic = useCallback((next: StaffDutyStatus) => {
+    patchSessionDutyStatus(next)
     setDutyStatus(next)
   }, [])
 
@@ -75,6 +78,7 @@ export function DutyStatusProvider({
     let cancelled = false
     void loadMyBreakBundle().then((bundle) => {
       if (cancelled) return
+      saveSessionBreakBundle(bundle)
       setDutyStatus(bundle.dutyStatus)
     })
     return () => {

@@ -26,6 +26,12 @@ import {
   canUseStaffBreak,
   type BreakMode,
 } from "@/lib/availability/break-mode"
+import {
+  getSessionBreakBundle,
+  getSessionDutyStatus,
+  patchSessionDutyStatus,
+  saveSessionBreakBundle,
+} from "@/lib/availability/session-duty-cache"
 import type { BreakStatus, StaffDutyStatus } from "@/lib/availability/types"
 import type { WebRole } from "@/lib/auth/types"
 
@@ -57,14 +63,16 @@ export function BreakModeProvider({
   role: WebRole | null | undefined
   children: React.ReactNode
 }) {
-  const [clinicBreak, setClinicBreakState] = useState<BreakStatus | null>(null)
-  const [staffBreak, setStaffBreakState] = useState<BreakStatus | null>(null)
-  const [dutyStatus, setDutyStatus] = useState<StaffDutyStatus>({
-    status: "not_available",
-    dutyStartedAt: null,
-    dutyEndedAt: null,
-    updatedAt: null,
-  })
+  const seeded = getSessionBreakBundle()
+  const [clinicBreak, setClinicBreakState] = useState<BreakStatus | null>(
+    () => seeded?.clinicBreak ?? null
+  )
+  const [staffBreak, setStaffBreakState] = useState<BreakStatus | null>(
+    () => seeded?.staffBreak ?? null
+  )
+  const [dutyStatus, setDutyStatus] = useState<StaffDutyStatus>(
+    getSessionDutyStatus
+  )
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -81,6 +89,7 @@ export function BreakModeProvider({
   const refresh = useCallback(() => {
     if (!canClinic && !canStaff) return
     void loadMyBreakBundle().then((bundle) => {
+      saveSessionBreakBundle(bundle)
       setClinicBreakState(bundle.clinicBreak)
       setStaffBreakState(bundle.staffBreak)
       setDutyStatus(bundle.dutyStatus)
@@ -92,6 +101,7 @@ export function BreakModeProvider({
     let cancelled = false
     void loadMyBreakBundle().then((bundle) => {
       if (cancelled) return
+      saveSessionBreakBundle(bundle)
       setClinicBreakState(bundle.clinicBreak)
       setStaffBreakState(bundle.staffBreak)
       setDutyStatus(bundle.dutyStatus)
@@ -130,11 +140,13 @@ export function BreakModeProvider({
     if (mode === "clinic") setClinicBreakState(optimistic)
     else {
       setStaffBreakState(optimistic)
-      setDutyStatus({
+      const nextDuty = {
         ...dutyStatus,
-        status: "on_break",
+        status: "on_break" as const,
         updatedAt: optimistic.updatedAt,
-      })
+      }
+      patchSessionDutyStatus(nextDuty)
+      setDutyStatus(nextDuty)
     }
     emitDutyRefresh()
     startTransition(async () => {
@@ -170,11 +182,13 @@ export function BreakModeProvider({
     if (mode === "clinic") setClinicBreakState(cleared)
     else {
       setStaffBreakState(cleared)
-      setDutyStatus({
+      const nextDuty = {
         ...dutyStatus,
-        status: "available",
+        status: "available" as const,
         updatedAt: cleared.updatedAt,
-      })
+      }
+      patchSessionDutyStatus(nextDuty)
+      setDutyStatus(nextDuty)
     }
     emitDutyRefresh()
     startTransition(async () => {
