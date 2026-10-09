@@ -188,6 +188,7 @@ export function PatientsPage({
   const [documentsPatient, setDocumentsPatient] = useState<PatientRecord | null>(
     null
   )
+  const [page, setPage] = useState(initialList.page ?? 1)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const [archivePending, setArchivePending] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -219,6 +220,7 @@ export function PatientsPage({
       const nextQuery = query.trim()
       if (nextQuery === debouncedQuery) return
       setDebouncedQuery(nextQuery)
+      setPage(1)
     }, SEARCH_DEBOUNCE_MS)
     return () => window.clearTimeout(timer)
   }, [query, debouncedQuery])
@@ -228,13 +230,14 @@ export function PatientsPage({
       nextQuery: string,
       nextPatientType: PatientRecordTypeFilter,
       nextSortBy: PatientRecordSortColumn,
-      nextSortDir: "asc" | "desc"
+      nextSortDir: "asc" | "desc",
+      nextPage: number
     ) => {
       setLoading(true)
       try {
         const [listResult, statsResult] = await Promise.all([
           searchPatientRecordsAction(nextQuery, {
-            page: 1,
+            page: nextPage,
             pageSize: PAGE_SIZE,
             patientType: nextPatientType,
             sortBy: nextSortBy,
@@ -252,6 +255,7 @@ export function PatientsPage({
               pageSize: PAGE_SIZE,
               totalPages: 1,
             })
+            setPage(1)
             patientToasts.failed(NO_STUDENT_FOUND)
             return
           }
@@ -263,6 +267,7 @@ export function PatientsPage({
           return
         }
         setList(listResult.data)
+        setPage(listResult.data.page)
         setStats(statsResult.data)
       } catch {
         if (!mountedRef.current) return
@@ -280,9 +285,22 @@ export function PatientsPage({
 
   const refresh = useCallback(() => {
     startTransition(() => {
-      void loadPage(debouncedQuery, patientTypeFilter, sortColumn, activeSortDir)
+      void loadPage(
+        debouncedQuery,
+        patientTypeFilter,
+        sortColumn,
+        activeSortDir,
+        page
+      )
     })
-  }, [activeSortDir, debouncedQuery, loadPage, patientTypeFilter, sortColumn])
+  }, [
+    activeSortDir,
+    debouncedQuery,
+    loadPage,
+    page,
+    patientTypeFilter,
+    sortColumn,
+  ])
 
   useEffect(() => {
     if (skipNextFetch.current) {
@@ -290,14 +308,33 @@ export function PatientsPage({
       return
     }
     setSelectedIds(new Set())
-    void loadPage(debouncedQuery, patientTypeFilter, sortColumn, activeSortDir)
-  }, [activeSortDir, debouncedQuery, loadPage, patientTypeFilter, sortColumn])
+    void loadPage(
+      debouncedQuery,
+      patientTypeFilter,
+      sortColumn,
+      activeSortDir,
+      page
+    )
+  }, [
+    activeSortDir,
+    debouncedQuery,
+    loadPage,
+    page,
+    patientTypeFilter,
+    sortColumn,
+  ])
 
   useStaffRealtimeRefresh(
     `staff-patients-${access.designation}`,
     STAFF_REALTIME_TABLES.patients,
     () => {
-      void loadPage(debouncedQuery, patientTypeFilter, sortColumn, activeSortDir)
+      void loadPage(
+        debouncedQuery,
+        patientTypeFilter,
+        sortColumn,
+        activeSortDir,
+        page
+      )
     }
   )
 
@@ -307,6 +344,7 @@ export function PatientsPage({
   ) {
     setSortColumn(column)
     setSortDirection(direction)
+    setPage(1)
   }
 
   function sortDirectionFor(
@@ -492,6 +530,7 @@ export function PatientsPage({
               items={selectItemsRecord(PATIENT_TYPE_FILTER_OPTIONS)}
               onValueChange={(value) => {
                 setPatientTypeFilter(value as PatientRecordTypeFilter)
+                setPage(1)
               }}
             >
               <SelectTrigger className="w-full sm:w-40" aria-label="Patient type">
@@ -759,6 +798,41 @@ export function PatientsPage({
                   })}
               </TableBody>
             </Table>
+            {list.totalPages > 1 ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
+                <p className="text-sm text-muted-foreground">
+                  Page {list.page} of {list.totalPages}
+                  <span className="text-muted-foreground/80">
+                    {" "}
+                    · {list.total} patient{list.total === 1 ? "" : "s"}
+                  </span>
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={list.page <= 1 || isRefreshing}
+                    onClick={() =>
+                      setPage((current) => Math.max(1, current - 1))
+                    }
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={list.page >= list.totalPages || isRefreshing}
+                    onClick={() =>
+                      setPage((current) =>
+                        Math.min(list.totalPages, current + 1)
+                      )
+                    }
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            ) : null}
             </div>
           )}
         </CardContent>

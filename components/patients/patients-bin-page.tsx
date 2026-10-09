@@ -114,6 +114,7 @@ export function PatientsBinPage({
   const [sortDirection, setSortDirection] =
     useState<ColumnSortDirection>("asc")
   const [list, setList] = useState(initialList)
+  const [page, setPage] = useState(initialList.page ?? 1)
   const [loading, setLoading] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const [deletePending, setDeletePending] = useState(false)
@@ -139,6 +140,7 @@ export function PatientsBinPage({
       const nextQuery = query.trim()
       if (nextQuery === debouncedQuery) return
       setDebouncedQuery(nextQuery)
+      setPage(1)
     }, SEARCH_DEBOUNCE_MS)
     return () => window.clearTimeout(timer)
   }, [query, debouncedQuery])
@@ -149,13 +151,14 @@ export function PatientsBinPage({
     async (
       nextQuery: string,
       nextSortBy: PatientRecordSortColumn,
-      nextSortDir: "asc" | "desc"
+      nextSortDir: "asc" | "desc",
+      nextPage: number
     ) => {
       setLoading(true)
       try {
         const result = await listArchivedPatientRecordsAction({
           query: nextQuery,
-          page: 1,
+          page: nextPage,
           pageSize: PAGE_SIZE,
           sortBy: nextSortBy,
           sortDir: nextSortDir,
@@ -170,12 +173,14 @@ export function PatientsBinPage({
               pageSize: PAGE_SIZE,
               totalPages: 1,
             })
+            setPage(1)
             return
           }
           patientToasts.failed(result.error)
           return
         }
         setList(result.data)
+        setPage(result.data.page)
       } catch {
         if (!mountedRef.current) return
         patientToasts.failed(
@@ -194,8 +199,8 @@ export function PatientsBinPage({
       return
     }
     setSelectedIds(new Set())
-    void loadPage(debouncedQuery, sortColumn, activeSortDir)
-  }, [activeSortDir, debouncedQuery, loadPage, sortColumn])
+    void loadPage(debouncedQuery, sortColumn, activeSortDir, page)
+  }, [activeSortDir, debouncedQuery, loadPage, page, sortColumn])
 
   function setColumnSort(
     column: PatientRecordSortColumn,
@@ -203,6 +208,7 @@ export function PatientsBinPage({
   ) {
     setSortColumn(column)
     setSortDirection(direction)
+    setPage(1)
   }
 
   function sortDirectionFor(
@@ -273,7 +279,10 @@ export function PatientsBinPage({
           clearSelection()
           patientToasts.deleted()
           startTransition(() => {
-            void loadPage(debouncedQuery, sortColumn, activeSortDir)
+            const nextPage =
+              list.items.length <= ids.length && page > 1 ? page - 1 : page
+            if (nextPage !== page) setPage(nextPage)
+            else void loadPage(debouncedQuery, sortColumn, activeSortDir, page)
           })
         } finally {
           setDeletePending(false)
@@ -452,6 +461,43 @@ export function PatientsBinPage({
                     })}
                   </TableBody>
                 </Table>
+                {list.totalPages > 1 ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
+                    <p className="text-sm text-muted-foreground">
+                      Page {list.page} of {list.totalPages}
+                      <span className="text-muted-foreground/80">
+                        {" "}
+                        · {list.total} patient{list.total === 1 ? "" : "s"}
+                      </span>
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={list.page <= 1 || isRefreshing}
+                        onClick={() =>
+                          setPage((current) => Math.max(1, current - 1))
+                        }
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={
+                          list.page >= list.totalPages || isRefreshing
+                        }
+                        onClick={() =>
+                          setPage((current) =>
+                            Math.min(list.totalPages, current + 1)
+                          )
+                        }
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             )}
           </CardContent>
