@@ -677,6 +677,48 @@ export async function updatePatientMedicalRecord(
   }
 }
 
+async function deleteOperationalPatientsForRecords(
+  rows: Array<{
+    student_id?: string | null
+    employee_id?: string | null
+  }>
+) {
+  const studentIds = [
+    ...new Set(
+      rows
+        .map((row) => row.student_id?.trim())
+        .filter((id): id is string => Boolean(id))
+    ),
+  ]
+  const employeeIds = [
+    ...new Set(
+      rows
+        .map((row) => row.employee_id?.trim())
+        .filter((id): id is string => Boolean(id))
+    ),
+  ]
+
+  if (studentIds.length === 0 && employeeIds.length === 0) return
+
+  const admin = createAdminClient()
+
+  if (studentIds.length > 0) {
+    const { error } = await admin
+      .from("patients")
+      .delete()
+      .in("student_id", studentIds)
+    if (error) mapError(error)
+  }
+
+  if (employeeIds.length > 0) {
+    const { error } = await admin
+      .from("patients")
+      .delete()
+      .in("employee_id", employeeIds)
+    if (error) mapError(error)
+  }
+}
+
 export async function deletePatientRecord(
   id: string,
   client?: SupabaseClient
@@ -686,6 +728,17 @@ export async function deletePatientRecord(
   }
 
   const supabase = await getClient(client)
+  const { data: existing, error: findError } = await supabase
+    .from("patient_records")
+    .select("id, student_id, employee_id")
+    .eq("id", id)
+    .maybeSingle()
+
+  if (findError) mapError(findError)
+  if (!existing) {
+    throw new PatientRecordServiceError("not_found", "Patient record not found.")
+  }
+
   const { error, count } = await supabase
     .from("patient_records")
     .delete({ count: "exact" })
@@ -695,6 +748,8 @@ export async function deletePatientRecord(
   if (!count) {
     throw new PatientRecordServiceError("not_found", "Patient record not found.")
   }
+
+  await deleteOperationalPatientsForRecords([existing])
 }
 
 export async function archivePatientRecords(
@@ -744,10 +799,28 @@ export async function deletePatientRecords(
   }
 
   const supabase = await getClient(client)
+
+  const { data: existing, error: findError } = await supabase
+    .from("patient_records")
+    .select("id, student_id, employee_id")
+    .in("id", uniqueIds)
+    .not("archived_at", "is", null)
+
+  if (findError) mapError(findError)
+  if (!existing || existing.length === 0) {
+    throw new PatientRecordServiceError(
+      "not_found",
+      "No matching archived patient records were found to delete."
+    )
+  }
+
   const { data, error } = await supabase
     .from("patient_records")
     .delete()
-    .in("id", uniqueIds)
+    .in(
+      "id",
+      existing.map((row) => row.id)
+    )
     .not("archived_at", "is", null)
     .select("id")
 
@@ -760,6 +833,8 @@ export async function deletePatientRecords(
       "No matching archived patient records were found to delete."
     )
   }
+
+  await deleteOperationalPatientsForRecords(existing)
 
   return { deleted }
 }
