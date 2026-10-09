@@ -124,13 +124,6 @@ const staffNavGroupTemplates: NavGroupTemplate[] = [
         module: "patient_records",
       },
       {
-        id: "bin",
-        title: "Bin",
-        suffix: "/bin",
-        icon: "bin",
-        module: "patient_records",
-      },
-      {
         id: "consultations",
         title: "Consultations",
         suffix: "/consultations",
@@ -262,9 +255,22 @@ export function buildStaffNavGroups(
 export const staffNavGroups: StaffNavGroupDef[] = buildStaffNavGroups("admin")
 
 export function buildStaffFooterNav(
-  _designation: ClinicDesignation
+  designation: ClinicDesignation
 ): StaffNavItemDef[] {
-  return []
+  // Bin sits above the copyright row — only for roles with patient records.
+  if (!canViewModule(designation, "patient_records")) return []
+
+  const path = resolveItemPath(designation, "/bin")
+  return [
+    {
+      id: "bin",
+      title: "Bin",
+      path,
+      icon: "bin",
+      module: "patient_records",
+      matchPrefixes: [path],
+    },
+  ]
 }
 
 /** @deprecated Prefer buildStaffFooterNav(designation) */
