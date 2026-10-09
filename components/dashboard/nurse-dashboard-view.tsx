@@ -163,6 +163,7 @@ export function NurseDashboardView({
                 access={access}
                 tickets={tickets}
                 onStartIntake={setIntakeTicket}
+                dataLoading={dataLoading}
               />
             </PanelCell>
           </PanelGrid>

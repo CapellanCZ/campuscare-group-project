@@ -36,6 +36,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -91,11 +92,13 @@ export function NurseTodayQueue({
   tickets,
   onStartIntake,
   className,
+  dataLoading = false,
 }: {
   access: StaffAccess
   tickets: QueueTicketRow[]
   onStartIntake: (ticket: QueueTicketRow) => void
   className?: string
+  dataLoading?: boolean
 }) {
   const router = useRouter()
   const [query, setQuery] = useState("")
@@ -265,7 +268,48 @@ export function NurseTodayQueue({
         </div>
       </CardHeader>
       <CardContent className="min-w-0 p-0">
-        {pageRows.length === 0 ? (
+        {dataLoading ? (
+          <div className="min-w-0 overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-6">#</TableHead>
+                  <TableHead>Patient</TableHead>
+                  <TableHead className="hidden sm:table-cell">Type</TableHead>
+                  <TableHead className="hidden md:table-cell">
+                    Consultation
+                  </TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="pr-6">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {[0, 1, 2].map((row) => (
+                  <TableRow className="h-14" key={row}>
+                    <TableCell className="pl-6">
+                      <Skeleton className="h-4 w-10" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-28" />
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell">
+                      <Skeleton className="h-5 w-16" />
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <Skeleton className="h-4 w-24" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-16" />
+                    </TableCell>
+                    <TableCell className="pr-6">
+                      <Skeleton className="h-8 w-8 rounded-md" />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : pageRows.length === 0 ? (
           <Empty className="border-0 py-12">
             <EmptyHeader>
               <EmptyMedia variant="icon">
