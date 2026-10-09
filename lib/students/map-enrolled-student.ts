@@ -97,6 +97,7 @@ export function enrolledToPatientRecord(
     consultationsCount: clinical?.consultationsCount ?? 0,
     documentsCount: clinical?.documentsCount ?? 0,
     familyBackground: student.familyBackground,
+    archivedAt: clinical?.archivedAt ?? null,
   }
 }
 

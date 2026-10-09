@@ -63,6 +63,7 @@ function basePatient(overrides: Partial<PatientRecord>): PatientRecord {
     updatedAt: "2026-01-01T00:00:00.000Z",
     consultationsCount: 2,
     documentsCount: 1,
+    archivedAt: null,
     ...overrides,
   }
 }
