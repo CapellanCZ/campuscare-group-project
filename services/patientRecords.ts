@@ -721,6 +721,16 @@ function splitFullName(value: string): { firstName: string; lastName: string } {
   }
 }
 
+/** Reject non-date strings (e.g. nationality mis-mapped into birth_date). */
+function sanitizeImportBirthDate(value: string): string | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.slice(0, 10)
+  const parsed = Date.parse(trimmed)
+  if (Number.isNaN(parsed)) return null
+  return new Date(parsed).toISOString().slice(0, 10)
+}
+
 export async function importPatientRecordsFromExcel(
   formData: FormData,
   client?: SupabaseClient
@@ -834,13 +844,9 @@ export async function importPatientRecordsFromExcel(
               ? (row.year_level || "").trim() || null
               : null,
           gender: (row.gender || row.sex || "").trim() || null,
-          birthDate:
-            (
-              row.birth_date ||
-              row.date_of_birth ||
-              row.dob ||
-              ""
-            ).trim() || null,
+          birthDate: sanitizeImportBirthDate(
+            row.birth_date || row.date_of_birth || row.dob || ""
+          ),
           civilStatus: (row.civil_status || "").trim() || null,
           religion: (row.religion || "").trim() || null,
           nationality: (row.nationality || "").trim() || null,

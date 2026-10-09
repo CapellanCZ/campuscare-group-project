@@ -10,6 +10,7 @@ import {
   isCampusRosterMatrix,
   mapCampusRosterRowToStudent,
   normalizeStudentId,
+  resolveCampusRosterColumns,
 } from "@/lib/students/campus-roster-parse"
 import type { EnrolledStudent } from "@/lib/students/types"
 
@@ -73,11 +74,15 @@ async function downloadAndParse(): Promise<{
   })
 
   const byId = new Map<string, EnrolledStudent>()
-  const start = isCampusRosterMatrix(rows) ? 2 : 1
+  const isCampus = isCampusRosterMatrix(rows)
+  const columns = isCampus
+    ? resolveCampusRosterColumns(Array.isArray(rows[1]) ? rows[1] : [])
+    : undefined
+  const start = isCampus ? 2 : 1
   for (let i = start; i < rows.length; i += 1) {
     const row = rows[i]
     if (!Array.isArray(row)) continue
-    const student = mapCampusRosterRowToStudent(row)
+    const student = mapCampusRosterRowToStudent(row, columns)
     if (!student) continue
     byId.set(normalizeStudentId(student.studentId), student)
   }

@@ -157,6 +157,10 @@ export async function parseExcelSheets(
       sheets.set(sheetName, [])
       continue
     }
+    if (isCampusRosterMatrix(matrix)) {
+      sheets.set(sheetName, parseCampusRosterMatrix(matrix))
+      continue
+    }
     const headerRowIndex = detectHeaderRowIndex(matrix)
     sheets.set(sheetName, matrixToKeyedRows(matrix, headerRowIndex, sheetName))
   }
