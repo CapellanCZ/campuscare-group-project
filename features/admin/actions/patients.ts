@@ -283,11 +283,47 @@ export async function deletePatient(input: {
 
   const adminClientResult = getAdminClientSafe()
   if (!adminClientResult.ok) return adminClientResult
+  const admin = adminClientResult.client
 
-  const { error } = await adminClientResult.client
+  const { data: patient, error: findError } = await admin
     .from("patients")
-    .delete()
+    .select("id, student_id, employee_id")
     .eq("id", input.patientId)
+    .maybeSingle()
+
+  if (findError) {
+    return { ok: false, error: `Could not load patient. ${findError.message}` }
+  }
+  if (!patient) {
+    return { ok: false, error: "Patient not found." }
+  }
+
+  // patient_records and patients are the same person (campus ID).
+  if (patient.student_id) {
+    const { error } = await admin
+      .from("patient_records")
+      .delete()
+      .eq("student_id", patient.student_id)
+    if (error) {
+      return {
+        ok: false,
+        error: `Could not delete patient record. ${error.message}`,
+      }
+    }
+  } else if (patient.employee_id) {
+    const { error } = await admin
+      .from("patient_records")
+      .delete()
+      .eq("employee_id", patient.employee_id)
+    if (error) {
+      return {
+        ok: false,
+        error: `Could not delete patient record. ${error.message}`,
+      }
+    }
+  }
+
+  const { error } = await admin.from("patients").delete().eq("id", input.patientId)
 
   if (error) {
     return { ok: false, error: `Could not delete patient. ${error.message}` }
