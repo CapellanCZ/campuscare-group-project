@@ -70,8 +70,8 @@ function ShellBody({
             )}
             aria-busy={navigating || undefined}
           >
-            {/* Keep the previous page chrome visible — only route loading.tsx /
-                page data regions show skeletons while Supabase fetches. */}
+            {/* Keep current page mounted during nav. No full-page skeleton —
+                only in-page data regions skeletonize while Supabase loads. */}
             {children}
           </div>
         </SidebarInset>
