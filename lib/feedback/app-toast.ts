@@ -1,4 +1,5 @@
 import { toast, type ExternalToast } from "sonner"
+import { createElement } from "react"
 
 export type AppToastPayload = {
   title: string
@@ -22,32 +23,109 @@ function baseOptions(kind: ToastKind, payload: AppToastPayload): ExternalToast {
       toast: `cn-toast cn-toast--${kind}`,
       title: "cn-toast__title",
       description: "cn-toast__description",
+      closeButton: "cn-toast__close",
     },
   }
 }
 
+function ProgressToastContent({
+  title,
+  percent,
+  hint,
+}: {
+  title: string
+  percent: number
+  hint?: string
+}) {
+  const clamped = Math.max(0, Math.min(100, Math.round(percent)))
+  return createElement(
+    "div",
+    { className: "cn-toast-progress", role: "status", "aria-live": "polite" },
+    createElement(
+      "div",
+      { className: "cn-toast-progress__meta" },
+      createElement("p", { className: "cn-toast-progress__label" }, title),
+      createElement(
+        "p",
+        { className: "cn-toast-progress__percent" },
+        `${clamped}%`
+      )
+    ),
+    hint
+      ? createElement("p", { className: "cn-toast-progress__hint" }, hint)
+      : null,
+    createElement(
+      "div",
+      {
+        className: "cn-toast-progress__track",
+        "aria-hidden": true,
+      },
+      createElement("div", {
+        className: "cn-toast-progress__fill",
+        style: { width: `${clamped}%` },
+      })
+    )
+  )
+}
+
 export const appToast = {
-  success(payload: AppToastPayload) {
-    return toast.success(payload.title, baseOptions("success", payload))
+  success(payload: AppToastPayload, id?: string | number) {
+    return toast.success(payload.title, {
+      ...baseOptions("success", payload),
+      id,
+    })
   },
-  error(payload: AppToastPayload) {
-    return toast.error(payload.title, baseOptions("error", payload))
+  error(payload: AppToastPayload, id?: string | number) {
+    return toast.error(payload.title, {
+      ...baseOptions("error", payload),
+      id,
+    })
   },
-  warning(payload: AppToastPayload) {
-    return toast.warning(payload.title, baseOptions("warning", payload))
+  warning(payload: AppToastPayload, id?: string | number) {
+    return toast.warning(payload.title, {
+      ...baseOptions("warning", payload),
+      id,
+    })
   },
-  info(payload: AppToastPayload) {
-    return toast.info(payload.title, baseOptions("info", payload))
+  info(payload: AppToastPayload, id?: string | number) {
+    return toast.info(payload.title, {
+      ...baseOptions("info", payload),
+      id,
+    })
   },
-  loading(payload: AppToastPayload) {
+  loading(payload: AppToastPayload, id?: string | number) {
     return toast.loading(payload.title, {
+      id,
       description: payload.description,
       classNames: {
         toast: "cn-toast cn-toast--loading",
         title: "cn-toast__title",
         description: "cn-toast__description",
+        closeButton: "cn-toast__close",
       },
     })
+  },
+  /** Persistent progress toast — update by calling again with the same id. */
+  progress(
+    payload: { title: string; percent: number; hint?: string },
+    id: string | number
+  ) {
+    return toast.custom(
+      () =>
+        createElement(ProgressToastContent, {
+          title: payload.title,
+          percent: payload.percent,
+          hint: payload.hint,
+        }),
+      {
+        id,
+        duration: Infinity,
+        classNames: {
+          toast: "cn-toast cn-toast--loading",
+          closeButton: "cn-toast__close",
+        },
+      }
+    )
   },
   dismiss(id?: string | number) {
     toast.dismiss(id)
@@ -84,6 +162,7 @@ export const appToast = {
         toast: "cn-toast",
         title: "cn-toast__title",
         description: "cn-toast__description",
+        closeButton: "cn-toast__close",
       },
     })
   },

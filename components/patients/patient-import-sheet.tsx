@@ -1,10 +1,14 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useRef, useState, useTransition } from "react"
+import {
+  IconDownload,
+  IconFileSpreadsheet,
+  IconUpload,
+} from "@tabler/icons-react"
+
 import { appToast } from "@/lib/feedback/app-toast"
 import { patientToasts } from "@/lib/feedback/toast-messages"
-import { IconDownload, IconFileSpreadsheet, IconUpload } from "@tabler/icons-react"
-
 import { importPatientRecordsFromExcelAction } from "@/features/patients/actions"
 import { downloadExcelTemplate } from "@/features/admin/lib/excel"
 import { Button } from "@/components/ui/button"
@@ -20,6 +24,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+
+const IMPORT_TOAST_ID = "patient-import-progress"
 
 const TEMPLATE_HEADERS = [
   "patient_type",
@@ -82,6 +88,12 @@ type PatientImportSheetProps = {
   toolbar?: boolean
 }
 
+function estimateImportDurationMs(file: File | null) {
+  if (!file) return 8_000
+  // Rough pacing: ~1.2s per 100KB, clamped for small/large files.
+  return Math.min(45_000, Math.max(4_000, Math.round(file.size / 100_000) * 1_200))
+}
+
 export function PatientImportSheet({
   onImported,
   toolbar = false,
@@ -89,35 +101,109 @@ export function PatientImportSheet({
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [fileName, setFileName] = useState<string | null>(null)
+  const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  function clearProgressTimer() {
+    if (progressTimerRef.current) {
+      clearInterval(progressTimerRef.current)
+      progressTimerRef.current = null
+    }
+  }
+
+  function startProgressToast(file: File | null) {
+    clearProgressTimer()
+    const startedAt = Date.now()
+    const durationMs = estimateImportDurationMs(file)
+    let percent = 2
+
+    appToast.progress(
+      {
+        title: "Importing patients",
+        percent,
+        hint: fileName
+          ? `Uploading ${fileName}…`
+          : "Please keep this tab open.",
+      },
+      IMPORT_TOAST_ID
+    )
+
+    progressTimerRef.current = setInterval(() => {
+      const elapsed = Date.now() - startedAt
+      // Ease toward 92% while the server works; finish jumps to 100%.
+      const target = Math.min(92, Math.round((elapsed / durationMs) * 92))
+      percent = Math.max(percent, target)
+      appToast.progress(
+        {
+          title: "Importing patients",
+          percent,
+          hint:
+            percent < 40
+              ? "Reading your Excel file…"
+              : percent < 75
+                ? "Saving patient records…"
+                : "Almost done…",
+        },
+        IMPORT_TOAST_ID
+      )
+    }, 250)
+  }
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
-    const formData = new FormData(event.currentTarget)
+    const form = event.currentTarget
+    const formData = new FormData(form)
     const file = formData.get("file")
-    const sizeHint =
-      file instanceof File && file.size > 500_000
-        ? "Large file detected — importing in batches…"
-        : "Importing roster in batches…"
+    const upload = file instanceof File ? file : null
 
-    appToast.info({
-      title: "Import started",
-      description: sizeHint,
-    })
+    startProgressToast(upload)
 
     startTransition(async () => {
       const result = await importPatientRecordsFromExcelAction(formData)
+      clearProgressTimer()
 
       if (!result.ok) {
+        appToast.error(
+          {
+            title: "Import failed",
+            description: result.error,
+          },
+          IMPORT_TOAST_ID
+        )
         setError(result.error)
         patientToasts.failed(result.error)
         return
       }
 
-      appToast.success({ title: result.message })
-      if (result.warning) appToast.warning({ title: result.warning })
+      appToast.progress(
+        {
+          title: "Importing patients",
+          percent: 100,
+          hint: "Finishing up…",
+        },
+        IMPORT_TOAST_ID
+      )
+
+      window.setTimeout(() => {
+        appToast.success(
+          {
+            title: "Import complete",
+            description: result.message.replace(/^Import complete:\s*/i, ""),
+          },
+          IMPORT_TOAST_ID
+        )
+        if (result.warning) {
+          appToast.warning({
+            title: "Some rows need attention",
+            description: result.warning,
+          })
+        }
+      }, 280)
+
       setOpen(false)
-      // Refresh directory immediately — realtime will also catch up.
+      setFileName(null)
+      form.reset()
       onImported()
     })
   }
@@ -126,8 +212,12 @@ export function PatientImportSheet({
     <Dialog
       open={open}
       onOpenChange={(next) => {
+        if (pending && !next) return
         setOpen(next)
-        if (!next) setError(null)
+        if (!next) {
+          setError(null)
+          setFileName(null)
+        }
       }}
     >
       <DialogTrigger
@@ -146,69 +236,103 @@ export function PatientImportSheet({
         <DialogHeader className="border-b px-6 py-5 text-left">
           <DialogTitle>Import patients</DialogTitle>
           <DialogDescription>
-            Upload a roster template, campus Excel file, or a Patient Records
-            workbook previously exported from CampusCare.
+            Add many patients at once from an Excel file. Download the template
+            if you need a ready-made format.
           </DialogDescription>
         </DialogHeader>
         <form
-          className="flex min-h-0 flex-1 flex-col gap-4 px-6 py-4"
+          className="flex min-h-0 flex-1 flex-col gap-5 px-6 py-5"
           onSubmit={onSubmit}
         >
-          <p className="text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">Roster / campus file:</span>{" "}
-            imports personal information (
-            patient_type, id_number, first_name, last_name, course, and related
-            fields). Large rosters (hundreds–thousands) are imported in batches
-            so the directory updates without a manual refresh.
-          </p>
-          <p className="text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">CampusCare export:</span>{" "}
-            imports personal information plus role-scoped clinical sheets
-            (medical profile, consultations, vitals, and documents). Nurse
-            exports include medical and dental; physician and dentist exports
-            stay within their specialty.
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="w-fit"
-            disabled={pending}
-            onClick={() => {
-              void downloadExcelTemplate(
-                "patient-records-import-template.xlsx",
-                [...TEMPLATE_HEADERS],
-                TEMPLATE_SAMPLE_ROWS
-              )
-            }}
-          >
-            <IconDownload data-icon="inline-start" aria-hidden="true" />
-            Download template
-          </Button>
-          <Field data-invalid={error ? true : undefined}>
-            <FieldLabel htmlFor="import-patient-records">
-              Excel file (.xlsx)
-            </FieldLabel>
-            <Input
-              id="import-patient-records"
-              name="file"
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              required
+          <div className="space-y-3 rounded-xl border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+            <p>
+              <span className="font-medium text-foreground">Campus roster</span>
+              {" — "}
+              Use the template or any campus Excel list with patient type, ID
+              number, name, and course. Large files are imported in batches.
+            </p>
+            <p>
+              <span className="font-medium text-foreground">
+                CampusCare export
+              </span>
+              {" — "}
+              Re-upload a file previously exported from Patient Records. Your
+              role only restores the clinical details you are allowed to see.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-fit"
               disabled={pending}
-            />
-          </Field>
+              onClick={() => {
+                void downloadExcelTemplate(
+                  "patient-records-import-template.xlsx",
+                  [...TEMPLATE_HEADERS],
+                  TEMPLATE_SAMPLE_ROWS
+                )
+              }}
+            >
+              <IconDownload data-icon="inline-start" aria-hidden="true" />
+              Download template
+            </Button>
+
+            <Field data-invalid={error ? true : undefined}>
+              <FieldLabel htmlFor="import-patient-records">
+                Excel file (.xlsx)
+              </FieldLabel>
+              <Input
+                id="import-patient-records"
+                name="file"
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                required
+                disabled={pending}
+                onChange={(event) => {
+                  const next = event.target.files?.[0]
+                  setFileName(next?.name ?? null)
+                  setError(null)
+                }}
+              />
+              {fileName ? (
+                <p className="text-xs text-muted-foreground">
+                  Selected: {fileName}
+                </p>
+              ) : null}
+            </Field>
+          </div>
+
           {error ? (
             <p role="alert" className="text-sm text-destructive">
               {error}
             </p>
           ) : null}
-          <DialogFooter className="mt-auto px-0">
-            <Button type="submit" disabled={pending} className="w-full">
-              <IconFileSpreadsheet data-icon="inline-start" aria-hidden="true" />
-              {pending ? "Importing…" : "Import roster"}
+
+          <DialogFooter className="mt-auto gap-2 border-t px-0 pt-4 sm:justify-stretch">
+            <Button
+              type="submit"
+              disabled={pending}
+              className="w-full sm:flex-1"
+            >
+              <IconFileSpreadsheet
+                data-icon="inline-start"
+                aria-hidden="true"
+              />
+              {pending ? "Importing…" : "Start import"}
             </Button>
-            <DialogClose render={<Button type="button" variant="outline" />}>
+            <DialogClose
+              render={
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                  disabled={pending}
+                />
+              }
+            >
               Cancel
             </DialogClose>
           </DialogFooter>

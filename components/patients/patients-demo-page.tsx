@@ -368,14 +368,13 @@ export function PatientsPage({
   }, [loadPage, pageCache])
 
   // Realtime + post-import: jump to page 1 so new roster rows are visible.
+  // Avoid startTransition here — it dims the directory while import progress toast is showing.
   const refreshAfterImport = useCallback(() => {
     pageCache.invalidate()
     setSelectionScope("none")
     setSelectedIds(new Set())
     setPage(1)
-    startTransition(() => {
-      void loadPage(1, { includeStats: true, force: true })
-    })
+    void loadPage(1, { includeStats: true, force: true })
   }, [loadPage, pageCache])
 
   useEffect(() => {
