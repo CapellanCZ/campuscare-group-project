@@ -92,12 +92,11 @@ export function NavPendingProvider({
     [pathname]
   )
 
+  /** Fallback when a control cannot use a native <Link>. Prefer markPending + Link. */
   const navigate = useCallback(
     (href: string) => {
       if (hrefPath(href) === pathname) return
       markPending(href)
-      // Push outside startTransition so auth-only destinations mount
-      // immediately; in-page data regions handle their own loading.
       router.push(href)
     },
     [markPending, pathname, router]

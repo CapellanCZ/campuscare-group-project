@@ -16,6 +16,7 @@ import {
   NavPendingProvider,
   useOptionalNavPending,
 } from "@/components/dashboard/nav-pending"
+import { StaffNavOutlet } from "@/components/dashboard/staff-nav-outlet"
 import { StaffRealtimeShell } from "@/components/staff-realtime-shell"
 import { StaffAccessProvider } from "@/components/staff-access-provider"
 import { StaffThemeController } from "@/components/staff-theme-provider"
@@ -71,7 +72,7 @@ function ShellBody({
               isAdmin && "bg-muted/30"
             )}
           >
-            {children}
+            <StaffNavOutlet>{children}</StaffNavOutlet>
           </div>
         </SidebarInset>
       </div>

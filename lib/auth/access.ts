@@ -1,3 +1,5 @@
+import { cache } from "react"
+
 import { hasCampusAccess } from "@/lib/auth/campus-access"
 import {
   canUseWebApp,
@@ -21,7 +23,7 @@ function displayName(profile: ProfileRow) {
   return profile.full_name?.trim() || profile.email || "Staff"
 }
 
-export async function getStaffAccess(): Promise<StaffAccess | null> {
+async function loadStaffAccess(): Promise<StaffAccess | null> {
   const supabase = await createClient()
   const {
     data: { user },
@@ -79,3 +81,6 @@ export async function getStaffAccess(): Promise<StaffAccess | null> {
     hasClinicMembership,
   }
 }
+
+/** Request-scoped: layout + page share one auth resolve per navigation. */
+export const getStaffAccess = cache(loadStaffAccess)

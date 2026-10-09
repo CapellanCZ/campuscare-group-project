@@ -50,12 +50,12 @@ function itemOrChildActive(pathname: string, item: RoleNavItem): boolean {
 function NavLeaf({
   item,
   activePath,
-  onNavigate,
+  onMarkPending,
   onPrefetch,
 }: {
   item: RoleNavItem
   activePath: string
-  onNavigate: (href: string) => void
+  onMarkPending: (href: string) => void
   onPrefetch: (href: string) => void
 }) {
   return (
@@ -76,8 +76,7 @@ function NavLeaf({
               ) {
                 return
               }
-              event.preventDefault()
-              onNavigate(item.href)
+              onMarkPending(item.href)
             }}
             onMouseEnter={() => onPrefetch(item.href)}
             onFocus={() => onPrefetch(item.href)}
@@ -94,12 +93,12 @@ function NavLeaf({
 function NavBranch({
   item,
   activePath,
-  onNavigate,
+  onMarkPending,
   onPrefetch,
 }: {
   item: RoleNavItem
   activePath: string
-  onNavigate: (href: string) => void
+  onMarkPending: (href: string) => void
   onPrefetch: (href: string) => void
 }) {
   const open = itemOrChildActive(activePath, item)
@@ -142,8 +141,7 @@ function NavBranch({
                       ) {
                         return
                       }
-                      event.preventDefault()
-                      onNavigate(child.href)
+                      onMarkPending(child.href)
                     }}
                     onMouseEnter={() => onPrefetch(child.href)}
                     onFocus={() => onPrefetch(child.href)}
@@ -162,7 +160,7 @@ function NavBranch({
 }
 
 export function RoleSidebar({ role }: RoleSidebarProps) {
-  const { activePath, navigate, prefetch } = useNavPending()
+  const { activePath, markPending, prefetch } = useNavPending()
   const nav = getRoleNavConfig(role)
   const homeHref = nav.groups[0]?.items[0]?.href ?? `/${role}/dashboard`
 
@@ -184,8 +182,7 @@ export function RoleSidebar({ role }: RoleSidebarProps) {
                 ) {
                   return
                 }
-                event.preventDefault()
-                navigate(homeHref)
+                markPending(homeHref)
               }}
             />
           }
@@ -214,8 +211,7 @@ export function RoleSidebar({ role }: RoleSidebarProps) {
                     ) {
                       return
                     }
-                    event.preventDefault()
-                    navigate(nav.quickActionHref)
+                    markPending(nav.quickActionHref)
                   }}
                 />
               }
@@ -236,7 +232,7 @@ export function RoleSidebar({ role }: RoleSidebarProps) {
                     key={item.title}
                     item={item}
                     activePath={activePath}
-                    onNavigate={navigate}
+                    onMarkPending={markPending}
                     onPrefetch={prefetch}
                   />
                 ) : (
@@ -244,7 +240,7 @@ export function RoleSidebar({ role }: RoleSidebarProps) {
                     key={item.title}
                     item={item}
                     activePath={activePath}
-                    onNavigate={navigate}
+                    onMarkPending={markPending}
                     onPrefetch={prefetch}
                   />
                 )

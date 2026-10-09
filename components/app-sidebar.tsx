@@ -46,14 +46,13 @@ export function AppSidebar() {
     ) {
       return
     }
-    event.preventDefault()
-    if (navPending?.isPending) return
-    closeMobile()
-    if (navPending) {
-      navPending.navigate(href)
+    const path = href.split("?")[0]
+    if (navPending?.isPending && navPending.activePath === path) {
+      event.preventDefault()
       return
     }
-    window.location.assign(href)
+    navPending?.markPending(href)
+    closeMobile()
   }
 
   const groups = getNavGroupsForRole(role, activePath)

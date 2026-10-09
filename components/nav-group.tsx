@@ -62,15 +62,15 @@ function useNavLinkHandlers() {
       ) {
         return
       }
-      event.preventDefault()
-      if (navPending?.isPending) return
-      warmRouteData(href, role)
-      if (isMobile) setOpenMobile(false)
-      if (navPending) {
-        navPending.navigate(href)
+      // Do not preventDefault — Next uses the prefetched RSC payload.
+      // markPending paints the optimistic destination shell immediately.
+      if (navPending?.isPending && navPending.activePath === href.split("?")[0]) {
+        event.preventDefault()
         return
       }
-      window.location.assign(href)
+      navPending?.markPending(href)
+      warmRouteData(href, role)
+      if (isMobile) setOpenMobile(false)
     },
     onMouseEnter: () => {
       navPending?.prefetch(href)

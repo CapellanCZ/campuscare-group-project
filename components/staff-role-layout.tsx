@@ -7,7 +7,6 @@ import {
   homePathForDesignation,
   type StaffRouteRole,
 } from "@/lib/auth/home-path"
-import { getUserPreferences } from "@/services/staff-profile"
 
 export async function StaffRoleLayout({
   role,
@@ -37,11 +36,11 @@ export async function StaffRoleLayout({
     redirect(homePathForDesignation(access.primaryRole))
   }
 
-  const preferences = await getUserPreferences(access.userId)
-
+  // Theme hydrates from client storage via StaffThemeController — do not
+  // block every nav on a preferences round-trip.
   return (
     <StaffSessionShell>
-      <AppShell access={access} initialTheme={preferences.theme}>
+      <AppShell access={access} initialTheme="system">
         {children}
       </AppShell>
     </StaffSessionShell>
