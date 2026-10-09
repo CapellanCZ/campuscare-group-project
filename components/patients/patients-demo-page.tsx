@@ -10,8 +10,11 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react"
+import { useRouter } from "next/navigation"
 import { patientToasts } from "@/lib/feedback/toast-messages"
 import { appToast } from "@/lib/feedback/app-toast"
+import { staffBasePath } from "@/lib/auth/home-path"
+import { useCachedPatientPages } from "@/features/patients/hooks/use-cached-patient-pages"
 
 import { PatientDocumentsSheet } from "@/components/patients/patient-documents-sheet"
 import { PatientExportButton } from "@/components/patients/patient-export-button"
@@ -195,6 +198,8 @@ export function PatientsPage({
   const skipNextFetch = useRef(true)
   const mountedRef = useRef(false)
   const { confirmPreset } = useConfirm()
+  const router = useRouter()
+  const pageCache = useCachedPatientPages()
 
   const canUpdateMedical = can(access.designation, "patients.update_medical")
   const canViewHistory = can(
@@ -215,6 +220,13 @@ export function PatientsPage({
     if (initialError) patientToasts.failed(initialError)
   }, [initialError])
 
+  // Prefetch Bin route so navigation feels instant.
+  useEffect(() => {
+    const base = staffBasePath(access.designation)
+    router.prefetch(`${base}/bin`)
+    router.prefetch(`${base}/patients`)
+  }, [access.designation, router])
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const nextQuery = query.trim()
@@ -225,50 +237,105 @@ export function PatientsPage({
     return () => window.clearTimeout(timer)
   }, [query, debouncedQuery])
 
+  const activeSortDir = sortDirection === false ? "asc" : sortDirection
+
+  const queryScope = useMemo(
+    () =>
+      JSON.stringify({
+        q: debouncedQuery,
+        type: patientTypeFilter,
+        sort: sortColumn,
+        dir: activeSortDir,
+      }),
+    [activeSortDir, debouncedQuery, patientTypeFilter, sortColumn]
+  )
+
+  const fetchListPage = useCallback(
+    async (nextPage: number): Promise<PatientRecordListResult | null> => {
+      const listResult = await searchPatientRecordsAction(debouncedQuery, {
+        page: nextPage,
+        pageSize: PAGE_SIZE,
+        patientType: patientTypeFilter,
+        sortBy: sortColumn,
+        sortDir: activeSortDir,
+      })
+      if (!listResult.ok) {
+        if (listResult.error === NO_STUDENT_FOUND) {
+          return {
+            items: [],
+            total: 0,
+            page: 1,
+            pageSize: PAGE_SIZE,
+            totalPages: 1,
+          }
+        }
+        patientToasts.failed(listResult.error)
+        return null
+      }
+      return listResult.data
+    },
+    [activeSortDir, debouncedQuery, patientTypeFilter, sortColumn]
+  )
+
+  const refreshStats = useCallback(async () => {
+    const statsResult = await fetchPatientRecordStatsAction()
+    if (!mountedRef.current) return
+    if (!statsResult.ok) {
+      patientToasts.failed(statsResult.error)
+      return
+    }
+    setStats(statsResult.data)
+  }, [])
+
   const loadPage = useCallback(
     async (
-      nextQuery: string,
-      nextPatientType: PatientRecordTypeFilter,
-      nextSortBy: PatientRecordSortColumn,
-      nextSortDir: "asc" | "desc",
-      nextPage: number
+      nextPage: number,
+      options: { includeStats?: boolean; force?: boolean } = {}
     ) => {
+      pageCache.setScope(queryScope)
+
+      const cached = !options.force ? pageCache.getCached(nextPage) : null
+      if (cached) {
+        setList(cached)
+        setPage(cached.page)
+        setLoading(false)
+        pageCache.prefetchAdjacent(
+          cached.page,
+          cached.totalPages,
+          fetchListPage
+        )
+        // Soft revalidate in the background without blocking UI.
+        void pageCache
+          .fetchPage(nextPage, fetchListPage, { bypassCache: true })
+          .then((fresh) => {
+            if (!mountedRef.current || !fresh) return
+            if (fresh.page === nextPage) {
+              setList(fresh)
+              pageCache.prefetchAdjacent(
+                fresh.page,
+                fresh.totalPages,
+                fetchListPage
+              )
+            }
+          })
+        if (options.includeStats) void refreshStats()
+        return
+      }
+
       setLoading(true)
       try {
-        const [listResult, statsResult] = await Promise.all([
-          searchPatientRecordsAction(nextQuery, {
-            page: nextPage,
-            pageSize: PAGE_SIZE,
-            patientType: nextPatientType,
-            sortBy: nextSortBy,
-            sortDir: nextSortDir,
-          }),
-          fetchPatientRecordStatsAction(),
-        ])
+        const listPromise = pageCache.fetchPage(nextPage, fetchListPage, {
+          bypassCache: options.force,
+        })
+        const statsPromise = options.includeStats
+          ? refreshStats()
+          : Promise.resolve()
+        const [data] = await Promise.all([listPromise, statsPromise])
         if (!mountedRef.current) return
-        if (!listResult.ok) {
-          if (listResult.error === NO_STUDENT_FOUND) {
-            setList({
-              items: [],
-              total: 0,
-              page: 1,
-              pageSize: PAGE_SIZE,
-              totalPages: 1,
-            })
-            setPage(1)
-            patientToasts.failed(NO_STUDENT_FOUND)
-            return
-          }
-          patientToasts.failed(listResult.error)
-          return
-        }
-        if (!statsResult.ok) {
-          patientToasts.failed(statsResult.error)
-          return
-        }
-        setList(listResult.data)
-        setPage(listResult.data.page)
-        setStats(statsResult.data)
+        if (!data) return
+        setList(data)
+        setPage(data.page)
+        pageCache.prefetchAdjacent(data.page, data.totalPages, fetchListPage)
       } catch {
         if (!mountedRef.current) return
         patientToasts.failed(
@@ -278,64 +345,41 @@ export function PatientsPage({
         if (mountedRef.current) setLoading(false)
       }
     },
-    []
+    [fetchListPage, pageCache, queryScope, refreshStats]
   )
 
-  const activeSortDir = sortDirection === false ? "asc" : sortDirection
-
   const refresh = useCallback(() => {
+    pageCache.invalidate()
     startTransition(() => {
-      void loadPage(
-        debouncedQuery,
-        patientTypeFilter,
-        sortColumn,
-        activeSortDir,
-        page
-      )
+      void loadPage(page, { includeStats: true, force: true })
     })
-  }, [
-    activeSortDir,
-    debouncedQuery,
-    loadPage,
-    page,
-    patientTypeFilter,
-    sortColumn,
-  ])
+  }, [loadPage, page, pageCache])
 
   useEffect(() => {
     if (skipNextFetch.current) {
       skipNextFetch.current = false
+      // Prefetch neighbors for SSR first page immediately.
+      pageCache.setScope(queryScope)
+      pageCache.put(initialList)
+      pageCache.prefetchAdjacent(
+        initialList.page,
+        initialList.totalPages,
+        fetchListPage
+      )
       return
     }
     setSelectedIds(new Set())
-    void loadPage(
-      debouncedQuery,
-      patientTypeFilter,
-      sortColumn,
-      activeSortDir,
-      page
-    )
-  }, [
-    activeSortDir,
-    debouncedQuery,
-    loadPage,
-    page,
-    patientTypeFilter,
-    sortColumn,
-  ])
+    void loadPage(page)
+  }, [fetchListPage, initialList, loadPage, page, pageCache, queryScope])
 
   useStaffRealtimeRefresh(
     `staff-patients-${access.designation}`,
     STAFF_REALTIME_TABLES.patients,
     () => {
-      void loadPage(
-        debouncedQuery,
-        patientTypeFilter,
-        sortColumn,
-        activeSortDir,
-        page
-      )
-    }
+      pageCache.invalidate()
+      void loadPage(page, { includeStats: true, force: true })
+    },
+    2000
   )
 
   function setColumnSort(
@@ -354,16 +398,21 @@ export function PatientsPage({
   }
 
   function handleSaved(patient: PatientRecord) {
-    setList((prev) => ({
-      ...prev,
-      items: prev.items.map((item) =>
-        item.id === patient.id ||
-        (patient.studentId != null && item.studentId === patient.studentId)
-          ? patient
-          : item
-      ),
-    }))
-    refresh()
+    // Local-first: patch the visible row immediately; sync stats in background.
+    setList((prev) => {
+      const next = {
+        ...prev,
+        items: prev.items.map((item) =>
+          item.id === patient.id ||
+          (patient.studentId != null && item.studentId === patient.studentId)
+            ? patient
+            : item
+        ),
+      }
+      pageCache.put(next)
+      return next
+    })
+    void refreshStats()
   }
 
   function openEnsuredPatient(
@@ -457,21 +506,33 @@ export function PatientsPage({
       confirmLabel: "Archive",
       onConfirm: async () => {
         setArchivePending(true)
+        const snapshot = list
+        const idSet = new Set(ids)
+        // Optimistic local update — UI reacts before the network returns.
+        setList((prev) => {
+          const items = prev.items.filter((item) => !idSet.has(item.id))
+          const next = {
+            ...prev,
+            items,
+            total: Math.max(0, prev.total - ids.length),
+          }
+          pageCache.put(next)
+          return next
+        })
+        clearSelection()
         try {
           const result = await archivePatientRecordsAction(ids)
           if (!result.ok) throw new Error(result.error)
-          setList((prev) => {
-            const idSet = new Set(ids)
-            const items = prev.items.filter((item) => !idSet.has(item.id))
-            return {
-              ...prev,
-              items,
-              total: Math.max(0, prev.total - result.data.archived),
-            }
-          })
-          clearSelection()
           patientToasts.archived(result.data.archived)
-          refresh()
+          pageCache.invalidate()
+          const nextPage =
+            snapshot.items.length <= ids.length && page > 1 ? page - 1 : page
+          if (nextPage !== page) setPage(nextPage)
+          else void loadPage(page, { includeStats: true, force: true })
+        } catch (error) {
+          setList(snapshot)
+          pageCache.put(snapshot)
+          throw error
         } finally {
           setArchivePending(false)
         }

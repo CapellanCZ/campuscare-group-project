@@ -25,6 +25,7 @@ import {
   deleteArchivedPatientRecordsAction,
   listArchivedPatientRecordsAction,
 } from "@/features/patients/actions"
+import { useCachedPatientPages } from "@/features/patients/hooks/use-cached-patient-pages"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -121,6 +122,7 @@ export function PatientsBinPage({
   const [isPending, startTransition] = useTransition()
   const skipNextFetch = useRef(true)
   const mountedRef = useRef(false)
+  const pageCache = useCachedPatientPages()
 
   const canDelete = can(access.designation, "patients.edit_information")
 
@@ -147,40 +149,75 @@ export function PatientsBinPage({
 
   const activeSortDir = sortDirection === false ? "asc" : sortDirection
 
+  const queryScope = useMemo(
+    () =>
+      JSON.stringify({
+        q: debouncedQuery,
+        sort: sortColumn,
+        dir: activeSortDir,
+        bin: true,
+      }),
+    [activeSortDir, debouncedQuery, sortColumn]
+  )
+
+  const fetchListPage = useCallback(
+    async (nextPage: number): Promise<PatientRecordListResult | null> => {
+      const result = await listArchivedPatientRecordsAction({
+        query: debouncedQuery,
+        page: nextPage,
+        pageSize: PAGE_SIZE,
+        sortBy: sortColumn,
+        sortDir: activeSortDir,
+      })
+      if (!result.ok) {
+        if (result.error === NO_STUDENT_FOUND) {
+          return {
+            items: [],
+            total: 0,
+            page: 1,
+            pageSize: PAGE_SIZE,
+            totalPages: 1,
+          }
+        }
+        patientToasts.failed(result.error)
+        return null
+      }
+      return result.data
+    },
+    [activeSortDir, debouncedQuery, sortColumn]
+  )
+
   const loadPage = useCallback(
-    async (
-      nextQuery: string,
-      nextSortBy: PatientRecordSortColumn,
-      nextSortDir: "asc" | "desc",
-      nextPage: number
-    ) => {
+    async (nextPage: number, options: { force?: boolean } = {}) => {
+      pageCache.setScope(queryScope)
+      const cached = !options.force ? pageCache.getCached(nextPage) : null
+      if (cached) {
+        setList(cached)
+        setPage(cached.page)
+        setLoading(false)
+        pageCache.prefetchAdjacent(
+          cached.page,
+          cached.totalPages,
+          fetchListPage
+        )
+        void pageCache
+          .fetchPage(nextPage, fetchListPage, { bypassCache: true })
+          .then((fresh) => {
+            if (!mountedRef.current || !fresh) return
+            if (fresh.page === nextPage) setList(fresh)
+          })
+        return
+      }
+
       setLoading(true)
       try {
-        const result = await listArchivedPatientRecordsAction({
-          query: nextQuery,
-          page: nextPage,
-          pageSize: PAGE_SIZE,
-          sortBy: nextSortBy,
-          sortDir: nextSortDir,
+        const data = await pageCache.fetchPage(nextPage, fetchListPage, {
+          bypassCache: options.force,
         })
-        if (!mountedRef.current) return
-        if (!result.ok) {
-          if (result.error === NO_STUDENT_FOUND) {
-            setList({
-              items: [],
-              total: 0,
-              page: 1,
-              pageSize: PAGE_SIZE,
-              totalPages: 1,
-            })
-            setPage(1)
-            return
-          }
-          patientToasts.failed(result.error)
-          return
-        }
-        setList(result.data)
-        setPage(result.data.page)
+        if (!mountedRef.current || !data) return
+        setList(data)
+        setPage(data.page)
+        pageCache.prefetchAdjacent(data.page, data.totalPages, fetchListPage)
       } catch {
         if (!mountedRef.current) return
         patientToasts.failed(
@@ -190,17 +227,24 @@ export function PatientsBinPage({
         if (mountedRef.current) setLoading(false)
       }
     },
-    []
+    [fetchListPage, pageCache, queryScope]
   )
 
   useEffect(() => {
     if (skipNextFetch.current) {
       skipNextFetch.current = false
+      pageCache.setScope(queryScope)
+      pageCache.put(initialList)
+      pageCache.prefetchAdjacent(
+        initialList.page,
+        initialList.totalPages,
+        fetchListPage
+      )
       return
     }
     setSelectedIds(new Set())
-    void loadPage(debouncedQuery, sortColumn, activeSortDir, page)
-  }, [activeSortDir, debouncedQuery, loadPage, page, sortColumn])
+    void loadPage(page)
+  }, [fetchListPage, initialList, loadPage, page, pageCache, queryScope])
 
   function setColumnSort(
     column: PatientRecordSortColumn,
@@ -264,26 +308,34 @@ export function PatientsBinPage({
       confirmLabel: "Delete permanently",
       onConfirm: async () => {
         setDeletePending(true)
+        const snapshot = list
+        const idSet = new Set(ids)
+        setList((prev) => {
+          const items = prev.items.filter((item) => !idSet.has(item.id))
+          const next = {
+            ...prev,
+            items,
+            total: Math.max(0, prev.total - ids.length),
+          }
+          pageCache.put(next)
+          return next
+        })
+        clearSelection()
         try {
           const result = await deleteArchivedPatientRecordsAction(ids)
           if (!result.ok) throw new Error(result.error)
-          setList((prev) => {
-            const idSet = new Set(ids)
-            const items = prev.items.filter((item) => !idSet.has(item.id))
-            return {
-              ...prev,
-              items,
-              total: Math.max(0, prev.total - result.data.deleted),
-            }
-          })
-          clearSelection()
           patientToasts.deleted()
+          pageCache.invalidate()
           startTransition(() => {
             const nextPage =
-              list.items.length <= ids.length && page > 1 ? page - 1 : page
+              snapshot.items.length <= ids.length && page > 1 ? page - 1 : page
             if (nextPage !== page) setPage(nextPage)
-            else void loadPage(debouncedQuery, sortColumn, activeSortDir, page)
+            else void loadPage(page, { force: true })
           })
+        } catch (error) {
+          setList(snapshot)
+          pageCache.put(snapshot)
+          throw error
         } finally {
           setDeletePending(false)
         }
