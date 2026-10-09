@@ -890,6 +890,9 @@ export async function importPatientRecordsFromExcel(
   }
 
   const { parseExcelRows } = await import("@/features/admin/lib/excel")
+  const { bulkImportPatientRecords } = await import(
+    "@/features/patients/data/bulk-import-patient-records"
+  )
   const rows = await parseExcelRows(await file.arrayBuffer())
   if (rows.length === 0) {
     throw new PatientRecordServiceError(
@@ -898,16 +901,8 @@ export async function importPatientRecordsFromExcel(
     )
   }
 
-  let created = 0
-  let updated = 0
   const failures: string[] = []
-  const typeCounts: Record<PatientType, number> = {
-    student: 0,
-    faculty: 0,
-    employee: 0,
-    visitor: 0,
-  }
-  const authSyncContext = await createPatientAuthSyncContext()
+  const inputs: CreatePatientRecordInput[] = []
 
   for (const [index, row] of rows.entries()) {
     const patientType = resolveImportPatientType(row)
@@ -939,104 +934,87 @@ export async function importPatientRecordsFromExcel(
     const employeeId = (row.employee_id || "").trim()
     const resolvedIds = campusIdsFromIdNumber(
       patientType,
-      idNumber || (patientType === "student" ? studentId || employeeId : employeeId || studentId)
+      idNumber ||
+        (patientType === "student"
+          ? studentId || employeeId
+          : employeeId || studentId)
     )
     if (!resolvedIds.ok) {
       failures.push(`Row ${index + 2}: ${resolvedIds.error}`)
       continue
     }
-
-    try {
-      const familyBackground = {
-        guardianName:
-          (
-            row.emergency_contact_name ||
-            row.parent_guardian_name ||
-            row.guardian_name ||
-            ""
-          ).trim() || null,
-        relationship:
-          (row.guardian_relationship || row.relationship || "").trim() || null,
-        occupation: (() => {
-          const guardian = (row.guardian_occupation || "").trim()
-          if (guardian) return guardian
-          const occupation = (row.occupation || "").trim()
-          if (occupation && isPatientTypeRoleLabel(occupation)) return null
-          return occupation || null
-        })(),
-        address: (row.guardian_address || "").trim() || null,
-        mobile:
-          (
-            row.emergency_contact_phone ||
-            row.guardian_mobile ||
-            ""
-          ).trim() || null,
-        email: (row.guardian_email || "").trim().toLowerCase() || null,
-      }
-      const hasFamily = Object.values(familyBackground).some(Boolean)
-
-      const result = await upsertPatientRecord(
-        {
-          patientType,
-          studentId: resolvedIds.studentId ?? "",
-          employeeId: resolvedIds.employeeId ?? "",
-          firstName,
-          middleName: middleName || null,
-          lastName,
-          course:
-            patientType === "student" ? (row.course || "").trim() || null : null,
-          yearLevel:
-            patientType === "student"
-              ? (row.year_level || "").trim() || null
-              : null,
-          gender: (row.gender || row.sex || "").trim() || null,
-          birthDate: sanitizeImportBirthDate(
-            row.birth_date || row.date_of_birth || row.dob || ""
-          ),
-          civilStatus: (row.civil_status || "").trim() || null,
-          religion: (row.religion || "").trim() || null,
-          nationality: (row.nationality || "").trim() || null,
-          bloodType: (row.blood_type || "").trim() || null,
-          allergies: (row.allergies || "").trim() || null,
-          phone: (
-            row.phone ||
-            row.mobile ||
-            row.mobile_number ||
-            ""
-          ).trim() || null,
-          email: (
-            row.email ||
-            row.official_email_address ||
-            ""
-          )
-            .trim()
-            .toLowerCase() || null,
-          address: (row.address || row.present_address || "").trim() || null,
-          emergencyContactName: familyBackground.guardianName,
-          emergencyContactPhone: familyBackground.mobile,
-          medicalConditions: (row.medical_conditions || "").trim() || null,
-          notes: (row.notes || "").trim() || null,
-          lastVisit: (row.last_visit || "").trim() || null,
-          familyBackground: hasFamily ? familyBackground : null,
-        },
-        client,
-        authSyncContext
-      )
-      if (result.created) created += 1
-      else updated += 1
-      typeCounts[patientType] += 1
-    } catch (error) {
-      const message =
-        error instanceof PatientRecordServiceError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : "Unknown error"
-      failures.push(`Row ${index + 2}: ${message}`)
+    if (!firstName || !lastName) {
+      failures.push(`Row ${index + 2}: first_name and last_name are required.`)
+      continue
     }
+
+    const familyBackground = {
+      guardianName:
+        (
+          row.emergency_contact_name ||
+          row.parent_guardian_name ||
+          row.guardian_name ||
+          ""
+        ).trim() || null,
+      relationship:
+        (row.guardian_relationship || row.relationship || "").trim() || null,
+      occupation: (() => {
+        const guardian = (row.guardian_occupation || "").trim()
+        if (guardian) return guardian
+        const occupation = (row.occupation || "").trim()
+        if (occupation && isPatientTypeRoleLabel(occupation)) return null
+        return occupation || null
+      })(),
+      address: (row.guardian_address || "").trim() || null,
+      mobile:
+        (row.emergency_contact_phone || row.guardian_mobile || "").trim() ||
+        null,
+      email: (row.guardian_email || "").trim().toLowerCase() || null,
+    }
+    const hasFamily = Object.values(familyBackground).some(Boolean)
+
+    inputs.push({
+      patientType,
+      studentId: resolvedIds.studentId ?? "",
+      employeeId: resolvedIds.employeeId ?? "",
+      firstName,
+      middleName: middleName || null,
+      lastName,
+      course:
+        patientType === "student" ? (row.course || "").trim() || null : null,
+      yearLevel:
+        patientType === "student"
+          ? (row.year_level || "").trim() || null
+          : null,
+      gender: (row.gender || row.sex || "").trim() || null,
+      birthDate: sanitizeImportBirthDate(
+        row.birth_date || row.date_of_birth || row.dob || ""
+      ),
+      civilStatus: (row.civil_status || "").trim() || null,
+      religion: (row.religion || "").trim() || null,
+      nationality: (row.nationality || "").trim() || null,
+      bloodType: (row.blood_type || "").trim() || null,
+      allergies: (row.allergies || "").trim() || null,
+      phone: (
+        row.phone ||
+        row.mobile ||
+        row.mobile_number ||
+        ""
+      ).trim() || null,
+      email: (row.email || row.official_email_address || "")
+        .trim()
+        .toLowerCase() || null,
+      address: (row.address || row.present_address || "").trim() || null,
+      emergencyContactName: familyBackground.guardianName,
+      emergencyContactPhone: familyBackground.mobile,
+      medicalConditions: (row.medical_conditions || "").trim() || null,
+      notes: (row.notes || "").trim() || null,
+      lastVisit: (row.last_visit || "").trim() || null,
+      familyBackground: hasFamily ? familyBackground : null,
+    })
   }
 
-  if (created === 0 && updated === 0) {
+  if (inputs.length === 0) {
     throw new PatientRecordServiceError(
       "validation",
       failures[0] ??
@@ -1044,7 +1022,21 @@ export async function importPatientRecordsFromExcel(
     )
   }
 
-  return { created, updated, failures, typeCounts }
+  try {
+    const result = await bulkImportPatientRecords(inputs, client)
+    return {
+      created: result.created,
+      updated: result.updated,
+      failures,
+      typeCounts: result.typeCounts,
+    }
+  } catch (error) {
+    if (error instanceof PatientRecordServiceError) throw error
+    throw new PatientRecordServiceError(
+      "database",
+      error instanceof Error ? error.message : "Patient import failed."
+    )
+  }
 }
 
 export type { PatientType }

@@ -350,10 +350,21 @@ export function PatientsPage({
 
   const refresh = useCallback(() => {
     pageCache.invalidate()
+    setPage(1)
     startTransition(() => {
-      void loadPage(page, { includeStats: true, force: true })
+      void loadPage(1, { includeStats: true, force: true })
     })
-  }, [loadPage, page, pageCache])
+  }, [loadPage, pageCache])
+
+  // Realtime + post-import: jump to page 1 so new roster rows are visible.
+  const refreshAfterImport = useCallback(() => {
+    pageCache.invalidate()
+    setSelectedIds(new Set())
+    setPage(1)
+    startTransition(() => {
+      void loadPage(1, { includeStats: true, force: true })
+    })
+  }, [loadPage, pageCache])
 
   useEffect(() => {
     if (skipNextFetch.current) {
@@ -622,7 +633,7 @@ export function PatientsPage({
             ) : null}
             {can(access.designation, "patients.table") ? (
               <>
-                <PatientImportSheet toolbar onImported={refresh} />
+                <PatientImportSheet toolbar onImported={refreshAfterImport} />
                 <PatientExportButton
                   toolbar
                   query={debouncedQuery}

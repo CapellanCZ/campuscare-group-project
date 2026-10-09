@@ -94,6 +94,16 @@ export function PatientImportSheet({
     event.preventDefault()
     setError(null)
     const formData = new FormData(event.currentTarget)
+    const file = formData.get("file")
+    const sizeHint =
+      file instanceof File && file.size > 500_000
+        ? "Large file detected — importing in batches…"
+        : "Importing roster in batches…"
+
+    appToast.info({
+      title: "Import started",
+      description: sizeHint,
+    })
 
     startTransition(async () => {
       const result = await importPatientRecordsFromExcelAction(formData)
@@ -107,6 +117,7 @@ export function PatientImportSheet({
       appToast.success({ title: result.message })
       if (result.warning) appToast.warning({ title: result.warning })
       setOpen(false)
+      // Refresh directory immediately — realtime will also catch up.
       onImported()
     })
   }
@@ -147,7 +158,8 @@ export function PatientImportSheet({
             <span className="font-medium text-foreground">Roster / campus file:</span>{" "}
             imports personal information (
             patient_type, id_number, first_name, last_name, course, and related
-            fields).
+            fields). Large rosters (hundreds–thousands) are imported in batches
+            so the directory updates without a manual refresh.
           </p>
           <p className="text-sm text-muted-foreground">
             <span className="font-medium text-foreground">CampusCare export:</span>{" "}
