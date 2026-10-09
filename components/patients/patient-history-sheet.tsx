@@ -1,17 +1,18 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 
 import { DocumentPreviewDialog } from "@/components/medical-documents/document-preview-dialog"
 import {
   certificateToDocument,
   documentTypeLabel,
 } from "@/components/medical-documents/document-print-view"
-import {
-  fetchPatientConsultationHistoryAction,
-  fetchPatientDocumentsAction,
-} from "@/features/patients/actions"
 import { documentStatusLabel } from "@/features/medical-documents/lib/document-status"
+import {
+  getCachedPatientHistory,
+  loadPatientHistoryBundle,
+  type PatientHistoryEntry,
+} from "@/features/patients/lib/prefetch-patient-history"
 import type { ClinicalRecordScope } from "@/lib/clinical/record-scope"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -26,7 +27,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { appToast } from "@/lib/feedback/app-toast"
 import type { Consultation } from "@/types/consultation"
 import { consultationStatusLabel } from "@/types/consultation"
-import type { MedicalCertificate } from "@/types/medicalCertificate"
 import type { MedicalDocument } from "@/types/medicalDocument"
 import {
   patientFullName,
@@ -35,24 +35,6 @@ import {
 import { PatientVisitDetailDialog } from "@/components/patients/patient-visit-detail-dialog"
 import { DentalChartPreviewDialog } from "@/components/patients/dental-chart-preview-dialog"
 import { consultationHistoryPreview } from "@/components/consultations/consultation-summary-content"
-
-type HistoryEntry =
-  | { kind: "consultation"; date: string; row: Consultation }
-  | { kind: "report"; date: string; row: MedicalCertificate }
-
-function historyCacheKey(
-  patient: PatientRecord,
-  stationFilter: string,
-  documentScope: ClinicalRecordScope
-) {
-  return [
-    patient.studentId ?? "",
-    patient.employeeId ?? "",
-    patient.id,
-    stationFilter,
-    documentScope,
-  ].join("|")
-}
 
 function formatHistoryDate(value: string) {
   const parsed = Date.parse(value)
@@ -80,90 +62,57 @@ export function PatientHistorySheet({
   stationFilter?: "dentist" | "physician" | "nurse" | "all"
   documentScope?: ClinicalRecordScope
 }) {
-  const [entries, setEntries] = useState<HistoryEntry[]>([])
-  const [loading, setLoading] = useState(false)
+  const station = stationFilter ?? "all"
+  const cached =
+    patient != null
+      ? getCachedPatientHistory(patient, station, documentScope)
+      : null
+  const [entries, setEntries] = useState<PatientHistoryEntry[]>(
+    () => cached?.entries ?? []
+  )
+  const [loading, setLoading] = useState(() => !cached)
   const [selected, setSelected] = useState<Consultation | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [preview, setPreview] = useState<MedicalDocument | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [chartPreviewId, setChartPreviewId] = useState<string | null>(null)
   const [chartPreviewOpen, setChartPreviewOpen] = useState(false)
-  const cacheRef = useRef(new Map<string, HistoryEntry[]>())
   const dentalOnly = stationFilter === "dentist"
 
   useEffect(() => {
     if (!open || !patient) return
     let cancelled = false
-    const key = historyCacheKey(
-      patient,
-      stationFilter ?? "all",
-      documentScope
-    )
-    const cached = cacheRef.current.get(key)
-    if (cached) {
-      setEntries(cached)
+    const hit = getCachedPatientHistory(patient, station, documentScope)
+    if (hit) {
+      setEntries(hit.entries)
       setLoading(false)
     } else {
-      setEntries([])
       setLoading(true)
     }
 
-    void Promise.all([
-      fetchPatientConsultationHistoryAction(patient.id, stationFilter ?? "all"),
-      fetchPatientDocumentsAction(
-        {
-          studentId: patient.studentId,
-          employeeId: patient.employeeId,
-        },
-        documentScope
-      ),
-    ]).then(([consultResult, docResult]) => {
-      if (cancelled) return
-      setLoading(false)
-
-      if (!consultResult.ok) {
+    void loadPatientHistoryBundle(patient, station, documentScope)
+      .then((bundle) => {
+        if (cancelled) return
+        setEntries(bundle.entries)
+        setLoading(false)
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return
+        setLoading(false)
+        if (!hit) setEntries([])
         appToast.error({
           title: "Unable to Load History",
-          description: consultResult.error,
+          description:
+            error instanceof Error
+              ? error.message
+              : "Could not load patient history.",
         })
-        setEntries([])
-        return
-      }
-
-      if (!docResult.ok) {
-        appToast.error({
-          title: "Unable to Load Reports",
-          description: docResult.error,
-        })
-      }
-
-      const merged: HistoryEntry[] = [
-        ...consultResult.data.map(
-          (row) =>
-            ({
-              kind: "consultation" as const,
-              date: row.consultationDate,
-              row,
-            }) satisfies HistoryEntry
-        ),
-        ...(docResult.ok ? docResult.data : []).map(
-          (row) =>
-            ({
-              kind: "report" as const,
-              date: row.issuedAt ?? row.createdAt,
-              row,
-            }) satisfies HistoryEntry
-        ),
-      ].sort((a, b) => Date.parse(b.date) - Date.parse(a.date))
-
-      cacheRef.current.set(key, merged)
-      setEntries(merged)
-    })
+      })
 
     return () => {
       cancelled = true
     }
-  }, [documentScope, open, patient, stationFilter])
+  }, [documentScope, open, patient, station])
 
   const showSkeleton = loading && entries.length === 0
 

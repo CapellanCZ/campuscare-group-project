@@ -79,6 +79,11 @@ import {
   staleListBusy,
   staleListBusyClassName,
 } from "@/lib/ui/stale-list-busy"
+import {
+  getCachedConsultations,
+  loadConsultationsBundle,
+  saveConsultationsCache,
+} from "@/features/consultations/lib/prefetch-consultations"
 import { useInstantListRefresh } from "@/hooks/use-instant-list-refresh"
 import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
 import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
@@ -210,6 +215,7 @@ export function ConsultationsPage({
   initialError,
   initialProviders = [],
   initialStations = [],
+  hydrateFromCache = false,
 }: {
   access: StaffAccess
   initialList: ConsultationListResult
@@ -217,7 +223,12 @@ export function ConsultationsPage({
   initialError?: string | null
   initialProviders?: string[]
   initialStations?: string[]
+  /** Paint from session cache / hover prefetch, then soft-refresh. */
+  hydrateFromCache?: boolean
 }) {
+  const cached = hydrateFromCache
+    ? getCachedConsultations(access.designation)
+    : null
   const [query, setQuery] = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<ConsultationStatus | "all">(
@@ -235,11 +246,15 @@ export function ConsultationsPage({
         : "all"
   )
   const [dateRange, setDateRange] = useState<ConsultationDateRange>("all_time")
-  const [providers, setProviders] = useState(initialProviders)
-  const [stations, setStations] = useState(initialStations)
-  const [list, setList] = useState(initialList)
-  const [stats, setStats] = useState(initialStats)
-  const [loading, setLoading] = useState(false)
+  const [providers, setProviders] = useState(
+    cached?.providers ?? initialProviders
+  )
+  const [stations, setStations] = useState(cached?.stations ?? initialStations)
+  const [list, setList] = useState(cached?.list ?? initialList)
+  const [stats, setStats] = useState(cached?.stats ?? initialStats)
+  const [loading, setLoading] = useState(
+    () => hydrateFromCache && !cached && initialList.items.length === 0
+  )
   const [formOpen, setFormOpen] = useState(false)
   const [formMode, setFormMode] = useState<"create" | "edit">("create")
   const [editing, setEditing] = useState<Consultation | null>(null)
@@ -248,6 +263,7 @@ export function ConsultationsPage({
   const [isPending, startTransition] = useTransition()
   const { confirmPreset } = useConfirm()
   const skipNextFetch = useRef(true)
+  const hydratedRef = useRef(false)
   const d = access.designation
   const isPhysician = d === "physician"
   const isNurse = d === "nurse"
@@ -302,8 +318,24 @@ export function ConsultationsPage({
 
   const loadPage = useCallback(
     async (nextQuery: string) => {
-      setLoading(true)
+      const isDefaultQuery =
+        !nextQuery.trim() &&
+        filterParams.status === "all" &&
+        filterParams.dateRange === "all_time" &&
+        (filterParams.providerType === "all" || !isNurse)
+
       try {
+        if (isDefaultQuery && hydrateFromCache) {
+          const bundle = await loadConsultationsBundle(access.designation, {
+            force: true,
+          })
+          setList(bundle.list)
+          setStats(bundle.stats)
+          setProviders(bundle.providers)
+          setStations(bundle.stations)
+          return
+        }
+
         const [listResult, statsResult, optionsResult] = await Promise.all([
           searchConsultationsAction(nextQuery, filterParams),
           fetchConsultationStatsAction(),
@@ -329,6 +361,14 @@ export function ConsultationsPage({
           setProviders(optionsResult.data.providers)
           setStations(optionsResult.data.stations)
         }
+        if (isDefaultQuery) {
+          saveConsultationsCache(access.designation, {
+            list: listResult.data,
+            stats: statsResult.data,
+            providers: optionsResult.ok ? optionsResult.data.providers : [],
+            stations: optionsResult.ok ? optionsResult.data.stations : [],
+          })
+        }
       } catch {
         appToast.error({
           title: "Unable to Load Consultations",
@@ -339,7 +379,7 @@ export function ConsultationsPage({
         setLoading(false)
       }
     },
-    [filterParams]
+    [access.designation, filterParams, hydrateFromCache, isNurse]
   )
 
   const refresh = useCallback(() => {
@@ -349,6 +389,34 @@ export function ConsultationsPage({
   }, [debouncedQuery, loadPage])
 
   const { schedule: scheduleRefresh } = useInstantListRefresh(refresh, 400)
+
+  useEffect(() => {
+    if (!hydrateFromCache || hydratedRef.current) return
+    hydratedRef.current = true
+    const hit = getCachedConsultations(access.designation)
+    if (hit) {
+      setList(hit.list)
+      setStats(hit.stats)
+      setProviders(hit.providers)
+      setStations(hit.stations)
+      setLoading(false)
+    }
+    // Cache hit → soft revalidate in background; miss → fetch once.
+    void loadConsultationsBundle(access.designation, {
+      force: Boolean(hit),
+    })
+      .then((bundle) => {
+        setList(bundle.list)
+        setStats(bundle.stats)
+        setProviders(bundle.providers)
+        setStations(bundle.stations)
+        setLoading(false)
+      })
+      .catch(() => {
+        setLoading(false)
+        if (!hit) void loadPage("")
+      })
+  }, [access.designation, hydrateFromCache, loadPage])
 
   useEffect(() => {
     if (skipNextFetch.current) {

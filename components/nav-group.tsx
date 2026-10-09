@@ -20,19 +20,34 @@ import {
 } from "@/components/ui/sidebar"
 import type { SidebarNavGroup, SidebarNavItem } from "@/components/app-shared"
 import { useOptionalNavPending } from "@/components/dashboard/nav-pending"
+import { useStaffAccess } from "@/components/staff-access-provider"
+import { prefetchConsultationsPage } from "@/features/consultations/lib/prefetch-consultations"
 import { IconChevronRight } from "@tabler/icons-react"
+
+function warmRouteData(href: string, role: string | null | undefined) {
+  if (!role) return
+  if (href.includes("/consultations")) {
+    prefetchConsultationsPage(
+      role as "nurse" | "physician" | "dentist" | "admin"
+    )
+  }
+}
 
 function useNavLinkHandlers() {
   const { isMobile, setOpenMobile } = useSidebar()
   const navPending = useOptionalNavPending()
+  const { primaryRole, designation } = useStaffAccess()
+  const role = primaryRole ?? designation
 
   return (href: string) => ({
     onClick: () => {
       navPending?.markPending(href)
+      warmRouteData(href, role)
       if (isMobile) setOpenMobile(false)
     },
     onMouseEnter: () => {
       navPending?.prefetch(href)
+      warmRouteData(href, role)
     },
   })
 }

@@ -77,6 +77,7 @@ import {
   fetchPatientRecordStatsAction,
   searchPatientRecordsAction,
 } from "@/features/patients/actions"
+import { prefetchPatientHistory } from "@/features/patients/lib/prefetch-patient-history"
 import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { DemoStat } from "@/lib/demo/types"
@@ -835,6 +836,28 @@ export function PatientsPage({
                             <Button
                               size="xs"
                               variant="outline"
+                              onMouseEnter={() =>
+                                prefetchPatientHistory(
+                                  row,
+                                  historyStationFilterForDesignation(
+                                    access.designation
+                                  ),
+                                  clinicalScopeForDesignation(
+                                    access.designation
+                                  )
+                                )
+                              }
+                              onFocus={() =>
+                                prefetchPatientHistory(
+                                  row,
+                                  historyStationFilterForDesignation(
+                                    access.designation
+                                  ),
+                                  clinicalScopeForDesignation(
+                                    access.designation
+                                  )
+                                )
+                              }
                               onClick={() =>
                                 openEnsuredPatient(row, setHistoryPatient)
                               }

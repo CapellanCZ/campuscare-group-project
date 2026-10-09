@@ -19,13 +19,6 @@ import {
   getAnnouncementStats,
 } from "@/services/announcements"
 import {
-  getConsultations,
-  getConsultationsForClinician,
-  getConsultationStats,
-  getConsultationStatsForClinician,
-  listConsultationFilterOptions,
-} from "@/services/consultations"
-import {
   getDirectoryPatientRecordStats,
   listArchivedDirectoryPatientRecords,
   listDirectoryPatientRecords,
@@ -47,11 +40,6 @@ import {
   type AnnouncementListResult,
   type AnnouncementStats,
 } from "@/types/announcement"
-import {
-  ConsultationServiceError,
-  type ConsultationListResult,
-  type ConsultationStats,
-} from "@/types/consultation"
 import {
   MedicalCertificateServiceError,
   type MedicalCertificateStats,
@@ -298,73 +286,25 @@ export async function StaffPatientsBinPage() {
 export async function StaffConsultationsPage() {
   const access = await requireStaffModule("consultations")
 
-  const emptyList: ConsultationListResult = {
-    items: [],
-    total: 0,
-    page: 1,
-    pageSize: 20,
-    totalPages: 1,
-  }
-  const emptyStats: ConsultationStats = {
-    openToday: 0,
-    awaitingAssessment: 0,
-    inProgress: 0,
-    completedToday: 0,
-  }
-
-  let list = emptyList
-  let stats = emptyStats
-  let providers: string[] = []
-  let stations: string[] = []
-  let initialError: string | null = null
-
-  try {
-    const isClinician =
-      access.designation === "dentist" || access.designation === "physician"
-    const clinicianRole =
-      access.designation === "dentist" ? "dentist" : "physician"
-
-    const [nextList, nextStats, options] = await Promise.all([
-      isClinician
-        ? getConsultationsForClinician(clinicianRole, {
-            page: 1,
-            pageSize: 20,
-            status: "all",
-          })
-        : getConsultations({
-            page: 1,
-            pageSize: 20,
-            station:
-              access.designation === "dentist"
-                ? "dentist"
-                : access.designation === "physician"
-                  ? "physician"
-                  : "all",
-          }),
-      isClinician
-        ? getConsultationStatsForClinician(clinicianRole)
-        : getConsultationStats(),
-      listConsultationFilterOptions(),
-    ])
-    list = nextList
-    stats = nextStats
-    providers = options.providers
-    stations = options.stations
-  } catch (error) {
-    initialError =
-      error instanceof ConsultationServiceError
-        ? error.message
-        : "Could not load consultations. Please try again."
-  }
-
+  // Auth-only RSC: list data is cached + fetched on the client so sidebar
+  // navigation paints immediately from prefetch / last visit.
   return (
     <ConsultationsPage
       access={access}
-      initialList={list}
-      initialStats={stats}
-      initialError={initialError}
-      initialProviders={providers}
-      initialStations={stations}
+      initialList={{
+        items: [],
+        total: 0,
+        page: 1,
+        pageSize: 20,
+        totalPages: 1,
+      }}
+      initialStats={{
+        openToday: 0,
+        awaitingAssessment: 0,
+        inProgress: 0,
+        completedToday: 0,
+      }}
+      hydrateFromCache
     />
   )
 }

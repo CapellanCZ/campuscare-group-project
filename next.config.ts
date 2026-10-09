@@ -42,8 +42,9 @@ const nextConfig: NextConfig = {
     // Keep recently visited dashboard segments in the client router cache so
     // sidebar revisits paint from cache instead of waiting on the network.
     staleTimes: {
-      dynamic: 30,
-      static: 180,
+      // Keep staff segments cached longer so sidebar revisits paint instantly.
+      dynamic: 180,
+      static: 600,
     },
   },
   async headers() {
