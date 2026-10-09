@@ -232,6 +232,7 @@ export async function getPatientRecords(
   let request = supabase
     .from("patient_records")
     .select(`${SELECT_COLUMNS}, consultations(count)`, { count: "exact" })
+    .is("archived_at", null)
 
   if (patientTypeFilter !== "all") {
     request = request.eq("patient_type", patientTypeFilter)
@@ -330,15 +331,18 @@ export async function getPatientRecordStats(
     await Promise.all([
       supabase
         .from("patient_records")
-        .select("id", { count: "exact", head: true }),
+        .select("id", { count: "exact", head: true })
+        .is("archived_at", null),
       supabase
         .from("patient_records")
         .select("id", { count: "exact", head: true })
+        .is("archived_at", null)
         .gte("last_visit", start)
         .lt("last_visit", end),
       supabase
         .from("patient_records")
         .select("id", { count: "exact", head: true })
+        .is("archived_at", null)
         .not("allergies", "is", null)
         .neq("allergies", ""),
       supabase
@@ -691,6 +695,73 @@ export async function deletePatientRecord(
   if (!count) {
     throw new PatientRecordServiceError("not_found", "Patient record not found.")
   }
+}
+
+export async function archivePatientRecords(
+  ids: string[],
+  client?: SupabaseClient
+): Promise<{ archived: number }> {
+  const uniqueIds = [...new Set(ids.map((id) => id.trim()).filter(Boolean))]
+  if (uniqueIds.length === 0) {
+    throw new PatientRecordServiceError(
+      "validation",
+      "Select at least one patient to archive."
+    )
+  }
+
+  const supabase = await getClient(client)
+  const archivedAt = new Date().toISOString()
+  const { data, error } = await supabase
+    .from("patient_records")
+    .update({ archived_at: archivedAt })
+    .in("id", uniqueIds)
+    .is("archived_at", null)
+    .select("id")
+
+  if (error) mapError(error)
+
+  const archived = data?.length ?? 0
+  if (archived === 0) {
+    throw new PatientRecordServiceError(
+      "not_found",
+      "No matching active patient records were found to archive."
+    )
+  }
+
+  return { archived }
+}
+
+export async function deletePatientRecords(
+  ids: string[],
+  client?: SupabaseClient
+): Promise<{ deleted: number }> {
+  const uniqueIds = [...new Set(ids.map((id) => id.trim()).filter(Boolean))]
+  if (uniqueIds.length === 0) {
+    throw new PatientRecordServiceError(
+      "validation",
+      "Select at least one patient to delete."
+    )
+  }
+
+  const supabase = await getClient(client)
+  const { data, error } = await supabase
+    .from("patient_records")
+    .delete()
+    .in("id", uniqueIds)
+    .not("archived_at", "is", null)
+    .select("id")
+
+  if (error) mapError(error)
+
+  const deleted = data?.length ?? 0
+  if (deleted === 0) {
+    throw new PatientRecordServiceError(
+      "not_found",
+      "No matching archived patient records were found to delete."
+    )
+  }
+
+  return { deleted }
 }
 
 export async function listPatientOptions(

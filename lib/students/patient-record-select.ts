@@ -30,5 +30,6 @@ export const PATIENT_RECORD_SELECT_COLUMNS = `
   last_edited_by,
   created_at,
   updated_at,
-  family_background
+  family_background,
+  archived_at
 `

@@ -117,8 +117,8 @@ export const CONFIRM_PRESETS: Record<ConfirmPresetKey, ConfirmPreset> = {
   },
   archive: {
     variant: "default",
-    title: "Archive Announcement?",
-    description: "Are you sure you want to archive this announcement?",
+    title: "Archive?",
+    description: "Are you sure you want to archive this item?",
     confirmLabel: "Archive",
   },
   generateCertificate: {

@@ -67,7 +67,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { useConfirm } from "@/components/feedback/confirm-provider"
 import {
+  archivePatientRecordsAction,
   ensurePatientRecordAction,
   fetchPatientRecordStatsAction,
   searchPatientRecordsAction,
@@ -187,9 +189,11 @@ export function PatientsPage({
     null
   )
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
+  const [archivePending, setArchivePending] = useState(false)
   const [isPending, startTransition] = useTransition()
   const skipNextFetch = useRef(true)
   const mountedRef = useRef(false)
+  const { confirmPreset } = useConfirm()
 
   const canUpdateMedical = can(access.designation, "patients.update_medical")
   const canViewHistory = can(
@@ -197,6 +201,7 @@ export function PatientsPage({
     "patients.view_consultation_history"
   )
   const canViewDocs = can(access.designation, "patients.view_medical_documents")
+  const canArchive = can(access.designation, "patients.edit_information")
 
   useEffect(() => {
     mountedRef.current = true
@@ -403,6 +408,39 @@ export function PatientsPage({
     setSelectedIds(new Set())
   }
 
+  function requestArchiveSelected() {
+    const ids = [...selectedIds]
+    if (ids.length === 0 || archivePending) return
+    const noun = ids.length === 1 ? "patient" : "patients"
+
+    void confirmPreset("archive", {
+      title: ids.length === 1 ? "Archive Patient?" : "Archive Patients?",
+      description: `Move ${ids.length} selected ${noun} to Bin? They will leave the active directory until permanently deleted.`,
+      confirmLabel: "Archive",
+      onConfirm: async () => {
+        setArchivePending(true)
+        try {
+          const result = await archivePatientRecordsAction(ids)
+          if (!result.ok) throw new Error(result.error)
+          setList((prev) => {
+            const idSet = new Set(ids)
+            const items = prev.items.filter((item) => !idSet.has(item.id))
+            return {
+              ...prev,
+              items,
+              total: Math.max(0, prev.total - result.data.archived),
+            }
+          })
+          clearSelection()
+          patientToasts.archived(result.data.archived)
+          refresh()
+        } finally {
+          setArchivePending(false)
+        }
+      },
+    })
+  }
+
   const { showInitialSkeleton, isRefreshing } = staleListBusy(
     loading,
     rows.length,
@@ -505,14 +543,28 @@ export function PatientsPage({
               </span>{" "}
               selected
             </p>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={clearSelection}
-            >
-              Clear
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              {canArchive ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={archivePending}
+                  onClick={requestArchiveSelected}
+                >
+                  Archive
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={archivePending}
+                onClick={clearSelection}
+              >
+                Clear
+              </Button>
+            </div>
           </div>
         ) : null}
 

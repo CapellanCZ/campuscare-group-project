@@ -108,6 +108,14 @@ export const patientToasts = {
       title: "Patient Record Deleted",
       description: "The patient record has been removed.",
     }),
+  archived: (count = 1) =>
+    appToast.success({
+      title: count === 1 ? "Patient Archived" : "Patients Archived",
+      description:
+        count === 1
+          ? "The patient record was moved to Bin."
+          : `${count} patient records were moved to Bin.`,
+    }),
   failed: (message?: string) =>
     appToast.error({
       title: "Operation Failed",

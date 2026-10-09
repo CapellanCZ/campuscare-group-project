@@ -11,6 +11,7 @@ import {
   IconScreenShare,
   IconSettings,
   IconSpeakerphone,
+  IconTrash,
   IconUsers,
   IconUserHeart,
 } from "@tabler/icons-react"
@@ -47,6 +48,7 @@ const navIcons: Record<StaffNavIcon, ReactNode> = {
   queue: <IconChecklist />,
   display: <IconScreenShare />,
   patients: <IconUserHeart />,
+  bin: <IconTrash />,
   consultations: <IconClipboardHeart />,
   certificates: <IconCertificate />,
   reports: <IconReportAnalytics />,

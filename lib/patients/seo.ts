@@ -48,3 +48,24 @@ export const patientRecordsPageMetadata: Metadata = {
     images: [`${getSiteUrl()}${landingSeo.ogImagePath}`],
   },
 }
+
+const BIN_TITLE = "Bin"
+const BIN_DESCRIPTION =
+  "CampusCare archived patient records — review and permanently delete soft-archived clinical records."
+
+export const patientBinPageMetadata: Metadata = {
+  ...patientRecordsPageMetadata,
+  title: BIN_TITLE,
+  description: BIN_DESCRIPTION,
+  openGraph: {
+    ...patientRecordsPageMetadata.openGraph,
+    title: `${BIN_TITLE} · CampusCare`,
+    description: BIN_DESCRIPTION,
+    url: `${getSiteUrl()}/physician/bin`,
+  },
+  twitter: {
+    ...patientRecordsPageMetadata.twitter,
+    title: `${BIN_TITLE} · CampusCare`,
+    description: BIN_DESCRIPTION,
+  },
+}

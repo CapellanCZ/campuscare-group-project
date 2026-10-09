@@ -11,6 +11,7 @@ import type { DentalPatientChart } from "@/features/dentist/types/dental-chart"
 import {
   getDirectoryPatientRecordStats,
   listAllDirectoryPatientRecords,
+  listArchivedDirectoryPatientRecords,
   listDirectoryPatientRecords,
   listEnrolledPatientOptions,
 } from "@/lib/students/directory"
@@ -27,8 +28,10 @@ import {
   studentIdFromVirtualId,
 } from "@/lib/students/virtual-id"
 import {
+  archivePatientRecords,
   createPatientRecord,
   deletePatientRecord,
+  deletePatientRecords,
   getPatientRecordById,
   importPatientRecordsFromExcel,
   updatePatientMedicalRecord,
@@ -198,6 +201,7 @@ export async function searchPatientByStudentIdAction(
       const { data: exactRows } = await supabase
         .from("patient_records")
         .select(PATIENT_RECORD_SELECT_COLUMNS)
+        .is("archived_at", null)
         .or([...orParts].join(","))
         .limit(10)
 
@@ -408,6 +412,45 @@ export async function deletePatientRecordAction(
   try {
     await deletePatientRecord(id)
     return { ok: true, data: { id } }
+  } catch (error) {
+    return toErrorResult(error)
+  }
+}
+
+export async function archivePatientRecordsAction(
+  ids: string[]
+): Promise<PatientRecordActionResult<{ archived: number }>> {
+  const auth = await requirePatientAccess("patients.edit_information")
+  if (!auth.ok) return auth
+  try {
+    const data = await archivePatientRecords(ids)
+    return { ok: true, data }
+  } catch (error) {
+    return toErrorResult(error)
+  }
+}
+
+export async function listArchivedPatientRecordsAction(
+  params: PatientRecordListParams = {}
+): Promise<PatientRecordActionResult<PatientRecordListResult>> {
+  const auth = await requirePatientAccess("patients.search")
+  if (!auth.ok) return auth
+  try {
+    const data = await listArchivedDirectoryPatientRecords(params)
+    return { ok: true, data }
+  } catch (error) {
+    return toErrorResult(error)
+  }
+}
+
+export async function deleteArchivedPatientRecordsAction(
+  ids: string[]
+): Promise<PatientRecordActionResult<{ deleted: number }>> {
+  const auth = await requirePatientAccess("patients.edit_information")
+  if (!auth.ok) return auth
+  try {
+    const data = await deletePatientRecords(ids)
+    return { ok: true, data }
   } catch (error) {
     return toErrorResult(error)
   }

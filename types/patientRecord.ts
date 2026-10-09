@@ -130,6 +130,7 @@ export type PatientRecord = {
   consultationsCount: number
   documentsCount: number
   familyBackground?: PatientFamilyBackground | null
+  archivedAt: string | null
 }
 
 export type PatientRecordJson = {
@@ -167,6 +168,7 @@ export type PatientRecordJson = {
   consultations_count?: number | null
   documents_count?: number | null
   family_background?: PatientFamilyBackground | Record<string, unknown> | null
+  archived_at?: string | null
 }
 
 export type PatientRecordStats = {
@@ -594,6 +596,7 @@ export function patientRecordFromJson(json: PatientRecordJson): PatientRecord {
     consultationsCount: json.consultations_count ?? 0,
     documentsCount: json.documents_count ?? 0,
     familyBackground: parseFamilyBackground(json.family_background),
+    archivedAt: json.archived_at ?? null,
   }
 }
 

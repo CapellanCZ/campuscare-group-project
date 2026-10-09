@@ -220,6 +220,7 @@ export async function listDirectoryPatientRecords(
     .select(`${PATIENT_RECORD_SELECT_COLUMNS}, consultations(count)`, {
       count: "exact",
     })
+    .is("archived_at", null)
 
   if (patientTypeFilter !== "all") {
     directoryQuery = directoryQuery.eq("patient_type", patientTypeFilter)
@@ -308,6 +309,7 @@ export async function listAllDirectoryPatientRecords(
   const { data, error } = await supabase
     .from("patient_records")
     .select(`${PATIENT_RECORD_SELECT_COLUMNS}, consultations(count)`)
+    .is("archived_at", null)
     .order("last_name", { ascending: true })
     .order("first_name", { ascending: true })
 
@@ -342,6 +344,107 @@ export async function listAllDirectoryPatientRecords(
   return [...items].sort((a, b) => comparePatients(a, b, sortBy, sortDir))
 }
 
+/**
+ * Archived patient records for Bin (soft-deleted from the active directory).
+ */
+export async function listArchivedDirectoryPatientRecords(
+  params: PatientRecordListParams = {},
+  client?: SupabaseClient
+): Promise<PatientRecordListResult> {
+  const supabase = client ?? (await createClient())
+  const page = Math.max(1, params.page ?? 1)
+  const pageSize = Math.min(50, Math.max(1, params.pageSize ?? DEFAULT_PAGE_SIZE))
+  const query = (params.query ?? "").trim()
+  const patientTypeFilter = params.patientType ?? "all"
+  const sortBy = params.sortBy ?? "patient"
+  const sortDir = params.sortDir ?? "asc"
+  const sortColumn =
+    sortBy === "type"
+      ? "patient_type"
+      : sortBy === "program"
+        ? "course"
+        : sortBy === "lastVisit"
+          ? "last_visit"
+          : "last_name"
+
+  let directoryQuery = supabase
+    .from("patient_records")
+    .select(`${PATIENT_RECORD_SELECT_COLUMNS}, consultations(count)`, {
+      count: "exact",
+    })
+    .not("archived_at", "is", null)
+
+  if (patientTypeFilter !== "all") {
+    directoryQuery = directoryQuery.eq("patient_type", patientTypeFilter)
+  }
+
+  if (query) {
+    if (isCampusIdSearchQuery(query)) {
+      const filters = directoryIdSearchTerms(query).flatMap((term) => [
+        `student_id.ilike.%${term}%`,
+        `employee_id.ilike.%${term}%`,
+      ])
+      if (filters.length > 0) {
+        directoryQuery = directoryQuery.or(filters.join(","))
+      }
+    } else {
+      const tokens = query
+        .split(/\s+/)
+        .map(sanitizeDirectorySearchTerm)
+        .filter((token) => token.length >= 1)
+      for (const token of tokens.length > 0 ? tokens : [sanitizeDirectorySearchTerm(query)]) {
+        if (!token) continue
+        directoryQuery = directoryQuery.or(
+          [
+            `first_name.ilike.%${token}%`,
+            `middle_name.ilike.%${token}%`,
+            `last_name.ilike.%${token}%`,
+            `student_id.ilike.%${token}%`,
+            `employee_id.ilike.%${token}%`,
+            `course.ilike.%${token}%`,
+          ].join(",")
+        )
+      }
+    }
+  }
+
+  const { data, error, count } = await directoryQuery
+    .order("archived_at", { ascending: false, nullsFirst: false })
+    .order(sortColumn, { ascending: sortDir === "asc", nullsFirst: false })
+    .order("first_name", { ascending: sortDir === "asc" })
+    .range((page - 1) * pageSize, page * pageSize - 1)
+
+  if (error) {
+    throw new PatientRecordServiceError(
+      "database",
+      error.message || "Could not load archived patient records."
+    )
+  }
+
+  const items = await attachEditorNames(
+    ((data ?? []) as PatientRow[]).map(mapClinical),
+    supabase
+  )
+  const total = count ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1)
+  const safePage = Math.min(page, totalPages)
+
+  if (safePage !== page) {
+    return listArchivedDirectoryPatientRecords(
+      { ...params, page: safePage, pageSize },
+      supabase
+    )
+  }
+
+  return {
+    items,
+    total,
+    page: safePage,
+    pageSize,
+    totalPages,
+  }
+}
+
 export async function getDirectoryPatientRecordStats(
   client?: SupabaseClient
 ): Promise<PatientRecordStats> {
@@ -352,15 +455,18 @@ export async function getDirectoryPatientRecordStats(
     await Promise.all([
       supabase
         .from("patient_records")
-        .select("id", { count: "exact", head: true }),
+        .select("id", { count: "exact", head: true })
+        .is("archived_at", null),
       supabase
         .from("patient_records")
         .select("id", { count: "exact", head: true })
+        .is("archived_at", null)
         .gte("last_visit", start)
         .lt("last_visit", end),
       supabase
         .from("patient_records")
         .select("id", { count: "exact", head: true })
+        .is("archived_at", null)
         .not("allergies", "is", null)
         .neq("allergies", ""),
       supabase

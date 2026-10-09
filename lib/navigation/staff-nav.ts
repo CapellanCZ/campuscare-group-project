@@ -14,6 +14,7 @@ export type StaffNavIcon =
   | "queue"
   | "display"
   | "patients"
+  | "bin"
   | "consultations"
   | "certificates"
   | "reports"
@@ -120,6 +121,13 @@ const staffNavGroupTemplates: NavGroupTemplate[] = [
         title: "Patient Records",
         suffix: "/patients",
         icon: "patients",
+        module: "patient_records",
+      },
+      {
+        id: "bin",
+        title: "Bin",
+        suffix: "/bin",
+        icon: "bin",
         module: "patient_records",
       },
       {
@@ -342,6 +350,7 @@ const routeModuleBySuffix: { suffix: string; module: NavModule }[] = [
   { suffix: "/requests", module: "consultation_requests" },
   { suffix: "/queue", module: "queue_management" },
   { suffix: "/patients", module: "patient_records" },
+  { suffix: "/bin", module: "patient_records" },
   { suffix: "/consultations", module: "consultations" },
   { suffix: "/certificates", module: "medical_certificates" },
   { suffix: "/reports", module: "reports" },

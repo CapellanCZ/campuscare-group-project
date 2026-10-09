@@ -4,6 +4,7 @@ import { AnnouncementsPage } from "@/components/announcements/announcements-demo
 import { CertificatesPage } from "@/components/certificates/certificates-demo-page"
 import { ConsultationsPage } from "@/components/consultations/consultations-demo-page"
 import { RoleDashboard } from "@/components/dashboard/role-dashboard"
+import { PatientsBinPage } from "@/components/patients/patients-bin-page"
 import { PatientsPage } from "@/components/patients/patients-demo-page"
 import { QueuePage } from "@/components/queue/queue-page"
 import { RequestsPage } from "@/components/requests/requests-demo-page"
@@ -26,6 +27,7 @@ import {
 } from "@/services/consultations"
 import {
   getDirectoryPatientRecordStats,
+  listArchivedDirectoryPatientRecords,
   listDirectoryPatientRecords,
 } from "@/lib/students/directory"
 import {
@@ -256,6 +258,38 @@ export async function StaffPatientsPage() {
       access={access}
       initialList={list}
       initialStats={stats}
+      initialError={initialError}
+    />
+  )
+}
+
+export async function StaffPatientsBinPage() {
+  const access = await requireStaffModule("patient_records")
+
+  const emptyList: PatientRecordListResult = {
+    items: [],
+    total: 0,
+    page: 1,
+    pageSize: 20,
+    totalPages: 1,
+  }
+
+  let list = emptyList
+  let initialError: string | null = null
+
+  try {
+    list = await listArchivedDirectoryPatientRecords({ page: 1, pageSize: 20 })
+  } catch (error) {
+    initialError =
+      error instanceof PatientRecordServiceError
+        ? error.message
+        : "Could not load archived patient records. Please try again."
+  }
+
+  return (
+    <PatientsBinPage
+      access={access}
+      initialList={list}
       initialError={initialError}
     />
   )
