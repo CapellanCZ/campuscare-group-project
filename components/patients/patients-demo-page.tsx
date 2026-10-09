@@ -42,6 +42,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Empty,
   EmptyDescription,
@@ -185,6 +186,7 @@ export function PatientsPage({
   const [documentsPatient, setDocumentsPatient] = useState<PatientRecord | null>(
     null
   )
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const [isPending, startTransition] = useTransition()
   const skipNextFetch = useRef(true)
   const mountedRef = useRef(false)
@@ -282,6 +284,7 @@ export function PatientsPage({
       skipNextFetch.current = false
       return
     }
+    setSelectedIds(new Set())
     void loadPage(debouncedQuery, patientTypeFilter, sortColumn, activeSortDir)
   }, [activeSortDir, debouncedQuery, loadPage, patientTypeFilter, sortColumn])
 
@@ -366,6 +369,40 @@ export function PatientsPage({
 
   const statCards = useMemo(() => toStatCards(stats), [stats])
   const rows = list.items
+  const visibleIds = useMemo(() => rows.map((row) => row.id), [rows])
+  const selectedVisibleCount = visibleIds.filter((id) =>
+    selectedIds.has(id)
+  ).length
+  const allVisibleSelected =
+    visibleIds.length > 0 && selectedVisibleCount === visibleIds.length
+  const someVisibleSelected =
+    selectedVisibleCount > 0 && !allVisibleSelected
+
+  function toggleRow(patientId: string, checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(patientId)
+      else next.delete(patientId)
+      return next
+    })
+  }
+
+  function toggleSelectAll(checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (checked) {
+        for (const id of visibleIds) next.add(id)
+      } else {
+        for (const id of visibleIds) next.delete(id)
+      }
+      return next
+    })
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set())
+  }
+
   const { showInitialSkeleton, isRefreshing } = staleListBusy(
     loading,
     rows.length,
@@ -457,6 +494,28 @@ export function PatientsPage({
             ) : null}
           </div>
         </CardHeader>
+        {selectedIds.size > 0 ? (
+          <div
+            className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-(--card-spacing) py-3"
+            role="status"
+          >
+            <p className="text-sm">
+              <span className="font-medium tabular-nums">
+                {selectedIds.size}
+              </span>{" "}
+              selected
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={clearSelection}
+            >
+              Clear
+            </Button>
+          </div>
+        ) : null}
+
         <CardContent className="min-w-0 p-0">
           {showInitialSkeleton ? (
             <PatientsTableSkeleton />
@@ -481,6 +540,19 @@ export function PatientsPage({
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
+                  <TableHead className="h-12 w-12 px-4">
+                    <Checkbox
+                      checked={allVisibleSelected}
+                      indeterminate={someVisibleSelected}
+                      disabled={rows.length === 0}
+                      onCheckedChange={(value) => toggleSelectAll(!!value)}
+                      aria-label={
+                        allVisibleSelected
+                          ? "Deselect all visible patients"
+                          : "Select all visible patients"
+                      }
+                    />
+                  </TableHead>
                   <TableHead className="h-12 px-4">
                     <DirectoryColumnHeader
                       title="Patient"
@@ -520,8 +592,22 @@ export function PatientsPage({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((row) => (
-                    <TableRow key={row.id}>
+                {rows.map((row) => {
+                    const selected = selectedIds.has(row.id)
+                    return (
+                    <TableRow
+                      key={row.id}
+                      data-state={selected ? "selected" : undefined}
+                    >
+                      <TableCell className="px-4">
+                        <Checkbox
+                          checked={selected}
+                          onCheckedChange={(value) =>
+                            toggleRow(row.id, !!value)
+                          }
+                          aria-label={`Select ${patientFullName(row)}`}
+                        />
+                      </TableCell>
                       <TableCell className="px-4">
                         <div className="flex items-center gap-2">
                           <p className="font-medium">{patientFullName(row)}</p>
@@ -617,7 +703,8 @@ export function PatientsPage({
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    )
+                  })}
               </TableBody>
             </Table>
             </div>
