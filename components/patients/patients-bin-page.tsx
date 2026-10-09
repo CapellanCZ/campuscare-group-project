@@ -349,7 +349,7 @@ export function PatientsBinPage({
         ids.length === 1
           ? "Permanently Delete Patient?"
           : "Permanently Delete Patients?",
-      description: `Permanently delete ${label} from Supabase? Linked consultations are removed. This cannot be undone.`,
+      description: `Permanently delete ${label}? Linked consultations are removed. This cannot be undone.`,
       confirmLabel: "Delete permanently",
       onConfirm: async () => {
         setDeletePending(true)
@@ -408,7 +408,7 @@ export function PatientsBinPage({
     <main className="flex flex-col gap-6">
       <DemoPageHeader
         title="Bin"
-        description="Archived patient records. Permanently delete them here to remove them from Supabase."
+        description="Archived patient records. Permanently delete them here to remove them for good."
         designation={access.designation}
         showDemoBanner={false}
       />
