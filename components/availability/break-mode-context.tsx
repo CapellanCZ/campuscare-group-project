@@ -116,32 +116,82 @@ export function BreakModeProvider({
     if (!mode) return
     setError(null)
     const iso = defaultReopenIso()
+    const snapshot = {
+      clinic: clinicBreak,
+      staff: staffBreak,
+      duty: dutyStatus,
+    }
+    const optimistic: BreakStatus = {
+      isOnBreak: true,
+      resumesAt: iso,
+      setBy: null,
+      updatedAt: new Date().toISOString(),
+    }
+    if (mode === "clinic") setClinicBreakState(optimistic)
+    else {
+      setStaffBreakState(optimistic)
+      setDutyStatus({
+        ...dutyStatus,
+        status: "on_break",
+        updatedAt: optimistic.updatedAt,
+      })
+    }
+    emitDutyRefresh()
     startTransition(async () => {
       const result =
         mode === "clinic" ? await setClinicBreak(iso) : await setStaffBreak(iso)
       if (!result.ok) {
+        setClinicBreakState(snapshot.clinic)
+        setStaffBreakState(snapshot.staff)
+        setDutyStatus(snapshot.duty)
         setError(result.error)
+        emitDutyRefresh()
         return
       }
       refresh()
       emitDutyRefresh()
     })
-  }, [mode, refresh])
+  }, [mode, refresh, clinicBreak, staffBreak, dutyStatus])
 
   const endBreak = useCallback(() => {
     if (!mode) return
     setError(null)
+    const snapshot = {
+      clinic: clinicBreak,
+      staff: staffBreak,
+      duty: dutyStatus,
+    }
+    const cleared: BreakStatus = {
+      isOnBreak: false,
+      resumesAt: null,
+      setBy: null,
+      updatedAt: new Date().toISOString(),
+    }
+    if (mode === "clinic") setClinicBreakState(cleared)
+    else {
+      setStaffBreakState(cleared)
+      setDutyStatus({
+        ...dutyStatus,
+        status: "available",
+        updatedAt: cleared.updatedAt,
+      })
+    }
+    emitDutyRefresh()
     startTransition(async () => {
       const result =
         mode === "clinic" ? await clearClinicBreak() : await clearStaffBreak()
       if (!result.ok) {
+        setClinicBreakState(snapshot.clinic)
+        setStaffBreakState(snapshot.staff)
+        setDutyStatus(snapshot.duty)
         setError(result.error)
+        emitDutyRefresh()
         return
       }
       refresh()
       emitDutyRefresh()
     })
-  }, [mode, refresh])
+  }, [mode, refresh, clinicBreak, staffBreak, dutyStatus])
 
   const value = useMemo<BreakModeContextValue>(
     () => ({

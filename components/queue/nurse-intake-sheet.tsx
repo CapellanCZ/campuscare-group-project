@@ -286,6 +286,7 @@ export function NurseIntakeSheet({
       })
       reset()
       onOpenChange(false)
+      // Parent already applied optimistic assign; soft-reconcile boards/stats.
       router.refresh()
     })
   }

@@ -82,7 +82,7 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
     () => {
       router.refresh()
     },
-    600,
+    500,
     {
       consultations: `id=eq.${workspace.consultationId}`,
     }

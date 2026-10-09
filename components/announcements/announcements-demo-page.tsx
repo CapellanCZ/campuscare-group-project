@@ -61,6 +61,7 @@ import {
 import { can, canMutate } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { DemoStat } from "@/lib/demo/types"
+import { useInstantListRefresh } from "@/hooks/use-instant-list-refresh"
 import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
 import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 import type {
@@ -268,13 +269,38 @@ export function AnnouncementsPage({
     await loadPage(debouncedQuery, page, statusFilter)
   }, [debouncedQuery, page, statusFilter, loadPage])
 
+  const { schedule: scheduleRefresh } = useInstantListRefresh(refresh, 400)
+
   useStaffRealtimeRefresh(
     `staff-announcements-${d}`,
     STAFF_REALTIME_TABLES.announcements,
-    () => {
-      void refresh()
-    }
+    scheduleRefresh
   )
+
+  function patchAnnouncementInLists(announcement: Announcement) {
+    setList((prev) => {
+      const matchesFilter =
+        statusFilter === "all" || announcement.status === statusFilter
+      const without = prev.items.filter((item) => item.id !== announcement.id)
+      const items = matchesFilter
+        ? [announcement, ...without].slice(0, prev.pageSize)
+        : without
+      return { ...prev, items }
+    })
+    setFeed((prev) => {
+      if (announcement.status !== "published") {
+        return {
+          ...prev,
+          items: prev.items.filter((item) => item.id !== announcement.id),
+        }
+      }
+      const without = prev.items.filter((item) => item.id !== announcement.id)
+      return {
+        ...prev,
+        items: [announcement, ...without].slice(0, prev.pageSize),
+      }
+    })
+  }
 
   useEffect(() => {
     if (skipNextFetch.current) {
@@ -348,32 +374,54 @@ export function AnnouncementsPage({
     void confirmPreset("publish", {
       onConfirm: () => {
         startTransition(async () => {
+          const optimistic: Announcement = {
+            ...announcement,
+            status: "published",
+            publishedAt: new Date().toISOString(),
+          }
+          patchAnnouncementInLists(optimistic)
+          setSelected(optimistic)
           const result = await publishAnnouncementAction(announcement.id)
           if (!result.ok) {
             announcementToasts.failed(result.error)
+            patchAnnouncementInLists(announcement)
+            setSelected(announcement)
+            scheduleRefresh()
             return
           }
           announcementToasts.published()
           setSelected(result.data)
-          await refresh()
+          patchAnnouncementInLists(result.data)
+          scheduleRefresh()
         })
       },
     })
   }
 
-  async function handleSaved(announcement: Announcement) {
+  function handleSaved(announcement: Announcement) {
     setSelected(announcement)
-    await refresh()
+    patchAnnouncementInLists(announcement)
+    scheduleRefresh()
   }
 
-  async function handleDeleted(id: string) {
+  function handleDeleted(id: string) {
     if (selected?.id === id) {
       setSelected(null)
       setSheetOpen(false)
       setArticleOpen(false)
     }
     setDeleting(null)
-    await refresh()
+    setList((prev) => ({
+      ...prev,
+      items: prev.items.filter((item) => item.id !== id),
+      total: Math.max(0, prev.total - 1),
+    }))
+    setFeed((prev) => ({
+      ...prev,
+      items: prev.items.filter((item) => item.id !== id),
+      total: Math.max(0, prev.total - 1),
+    }))
+    scheduleRefresh()
   }
 
   return (

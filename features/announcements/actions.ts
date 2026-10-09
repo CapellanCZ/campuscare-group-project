@@ -189,8 +189,12 @@ export async function saveAnnouncementWithAttachmentsAction(
           typeof value === "string" && value.length > 0
       )
 
-    for (const attachmentId of removeIds) {
-      await deleteAnnouncementAttachment(attachmentId)
+    if (removeIds.length > 0) {
+      await Promise.all(
+        removeIds.map((attachmentId) =>
+          deleteAnnouncementAttachment(attachmentId)
+        )
+      )
     }
 
     const files = formData

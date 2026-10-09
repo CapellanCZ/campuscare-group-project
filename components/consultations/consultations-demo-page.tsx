@@ -79,6 +79,7 @@ import {
   staleListBusy,
   staleListBusyClassName,
 } from "@/lib/ui/stale-list-busy"
+import { useInstantListRefresh } from "@/hooks/use-instant-list-refresh"
 import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
 import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 import {
@@ -347,6 +348,8 @@ export function ConsultationsPage({
     })
   }, [debouncedQuery, loadPage])
 
+  const { schedule: scheduleRefresh } = useInstantListRefresh(refresh, 400)
+
   useEffect(() => {
     if (skipNextFetch.current) {
       skipNextFetch.current = false
@@ -358,9 +361,7 @@ export function ConsultationsPage({
   useStaffRealtimeRefresh(
     `staff-consultations-${access.designation}`,
     STAFF_REALTIME_TABLES.consultations,
-    () => {
-      void loadPage(debouncedQuery)
-    }
+    scheduleRefresh
   )
 
   const isClinician = isPhysician || isDentist
@@ -381,6 +382,18 @@ export function ConsultationsPage({
     isPending
   )
 
+  function patchConsultationLocal(
+    id: string,
+    patch: Partial<Consultation>
+  ) {
+    setList((prev) => ({
+      ...prev,
+      items: prev.items.map((item) =>
+        item.id === id ? { ...item, ...patch } : item
+      ),
+    }))
+  }
+
   async function applyConsultationPatch(
     row: Consultation,
     patch: Partial<{
@@ -391,6 +404,8 @@ export function ConsultationsPage({
       status: ConsultationStatus
     }>
   ) {
+    const snapshot = row
+    patchConsultationLocal(row.id, patch)
     const result = await updateConsultationAction({
       id: row.id,
       patientId: row.patientId,
@@ -410,9 +425,13 @@ export function ConsultationsPage({
       notes: row.notes,
     })
     if (!result.ok) {
+      patchConsultationLocal(row.id, snapshot)
       throw new Error(result.error)
     }
-    refresh()
+    if (result.data) {
+      patchConsultationLocal(result.data.id, result.data)
+    }
+    scheduleRefresh()
   }
 
   async function completeConsultation(row: Consultation) {
@@ -946,7 +965,22 @@ export function ConsultationsPage({
         onOpenChange={setFormOpen}
         mode={formMode}
         consultation={editing}
-        onSaved={() => refresh()}
+        onSaved={(consultation) => {
+          setList((prev) => {
+            const exists = prev.items.some((item) => item.id === consultation.id)
+            const items = exists
+              ? prev.items.map((item) =>
+                  item.id === consultation.id ? consultation : item
+                )
+              : [consultation, ...prev.items].slice(0, prev.pageSize)
+            return {
+              ...prev,
+              items,
+              total: exists ? prev.total : prev.total + 1,
+            }
+          })
+          scheduleRefresh()
+        }}
         access={access}
       />
       <ConsultationDeleteDialog
@@ -955,7 +989,15 @@ export function ConsultationsPage({
         onOpenChange={(open) => {
           if (!open) setDeleting(null)
         }}
-        onDeleted={() => refresh()}
+        onDeleted={(id) => {
+          setDeleting(null)
+          setList((prev) => ({
+            ...prev,
+            items: prev.items.filter((item) => item.id !== id),
+            total: Math.max(0, prev.total - 1),
+          }))
+          scheduleRefresh()
+        }}
       />
     </div>
   )

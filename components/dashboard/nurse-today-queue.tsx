@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState, useTransition } from "react"
+import { useEffect, useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { appToast } from "@/lib/feedback/app-toast"
 import { patientToasts, queueToasts } from "@/lib/feedback/toast-messages"
@@ -102,10 +102,15 @@ export function NurseTodayQueue({
   const [status, setStatus] = useState<TicketStatus | "all" | "intake">("all")
   const [page, setPage] = useState(1)
   const [pending, startTransition] = useTransition()
+  const [localTickets, setLocalTickets] = useState(tickets)
   const [profilePatient, setProfilePatient] = useState<PatientRecord | null>(
     null
   )
   const [loadingPatient, setLoadingPatient] = useState(false)
+
+  useEffect(() => {
+    setLocalTickets(tickets)
+  }, [tickets])
 
   const canCall = can(access.designation, "queue.call_next")
   const canSkip = can(access.designation, "queue.skip")
@@ -115,7 +120,7 @@ export function NurseTodayQueue({
 
   const filtered = useMemo(() => {
     const q = studentIdDigits(query)
-    return tickets
+    return localTickets
       .filter((row) => {
         if (status === "intake") return needsNurseIntake(row)
         if (status !== "all" && row.status !== status) return false
@@ -132,7 +137,7 @@ export function NurseTodayQueue({
         if (b.status === "called" && a.status !== "called") return 1
         return bWait - aWait
       })
-  }, [tickets, query, status])
+  }, [localTickets, query, status])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
@@ -143,11 +148,23 @@ export function NurseTodayQueue({
 
   function runAction(
     label: string,
-    action: () => Promise<{ ok: boolean; error?: string; message?: string }>
+    action: () => Promise<{ ok: boolean; error?: string; message?: string }>,
+    optimistic?: { ticketId: string; patch: Partial<QueueTicketRow> }
   ) {
     startTransition(async () => {
+      const snapshot = localTickets
+      if (optimistic) {
+        setLocalTickets((prev) =>
+          prev.map((row) =>
+            row.ticketId === optimistic.ticketId
+              ? { ...row, ...optimistic.patch }
+              : row
+          )
+        )
+      }
       const result = await action()
       if (!result.ok) {
+        if (optimistic) setLocalTickets(snapshot)
         queueToasts.failed(result.error ?? `${label} failed`)
         return
       }
@@ -186,7 +203,7 @@ export function NurseTodayQueue({
   return (
     <Card className={cn(panelCardClassName, "gap-0 py-0", className)}>
       <NurseWorkbench
-        tickets={tickets}
+        tickets={localTickets}
         pending={pending}
         onStartIntake={onStartIntake}
         variant="embedded"
@@ -319,8 +336,15 @@ export function NurseTodayQueue({
                             size="xs"
                             disabled={pending}
                             onClick={() =>
-                              runAction("Check-in verified", () =>
-                                actionVerifyCheckIn(row.ticketId)
+                              runAction(
+                                "Check-in verified",
+                                () => actionVerifyCheckIn(row.ticketId),
+                                {
+                                  ticketId: row.ticketId,
+                                  patch: {
+                                    checkedInAt: new Date().toISOString(),
+                                  },
+                                }
                               )
                             }
                           >
@@ -385,8 +409,13 @@ export function NurseTodayQueue({
                                   <DropdownMenuItem
                                     variant="destructive"
                                     onClick={() =>
-                                      runAction("Patient skipped", () =>
-                                        actionSkipTicket(row.ticketId)
+                                      runAction(
+                                        "Patient skipped",
+                                        () => actionSkipTicket(row.ticketId),
+                                        {
+                                          ticketId: row.ticketId,
+                                          patch: { status: "waiting" },
+                                        }
                                       )
                                     }
                                   >

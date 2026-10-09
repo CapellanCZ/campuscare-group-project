@@ -66,10 +66,20 @@ export function NurseRequestsPanel({
   const [selectedRequest, setSelectedRequest] =
     useState<AppointmentRequest | null>(null)
   const [dialogMode, setDialogMode] = useState<RequestDialogMode | null>(null)
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => new Set())
 
   const rows = summary.requests.recent
-    .filter((row) => row.status !== "confirmed")
+    .filter(
+      (row) => row.status !== "confirmed" && !dismissedIds.has(row.id)
+    )
     .slice(0, DASHBOARD_LIMIT)
+
+  function softRefreshAfterMutation(requestId: string) {
+    setDismissedIds((prev) => new Set(prev).add(requestId))
+    closeDialog()
+    setSelectedRequest(null)
+    router.refresh()
+  }
 
   function openRequest(requestId: string, mode: RequestDialogMode) {
     startView(async () => {
@@ -229,7 +239,8 @@ export function NurseRequestsPanel({
           }
         }}
         onUpdated={() => {
-          router.refresh()
+          if (selectedRequest) softRefreshAfterMutation(selectedRequest.id)
+          else router.refresh()
         }}
       />
       <RescheduleRequestDialog
@@ -242,7 +253,8 @@ export function NurseRequestsPanel({
           }
         }}
         onUpdated={() => {
-          router.refresh()
+          if (selectedRequest) softRefreshAfterMutation(selectedRequest.id)
+          else router.refresh()
         }}
       />
       <DeclineRequestDialog
@@ -256,7 +268,8 @@ export function NurseRequestsPanel({
           }
         }}
         onDeclined={() => {
-          router.refresh()
+          if (selectedRequest) softRefreshAfterMutation(selectedRequest.id)
+          else router.refresh()
         }}
       />
     </>

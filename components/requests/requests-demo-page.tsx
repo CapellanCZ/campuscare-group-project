@@ -64,6 +64,7 @@ import {
   staleListBusy,
   staleListBusyClassName,
 } from "@/lib/ui/stale-list-busy"
+import { useInstantListRefresh } from "@/hooks/use-instant-list-refresh"
 import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
 import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 
@@ -184,12 +185,12 @@ export function RequestsPage({
     await loadPage(debouncedQuery, status)
   }, [debouncedQuery, status, loadPage])
 
+  const { schedule: scheduleRefresh } = useInstantListRefresh(refresh, 400)
+
   useStaffRealtimeRefresh(
     `staff-requests-${access.designation}`,
     STAFF_REALTIME_TABLES.requests,
-    () => {
-      void refresh()
-    }
+    scheduleRefresh
   )
 
   useEffect(() => {
@@ -244,7 +245,7 @@ export function RequestsPage({
         total: Math.max(0, prev.total + (matchesFilter ? 0 : -1)),
       }
     })
-    void refresh()
+    scheduleRefresh()
   }
 
   return (

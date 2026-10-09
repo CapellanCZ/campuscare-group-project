@@ -7,7 +7,6 @@ import {
   useEffect,
   useMemo,
   useState,
-  useTransition,
   type ReactNode,
 } from "react"
 import { IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react"
@@ -59,7 +58,6 @@ export function DutyStatusProvider({
   const clinical =
     role === "nurse" || role === "physician" || role === "dentist"
   const [dutyStatus, setDutyStatus] = useState<StaffDutyStatus>(DEFAULT_DUTY)
-  const [isPending, startTransition] = useTransition()
 
   const refresh = useCallback(() => {
     if (!clinical) return
@@ -99,11 +97,11 @@ export function DutyStatusProvider({
     () => ({
       dutyStatus,
       role: role ?? null,
-      pending: isPending,
+      pending: false,
       refresh,
       applyOptimistic,
     }),
-    [dutyStatus, role, isPending, refresh, applyOptimistic]
+    [dutyStatus, role, refresh, applyOptimistic]
   )
 
   if (!clinical) {

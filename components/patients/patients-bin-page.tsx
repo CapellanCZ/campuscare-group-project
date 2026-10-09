@@ -255,7 +255,7 @@ export function PatientsBinPage({
       pageCache.invalidate()
       void loadPage(page, { force: true })
     },
-    600
+    500
   )
 
   function setColumnSort(

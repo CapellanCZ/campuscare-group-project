@@ -119,7 +119,7 @@ export function RoleDashboard({
   useStaffRealtimeRouterRefresh(
     `staff-dashboard-${access.designation}`,
     STAFF_REALTIME_TABLES.dashboard,
-    1200
+    500
   )
 
   if (access.designation === "nurse") {

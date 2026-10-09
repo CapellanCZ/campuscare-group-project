@@ -184,9 +184,14 @@ export function ConsultationDocumentsPanel({
           documentType={selectedType}
           workspace={workspace}
           existingDocument={editingDoc}
-          onIssued={() => {
+          onIssued={(document) => {
             setEditingDoc(null)
-            void loadDocuments()
+            setDocuments((prev) => {
+              const without = prev.filter((item) => item.id !== document.id)
+              const next = [document, ...without]
+              onDocumentsChange?.(next)
+              return next
+            })
           }}
         />
       ) : null}

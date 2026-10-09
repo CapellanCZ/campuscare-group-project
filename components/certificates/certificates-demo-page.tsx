@@ -86,11 +86,13 @@ import { triggerMedicalDocumentPrint } from "@/lib/print/trigger-medical-documen
 import {
   DOCUMENT_TYPE_LABELS,
   MEDICAL_DOCUMENT_TYPES,
+  normalizeDocumentStatus,
   type MedicalDocument,
   type MedicalDocumentListResult,
   type MedicalDocumentStatus,
   type MedicalDocumentType,
 } from "@/types/medicalDocument"
+import { useInstantListRefresh } from "@/hooks/use-instant-list-refresh"
 import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
 import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 
@@ -244,12 +246,12 @@ export function CertificatesPage({
     await loadPage(debouncedQuery, page)
   }, [debouncedQuery, page, loadPage])
 
+  const { schedule: scheduleRefresh } = useInstantListRefresh(refresh, 400)
+
   useStaffRealtimeRefresh(
     `staff-certificates-${access.designation}`,
     STAFF_REALTIME_TABLES.certificates,
-    () => {
-      void refresh()
-    }
+    scheduleRefresh
   )
 
   useEffect(() => {
@@ -310,22 +312,52 @@ export function CertificatesPage({
     })
   }
 
-  async function handleSaved(certificate: MedicalCertificate) {
-    await refresh()
+  function handleSaved(certificate: MedicalCertificate) {
+    setList((prev) => ({
+      ...prev,
+      items: prev.items.map((item) =>
+        item.id === certificate.id
+          ? {
+              ...item,
+              purpose: certificate.purpose,
+              doctorName: certificate.doctorName,
+              remarks: certificate.remarks,
+              status: normalizeDocumentStatus(certificate.status),
+              issuedAt: certificate.issuedAt,
+              validUntil: certificate.validUntil,
+              certificateType: certificate.certificateType,
+              documentNumber: certificate.certificateNumber,
+              updatedAt: certificate.updatedAt,
+            }
+          : item
+      ),
+    }))
+    scheduleRefresh()
   }
 
-  async function handleDeleted(id: string) {
+  function handleDeleted(id: string) {
     if (selected?.id === id) {
       setSelected(null)
       setSheetOpen(false)
     }
     setDeleting(null)
-    await refresh()
+    setList((prev) => ({
+      ...prev,
+      items: prev.items.filter((item) => item.id !== id),
+      total: Math.max(0, prev.total - 1),
+    }))
+    scheduleRefresh()
   }
 
-  async function handleVoided(document: MedicalDocument) {
+  function handleVoided(document: MedicalDocument) {
     setSelected(document)
-    await refresh()
+    setList((prev) => ({
+      ...prev,
+      items: prev.items.map((item) =>
+        item.id === document.id ? document : item
+      ),
+    }))
+    scheduleRefresh()
   }
 
   return (

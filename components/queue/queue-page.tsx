@@ -148,7 +148,7 @@ export function QueuePage({
   useStaffRealtimeRouterRefresh(
     `staff-queue-${access.designation}`,
     STAFF_REALTIME_TABLES.queue,
-    800
+    500
   )
   const [query, setQuery] = useState("")
   const deferredQuery = useDeferredValue(query)
@@ -287,16 +287,34 @@ export function QueuePage({
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize))
   const pageRows = filtered.slice(page * pageSize, page * pageSize + pageSize)
 
+  function patchTicket(
+    ticketId: string,
+    patch: Partial<QueueTicketRow>
+  ) {
+    setLocalTickets((prev) =>
+      prev.map((row) =>
+        row.ticketId === ticketId ? { ...row, ...patch } : row
+      )
+    )
+  }
+
   function run(
     action: () => Promise<{ ok: boolean; error?: string; message?: string }>,
     options?: {
       successToast?: () => void
       errorToast?: (message?: string) => void
+      /** Local-first status/field flip before the server round-trip. */
+      optimistic?: { ticketId: string; patch: Partial<QueueTicketRow> }
     }
   ) {
     startTransition(async () => {
+      const snapshot = localTickets
+      if (options?.optimistic) {
+        patchTicket(options.optimistic.ticketId, options.optimistic.patch)
+      }
       const result = await action()
       if (!result.ok) {
+        if (options?.optimistic) setLocalTickets(snapshot)
         ;(options?.errorToast ?? queueToasts.failed)(result.error)
         return
       }
@@ -305,6 +323,7 @@ export function QueuePage({
       } else if (result.message) {
         queueToasts.updated()
       }
+      // Soft reconcile for peer boards / stats — UI already updated.
       router.refresh()
     })
   }
@@ -313,18 +332,11 @@ export function QueuePage({
     ticketId: string,
     toStation: SpecialtyStationId
   ) {
-    setLocalTickets((prev) =>
-      prev.map((row) =>
-        row.ticketId === ticketId
-          ? {
-              ...row,
-              station: toStation,
-              intakeCompletedAt: new Date().toISOString(),
-              status: "waiting" as const,
-            }
-          : row
-      )
-    )
+    patchTicket(ticketId, {
+      station: toStation,
+      intakeCompletedAt: new Date().toISOString(),
+      status: "waiting",
+    })
   }
 
   const cards =
@@ -1108,10 +1120,20 @@ export function QueuePage({
                                           ) && !row.checkedInAt ? (
                                             <DropdownMenuItem
                                               onClick={() =>
-                                                run(() =>
-                                                  actionVerifyCheckIn(
-                                                    row.ticketId
-                                                  )
+                                                run(
+                                                  () =>
+                                                    actionVerifyCheckIn(
+                                                      row.ticketId
+                                                    ),
+                                                  {
+                                                    optimistic: {
+                                                      ticketId: row.ticketId,
+                                                      patch: {
+                                                        checkedInAt:
+                                                          new Date().toISOString(),
+                                                      },
+                                                    },
+                                                  }
                                                 )
                                               }
                                             >
@@ -1136,8 +1158,18 @@ export function QueuePage({
                                       {actions.has("call") ? (
                                         <DropdownMenuItem
                                           onClick={() =>
-                                            run(() =>
-                                              actionRecallTicket(row.ticketId)
+                                            run(
+                                              () =>
+                                                actionRecallTicket(row.ticketId),
+                                              {
+                                                optimistic: {
+                                                  ticketId: row.ticketId,
+                                                  patch: {
+                                                    status: "called",
+                                                    callCount: row.callCount + 1,
+                                                  },
+                                                },
+                                              }
                                             )
                                           }
                                         >
@@ -1202,11 +1234,23 @@ export function QueuePage({
                                                 })
                                                 return
                                               }
-                                              run(() =>
-                                                actionStartConsultation(
-                                                  row.ticketId
-                                                ),
-                                                { successToast: consultationToasts.started }
+                                              run(
+                                                () =>
+                                                  actionStartConsultation(
+                                                    row.ticketId
+                                                  ),
+                                                {
+                                                  successToast:
+                                                    consultationToasts.started,
+                                                  optimistic: {
+                                                    ticketId: row.ticketId,
+                                                    patch: {
+                                                      status: "ongoing",
+                                                      assignedPersonnel:
+                                                        access.fullName,
+                                                    },
+                                                  },
+                                                }
                                               )
                                             },
                                           })
@@ -1218,8 +1262,15 @@ export function QueuePage({
                                       {actions.has("complete") ? (
                                       <DropdownMenuItem
                                         onClick={() =>
-                                          run(() =>
-                                            actionCompleteTicket(row.ticketId)
+                                          run(
+                                            () =>
+                                              actionCompleteTicket(row.ticketId),
+                                            {
+                                              optimistic: {
+                                                ticketId: row.ticketId,
+                                                patch: { status: "completed" },
+                                              },
+                                            }
                                           )
                                         }
                                       >
@@ -1238,8 +1289,18 @@ export function QueuePage({
                                           void confirmPreset("skipPatient", {
                                             onConfirm: async () => {
                                               run(
-                                                () => actionSkipTicket(row.ticketId),
-                                                { successToast: queueToasts.skipped }
+                                                () =>
+                                                  actionSkipTicket(row.ticketId),
+                                                {
+                                                  successToast:
+                                                    queueToasts.skipped,
+                                                  optimistic: {
+                                                    ticketId: row.ticketId,
+                                                    patch: {
+                                                      status: "waiting",
+                                                    },
+                                                  },
+                                                }
                                               )
                                             },
                                           })
@@ -1255,8 +1316,20 @@ export function QueuePage({
                                           void confirmPreset("removeFromQueue", {
                                             onConfirm: async () => {
                                               run(
-                                                () => actionNoShowTicket(row.ticketId),
-                                                { successToast: queueToasts.removed }
+                                                () =>
+                                                  actionNoShowTicket(
+                                                    row.ticketId
+                                                  ),
+                                                {
+                                                  successToast:
+                                                    queueToasts.removed,
+                                                  optimistic: {
+                                                    ticketId: row.ticketId,
+                                                    patch: {
+                                                      status: "no_show",
+                                                    },
+                                                  },
+                                                }
                                               )
                                             },
                                           })
@@ -1271,8 +1344,19 @@ export function QueuePage({
                                       {actions.has("rejoin") ? (
                                         <DropdownMenuItem
                                           onClick={() =>
-                                            run(() =>
-                                              actionRejoinQueue(row.ticketId)
+                                            run(
+                                              () =>
+                                                actionRejoinQueue(row.ticketId),
+                                              {
+                                                optimistic: {
+                                                  ticketId: row.ticketId,
+                                                  patch: {
+                                                    status: "waiting",
+                                                    rejoinCount:
+                                                      row.rejoinCount + 1,
+                                                  },
+                                                },
+                                              }
                                             )
                                           }
                                         >
@@ -1301,11 +1385,21 @@ export function QueuePage({
                                             <DropdownMenuItem
                                               key={target}
                                               onClick={() =>
-                                                run(() =>
-                                                  actionTransferTicket(
-                                                    row.ticketId,
-                                                    target
-                                                  )
+                                                run(
+                                                  () =>
+                                                    actionTransferTicket(
+                                                      row.ticketId,
+                                                      target
+                                                    ),
+                                                  {
+                                                    optimistic: {
+                                                      ticketId: row.ticketId,
+                                                      patch: {
+                                                        station: target,
+                                                        status: "waiting",
+                                                      },
+                                                    },
+                                                  }
                                                 )
                                               }
                                             >
