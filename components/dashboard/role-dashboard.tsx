@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import type { ComponentType } from "react"
+import { useEffect, useRef, useState, type ComponentType } from "react"
 import {
   IconBellRinging,
   IconCertificate,
@@ -45,6 +45,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -53,6 +54,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import type { DashboardPageBundle } from "@/features/dashboard/actions"
+import { emptyDashboardBundle } from "@/features/dashboard/lib/empty-dashboard"
+import {
+  getCachedDashboard,
+  loadDashboardBundle,
+} from "@/features/dashboard/lib/prefetch-dashboard"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
 import { designationLabel, stationLabel } from "@/lib/health/roles"
@@ -66,8 +73,10 @@ import type {
   StationBoard,
 } from "@/lib/health/types"
 import { cn } from "@/lib/utils"
-import { useStaffRealtimeRouterRefresh } from "@/hooks/use-staff-realtime-refresh"
+import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
 import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
+import { appToast } from "@/lib/feedback/app-toast"
+import { staffCacheInvalidate, dashboardCacheKey } from "@/lib/ui/staff-data-cache"
 
 const KPI_ICONS: Record<
   string,
@@ -95,32 +104,109 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
+function applyBundle(
+  setBundle: (b: DashboardPageBundle) => void,
+  next: DashboardPageBundle
+) {
+  setBundle(next)
+}
+
 export function RoleDashboard({
   access,
-  kpis,
-  tickets,
-  boards,
-  activity,
-  recent,
-  stats,
-  summary,
-  ops = null,
+  hydrateFromCache = false,
+  kpis: initialKpis,
+  tickets: initialTickets,
+  boards: initialBoards,
+  activity: initialActivity,
+  recent: initialRecent,
+  stats: initialStats,
+  summary: initialSummary,
+  ops: initialOps = null,
 }: {
   access: StaffAccess
-  kpis: DashboardKpis
-  tickets: QueueTicketRow[]
-  boards: StationBoard[]
-  activity: ActivityItem[]
-  recent: RecentlyServedItem[]
-  stats: QueueStats
-  summary: RoleDashboardSummary
+  /** Auth-only RSC: paint static chrome, load Supabase data on the client. */
+  hydrateFromCache?: boolean
+  kpis?: DashboardKpis
+  tickets?: QueueTicketRow[]
+  boards?: StationBoard[]
+  activity?: ActivityItem[]
+  recent?: RecentlyServedItem[]
+  stats?: QueueStats
+  summary?: RoleDashboardSummary
   ops?: import("@/features/admin/types/ops").AdminOpsSnapshot | null
 }) {
-  useStaffRealtimeRouterRefresh(
+  const cached = hydrateFromCache
+    ? getCachedDashboard(access.designation)
+    : null
+  const seed =
+    cached ??
+    (initialKpis && initialTickets && initialStats && initialSummary
+      ? {
+          kpis: initialKpis,
+          tickets: initialTickets,
+          boards: initialBoards ?? [],
+          activity: initialActivity ?? [],
+          recent: initialRecent ?? [],
+          stats: initialStats,
+          summary: initialSummary,
+          ops: initialOps ?? null,
+        }
+      : emptyDashboardBundle(access.designation))
+
+  const [bundle, setBundle] = useState<DashboardPageBundle>(seed)
+  const [dataLoading, setDataLoading] = useState(
+    () => hydrateFromCache && !cached
+  )
+  const hydratedRef = useRef(false)
+
+  useEffect(() => {
+    if (!hydrateFromCache || hydratedRef.current) return
+    hydratedRef.current = true
+    const hit = getCachedDashboard(access.designation)
+    if (hit) {
+      applyBundle(setBundle, hit)
+      setDataLoading(false)
+    }
+    void loadDashboardBundle(access.designation, { force: Boolean(hit) })
+      .then((next) => {
+        applyBundle(setBundle, next)
+        setDataLoading(false)
+      })
+      .catch((error) => {
+        setDataLoading(false)
+        if (!hit) {
+          appToast.error({
+            title: "Unable to load dashboard",
+            description:
+              error instanceof Error
+                ? error.message
+                : "Check your connection and try again.",
+          })
+        }
+      })
+  }, [access.designation, hydrateFromCache])
+
+  useStaffRealtimeRefresh(
     `staff-dashboard-${access.designation}`,
     STAFF_REALTIME_TABLES.dashboard,
-    500
+    () => {
+      staffCacheInvalidate(dashboardCacheKey(access.designation))
+      void loadDashboardBundle(access.designation, { force: true })
+        .then((next) => applyBundle(setBundle, next))
+        .catch(() => undefined)
+    }
   )
+
+  const {
+    kpis,
+    tickets,
+    boards,
+    activity,
+    recent,
+    stats,
+    summary,
+    ops,
+  } = bundle
 
   if (access.designation === "nurse") {
     return (
@@ -132,6 +218,7 @@ export function RoleDashboard({
         recent={recent}
         stats={stats}
         summary={summary}
+        dataLoading={dataLoading}
       />
     )
   }
@@ -145,6 +232,7 @@ export function RoleDashboard({
         recent={recent}
         stats={stats}
         summary={summary}
+        dataLoading={dataLoading}
       />
     )
   }
@@ -158,15 +246,40 @@ export function RoleDashboard({
         recent={recent}
         stats={stats}
         summary={summary}
+        dataLoading={dataLoading}
       />
     )
   }
 
   if (access.designation === "admin") {
     if (!ops) {
+      const firstName = access.fullName.split(" ")[0] || access.fullName
       return (
-        <div className="p-6 text-sm text-muted-foreground">
-          Loading operations overview…
+        <div className="flex flex-1 flex-col gap-6">
+          <PageIntro title={`Welcome back, ${firstName}`} />
+          <div className="flex flex-col gap-2">
+            <SectionLabel>At a glance</SectionLabel>
+            <PanelFrame>
+              <PanelGrid className="grid-cols-2 lg:grid-cols-4">
+                {kpis.cards.slice(0, 4).map((card) => {
+                  const Icon = KPI_ICONS[String(card.key)]
+                  return (
+                    <PanelCell key={String(card.key)}>
+                      <StatCard
+                        flush
+                        compact
+                        label={card.label}
+                        value={String(card.value)}
+                        description={card.description}
+                        icon={Icon ? <Icon /> : undefined}
+                        loading={dataLoading}
+                      />
+                    </PanelCell>
+                  )
+                })}
+              </PanelGrid>
+            </PanelFrame>
+          </div>
         </div>
       )
     }
@@ -194,7 +307,11 @@ export function RoleDashboard({
       <div className="flex flex-col gap-4">
         <PageIntro
           title={`Welcome back, ${firstName}`}
-          description={`${designationLabel(access.designation)} overview · ${stats.totalWaiting} waiting · ${stats.currentlyServing} serving`}
+          description={
+            dataLoading
+              ? `${designationLabel(access.designation)} overview`
+              : `${designationLabel(access.designation)} overview · ${stats.totalWaiting} waiting · ${stats.currentlyServing} serving`
+          }
           action={
             <Button
               size="sm"
@@ -232,6 +349,7 @@ export function RoleDashboard({
                     delta={card.delta}
                     lowerIsBetter={card.lowerIsBetter}
                     icon={Icon ? <Icon /> : undefined}
+                    loading={dataLoading}
                   />
                 </PanelCell>
               )
@@ -253,9 +371,13 @@ export function RoleDashboard({
                       <CardDescription>{queueDescription}</CardDescription>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <Badge variant="secondary" className="tabular-nums">
-                        {waiting.length}
-                      </Badge>
+                      {dataLoading ? (
+                        <Skeleton className="h-5 w-8 rounded-full" />
+                      ) : (
+                        <Badge variant="secondary" className="tabular-nums">
+                          {waiting.length}
+                        </Badge>
+                      )}
                       <Button
                         size="sm"
                         variant="ghost"
@@ -269,7 +391,13 @@ export function RoleDashboard({
                   </div>
                 </CardHeader>
                 <CardContent className="min-w-0 px-0 pb-2">
-                  {waiting.length === 0 ? (
+                  {dataLoading ? (
+                    <div className="space-y-3 px-6 py-6">
+                      <Skeleton className="h-10 w-full rounded-lg" />
+                      <Skeleton className="h-10 w-full rounded-lg" />
+                      <Skeleton className="h-10 w-3/4 rounded-lg" />
+                    </div>
+                  ) : waiting.length === 0 ? (
                     <Empty className="border-0 py-12">
                       <EmptyHeader>
                         <EmptyMedia variant="icon">
@@ -331,7 +459,12 @@ export function RoleDashboard({
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-1">
-                  {boards.length === 0 ? (
+                  {dataLoading ? (
+                    <div className="space-y-2 py-1">
+                      <Skeleton className="h-12 w-full rounded-lg" />
+                      <Skeleton className="h-12 w-full rounded-lg" />
+                    </div>
+                  ) : boards.length === 0 ? (
                     <p className="text-sm text-muted-foreground" role="status">
                       No station data yet.
                     </p>

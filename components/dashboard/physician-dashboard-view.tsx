@@ -36,6 +36,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -98,6 +99,7 @@ export function PhysicianDashboardView({
   recent: _recent,
   stats: _stats,
   summary: _summary,
+  dataLoading = false,
 }: {
   access: StaffAccess
   kpis: DashboardKpis
@@ -105,6 +107,7 @@ export function PhysicianDashboardView({
   recent: RecentlyServedItem[]
   stats: QueueStats
   summary: RoleDashboardSummary
+  dataLoading?: boolean
 }) {
   void _recent
   void _stats
@@ -150,6 +153,7 @@ export function PhysicianDashboardView({
                     lowerIsBetter={card.lowerIsBetter}
                     icon={Icon ? <Icon /> : undefined}
                     href={physicianKpiHref(String(card.key))}
+                    loading={dataLoading}
                   />
                 </PanelCell>
               )
@@ -162,7 +166,7 @@ export function PhysicianDashboardView({
         <SectionLabel>Work now</SectionLabel>
         <PanelFrame>
           <PanelGrid className="lg:grid-cols-1">
-            {nowServing ? (
+            {!dataLoading && nowServing ? (
               <PanelCell>
                 <Card className={cn(panelCardClassName)}>
                   <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
@@ -214,9 +218,13 @@ export function PhysicianDashboardView({
                       </CardDescription>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <Badge variant="secondary" className="tabular-nums">
-                        {waiting.length}
-                      </Badge>
+                      {dataLoading ? (
+                        <Skeleton className="h-5 w-8 rounded-full" />
+                      ) : (
+                        <Badge variant="secondary" className="tabular-nums">
+                          {waiting.length}
+                        </Badge>
+                      )}
                       <Button
                         size="sm"
                         variant="ghost"
@@ -230,7 +238,52 @@ export function PhysicianDashboardView({
                   </div>
                 </CardHeader>
                 <CardContent className="min-w-0 px-0 pb-2">
-                  {waiting.length === 0 ? (
+                  {dataLoading ? (
+                    <div className="min-w-0 overflow-x-auto">
+                      <Table className="border-t">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="pl-6">#</TableHead>
+                            <TableHead>Patient</TableHead>
+                            <TableHead className="hidden sm:table-cell">
+                              Type
+                            </TableHead>
+                            <TableHead className="hidden md:table-cell">
+                              Complaint
+                            </TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="hidden pr-6 lg:table-cell">
+                              Wait
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {[0, 1, 2].map((row) => (
+                            <TableRow className="h-14" key={row}>
+                              <TableCell className="pl-6">
+                                <Skeleton className="h-4 w-10" />
+                              </TableCell>
+                              <TableCell>
+                                <Skeleton className="h-4 w-28" />
+                              </TableCell>
+                              <TableCell className="hidden sm:table-cell">
+                                <Skeleton className="h-5 w-16" />
+                              </TableCell>
+                              <TableCell className="hidden md:table-cell">
+                                <Skeleton className="h-4 w-24" />
+                              </TableCell>
+                              <TableCell>
+                                <Skeleton className="h-5 w-16" />
+                              </TableCell>
+                              <TableCell className="hidden pr-6 lg:table-cell">
+                                <Skeleton className="h-4 w-8" />
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ) : waiting.length === 0 ? (
                     <Empty className="border-0 py-12">
                       <EmptyHeader>
                         <EmptyMedia variant="icon">

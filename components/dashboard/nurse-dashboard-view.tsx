@@ -75,6 +75,7 @@ export function NurseDashboardView({
   activity,
   recent: _recent,
   summary,
+  dataLoading = false,
 }: {
   access: StaffAccess
   kpis: DashboardKpis
@@ -83,6 +84,7 @@ export function NurseDashboardView({
   recent: RecentlyServedItem[]
   stats: QueueStats
   summary: RoleDashboardSummary
+  dataLoading?: boolean
 }) {
   void _recent
   const [intakeTicket, setIntakeTicket] = useState<QueueTicketRow | null>(null)
@@ -143,6 +145,7 @@ export function NurseDashboardView({
                     lowerIsBetter={card.lowerIsBetter}
                     icon={Icon ? <Icon /> : undefined}
                     href={nurseKpiHref(card.key)}
+                    loading={dataLoading}
                   />
                 </PanelCell>
               )

@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card"
 import { Delta, DeltaIcon, DeltaValue } from "@/components/delta"
 import { panelCardClassName } from "@/components/layout/panel-frame"
+import { Skeleton } from "@/components/ui/skeleton"
 
 type StatCardProps = {
   label: string
@@ -29,6 +30,8 @@ type StatCardProps = {
   href?: string
   /** Optional click handler (e.g. open a sheet). Ignored when `href` is set. */
   onClick?: () => void
+  /** Keep label/icon; skeleton only the value + description. */
+  loading?: boolean
 }
 
 export function StatCard({
@@ -44,6 +47,7 @@ export function StatCard({
   compact = false,
   href,
   onClick,
+  loading = false,
 }: StatCardProps) {
   const trendPositive =
     typeof delta === "number"
@@ -52,8 +56,8 @@ export function StatCard({
         : delta >= 0
       : null
 
-  const interactive = Boolean(href || onClick)
-  const ariaLabel = `${label}: ${value}`
+  const interactive = Boolean(href || onClick) && !loading
+  const ariaLabel = loading ? `${label}: loading` : `${label}: ${value}`
 
   return (
     <Card
@@ -88,14 +92,23 @@ export function StatCard({
           <CardTitle className="font-normal text-[10px] tracking-wide text-muted-foreground uppercase sm:text-xs">
             {label}
           </CardTitle>
-          <p
-            className={cn(
-              "truncate font-semibold tracking-tight tabular-nums",
-              compact ? "text-xl sm:text-2xl" : "text-2xl"
-            )}
-          >
-            {value}
-          </p>
+          {loading ? (
+            <Skeleton
+              className={cn(
+                "mt-1 w-12 rounded-md",
+                compact ? "h-6 sm:h-7" : "h-7"
+              )}
+            />
+          ) : (
+            <p
+              className={cn(
+                "truncate font-semibold tracking-tight tabular-nums",
+                compact ? "text-xl sm:text-2xl" : "text-2xl"
+              )}
+            >
+              {value}
+            </p>
+          )}
         </div>
         {icon ? (
           <div
@@ -119,25 +132,31 @@ export function StatCard({
         ) : null}
       </CardHeader>
       <CardContent className="relative z-0 flex flex-wrap items-center gap-x-2 gap-y-1 pt-0">
-        {typeof delta === "number" ? (
-          <CardDescription
-            className={cn(
-              "flex items-center gap-1 text-xs tabular-nums",
-              trendPositive === true && "text-success",
-              trendPositive === false && "text-destructive"
-            )}
-          >
-            <Delta value={delta}>
-              <DeltaIcon />
-              <DeltaValue />
-            </Delta>
-          </CardDescription>
-        ) : null}
-        {description ? (
-          <span className="line-clamp-2 text-[11px] text-muted-foreground sm:truncate sm:text-xs">
-            {description}
-          </span>
-        ) : null}
+        {loading ? (
+          <Skeleton className="h-3 w-24 rounded-md" />
+        ) : (
+          <>
+            {typeof delta === "number" ? (
+              <CardDescription
+                className={cn(
+                  "flex items-center gap-1 text-xs tabular-nums",
+                  trendPositive === true && "text-success",
+                  trendPositive === false && "text-destructive"
+                )}
+              >
+                <Delta value={delta}>
+                  <DeltaIcon />
+                  <DeltaValue />
+                </Delta>
+              </CardDescription>
+            ) : null}
+            {description ? (
+              <span className="line-clamp-2 text-[11px] text-muted-foreground sm:truncate sm:text-xs">
+                {description}
+              </span>
+            ) : null}
+          </>
+        )}
       </CardContent>
     </Card>
   )

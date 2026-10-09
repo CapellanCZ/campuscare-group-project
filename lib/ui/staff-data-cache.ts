@@ -72,6 +72,10 @@ export function consultationsCacheKey(role: string): string {
   return `consultations:v1:${role}`
 }
 
+export function dashboardCacheKey(role: string): string {
+  return `dashboard:v1:${role}`
+}
+
 export function patientHistoryCacheKey(
   patientId: string,
   stationFilter: string,
