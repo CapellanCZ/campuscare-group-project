@@ -58,16 +58,18 @@ function isCampusIdSearchQuery(query: string): boolean {
   return digits.length / compact.length >= 0.7
 }
 
-/** Shared text / type filters for directory list + matching-id queries. */
-function applyDirectoryFilters<
-  T extends {
-    eq: (column: string, value: string) => T
-    or: (filters: string) => T
-  },
->(
-  directoryQuery: T,
+/**
+ * Shared text / type filters for directory list + matching-id queries.
+ * Intentionally untyped against PostgrestFilterBuilder — Supabase generics
+ * recurse past TS limits when passed through a generic helper.
+ */
+function applyDirectoryFilters(
+  // Postgrest filter builders are structurally compatible here.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  directoryQuery: any,
   params: Pick<PatientRecordListParams, "query" | "patientType">
-): T {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): any {
   let next = directoryQuery
   const patientTypeFilter = params.patientType ?? "all"
   const query = (params.query ?? "").trim()
@@ -452,7 +454,9 @@ export async function listMatchingPatientRecordIds(
   let from = 0
 
   for (;;) {
-    let pageQuery = supabase.from("patient_records").select("id")
+    // Keep this builder loosely typed — same Postgrest depth issue as above.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let pageQuery: any = supabase.from("patient_records").select("id")
     pageQuery = archived
       ? pageQuery.not("archived_at", "is", null)
       : pageQuery.is("archived_at", null)
