@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, type MouseEvent } from "react"
 import Link from "next/link"
 import {
   Collapsible,
@@ -40,10 +40,26 @@ function useNavLinkHandlers() {
   const role = primaryRole ?? designation
 
   return (href: string) => ({
-    onClick: () => {
-      navPending?.markPending(href)
+    onClick: (event: MouseEvent<HTMLAnchorElement>) => {
+      // Let modified clicks (new tab) use the native link.
+      if (
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey ||
+        event.button !== 0
+      ) {
+        return
+      }
+      event.preventDefault()
+      if (navPending?.isPending) return
       warmRouteData(href, role)
       if (isMobile) setOpenMobile(false)
+      if (navPending) {
+        navPending.navigate(href)
+        return
+      }
+      window.location.assign(href)
     },
     onMouseEnter: () => {
       navPending?.prefetch(href)

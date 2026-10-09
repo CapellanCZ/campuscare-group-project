@@ -16,6 +16,7 @@ import {
   NavPendingProvider,
   useOptionalNavPending,
 } from "@/components/dashboard/nav-pending"
+import { StaffRouteLoading } from "@/components/staff-route-loading"
 import { StaffRealtimeShell } from "@/components/staff-realtime-shell"
 import { StaffAccessProvider } from "@/components/staff-access-provider"
 import { StaffThemeController } from "@/components/staff-theme-provider"
@@ -54,25 +55,27 @@ function ShellBody({
         <SidebarInset className="min-w-0">
           <div
             className={cn(
-              "pointer-events-none absolute inset-x-0 top-0 z-40 h-0.5 overflow-hidden",
+              "pointer-events-none absolute inset-x-0 top-0 z-40 h-1 overflow-hidden bg-primary/15 transition-opacity",
               navigating ? "opacity-100" : "opacity-0"
             )}
             aria-hidden
           >
-            <div className="h-full w-1/3 animate-pulse bg-primary" />
+            <div className="h-full w-2/5 animate-nav-progress bg-primary" />
           </div>
           <AppHeader />
           <div
             className={cn(
-              "flex min-w-0 flex-1 flex-col overflow-x-clip p-3 pb-8 sm:p-4 sm:pb-6 md:p-6",
+              "relative flex min-w-0 flex-1 flex-col overflow-x-clip p-3 pb-8 sm:p-4 sm:pb-6 md:p-6",
               "mx-auto w-full max-w-(--app-wrapper-max-width)",
-              "transition-opacity duration-150",
-              isAdmin && "bg-muted/30",
-              navigating && "opacity-80"
+              isAdmin && "bg-muted/30"
             )}
             aria-busy={navigating || undefined}
           >
-            {children}
+            {navigating ? (
+              <StaffRouteLoading className="flex flex-1 flex-col gap-6" />
+            ) : (
+              children
+            )}
           </div>
         </SidebarInset>
       </div>

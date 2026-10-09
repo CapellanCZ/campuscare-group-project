@@ -518,6 +518,19 @@
   }
 }
 
+@keyframes nav-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+@utility animate-nav-progress {
+  animation: nav-progress 1s ease-in-out infinite;
+}
+
 @keyframes cc-float-y {
   0%,
   100% {

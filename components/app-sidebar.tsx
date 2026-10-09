@@ -1,5 +1,6 @@
 "use client"
 
+import type { MouseEvent } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
@@ -35,9 +36,24 @@ export function AppSidebar() {
   const closeMobile = () => {
     if (isMobile) setOpenMobile(false)
   }
-  const onNavClick = (href: string) => {
-    navPending?.markPending(href)
+  const onNavClick = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey ||
+      event.button !== 0
+    ) {
+      return
+    }
+    event.preventDefault()
+    if (navPending?.isPending) return
     closeMobile()
+    if (navPending) {
+      navPending.navigate(href)
+      return
+    }
+    window.location.assign(href)
   }
 
   const groups = getNavGroupsForRole(role, activePath)
@@ -59,7 +75,7 @@ export function AppSidebar() {
           render={
             <Link
               href={base}
-              onClick={() => onNavClick(base)}
+              onClick={(event) => onNavClick(event, base)}
               onMouseEnter={() => navPending?.prefetch(base)}
             />
           }
@@ -85,7 +101,9 @@ export function AppSidebar() {
                   render={
                     <Link
                       href={item.path ?? base}
-                      onClick={() => onNavClick(item.path ?? base)}
+                      onClick={(event) =>
+                        onNavClick(event, item.path ?? base)
+                      }
                       onMouseEnter={() =>
                         navPending?.prefetch(item.path ?? base)
                       }
