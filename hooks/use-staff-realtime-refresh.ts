@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { subscribeTables } from "@/lib/health/realtime"
 
-const DEFAULT_DEBOUNCE_MS = 1200
+/** Tuned for snappy peer sync; own mutations should still patch local state first. */
+const DEFAULT_DEBOUNCE_MS = 500
 
 /**
  * Silently refresh staff UIs when listed tables change.

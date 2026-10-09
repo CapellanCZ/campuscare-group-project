@@ -54,6 +54,8 @@ import {
 } from "@/components/ui/table"
 import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
+import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
+import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 import { patientToasts } from "@/lib/feedback/toast-messages"
 import { PATIENT_SEARCH_PLACEHOLDER } from "@/lib/students/patient-search-copy"
 import { NO_STUDENT_FOUND } from "@/lib/students/types"
@@ -245,6 +247,16 @@ export function PatientsBinPage({
     setSelectedIds(new Set())
     void loadPage(page)
   }, [fetchListPage, initialList, loadPage, page, pageCache, queryScope])
+
+  useStaffRealtimeRefresh(
+    `staff-patients-bin-${access.designation}`,
+    STAFF_REALTIME_TABLES.patients,
+    () => {
+      pageCache.invalidate()
+      void loadPage(page, { force: true })
+    },
+    600
+  )
 
   function setColumnSort(
     column: PatientRecordSortColumn,

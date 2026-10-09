@@ -36,6 +36,8 @@ type DutyContextValue = {
   role: WebRole | null
   pending: boolean
   refresh: () => void
+  /** Local-first status flip before the server round-trip completes. */
+  applyOptimistic: (next: StaffDutyStatus) => void
 }
 
 const DutyContext = createContext<DutyContextValue | null>(null)
@@ -66,6 +68,10 @@ export function DutyStatusProvider({
     })
   }, [clinical])
 
+  const applyOptimistic = useCallback((next: StaffDutyStatus) => {
+    setDutyStatus(next)
+  }, [])
+
   useEffect(() => {
     if (!clinical) return
     let cancelled = false
@@ -95,8 +101,9 @@ export function DutyStatusProvider({
       role: role ?? null,
       pending: isPending,
       refresh,
+      applyOptimistic,
     }),
-    [dutyStatus, role, isPending, refresh]
+    [dutyStatus, role, isPending, refresh, applyOptimistic]
   )
 
   if (!clinical) {
@@ -151,7 +158,7 @@ export function DutyStatusControl({
 
   if (!ctx) return null
 
-  const { dutyStatus, pending, refresh } = ctx
+  const { dutyStatus, pending, refresh, applyOptimistic } = ctx
   const onBreak = dutyStatus.status === "on_break" || Boolean(breakMode?.active)
 
   if (onBreak) {
@@ -165,9 +172,21 @@ export function DutyStatusControl({
   const handleStartDuty = () => {
     void confirmPreset("startDuty", {
       onConfirm: async () => {
+        const snapshot = dutyStatus
+        const now = new Date().toISOString()
+        applyOptimistic({
+          status: "available",
+          dutyStartedAt: now,
+          dutyEndedAt: null,
+          updatedAt: now,
+        })
+        emitDutyRefresh()
         const result = await startDutyAction()
         if (!result.ok) {
+          applyOptimistic(snapshot)
           dutyToasts.failed(result.error)
+          refresh()
+          emitDutyRefresh()
           throw new Error(result.error)
         }
         dutyToasts.started()
@@ -180,9 +199,21 @@ export function DutyStatusControl({
   const handleEndDuty = () => {
     void confirmPreset("endDuty", {
       onConfirm: async () => {
+        const snapshot = dutyStatus
+        const now = new Date().toISOString()
+        applyOptimistic({
+          status: "not_available",
+          dutyStartedAt: snapshot.dutyStartedAt,
+          dutyEndedAt: now,
+          updatedAt: now,
+        })
+        emitDutyRefresh()
         const result = await endDutyAction()
         if (!result.ok) {
+          applyOptimistic(snapshot)
           dutyToasts.failed(result.error)
+          refresh()
+          emitDutyRefresh()
           throw new Error(result.error)
         }
         dutyToasts.ended()

@@ -232,7 +232,19 @@ export function RequestsPage({
 
   async function handleUpdated(request: AppointmentRequest) {
     setSelected(request)
-    await refresh()
+    // Optimistic: patch the visible queue immediately, then soft-reconcile.
+    setList((prev) => {
+      const matchesFilter =
+        status === "all" || request.status === status
+      const without = prev.items.filter((item) => item.id !== request.id)
+      const items = matchesFilter ? [request, ...without] : without
+      return {
+        ...prev,
+        items,
+        total: Math.max(0, prev.total + (matchesFilter ? 0 : -1)),
+      }
+    })
+    void refresh()
   }
 
   return (

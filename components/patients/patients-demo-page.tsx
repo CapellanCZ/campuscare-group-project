@@ -390,7 +390,7 @@ export function PatientsPage({
       pageCache.invalidate()
       void loadPage(page, { includeStats: true, force: true })
     },
-    2000
+    600
   )
 
   function setColumnSort(

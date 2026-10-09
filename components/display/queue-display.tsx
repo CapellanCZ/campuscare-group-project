@@ -91,7 +91,8 @@ export function QueueDisplay({
     const channel = subscribeDisplayChanges(client, scheduleRefresh)
 
     // Tickets come from sanitized public_queue_display (no base-table realtime PHI).
-    const poll = window.setInterval(() => router.refresh(), 15_000)
+    // Poll faster so call/serve feels live on the cast screen.
+    const poll = window.setInterval(() => router.refresh(), 5_000)
 
     return () => {
       if (timer) clearTimeout(timer)

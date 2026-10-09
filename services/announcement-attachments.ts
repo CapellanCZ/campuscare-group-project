@@ -146,57 +146,61 @@ export async function uploadAnnouncementAttachments(
 
   const supabase = await getClient(client)
   const userId = await requireAdminUserId(supabase)
-  const uploaded: AnnouncementAttachment[] = []
 
   for (const file of files) {
     const validationError = validateAttachmentFile(file)
     if (validationError) {
       throw new AnnouncementServiceError("validation", validationError)
     }
-
-    const safeName = sanitizeFileName(file.name)
-    const path = `${announcementId}/${crypto.randomUUID()}-${safeName}`
-    const mime = file.type
-    const kind = attachmentKindFromMime(mime)
-    const buffer = Buffer.from(await file.arrayBuffer())
-
-    const { error: uploadError } = await supabase.storage
-      .from(ANNOUNCEMENT_ATTACHMENTS_BUCKET)
-      .upload(path, buffer, {
-        contentType: mime,
-        upsert: false,
-      })
-
-    if (uploadError) {
-      throw new AnnouncementServiceError(
-        "database",
-        uploadError.message || "Failed to upload attachment."
-      )
-    }
-
-    const { data, error } = await supabase
-      .from("announcement_attachments")
-      .insert({
-        announcement_id: announcementId,
-        file_name: safeName,
-        file_path: path,
-        file_size: file.size,
-        mime_type: mime,
-        kind,
-        uploaded_by: userId,
-      })
-      .select("*")
-      .single()
-
-    if (error) {
-      await supabase.storage.from(ANNOUNCEMENT_ATTACHMENTS_BUCKET).remove([path])
-      throw new AnnouncementServiceError("database", error.message)
-    }
-
-    uploaded.push(mapAttachment(data as AttachmentRow))
   }
 
-  return uploaded
+  // Parallel uploads — large announcement forms no longer wait serially.
+  return Promise.all(
+    files.map(async (file) => {
+      const safeName = sanitizeFileName(file.name)
+      const path = `${announcementId}/${crypto.randomUUID()}-${safeName}`
+      const mime = file.type
+      const kind = attachmentKindFromMime(mime)
+      const buffer = Buffer.from(await file.arrayBuffer())
+
+      const { error: uploadError } = await supabase.storage
+        .from(ANNOUNCEMENT_ATTACHMENTS_BUCKET)
+        .upload(path, buffer, {
+          contentType: mime,
+          upsert: false,
+        })
+
+      if (uploadError) {
+        throw new AnnouncementServiceError(
+          "database",
+          uploadError.message || "Failed to upload attachment."
+        )
+      }
+
+      const { data, error } = await supabase
+        .from("announcement_attachments")
+        .insert({
+          announcement_id: announcementId,
+          file_name: safeName,
+          file_path: path,
+          file_size: file.size,
+          mime_type: mime,
+          kind,
+          uploaded_by: userId,
+        })
+        .select("*")
+        .single()
+
+      if (error) {
+        await supabase.storage
+          .from(ANNOUNCEMENT_ATTACHMENTS_BUCKET)
+          .remove([path])
+        throw new AnnouncementServiceError("database", error.message)
+      }
+
+      return mapAttachment(data as AttachmentRow)
+    })
+  )
 }
 
 export async function deleteAnnouncementAttachment(

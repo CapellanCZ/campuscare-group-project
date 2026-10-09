@@ -37,12 +37,14 @@ export const STAFF_REALTIME_TABLES = {
   ] as const,
   dashboard: [
     "appointments",
+    "consultation_requests",
     "health_queue_tickets",
     "health_appointments",
     "announcements",
     "clinic_consultation_capacity",
     "consultations",
     "medical_certificates",
+    "patient_records",
   ] as const,
 } as const
 

@@ -3,6 +3,8 @@
 import Link from "next/link"
 import { useCallback, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
+import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
+import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 import { IconCheck, IconLoader2 } from "@tabler/icons-react"
 
 import {
@@ -72,6 +74,19 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
   const router = useRouter()
   const isDentist = workspace.role === "dentist"
   const queuePath = isDentist ? "/dentist/queue" : "/physician/queue"
+
+  // Peer edits (another clinician / documents) sync without a manual refresh.
+  useStaffRealtimeRefresh(
+    `clinical-visit-${workspace.consultationId}`,
+    STAFF_REALTIME_TABLES.clinicalVisit,
+    () => {
+      router.refresh()
+    },
+    600,
+    {
+      consultations: `id=eq.${workspace.consultationId}`,
+    }
+  )
 
   const [step, setStep] = useState(1)
   const [symptoms, setSymptoms] = useState(workspace.symptoms ?? "")
