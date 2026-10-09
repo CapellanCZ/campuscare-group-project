@@ -16,7 +16,6 @@ import {
   NavPendingProvider,
   useOptionalNavPending,
 } from "@/components/dashboard/nav-pending"
-import { StaffRouteLoading } from "@/components/staff-route-loading"
 import { StaffRealtimeShell } from "@/components/staff-realtime-shell"
 import { StaffAccessProvider } from "@/components/staff-access-provider"
 import { StaffThemeController } from "@/components/staff-theme-provider"
@@ -71,11 +70,9 @@ function ShellBody({
             )}
             aria-busy={navigating || undefined}
           >
-            {navigating ? (
-              <StaffRouteLoading className="flex flex-1 flex-col gap-6" />
-            ) : (
-              children
-            )}
+            {/* Keep the previous page chrome visible — only route loading.tsx /
+                page data regions show skeletons while Supabase fetches. */}
+            {children}
           </div>
         </SidebarInset>
       </div>

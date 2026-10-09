@@ -1,6 +1,6 @@
 /**
- * Keep previous directory rows visible while a refetch runs.
- * Only show a full skeleton on the true empty/first-load case.
+ * Keep previous directory rows fully visible while a refetch runs.
+ * Skeleton only the data list when there is nothing to show yet.
  */
 export function staleListBusy(
   loading: boolean,
@@ -16,8 +16,7 @@ export function staleListBusy(
   }
 }
 
-export function staleListBusyClassName(isRefreshing: boolean) {
-  return isRefreshing
-    ? "opacity-60 transition-opacity duration-150"
-    : "opacity-100 transition-opacity duration-150"
+/** Kept for call sites — do not dim static/previous rows. */
+export function staleListBusyClassName(_isRefreshing: boolean) {
+  return "opacity-100"
 }
