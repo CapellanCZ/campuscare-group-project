@@ -8,7 +8,6 @@ import {
   useState,
   useTransition,
 } from "react"
-import Link from "next/link"
 import { useConfirm } from "@/components/feedback/confirm-provider"
 import { appToast } from "@/lib/feedback/app-toast"
 import {
@@ -19,13 +18,7 @@ import { PATIENT_SEARCH_PLACEHOLDER } from "@/lib/students/patient-search-copy"
 
 import { ConsultationDeleteDialog } from "@/components/consultations/consultation-delete-dialog"
 import { ConsultationFormSheet } from "@/components/consultations/consultation-form-sheet"
-import {
-  ConsultationListCard,
-  formatConsultationTableDate,
-  providerLabel,
-  serviceLabel,
-} from "@/components/consultations/consultation-list-card"
-import { ConsultationStatusBadge } from "@/components/consultations/consultation-status-badge"
+import { ConsultationRecordsPanel } from "@/components/consultations/consultation-records-panel"
 import { PatientVisitDetailDialog } from "@/components/patients/patient-visit-detail-dialog"
 import { DemoPageHeader, DemoStatGrid } from "@/components/demo/demo-page"
 import {
@@ -58,14 +51,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { selectItemsRecord } from "@/lib/ui/select-label"
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import {
   fetchConsultationStatsAction,
   listConsultationFilterOptionsAction,
   searchConsultationsAction,
@@ -73,6 +58,11 @@ import {
 } from "@/features/consultations/actions"
 import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
+import {
+  partitionConsultationsByDay,
+  sortConsultationsForList,
+  sortConsultationsUpcoming,
+} from "@/lib/consultations/sort"
 import type { DemoStat } from "@/lib/demo/types"
 import { cn } from "@/lib/utils"
 import {
@@ -84,6 +74,10 @@ import {
   loadConsultationsBundle,
   saveConsultationsCache,
 } from "@/features/consultations/lib/prefetch-consultations"
+import {
+  consultationsCacheKey,
+  staffCacheIsFresh,
+} from "@/lib/ui/staff-data-cache"
 import { useInstantListRefresh } from "@/hooks/use-instant-list-refresh"
 import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
 import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
@@ -98,7 +92,7 @@ import {
 } from "@/types/consultation"
 import { IconStethoscope } from "@tabler/icons-react"
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = 100
 const SEARCH_DEBOUNCE_MS = 300
 
 function toStatCards(
@@ -252,11 +246,9 @@ export function ConsultationsPage({
   const [stations, setStations] = useState(cached?.stations ?? initialStations)
   const [list, setList] = useState(cached?.list ?? initialList)
   const [stats, setStats] = useState(cached?.stats ?? initialStats)
-  const [loading, setLoading] = useState(
-    () => hydrateFromCache && !cached && initialList.items.length === 0
-  )
+  const [loading, setLoading] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
-  const [formMode, setFormMode] = useState<"create" | "edit">("create")
+  const [formMode, setFormMode] = useState<"create" | "edit">("edit")
   const [editing, setEditing] = useState<Consultation | null>(null)
   const [deleting, setDeleting] = useState<Consultation | null>(null)
   const [viewing, setViewing] = useState<Consultation | null>(null)
@@ -401,9 +393,11 @@ export function ConsultationsPage({
       setStations(hit.stations)
       setLoading(false)
     }
-    // Cache hit → soft revalidate in background; miss → fetch once.
+    // Cache hit → revalidate only when stale; miss → fetch once.
     void loadConsultationsBundle(access.designation, {
-      force: Boolean(hit),
+      force:
+        Boolean(hit) &&
+        !staffCacheIsFresh(consultationsCacheKey(access.designation)),
     })
       .then((bundle) => {
         setList(bundle.list)
@@ -444,6 +438,41 @@ export function ConsultationsPage({
     [stats, isNurse, isClinician]
   )
   const rows = list.items
+  const daySections = useMemo(() => {
+    const { today, upcoming, past } = partitionConsultationsByDay(rows)
+    const sections: Array<{
+      id: string
+      title: string
+      description: string
+      rows: Consultation[]
+      emphasizeDate: boolean
+    }> = [
+      {
+        id: "today",
+        title: "Today",
+        description: "Consultations scheduled for today (Manila time)",
+        rows: sortConsultationsForList(today),
+        emphasizeDate: false,
+      },
+      {
+        id: "upcoming",
+        title: "Upcoming",
+        description: "Approved consultations on future dates — not in queue yet",
+        rows: sortConsultationsUpcoming(upcoming),
+        emphasizeDate: true,
+      },
+    ]
+    if (past.length > 0) {
+      sections.push({
+        id: "earlier",
+        title: "Earlier",
+        description: "Past consultation dates",
+        rows: sortConsultationsForList(past),
+        emphasizeDate: true,
+      })
+    }
+    return sections
+  }, [rows])
   const { showInitialSkeleton, isRefreshing } = staleListBusy(
     loading,
     rows.length,
@@ -528,9 +557,11 @@ export function ConsultationsPage({
       <DemoPageHeader
         title={d === "dentist" ? "Dental consultations" : "Consultations"}
         description={
-          isNurse || isPhysician || isDentist
-            ? ""
-            : "Triage assessments and clinical charting"
+          isNurse
+            ? "Today’s visits stay ready for the floor; upcoming approved dates stay here until their day (Manila time)."
+            : isPhysician || isDentist
+              ? "Today’s consultations for your station, with upcoming approved dates listed separately."
+              : "Today’s consultations and upcoming approved dates (Manila time)."
         }
         designation={d}
         showDemoBanner={false}
@@ -539,20 +570,6 @@ export function ConsultationsPage({
             <Button type="button" size="sm" variant="outline" onClick={refresh}>
               Refresh
             </Button>
-            {!(isPhysician || isDentist) &&
-            (can(d, "consultations.create_record") ||
-              can(d, "consultations.record_initial_assessment")) ? (
-              <Button
-                size="sm"
-                onClick={() => {
-                  setFormMode("create")
-                  setEditing(null)
-                  setFormOpen(true)
-                }}
-              >
-                Create consultation
-              </Button>
-            ) : null}
           </div>
         }
       />
@@ -564,7 +581,7 @@ export function ConsultationsPage({
       <PanelFrame>
       <Card className={cn(panelCardClassName, "gap-0 py-0")}>
         <CardHeader className="gap-4 border-b px-6 py-5">
-          <CardTitle className="text-base">Consultations</CardTitle>
+          <CardTitle className="text-base">Consultation schedule</CardTitle>
           <div
             className={cn(
               "flex flex-wrap items-center gap-2",
@@ -722,297 +739,47 @@ export function ConsultationsPage({
               className={staleListBusyClassName(isRefreshing)}
               aria-busy={isRefreshing || undefined}
             >
-            <>
-            <div className="flex flex-col gap-3 p-4 md:hidden">
-              {rows.map((row) => (
-                <ConsultationListCard
-                  key={row.id}
-                  row={row}
-                  clinicianHref={
-                    isClinician ? `/${rolePath}/consultation/${row.id}` : undefined
-                  }
-                  onView={() => setViewing(row)}
-                  showComplete={
-                    isClinician && row.status !== "completed"
-                  }
-                  onComplete={() => void completeConsultation(row)}
-                />
-              ))}
-            </div>
-            <div className="hidden min-w-0 overflow-x-auto md:block">
-            <Table>
-              <TableHeader>
-                <TableRow className={isDentist ? "h-14" : undefined}>
-                  <TableHead className={isDentist ? "px-4" : undefined}>
-                    Patient
-                  </TableHead>
-                  <TableHead
-                    className={cn(
-                      "hidden lg:table-cell",
-                      isDentist && "px-4"
+              <div className="divide-y">
+                {daySections.map((section) => (
+                  <section key={section.id} className="min-w-0">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2 px-6 py-4">
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-semibold text-foreground">
+                          {section.title}
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                          {section.description}
+                        </p>
+                      </div>
+                      <Badge variant="secondary" className="tabular-nums">
+                        {section.rows.length}
+                      </Badge>
+                    </div>
+                    {section.rows.length === 0 ? (
+                      <p className="px-6 pb-6 text-sm text-muted-foreground">
+                        No consultations in this group.
+                      </p>
+                    ) : (
+                      <ConsultationRecordsPanel
+                        rows={section.rows}
+                        emphasizeDate={section.emphasizeDate}
+                        isDentist={isDentist}
+                        isClinician={isClinician}
+                        rolePath={rolePath}
+                        access={access}
+                        onView={setViewing}
+                        onComplete={(row) => void completeConsultation(row)}
+                        onEdit={(row) => {
+                          setFormMode("edit")
+                          setEditing(row)
+                          setFormOpen(true)
+                        }}
+                        onDelete={setDeleting}
+                      />
                     )}
-                  >
-                    Patient ID
-                  </TableHead>
-                  <TableHead
-                    className={cn(
-                      "hidden sm:table-cell",
-                      isDentist && "px-4"
-                    )}
-                  >
-                    Service
-                  </TableHead>
-                  <TableHead
-                    className={cn(
-                      "hidden sm:table-cell",
-                      isDentist && "px-4"
-                    )}
-                  >
-                    Provider
-                  </TableHead>
-                  <TableHead
-                    className={cn(
-                      "hidden md:table-cell",
-                      isDentist && "px-4"
-                    )}
-                  >
-                    Date
-                  </TableHead>
-                  <TableHead
-                    className={cn(
-                      "hidden lg:table-cell",
-                      isDentist && "px-4"
-                    )}
-                  >
-                    Queue #
-                  </TableHead>
-                  <TableHead className={isDentist ? "px-4" : undefined}>
-                    Status
-                  </TableHead>
-                  <TableHead
-                    className={cn(
-                      "text-right",
-                      isDentist && "px-4"
-                    )}
-                  >
-                    Actions
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((row) => (
-                    <TableRow
-                      key={row.id}
-                      className={isDentist ? "h-14" : undefined}
-                    >
-                      <TableCell className={isDentist ? "px-4" : undefined}>
-                        <p className="font-medium">{row.patient.fullName}</p>
-                      </TableCell>
-                      <TableCell
-                        className={cn(
-                          "hidden lg:table-cell",
-                          isDentist && "px-4"
-                        )}
-                      >
-                        {row.patient.studentId || "—"}
-                      </TableCell>
-                      <TableCell
-                        className={cn(
-                          "hidden sm:table-cell",
-                          isDentist && "px-4"
-                        )}
-                      >
-                        {serviceLabel(row)}
-                      </TableCell>
-                      <TableCell
-                        className={cn(
-                          "hidden sm:table-cell capitalize",
-                          isDentist && "px-4"
-                        )}
-                      >
-                        {providerLabel(row)}
-                      </TableCell>
-                      <TableCell
-                        className={cn(
-                          "hidden md:table-cell",
-                          isDentist && "px-4"
-                        )}
-                      >
-                        {formatConsultationTableDate(row.consultationDate)}
-                      </TableCell>
-                      <TableCell
-                        className={cn(
-                          "hidden lg:table-cell",
-                          isDentist && "px-4"
-                        )}
-                      >
-                        {row.queueNumber ?? "—"}
-                      </TableCell>
-                      <TableCell className={isDentist ? "px-4" : undefined}>
-                        <ConsultationStatusBadge status={row.status} />
-                      </TableCell>
-                      <TableCell className={isDentist ? "px-4" : undefined}>
-                        <div className="flex flex-wrap justify-end gap-1">
-                          {isClinician ? (
-                            <>
-                              <Button
-                                type="button"
-                                size="xs"
-                                render={
-                                  <Link
-                                    href={`/${rolePath}/consultation/${row.id}`}
-                                  />
-                                }
-                                nativeButton={false}
-                              >
-                                Open
-                              </Button>
-                              {row.status !== "completed" ? (
-                                <Button
-                                  size="xs"
-                                  variant="secondary"
-                                  onClick={() => void completeConsultation(row)}
-                                >
-                                  Complete
-                                </Button>
-                              ) : null}
-                            </>
-                          ) : (
-                            <>
-                          <Button
-                            type="button"
-                            size="xs"
-                            variant="outline"
-                            onClick={() => setViewing(row)}
-                          >
-                            View
-                          </Button>
-                          {can(d, "consultations.view_patient") ? (
-                            <Button
-                              type="button"
-                              size="xs"
-                              variant="outline"
-                              onClick={() =>
-                                appToast.info({
-                                  title: "Patient",
-                                  description: `${row.patient.fullName} · ${row.patient.studentId}`,
-                                })
-                              }
-                            >
-                              Patient
-                            </Button>
-                          ) : null}
-                          {can(d, "consultations.record_initial_assessment") &&
-                          !row.assessment ? (
-                            <Button
-                              type="button"
-                              size="xs"
-                              onClick={() => {
-                                setFormMode("edit")
-                                setEditing(row)
-                                setFormOpen(true)
-                              }}
-                            >
-                              Assess
-                            </Button>
-                          ) : null}
-                          {can(d, "consultations.create_record") &&
-                          row.status !== "completed" ? (
-                            <Button
-                              type="button"
-                              size="xs"
-                              onClick={() => {
-                                setFormMode("edit")
-                                setEditing(row)
-                                setFormOpen(true)
-                              }}
-                            >
-                              Chart
-                            </Button>
-                          ) : null}
-                          {can(d, "consultations.record_diagnosis") ? (
-                            <Button
-                              size="xs"
-                              variant="outline"
-                              onClick={() => {
-                                setFormMode("edit")
-                                setEditing(row)
-                                setFormOpen(true)
-                              }}
-                            >
-                              Dx
-                            </Button>
-                          ) : null}
-                          {can(d, "consultations.record_treatment") ? (
-                            <Button
-                              size="xs"
-                              variant="outline"
-                              onClick={() => {
-                                setFormMode("edit")
-                                setEditing(row)
-                                setFormOpen(true)
-                              }}
-                            >
-                              Tx
-                            </Button>
-                          ) : null}
-                          {can(d, "consultations.record_prescription") ? (
-                            <Button
-                              size="xs"
-                              variant="outline"
-                              onClick={() => {
-                                setFormMode("edit")
-                                setEditing(row)
-                                setFormOpen(true)
-                              }}
-                            >
-                              Rx
-                            </Button>
-                          ) : null}
-                          {can(d, "consultations.complete") &&
-                          row.status !== "completed" ? (
-                            <Button
-                              size="xs"
-                              variant="secondary"
-                              onClick={() => void completeConsultation(row)}
-                            >
-                              Complete
-                            </Button>
-                          ) : null}
-                          {can(d, "consultations.generate_certificate") ? (
-                            <Button
-                              size="xs"
-                              variant="outline"
-                              onClick={() =>
-                                appToast.info({
-                                  title: "Medical Certificate",
-                                  description:
-                                    "Open Medical Certificates to generate a certificate for this patient.",
-                                })
-                              }
-                            >
-                              Certificate
-                            </Button>
-                          ) : null}
-                          {can(d, "consultations.update_record") ? (
-                            <Button
-                              size="xs"
-                              variant="destructive"
-                              onClick={() => setDeleting(row)}
-                            >
-                              Delete
-                            </Button>
-                          ) : null}
-                            </>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-              </TableBody>
-            </Table>
-            </div>
-            </>
+                  </section>
+                ))}
+              </div>
             </div>
           )}
         </CardContent>

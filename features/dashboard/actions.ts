@@ -46,26 +46,29 @@ export async function loadDashboardPageAction(): Promise<
     }
 
     const bundle = await getDashboardBundle(access.designation)
-    const summary = await loadRoleDashboardSummary({
-      designation: access.designation,
-      userId: access.userId,
-      allTickets: bundle.allTickets,
-      checkedIn: bundle.stats.checkedIn,
-    })
+
+    // Summary needs tickets; nurse recent + admin ops are independent of summary.
+    const [summary, recent, ops] = await Promise.all([
+      loadRoleDashboardSummary({
+        designation: access.designation,
+        userId: access.userId,
+        allTickets: bundle.allTickets,
+        checkedIn: bundle.stats.checkedIn,
+      }),
+      access.designation === "nurse"
+        ? getNurseRecentlyServed(6, bundle.allTickets)
+        : Promise.resolve(bundle.recent),
+      access.designation === "admin"
+        ? loadAdminOpsSnapshot()
+        : Promise.resolve(null),
+    ])
+
     const kpis = enrichDashboardKpis(
       access.designation,
       bundle.kpis,
       summary,
       bundle.allTickets
     )
-
-    const recent =
-      access.designation === "nurse"
-        ? await getNurseRecentlyServed(6, bundle.allTickets)
-        : bundle.recent
-
-    const ops =
-      access.designation === "admin" ? await loadAdminOpsSnapshot() : null
 
     return {
       ok: true,

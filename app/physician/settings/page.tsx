@@ -1,1 +1,1 @@
-﻿export { StaffSettingsPage as default } from "@/lib/staff/route-pages"
+export { StaffSettingsPage as default } from "@/lib/staff/pages/settings"

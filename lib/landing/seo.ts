@@ -135,7 +135,7 @@ export function buildLandingMetadata(): Metadata {
           url: ogImage,
           width: 1200,
           height: 630,
-          alt: "CampusCare — NU Dasmariñas Health Services",
+          alt: "CampusCare — NU Dasmariñas Health Services Office",
         },
       ],
     },

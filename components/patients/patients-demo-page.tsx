@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -20,6 +21,7 @@ import { PatientDocumentsSheet } from "@/components/patients/patient-documents-s
 import { PatientExportButton } from "@/components/patients/patient-export-button"
 import { PatientHistorySheet } from "@/components/patients/patient-history-sheet"
 import { PatientImportSheet } from "@/components/patients/patient-import-sheet"
+import { SyncPatientAccountsButton } from "@/components/patients/sync-patient-accounts-button"
 import { PatientMedicalSheet } from "@/components/patients/patient-medical-sheet"
 import { PatientProfileSheet } from "@/components/patients/patient-profile-sheet"
 import {
@@ -89,6 +91,10 @@ import {
   loadPatientsBundle,
   savePatientsCache,
 } from "@/features/patients/lib/prefetch-patients"
+import {
+  patientsCacheKey,
+  staffCacheIsFresh,
+} from "@/lib/ui/staff-data-cache"
 import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { DemoStat } from "@/lib/demo/types"
@@ -186,9 +192,12 @@ export function PatientsPage({
   initialError?: string | null
   hydrateFromCache?: boolean
 }) {
-  const sessionCached = hydrateFromCache
-    ? getCachedPatients(access.designation)
-    : null
+  // Read session cache once for seed — do not re-read each render (savePatientsCache
+  // would change the reference and re-trigger fetch effects).
+  const sessionCachedRef = useRef(
+    hydrateFromCache ? getCachedPatients(access.designation) : null
+  )
+  const sessionCached = sessionCachedRef.current
   const [query, setQuery] = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const [patientTypeFilter, setPatientTypeFilter] =
@@ -199,10 +208,7 @@ export function PatientsPage({
     useState<ColumnSortDirection>("asc")
   const [list, setList] = useState(sessionCached?.list ?? initialList)
   const [stats, setStats] = useState(sessionCached?.stats ?? initialStats)
-  const [loading, setLoading] = useState(
-    () =>
-      hydrateFromCache && !sessionCached && initialList.items.length === 0
-  )
+  const [loading, setLoading] = useState(false)
   const [medicalPatient, setMedicalPatient] = useState<PatientRecord | null>(
     null
   )
@@ -224,6 +230,8 @@ export function PatientsPage({
   const hydratedRef = useRef(false)
   const selectionQueryScopeRef = useRef("")
   const mountedRef = useRef(false)
+  const statsRef = useRef(stats)
+  statsRef.current = stats
   const { confirmPreset } = useConfirm()
   const router = useRouter()
   const pageCache = useCachedPatientPages()
@@ -335,20 +343,6 @@ export function PatientsPage({
           cached.totalPages,
           fetchListPage
         )
-        // Soft revalidate in the background without blocking UI.
-        void pageCache
-          .fetchPage(nextPage, fetchListPage, { bypassCache: true })
-          .then((fresh) => {
-            if (!mountedRef.current || !fresh) return
-            if (fresh.page === nextPage) {
-              setList(fresh)
-              pageCache.prefetchAdjacent(
-                fresh.page,
-                fresh.totalPages,
-                fetchListPage
-              )
-            }
-          })
         if (options.includeStats) void refreshStats()
         return
       }
@@ -376,7 +370,7 @@ export function PatientsPage({
         ) {
           savePatientsCache(access.designation, {
             list: data,
-            stats,
+            stats: statsRef.current,
           })
         }
       } catch {
@@ -397,7 +391,6 @@ export function PatientsPage({
       patientTypeFilter,
       queryScope,
       refreshStats,
-      stats,
     ]
   )
 
@@ -431,7 +424,10 @@ export function PatientsPage({
       pageCache.setScope(queryScope)
       pageCache.put(hit.list)
     }
-    void loadPatientsBundle(access.designation, { force: Boolean(hit) })
+    void loadPatientsBundle(access.designation, {
+      force:
+        Boolean(hit) && !staffCacheIsFresh(patientsCacheKey(access.designation)),
+    })
       .then((bundle) => {
         if (!mountedRef.current) return
         setList(bundle.list)
@@ -444,22 +440,20 @@ export function PatientsPage({
       .catch(() => {
         if (!mountedRef.current) return
         setLoading(false)
-        if (!hit) void loadPage(1, { includeStats: true })
+        if (!hit) void loadPage(1, { includeStats: true, silent: true })
       })
-  }, [access.designation, hydrateFromCache, loadPage, pageCache, queryScope])
+    // Intentionally once per mount — loadPage/queryScope must not re-fire hydrate.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount hydrate only
+  }, [access.designation, hydrateFromCache])
 
-  useEffect(() => {
+  const onPageOrFiltersChange = useEffectEvent((nextPage: number) => {
     if (skipNextFetch.current) {
       skipNextFetch.current = false
-      const seed = sessionCached?.list ?? initialList
-      if (seed.items.length > 0 || sessionCached) {
+      const seed = sessionCachedRef.current?.list ?? initialList
+      if (seed.items.length > 0 || sessionCachedRef.current) {
         pageCache.setScope(queryScope)
         pageCache.put(seed)
-        pageCache.prefetchAdjacent(
-          seed.page,
-          seed.totalPages,
-          fetchListPage
-        )
+        pageCache.prefetchAdjacent(seed.page, seed.totalPages, fetchListPage)
       }
       selectionQueryScopeRef.current = queryScope
       return
@@ -472,24 +466,22 @@ export function PatientsPage({
       setSelectedIds(new Set())
       return "none"
     })
-    void loadPage(page)
-  }, [
-    fetchListPage,
-    initialList,
-    loadPage,
-    page,
-    pageCache,
-    queryScope,
-    sessionCached,
-  ])
+    void loadPage(nextPage)
+  })
+
+  useEffect(() => {
+    onPageOrFiltersChange(page)
+  }, [page, queryScope])
+
+  const onRealtimePatients = useEffectEvent(() => {
+    pageCache.invalidate()
+    void loadPage(page, { includeStats: true, force: true, silent: true })
+  })
 
   useStaffRealtimeRefresh(
     `staff-patients-${access.designation}`,
     STAFF_REALTIME_TABLES.patients,
-    () => {
-      pageCache.invalidate()
-      void loadPage(page, { includeStats: true, force: true, silent: true })
-    },
+    onRealtimePatients,
     500
   )
 
@@ -755,6 +747,12 @@ export function PatientsPage({
             {can(access.designation, "patients.table") ? (
               <>
                 <PatientImportSheet toolbar onImported={refreshAfterImport} />
+                {can(access.designation, "patients.edit_information") ? (
+                  <SyncPatientAccountsButton
+                    toolbar
+                    onSynced={refreshAfterImport}
+                  />
+                ) : null}
                 <PatientExportButton
                   toolbar
                   query={debouncedQuery}

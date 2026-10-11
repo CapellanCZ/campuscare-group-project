@@ -275,14 +275,69 @@ export function PatientMedicalSheet({
                     ))}
                   </div>
 
+                  <Field className="gap-2.5">
+                    <FieldLabel htmlFor="pe-skin">Skin</FieldLabel>
+                    <Input
+                      id="pe-skin"
+                      value={exam.skin}
+                      onChange={(e) => setExamField("skin", e.target.value)}
+                    />
+                  </Field>
+
+                  {(
+                    [
+                      [
+                        ["eyesOs", "Eyes (O.S)", "Left"],
+                        ["eyesOd", "Eyes (O.D)", "Right"],
+                      ],
+                      [
+                        ["earsAs", "Ears (A.S)", "Left"],
+                        ["earsAd", "Ears (A.D)", "Right"],
+                      ],
+                    ] as const
+                  ).map(([left, right]) => (
+                    <div
+                      key={left[0]}
+                      className="grid gap-5 sm:grid-cols-2"
+                    >
+                      <Field className="gap-2.5">
+                        <FieldLabel htmlFor={`pe-${left[0]}`}>
+                          {left[1]}
+                          <span className="font-normal text-muted-foreground">
+                            {" "}
+                            · {left[2]}
+                          </span>
+                        </FieldLabel>
+                        <Input
+                          id={`pe-${left[0]}`}
+                          value={exam[left[0]]}
+                          onChange={(e) =>
+                            setExamField(left[0], e.target.value)
+                          }
+                        />
+                      </Field>
+                      <Field className="gap-2.5">
+                        <FieldLabel htmlFor={`pe-${right[0]}`}>
+                          {right[1]}
+                          <span className="font-normal text-muted-foreground">
+                            {" "}
+                            · {right[2]}
+                          </span>
+                        </FieldLabel>
+                        <Input
+                          id={`pe-${right[0]}`}
+                          value={exam[right[0]]}
+                          onChange={(e) =>
+                            setExamField(right[0], e.target.value)
+                          }
+                        />
+                      </Field>
+                    </div>
+                  ))}
+
                   <div className="grid gap-5 sm:grid-cols-2">
                     {(
                       [
-                        ["skin", "Skin"],
-                        ["eyesOd", "Eyes (O.D)"],
-                        ["eyesOs", "Eyes (O.S)"],
-                        ["earsAd", "Ears (A.D)"],
-                        ["earsAs", "Ears (A.S)"],
                         ["nose", "Nose"],
                         ["throat", "Throat"],
                         ["neck", "Neck"],

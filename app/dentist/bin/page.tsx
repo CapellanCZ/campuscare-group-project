@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 
 import { patientBinPageMetadata } from "@/lib/patients/seo"
-import { StaffPatientsBinPage } from "@/lib/staff/route-pages"
+import { StaffPatientsBinPage } from "@/lib/staff/pages/patients-bin"
 
 export const metadata: Metadata = patientBinPageMetadata
 

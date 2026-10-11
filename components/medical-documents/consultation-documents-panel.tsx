@@ -62,12 +62,17 @@ export function ConsultationDocumentsPanel({
       return
     }
     setDocuments(result.data)
-    onDocumentsChange?.(result.data)
-  }, [onDocumentsChange, workspace.consultationId])
+  }, [workspace.consultationId])
 
   useEffect(() => {
     void loadDocuments()
   }, [loadDocuments])
+
+  // Notify parent after commit — never from inside a setState updater (render phase).
+  useEffect(() => {
+    if (loading) return
+    onDocumentsChange?.(documents)
+  }, [documents, loading, onDocumentsChange])
 
   function handleSelectType(type: MedicalDocumentType) {
     setEditingDoc(null)
@@ -188,9 +193,7 @@ export function ConsultationDocumentsPanel({
             setEditingDoc(null)
             setDocuments((prev) => {
               const without = prev.filter((item) => item.id !== document.id)
-              const next = [document, ...without]
-              onDocumentsChange?.(next)
-              return next
+              return [document, ...without]
             })
           }}
         />

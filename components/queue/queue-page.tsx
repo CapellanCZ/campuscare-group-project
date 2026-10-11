@@ -14,8 +14,13 @@ import { useRouter } from "next/navigation"
 import {
   getCachedQueue,
   loadQueueBundle,
+  saveQueueCache,
 } from "@/features/queue/lib/prefetch-queue"
-import { queueCacheKey, staffCacheInvalidate } from "@/lib/ui/staff-data-cache"
+import {
+  queueCacheKey,
+  staffCacheInvalidate,
+  staffCacheIsFresh,
+} from "@/lib/ui/staff-data-cache"
 
 import {
   actionCallNext,
@@ -171,10 +176,36 @@ export function QueuePage({
   const [activity, setActivity] = useState(
     () => cached?.activity ?? initialActivity
   )
-  const [dataLoading, setDataLoading] = useState(
-    () => hydrateFromCache && !cached && initialTickets.length === 0
-  )
+  // SSR seeds the page; never treat a real empty queue as "still loading".
+  const [dataLoading, setDataLoading] = useState(false)
   const hydratedRef = useRef(false)
+  /** Bumped on local mutations so in-flight soft loads cannot wipe optimistic UI. */
+  const ticketsEpochRef = useRef(0)
+
+  function applyQueueBundle(
+    bundle: {
+      tickets: typeof initialTickets
+      stats: typeof initialStats
+      boards: typeof initialBoards
+      recent: typeof initialRecent
+      activity: typeof initialActivity
+    },
+    epoch: number
+  ) {
+    if (epoch !== ticketsEpochRef.current) return
+    setLocalTickets(bundle.tickets)
+    setStats(bundle.stats)
+    setBoards(bundle.boards)
+    setRecent(bundle.recent)
+    setActivity(bundle.activity)
+  }
+
+  function softReloadQueue(force = true) {
+    const epoch = ticketsEpochRef.current
+    void loadQueueBundle(access.designation, { force })
+      .then((bundle) => applyQueueBundle(bundle, epoch))
+      .catch(() => undefined)
+  }
 
   useEffect(() => {
     if (!hydrateFromCache || hydratedRef.current) return
@@ -186,37 +217,28 @@ export function QueuePage({
       setBoards(hit.boards)
       setRecent(hit.recent)
       setActivity(hit.activity)
-      setDataLoading(false)
     }
-    void loadQueueBundle(access.designation, { force: Boolean(hit) })
-      .then((bundle) => {
-        setLocalTickets(bundle.tickets)
-        setStats(bundle.stats)
-        setBoards(bundle.boards)
-        setRecent(bundle.recent)
-        setActivity(bundle.activity)
-        setDataLoading(false)
-      })
+    // Soft revalidate in the background — keep SSR / cache rows visible.
+    const epoch = ticketsEpochRef.current
+    void loadQueueBundle(access.designation, {
+      force:
+        Boolean(hit) &&
+        !staffCacheIsFresh(queueCacheKey(access.designation)),
+    })
+      .then((bundle) => applyQueueBundle(bundle, epoch))
       .catch(() => {
-        setDataLoading(false)
-        if (!hit) queueToasts.failed("Could not load the queue.")
+        if (!hit && initialTickets.length === 0) {
+          queueToasts.failed("Could not load the queue.")
+        }
       })
-  }, [access.designation, hydrateFromCache])
+  }, [access.designation, hydrateFromCache, initialTickets.length])
 
   useStaffRealtimeRefresh(
     `staff-queue-${access.designation}`,
     STAFF_REALTIME_TABLES.queue,
     () => {
       // Silent soft refresh — do not flip dataLoading / skeleton.
-      void loadQueueBundle(access.designation, { force: true })
-        .then((bundle) => {
-          setLocalTickets(bundle.tickets)
-          setStats(bundle.stats)
-          setBoards(bundle.boards)
-          setRecent(bundle.recent)
-          setActivity(bundle.activity)
-        })
-        .catch(() => undefined)
+      softReloadQueue(true)
     },
     500
   )
@@ -362,11 +384,17 @@ export function QueuePage({
     ticketId: string,
     patch: Partial<QueueTicketRow>
   ) {
-    setLocalTickets((prev) =>
-      prev.map((row) =>
+    ticketsEpochRef.current += 1
+    setLocalTickets((prev) => {
+      const next = prev.map((row) =>
         row.ticketId === ticketId ? { ...row, ...patch } : row
       )
-    )
+      const cached = getCachedQueue(access.designation)
+      if (cached) {
+        saveQueueCache(access.designation, { ...cached, tickets: next })
+      }
+      return next
+    })
   }
 
   function run(
@@ -385,7 +413,17 @@ export function QueuePage({
       }
       const result = await action()
       if (!result.ok) {
-        if (options?.optimistic) setLocalTickets(snapshot)
+        if (options?.optimistic) {
+          ticketsEpochRef.current += 1
+          setLocalTickets(snapshot)
+          const cached = getCachedQueue(access.designation)
+          if (cached) {
+            saveQueueCache(access.designation, {
+              ...cached,
+              tickets: snapshot,
+            })
+          }
+        }
         ;(options?.errorToast ?? queueToasts.failed)(result.error)
         return
       }
@@ -394,6 +432,32 @@ export function QueuePage({
       } else if (result.message) {
         queueToasts.updated()
       }
+      // Drop stale session cache, then reconcile without clobbering newer patches.
+      staffCacheInvalidate(queueCacheKey(access.designation))
+      const epoch = ticketsEpochRef.current
+      void loadQueueBundle(access.designation, { force: true })
+        .then((bundle) => {
+          if (epoch !== ticketsEpochRef.current) return
+          // Keep optimistic check-in if the round-trip still lags.
+          if (options?.optimistic) {
+            const { ticketId, patch } = options.optimistic
+            const merged = bundle.tickets.map((row) =>
+              row.ticketId === ticketId &&
+              patch.checkedInAt &&
+              !row.checkedInAt
+                ? { ...row, ...patch }
+                : row
+            )
+            applyQueueBundle({ ...bundle, tickets: merged }, epoch)
+            saveQueueCache(access.designation, {
+              ...bundle,
+              tickets: merged,
+            })
+            return
+          }
+          applyQueueBundle(bundle, epoch)
+        })
+        .catch(() => undefined)
       // Soft reconcile for peer boards / stats — UI already updated.
       router.refresh()
     })
@@ -495,15 +559,12 @@ export function QueuePage({
               onClick={() => {
                 if (hydrateFromCache) {
                   staffCacheInvalidate(queueCacheKey(access.designation))
-                  setDataLoading(true)
+                  ticketsEpochRef.current += 1
+                  const epoch = ticketsEpochRef.current
+                  const showSkeleton = localTickets.length === 0
+                  if (showSkeleton) setDataLoading(true)
                   void loadQueueBundle(access.designation, { force: true })
-                    .then((bundle) => {
-                      setLocalTickets(bundle.tickets)
-                      setStats(bundle.stats)
-                      setBoards(bundle.boards)
-                      setRecent(bundle.recent)
-                      setActivity(bundle.activity)
-                    })
+                    .then((bundle) => applyQueueBundle(bundle, epoch))
                     .catch(() =>
                       queueToasts.failed("Could not refresh the queue.")
                     )
@@ -1147,8 +1208,20 @@ export function QueuePage({
                                       size="sm"
                                       disabled={pending}
                                       onClick={() =>
-                                        run(() =>
-                                          actionVerifyCheckIn(row.ticketId)
+                                        run(
+                                          () =>
+                                            actionVerifyCheckIn(row.ticketId),
+                                          {
+                                            optimistic: {
+                                              ticketId: row.ticketId,
+                                              patch: {
+                                                checkedInAt:
+                                                  new Date().toISOString(),
+                                                status: "waiting",
+                                                station: "nurse",
+                                              },
+                                            },
+                                          }
                                         )
                                       }
                                     >
@@ -1232,6 +1305,8 @@ export function QueuePage({
                                                       patch: {
                                                         checkedInAt:
                                                           new Date().toISOString(),
+                                                        status: "waiting",
+                                                        station: "nurse",
                                                       },
                                                     },
                                                   }

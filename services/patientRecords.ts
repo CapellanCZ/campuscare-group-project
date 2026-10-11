@@ -677,48 +677,11 @@ export async function updatePatientMedicalRecord(
   }
 }
 
-async function deleteOperationalPatientsForRecords(
-  rows: Array<{
-    student_id?: string | null
-    employee_id?: string | null
-  }>
-) {
-  const studentIds = [
-    ...new Set(
-      rows
-        .map((row) => row.student_id?.trim())
-        .filter((id): id is string => Boolean(id))
-    ),
-  ]
-  const employeeIds = [
-    ...new Set(
-      rows
-        .map((row) => row.employee_id?.trim())
-        .filter((id): id is string => Boolean(id))
-    ),
-  ]
-
-  if (studentIds.length === 0 && employeeIds.length === 0) return
-
-  const admin = createAdminClient()
-
-  if (studentIds.length > 0) {
-    const { error } = await admin
-      .from("patients")
-      .delete()
-      .in("student_id", studentIds)
-    if (error) mapError(error)
-  }
-
-  if (employeeIds.length > 0) {
-    const { error } = await admin
-      .from("patients")
-      .delete()
-      .in("employee_id", employeeIds)
-    if (error) mapError(error)
-  }
-}
-
+/**
+ * Hard-delete a clinical chart only.
+ * Does not delete public.users, auth.users, or operational patients —
+ * account lifecycle is independent of clinical retention.
+ */
 export async function deletePatientRecord(
   id: string,
   client?: SupabaseClient
@@ -730,7 +693,7 @@ export async function deletePatientRecord(
   const supabase = await getClient(client)
   const { data: existing, error: findError } = await supabase
     .from("patient_records")
-    .select("id, student_id, employee_id")
+    .select("id")
     .eq("id", id)
     .maybeSingle()
 
@@ -748,8 +711,6 @@ export async function deletePatientRecord(
   if (!count) {
     throw new PatientRecordServiceError("not_found", "Patient record not found.")
   }
-
-  await deleteOperationalPatientsForRecords([existing])
 }
 
 export async function archivePatientRecords(
@@ -786,6 +747,40 @@ export async function archivePatientRecords(
   return { archived }
 }
 
+/** Soft-restore archived patient records back into the active directory. */
+export async function restorePatientRecords(
+  ids: string[],
+  client?: SupabaseClient
+): Promise<{ restored: number }> {
+  const uniqueIds = [...new Set(ids.map((id) => id.trim()).filter(Boolean))]
+  if (uniqueIds.length === 0) {
+    throw new PatientRecordServiceError(
+      "validation",
+      "Select at least one patient to restore."
+    )
+  }
+
+  const supabase = await getClient(client)
+  const { data, error } = await supabase
+    .from("patient_records")
+    .update({ archived_at: null })
+    .in("id", uniqueIds)
+    .not("archived_at", "is", null)
+    .select("id")
+
+  if (error) mapError(error)
+
+  const restored = data?.length ?? 0
+  if (restored === 0) {
+    throw new PatientRecordServiceError(
+      "not_found",
+      "No matching archived patient records were found to restore."
+    )
+  }
+
+  return { restored }
+}
+
 export async function deletePatientRecords(
   ids: string[],
   client?: SupabaseClient
@@ -802,7 +797,7 @@ export async function deletePatientRecords(
 
   const { data: existing, error: findError } = await supabase
     .from("patient_records")
-    .select("id, student_id, employee_id")
+    .select("id")
     .in("id", uniqueIds)
     .not("archived_at", "is", null)
 
@@ -834,8 +829,7 @@ export async function deletePatientRecords(
     )
   }
 
-  await deleteOperationalPatientsForRecords(existing)
-
+  // Clinical cleanup only — accounts and operational patients remain.
   return { deleted }
 }
 
@@ -855,6 +849,8 @@ export type ImportPatientRecordsResult = {
   updated: number
   failures: string[]
   typeCounts: Record<PatientType, number>
+  authProvisioned: number
+  authFailures: string[]
 }
 
 function splitFullName(value: string): { firstName: string; lastName: string } {
@@ -1027,8 +1023,10 @@ export async function importPatientRecordsFromExcel(
     return {
       created: result.created,
       updated: result.updated,
-      failures,
+      failures: [...failures, ...result.authFailures.map((msg) => `Auth: ${msg}`)],
       typeCounts: result.typeCounts,
+      authProvisioned: result.authProvisioned,
+      authFailures: result.authFailures,
     }
   } catch (error) {
     if (error instanceof PatientRecordServiceError) throw error

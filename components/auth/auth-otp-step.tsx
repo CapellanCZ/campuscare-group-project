@@ -52,11 +52,13 @@ export function AuthOtpStep({
 
   return (
     <>
-      <div className="flex flex-col space-y-1">
-        <h1 className="text-2xl font-bold tracking-wide">Verify your login</h1>
-        <p className="text-base text-muted-foreground">
+      <div className="flex flex-col space-y-2">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+          Verify your login
+        </h1>
+        <p className="text-base text-slate-500">
           Enter the 6-digit code sent to{" "}
-          <span className="font-medium text-foreground">{maskEmail(email)}</span>
+          <span className="font-medium text-slate-800">{maskEmail(email)}</span>
           .
         </p>
       </div>
@@ -64,12 +66,14 @@ export function AuthOtpStep({
       <form className="space-y-4" onSubmit={onVerify} noValidate>
         <Field data-invalid={otpError ? true : undefined}>
           <div className="flex min-w-0 items-center justify-between gap-3">
-            <FieldLabel htmlFor="otp-verification">Verification code</FieldLabel>
+            <FieldLabel htmlFor="otp-verification" className="text-slate-700">
+              Verification code
+            </FieldLabel>
             <Button
               type="button"
               variant="outline"
               size="xs"
-              className="shrink-0"
+              className="shrink-0 rounded-lg border-slate-200"
               onClick={onResend}
               disabled={resendSeconds > 0 || isBusy}
               aria-label={
@@ -111,7 +115,7 @@ export function AuthOtpStep({
             </InputOTPGroup>
           </InputOTP>
 
-          <FieldDescription>
+          <FieldDescription className="text-slate-500">
             {otpNotice ??
               "Check your inbox and spam folder if the code hasn't arrived yet."}
           </FieldDescription>
@@ -120,14 +124,18 @@ export function AuthOtpStep({
           ) : null}
         </Field>
 
-        <Button className="w-full" type="submit" disabled={isBusy}>
+        <Button
+          className="h-11 w-full rounded-xl bg-blue-600 text-base hover:bg-blue-700"
+          type="submit"
+          disabled={isBusy}
+        >
           {isVerifying ? "Verifying..." : "Verify and continue"}
         </Button>
 
         <Button
           type="button"
           variant="ghost"
-          className="w-full"
+          className="w-full text-slate-600 hover:text-slate-900"
           onClick={onBackToEmail}
           disabled={isBusy}
         >

@@ -9,20 +9,23 @@
  *   Bearer with ES256 JWKS and fails with: unrecognized JWT kid <nil>.
  */
 
-const corsHeaders: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-}
+import { corsHeadersFor } from "../_shared/cors.ts"
 
 const REQ_COOLDOWN_MS = 60 * 1000
 const DEFAULT_EMAIL_FROM =
   "NU Dasmarinas Health Services Office <nud-hso@campuscare.click>"
 
-function json(obj: unknown, status = 200) {
+function json(
+  request: Request,
+  obj: unknown,
+  status = 200
+) {
   return new Response(JSON.stringify(obj), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: {
+      ...corsHeadersFor(request),
+      "Content-Type": "application/json",
+    },
   })
 }
 
@@ -201,20 +204,20 @@ async function sendOtpEmail(params: {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders })
+    return new Response("ok", { headers: corsHeadersFor(req) })
   }
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")?.trim()
     const apiKey = resolveAdminApiKey()
     if (!supabaseUrl || !apiKey) {
-      return json({ ok: false, error: "Server misconfigured." }, 500)
+      return json(req, { ok: false, error: "Server misconfigured." }, 500)
     }
 
     const body = (await req.json()) as Record<string, unknown>
     const email = normalizeEmail(body.email)
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return json({ ok: false, error: "Enter a valid email address." }, 400)
+      return json(req, { ok: false, error: "Enter a valid email address." }, 400)
     }
 
     const redirectTo =
@@ -229,7 +232,7 @@ Deno.serve(async (req) => {
     })
 
     if ("error" in generated) {
-      return json({ ok: false, error: generated.error }, 500)
+      return json(req, { ok: false, error: generated.error }, 500)
     }
 
     const send = await sendOtpEmail({
@@ -238,19 +241,20 @@ Deno.serve(async (req) => {
     })
     if (!send.sent) {
       return json(
+        req,
         { ok: false, error: send.error || "Could not send email." },
         500
       )
     }
 
     const atDomain = email.split("@")[1] || ""
-    return json({
+    return json(req, {
       ok: true,
       emailSentMask: `${email.slice(0, 2)}***@${atDomain}`,
       nextResendAt: new Date(Date.now() + REQ_COOLDOWN_MS).toISOString(),
     })
   } catch (err) {
     console.error("[web-sign-in-otp]", err)
-    return json({ ok: false, error: "Unexpected server error." }, 500)
+    return json(req, { ok: false, error: "Unexpected server error." }, 500)
   }
 })

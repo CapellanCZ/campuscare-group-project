@@ -156,12 +156,9 @@
 }
 
 .landing-theme {
-  --primary: oklch(0.57 0.23 260);
+  --primary: oklch(0.55 0.22 260);
   --radius: 0.875rem;
-  background:
-    radial-gradient(1200px 600px at 10% -10%, rgba(56, 189, 248, 0.18), transparent 55%),
-    radial-gradient(900px 500px at 95% 5%, rgba(37, 99, 235, 0.14), transparent 50%),
-    linear-gradient(180deg, #f0f9ff 0%, #ffffff 28%, #f8fbff 70%, #eff6ff 100%);
+  background: #ffffff;
   color: #0f172a;
 }
 

@@ -16,11 +16,6 @@ import {
   buildFilterSummary,
   type ExportMeta,
 } from "@/features/reports/lib/export-letterhead"
-import {
-  downloadClinicProgressPdf,
-  printClinicProgressReport,
-} from "@/features/reports/lib/export-pdf"
-import { downloadClinicProgressExcel } from "@/features/reports/lib/export-excel"
 import type {
   ReportChartSeries,
   ReportFilters,
@@ -243,24 +238,29 @@ export function HsoSummaryReportsView({
       onClearFilters={clearFilters}
       onSecondaryChange={applySecondary}
       onPrint={() => {
-        try {
-          printClinicProgressReport({ meta: exportMeta(), pack: exportPack })
-        } catch (error) {
-          appToast.error({
-            title: "Print failed",
-            description:
-              error instanceof Error
-                ? error.message
-                : "Could not open print view.",
+        void import("@/features/reports/lib/export-pdf")
+          .then(({ printClinicProgressReport }) => {
+            printClinicProgressReport({ meta: exportMeta(), pack: exportPack })
           })
-        }
+          .catch((error) => {
+            appToast.error({
+              title: "Print failed",
+              description:
+                error instanceof Error
+                  ? error.message
+                  : "Could not open print view.",
+            })
+          })
       }}
       onExportPdf={() => {
-        void downloadClinicProgressPdf({
-          meta: exportMeta(),
-          pack: exportPack,
-          reportMode: "hso",
-        })
+        void import("@/features/reports/lib/export-pdf")
+          .then(({ downloadClinicProgressPdf }) =>
+            downloadClinicProgressPdf({
+              meta: exportMeta(),
+              pack: exportPack,
+              reportMode: "hso",
+            })
+          )
           .then(() =>
             appToast.success({
               title: "PDF downloaded.",
@@ -276,10 +276,13 @@ export function HsoSummaryReportsView({
           })
       }}
       onExportExcel={() => {
-        void downloadClinicProgressExcel({
-          meta: exportMeta(),
-          pack: exportPack,
-        })
+        void import("@/features/reports/lib/export-excel")
+          .then(({ downloadClinicProgressExcel }) =>
+            downloadClinicProgressExcel({
+              meta: exportMeta(),
+              pack: exportPack,
+            })
+          )
           .then(() =>
             appToast.success({
               title: "Excel downloaded.",

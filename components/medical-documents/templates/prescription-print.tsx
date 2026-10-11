@@ -3,6 +3,7 @@ import {
   HsoFullPageDocument,
   HsoFullPageTitle,
 } from "@/components/medical-documents/templates/shared/hso-full-page"
+import { formatMedicationDetailParts } from "@/features/medical-documents/lib/map-consultation-context"
 import { formatDiagnosticRequestLines } from "@/lib/medical-documents/diagnostic-request-options"
 import type { MedicalDocument, PrescriptionPayload } from "@/types/medicalDocument"
 
@@ -61,17 +62,11 @@ export function PrescriptionPrint({
           {meds.map((med, index) => (
             <li key={index} className="print:break-inside-avoid">
               <p className="font-semibold">{med.name}</p>
-              <p className="mt-0.5 text-[10px] text-neutral-700">
-                {[
-                  med.strength,
-                  med.quantity ? `Qty: ${med.quantity}` : null,
-                  med.frequency,
-                  med.route,
-                  med.duration,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </p>
+              <div className="mt-0.5 space-y-0.5 text-[10px] leading-snug text-neutral-700">
+                {formatMedicationDetailParts(med).map((part) => (
+                  <p key={part}>{part}</p>
+                ))}
+              </div>
               {med.instructions ? (
                 <p className="mt-1 text-[10px] italic text-neutral-600">
                   {med.instructions}

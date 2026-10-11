@@ -3,6 +3,7 @@ import "server-only"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { CAMPUS_CLINIC_ID } from "@/lib/auth/campus-clinic"
+import { provisionAuthForImportedPatients } from "@/lib/patients/provision-patient-auth"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 import {
@@ -87,7 +88,8 @@ function mapError(error: { message?: string; code?: string }): never {
  * - batch insert new clinical rows
  * - concurrent demographic updates for existing rows (preserves medical chart)
  * - batch mirror into operational `patients`
- * - skips per-row auth provisioning (too slow for thousands of rows)
+ * - batch Auth + public.users provisioning for emails not yet linked
+ *   (does not overwrite existing roles or profile settings)
  */
 export async function bulkImportPatientRecords(
   inputs: CreatePatientRecordInput[],
@@ -96,6 +98,8 @@ export async function bulkImportPatientRecords(
   created: number
   updated: number
   typeCounts: Record<PatientType, number>
+  authProvisioned: number
+  authFailures: string[]
 }> {
   const supabase = client ?? (await createClient())
   const admin = createAdminClient()
@@ -290,5 +294,30 @@ export async function bulkImportPatientRecords(
     }
   }
 
-  return { created, updated, typeCounts }
+  const allStudentIds = students
+    .map((row) => (row.studentId ?? "").trim())
+    .filter(Boolean)
+  const allEmployeeIds = employees
+    .map((row) => (row.employeeId ?? "").trim())
+    .filter(Boolean)
+
+  let authProvisioned = 0
+  let authFailures: string[] = []
+  try {
+    const provision = await provisionAuthForImportedPatients({
+      admin,
+      studentIds: allStudentIds,
+      employeeIds: allEmployeeIds,
+    })
+    authProvisioned = provision.linked
+    authFailures = provision.failures
+  } catch (error) {
+    authFailures = [
+      error instanceof Error
+        ? error.message
+        : "Patient auth provisioning failed after import.",
+    ]
+  }
+
+  return { created, updated, typeCounts, authProvisioned, authFailures }
 }

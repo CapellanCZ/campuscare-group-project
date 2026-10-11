@@ -116,6 +116,14 @@ export const patientToasts = {
           ? "The patient record was moved to Bin."
           : `${count} patient records were moved to Bin.`,
     }),
+  restored: (count = 1) =>
+    appToast.success({
+      title: count === 1 ? "Patient Restored" : "Patients Restored",
+      description:
+        count === 1
+          ? "The patient record was restored to Patient Records."
+          : `${count} patient records were restored to Patient Records.`,
+    }),
   failed: (message?: string) =>
     appToast.error({
       title: "Operation Failed",

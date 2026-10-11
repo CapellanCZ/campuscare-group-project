@@ -1,1 +1,1 @@
-export { StaffQueuePage as default } from "@/lib/staff/route-pages"
+export { StaffQueuePage as default } from "@/lib/staff/pages/queue"

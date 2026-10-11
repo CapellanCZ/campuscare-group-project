@@ -1,5 +1,3 @@
-import { buildClinicProgressPdfDocument } from "@/features/reports/lib/pdf/clinic-progress-pdf-document"
-
 import { chartSeriesToSvg } from "@/features/reports/lib/chart-to-svg"
 import type { ClinicExportPack } from "@/features/reports/lib/clinic-progress-narrative"
 import {
@@ -496,6 +494,10 @@ export async function downloadClinicProgressPdf(input: {
   pack: ClinicExportPack
   reportMode?: "medical" | "dental" | "hso"
 }): Promise<void> {
+  // jsPDF + html-to-image stay out of the initial Reports chunk.
+  const { buildClinicProgressPdfDocument } = await import(
+    "@/features/reports/lib/pdf/clinic-progress-pdf-document"
+  )
   const doc = await buildClinicProgressPdfDocument({
     meta: input.meta,
     pack: input.pack,

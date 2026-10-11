@@ -8,6 +8,34 @@ import type {
   PrescriptionPayload,
 } from "@/types/medicalDocument"
 
+/** Append unit when the value is present and does not already include it. */
+function withMedUnit(
+  value: string | null | undefined,
+  unit: string
+): string | null {
+  const trimmed = value?.trim()
+  if (!trimmed) return null
+  if (new RegExp(`\\b${unit}\\b`, "i").test(trimmed)) return trimmed
+  return `${trimmed} ${unit}`
+}
+
+/** Strength / qty / frequency / duration line for Rx print + summaries. */
+export function formatMedicationDetailParts(
+  med: Pick<
+    PrescriptionMedication,
+    "strength" | "quantity" | "frequency" | "route" | "duration"
+  >
+): string[] {
+  const quantity = withMedUnit(med.quantity, "pcs")
+  return [
+    withMedUnit(med.strength, "mg"),
+    quantity ? `Qty: ${quantity}` : null,
+    withMedUnit(med.frequency, "hrs"),
+    med.route?.trim() || null,
+    withMedUnit(med.duration, "days"),
+  ].filter((part): part is string => Boolean(part))
+}
+
 export function formatMedicationsAsPrescriptionText(
   medications: PrescriptionMedication[] | null | undefined
 ): string {
@@ -15,10 +43,7 @@ export function formatMedicationsAsPrescriptionText(
     .map((med) => {
       const parts = [
         med.name?.trim(),
-        med.strength?.trim(),
-        med.quantity?.trim() ? `Qty: ${med.quantity.trim()}` : null,
-        med.frequency?.trim(),
-        med.duration?.trim(),
+        ...formatMedicationDetailParts(med),
         med.instructions?.trim(),
       ].filter(Boolean)
       return parts.join(" — ")

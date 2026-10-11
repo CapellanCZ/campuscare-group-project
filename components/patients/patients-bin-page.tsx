@@ -3,12 +3,17 @@
 import {
   useCallback,
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
   useTransition,
 } from "react"
-import { IconSearch, IconTrash } from "@tabler/icons-react"
+import {
+  IconRestore,
+  IconSearch,
+  IconTrash,
+} from "@tabler/icons-react"
 
 import { useConfirm } from "@/components/feedback/confirm-provider"
 import { DemoPageHeader } from "@/components/demo/demo-page"
@@ -25,6 +30,7 @@ import {
   deleteArchivedPatientRecordsAction,
   listArchivedPatientRecordsAction,
   listMatchingPatientRecordIdsAction,
+  restoreArchivedPatientRecordsAction,
 } from "@/features/patients/actions"
 import { useCachedPatientPages } from "@/features/patients/hooks/use-cached-patient-pages"
 import {
@@ -129,14 +135,14 @@ export function PatientsBinPage({
   const [selectionScope, setSelectionScope] =
     useState<PatientSelectionScope>("none")
   const [selectingAll, setSelectingAll] = useState(false)
-  const [deletePending, setDeletePending] = useState(false)
+  const [actionPending, setActionPending] = useState(false)
   const [isPending, startTransition] = useTransition()
   const skipNextFetch = useRef(true)
   const selectionQueryScopeRef = useRef("")
   const mountedRef = useRef(false)
   const pageCache = useCachedPatientPages()
 
-  const canDelete = can(access.designation, "patients.edit_information")
+  const canManage = can(access.designation, "patients.edit_information")
 
   useEffect(() => {
     mountedRef.current = true
@@ -212,12 +218,6 @@ export function PatientsBinPage({
           cached.totalPages,
           fetchListPage
         )
-        void pageCache
-          .fetchPage(nextPage, fetchListPage, { bypassCache: true })
-          .then((fresh) => {
-            if (!mountedRef.current || !fresh) return
-            if (fresh.page === nextPage) setList(fresh)
-          })
         return
       }
 
@@ -242,7 +242,7 @@ export function PatientsBinPage({
     [fetchListPage, pageCache, queryScope]
   )
 
-  useEffect(() => {
+  const onPageOrFiltersChange = useEffectEvent((nextPage: number) => {
     if (skipNextFetch.current) {
       skipNextFetch.current = false
       pageCache.setScope(queryScope)
@@ -262,16 +262,22 @@ export function PatientsBinPage({
       setSelectedIds(new Set())
       return "none"
     })
-    void loadPage(page)
-  }, [fetchListPage, initialList, loadPage, page, pageCache, queryScope])
+    void loadPage(nextPage)
+  })
+
+  useEffect(() => {
+    onPageOrFiltersChange(page)
+  }, [page, queryScope])
+
+  const onRealtimeBin = useEffectEvent(() => {
+    pageCache.invalidate()
+    void loadPage(page, { force: true })
+  })
 
   useStaffRealtimeRefresh(
     `staff-patients-bin-${access.designation}`,
     STAFF_REALTIME_TABLES.patients,
-    () => {
-      pageCache.invalidate()
-      void loadPage(page, { force: true })
-    },
+    onRealtimeBin,
     500
   )
 
@@ -341,8 +347,35 @@ export function PatientsBinPage({
     setSelectedIds(new Set())
   }
 
+  function optimisticallyRemoveIds(ids: string[]) {
+    const snapshot = list
+    const idSet = new Set(ids)
+    setList((prev) => {
+      const items = prev.items.filter((item) => !idSet.has(item.id))
+      const next = {
+        ...prev,
+        items,
+        total: Math.max(0, prev.total - ids.length),
+      }
+      pageCache.put(next)
+      return next
+    })
+    clearSelection()
+    return snapshot
+  }
+
+  function reloadAfterRemoval(snapshot: PatientRecordListResult, removed: number) {
+    pageCache.invalidate()
+    startTransition(() => {
+      const nextPage =
+        snapshot.items.length <= removed && page > 1 ? page - 1 : page
+      if (nextPage !== page) setPage(nextPage)
+      else void loadPage(page, { force: true })
+    })
+  }
+
   function permanentlyDelete(ids: string[], label: string) {
-    if (ids.length === 0 || deletePending || !canDelete) return
+    if (ids.length === 0 || actionPending || !canManage) return
 
     void confirmPreset("delete", {
       title:
@@ -352,40 +385,117 @@ export function PatientsBinPage({
       description: `Permanently delete ${label}? Linked consultations are removed. This cannot be undone.`,
       confirmLabel: "Delete permanently",
       onConfirm: async () => {
-        setDeletePending(true)
-        const snapshot = list
-        const idSet = new Set(ids)
-        setList((prev) => {
-          const items = prev.items.filter((item) => !idSet.has(item.id))
-          const next = {
-            ...prev,
-            items,
-            total: Math.max(0, prev.total - ids.length),
-          }
-          pageCache.put(next)
-          return next
-        })
-        clearSelection()
+        setActionPending(true)
+        const snapshot = optimisticallyRemoveIds(ids)
         try {
           const result = await deleteArchivedPatientRecordsAction(ids)
           if (!result.ok) throw new Error(result.error)
           patientToasts.deleted()
-          pageCache.invalidate()
-          startTransition(() => {
-            const nextPage =
-              snapshot.items.length <= ids.length && page > 1 ? page - 1 : page
-            if (nextPage !== page) setPage(nextPage)
-            else void loadPage(page, { force: true })
-          })
+          reloadAfterRemoval(snapshot, ids.length)
         } catch (error) {
           setList(snapshot)
           pageCache.put(snapshot)
           throw error
         } finally {
-          setDeletePending(false)
+          setActionPending(false)
         }
       },
     })
+  }
+
+  function restoreRecords(ids: string[], label: string) {
+    if (ids.length === 0 || actionPending || !canManage) return
+
+    void confirmPreset("restore", {
+      title:
+        ids.length === 1 ? "Restore Patient?" : "Restore Patients?",
+      description: `Restore ${label} to Patient Records?`,
+      confirmLabel: ids.length === 1 ? "Restore" : "Restore all",
+      onConfirm: async () => {
+        setActionPending(true)
+        const snapshot = optimisticallyRemoveIds(ids)
+        try {
+          const result = await restoreArchivedPatientRecordsAction(ids)
+          if (!result.ok) throw new Error(result.error)
+          patientToasts.restored(result.data.restored)
+          reloadAfterRemoval(snapshot, ids.length)
+        } catch (error) {
+          setList(snapshot)
+          pageCache.put(snapshot)
+          throw error
+        } finally {
+          setActionPending(false)
+        }
+      },
+    })
+  }
+
+  function requestRestoreSelected() {
+    const ids = [...selectedIds]
+    const noun = ids.length === 1 ? "patient record" : "patient records"
+    const label =
+      selectionScope === "all"
+        ? `all ${ids.length} matching archived ${noun}`
+        : `${ids.length} archived ${noun}`
+    restoreRecords(ids, label)
+  }
+
+  async function loadAllArchivedIds(): Promise<string[] | null> {
+    const result = await listMatchingPatientRecordIdsAction({
+      query: "",
+      sortBy: sortColumn,
+      sortDir: activeSortDir,
+      archived: true,
+    })
+    if (!result.ok) {
+      patientToasts.failed(result.error)
+      return null
+    }
+    return result.data
+  }
+
+  async function requestRestoreAll() {
+    if (actionPending || !canManage || list.total === 0) return
+    setActionPending(true)
+    let ids: string[] | null = null
+    try {
+      ids = await loadAllArchivedIds()
+    } finally {
+      setActionPending(false)
+    }
+    if (!ids) return
+    if (ids.length === 0) {
+      patientToasts.failed("Bin is already empty.")
+      return
+    }
+    restoreRecords(
+      ids,
+      ids.length === 1
+        ? "this archived patient record"
+        : `all ${ids.length} archived patient records`
+    )
+  }
+
+  async function requestEmptyBin() {
+    if (actionPending || !canManage || list.total === 0) return
+    setActionPending(true)
+    let ids: string[] | null = null
+    try {
+      ids = await loadAllArchivedIds()
+    } finally {
+      setActionPending(false)
+    }
+    if (!ids) return
+    if (ids.length === 0) {
+      patientToasts.failed("Bin is already empty.")
+      return
+    }
+    permanentlyDelete(
+      ids,
+      ids.length === 1
+        ? "this archived patient record"
+        : `all ${ids.length} items in the Bin`
+    )
   }
 
   function requestDeleteSelected() {
@@ -408,7 +518,7 @@ export function PatientsBinPage({
     <main className="flex flex-col gap-6">
       <DemoPageHeader
         title="Bin"
-        description="Archived patient records. Permanently delete them here to remove them for good."
+        description="Archived patient records. Restore them back to Patient Records, or permanently delete them."
         designation={access.designation}
         showDemoBanner={false}
       />
@@ -432,6 +542,52 @@ export function PatientsBinPage({
             </div>
           </CardHeader>
 
+          {canManage ? (
+            <div className="flex flex-wrap items-center gap-1 border-b px-(--card-spacing) py-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="gap-1.5 text-muted-foreground"
+                disabled={actionPending || selectingAll || list.total === 0}
+                onClick={() => {
+                  void requestEmptyBin()
+                }}
+              >
+                <IconTrash className="size-4" aria-hidden />
+                Empty Bin
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="gap-1.5"
+                disabled={actionPending || selectingAll || list.total === 0}
+                onClick={() => {
+                  void requestRestoreAll()
+                }}
+              >
+                <IconRestore className="size-4" aria-hidden />
+                Restore all items
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="gap-1.5"
+                disabled={
+                  actionPending ||
+                  selectingAll ||
+                  selectedIds.size === 0
+                }
+                onClick={requestRestoreSelected}
+              >
+                <IconRestore className="size-4" aria-hidden />
+                Restore the selected items
+              </Button>
+            </div>
+          ) : null}
+
           {selectedIds.size > 0 ? (
             <div
               className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-(--card-spacing) py-3"
@@ -448,22 +604,32 @@ export function PatientsBinPage({
                     : "selected"}
               </p>
               <div className="flex flex-wrap gap-2">
-                {canDelete ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={deletePending || selectingAll}
-                    onClick={requestDeleteSelected}
-                  >
-                    Delete
-                  </Button>
+                {canManage ? (
+                  <>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={actionPending || selectingAll}
+                      onClick={requestRestoreSelected}
+                    >
+                      Restore
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={actionPending || selectingAll}
+                      onClick={requestDeleteSelected}
+                    >
+                      Delete permanently
+                    </Button>
+                  </>
                 ) : null}
                 <Button
                   type="button"
                   size="sm"
                   variant="ghost"
-                  disabled={deletePending || selectingAll}
+                  disabled={actionPending || selectingAll}
                   onClick={clearSelection}
                 >
                   Clear
@@ -519,7 +685,7 @@ export function PatientsBinPage({
                           allPageSelected={allVisibleSelected}
                           somePageSelected={someVisibleSelected}
                           selectingAll={selectingAll}
-                          disabled={deletePending}
+                          disabled={actionPending}
                           noun="archived patients"
                           onSelectPage={selectCurrentPage}
                           onSelectAllMatching={() => {
@@ -565,9 +731,15 @@ export function PatientsBinPage({
                           key={row.id}
                           row={row}
                           selected={selected}
-                          canDelete={canDelete}
-                          deletePending={deletePending}
+                          canManage={canManage}
+                          actionPending={actionPending}
                           onToggle={(checked) => toggleRow(row.id, checked)}
+                          onRestore={() =>
+                            restoreRecords(
+                              [row.id],
+                              patientFullName(row)
+                            )
+                          }
                           onDelete={() =>
                             permanentlyDelete(
                               [row.id],
@@ -628,16 +800,18 @@ export function PatientsBinPage({
 function ArchivedPatientRow({
   row,
   selected,
-  canDelete,
-  deletePending,
+  canManage,
+  actionPending,
   onToggle,
+  onRestore,
   onDelete,
 }: {
   row: PatientRecord
   selected: boolean
-  canDelete: boolean
-  deletePending: boolean
+  canManage: boolean
+  actionPending: boolean
   onToggle: (checked: boolean) => void
+  onRestore: () => void
   onDelete: () => void
 }) {
   return (
@@ -645,7 +819,7 @@ function ArchivedPatientRow({
       <TableCell className="px-4">
         <Checkbox
           checked={selected}
-          disabled={deletePending}
+          disabled={actionPending}
           onCheckedChange={(value) => onToggle(!!value)}
           aria-label={`Select ${patientFullName(row)}`}
         />
@@ -670,15 +844,26 @@ function ArchivedPatientRow({
       </TableCell>
       <TableCell className="px-4">
         <div className="flex flex-wrap justify-end gap-1">
-          {canDelete ? (
-            <Button
-              size="xs"
-              variant="outline"
-              disabled={deletePending}
-              onClick={onDelete}
-            >
-              Delete
-            </Button>
+          {canManage ? (
+            <>
+              <Button
+                size="xs"
+                variant="outline"
+                disabled={actionPending}
+                onClick={onRestore}
+              >
+                <IconRestore className="size-3.5" aria-hidden />
+                Restore
+              </Button>
+              <Button
+                size="xs"
+                variant="outline"
+                disabled={actionPending}
+                onClick={onDelete}
+              >
+                Delete
+              </Button>
+            </>
           ) : null}
         </div>
       </TableCell>

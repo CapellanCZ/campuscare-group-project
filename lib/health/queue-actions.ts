@@ -104,12 +104,14 @@ export async function callNextTicket(params: {
   const supabase = await createClient()
   const station =
     params.station ?? stationForDesignation(params.designation) ?? "nurse"
+  const { ymd } = manilaDayBounds()
 
   const { data: waiting } = await supabase
     .from("health_queue_tickets")
     .select("id, call_count, queue_position")
     .eq("status", "waiting")
     .eq("station", station)
+    .eq("service_date", ymd)
     .order("queue_position", { ascending: true })
     .limit(1)
 
@@ -587,7 +589,7 @@ export async function verifyCheckIn(params: {
 
   const supabase = await createClient()
   const now = new Date().toISOString()
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("health_queue_tickets")
     .update({
       checked_in_at: now,
@@ -596,8 +598,16 @@ export async function verifyCheckIn(params: {
       updated_at: now,
     })
     .eq("id", params.ticketId)
+    .select("id")
+    .maybeSingle()
 
   if (error) return { ok: false, error: error.message }
+  if (!updated) {
+    return {
+      ok: false,
+      error: "Ticket not found or check-in could not be saved.",
+    }
+  }
 
   const consultationId = await resolveConsultationIdForTicket(
     params.ticketId,

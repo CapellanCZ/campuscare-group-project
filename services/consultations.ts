@@ -3,10 +3,7 @@ import "server-only"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { consultationDateRangeBounds } from "@/lib/date/consultation-date-range"
-import {
-  CONSULTATION_LIST_STATUS_ORDER,
-  sortConsultationsForList,
-} from "@/lib/consultations/sort"
+import { sortConsultationsForList } from "@/lib/consultations/sort"
 import { createClient } from "@/lib/supabase/server"
 import {
   ConsultationServiceError,
@@ -169,28 +166,31 @@ async function attachQueueNumbers(
   const ticketMap = new Map<string, string>()
   const apptMap = new Map<string, string>()
 
-  if (ticketIds.length > 0) {
-    const { data } = await supabase
-      .from("health_queue_tickets")
-      .select("id, queue_number, ticket_code")
-      .in("id", ticketIds)
-    for (const row of data ?? []) {
-      const label =
-        (row.ticket_code as string | null) ??
-        formatQueueLabel(row.queue_number as number | null)
-      if (label) ticketMap.set(row.id as string, label)
-    }
+  const [ticketResult, apptResult] = await Promise.all([
+    ticketIds.length > 0
+      ? supabase
+          .from("health_queue_tickets")
+          .select("id, queue_number, ticket_code")
+          .in("id", ticketIds)
+      : Promise.resolve({ data: null as { id: string; queue_number: number | null; ticket_code: string | null }[] | null }),
+    appointmentIds.length > 0
+      ? supabase
+          .from("appointments")
+          .select("id, queue_number")
+          .in("id", appointmentIds)
+      : Promise.resolve({ data: null as { id: string; queue_number: number | null }[] | null }),
+  ])
+
+  for (const row of ticketResult.data ?? []) {
+    const label =
+      (row.ticket_code as string | null) ??
+      formatQueueLabel(row.queue_number as number | null)
+    if (label) ticketMap.set(row.id as string, label)
   }
 
-  if (appointmentIds.length > 0) {
-    const { data } = await supabase
-      .from("appointments")
-      .select("id, queue_number")
-      .in("id", appointmentIds)
-    for (const row of data ?? []) {
-      const label = formatQueueLabel(row.queue_number as number | null)
-      if (label) apptMap.set(row.id as string, label)
-    }
+  for (const row of apptResult.data ?? []) {
+    const label = formatQueueLabel(row.queue_number as number | null)
+    if (label) apptMap.set(row.id as string, label)
   }
 
   return items.map((item) => ({
@@ -277,54 +277,29 @@ export async function getConsultations(
       .order("id", { ascending: true })
   }
 
-  // Paginate per status rank so waiting stays above completed without
-  // loading the entire filtered table into memory.
-  const statusBuckets: Array<ConsultationStatus | "all"> =
-    params.status && params.status !== "all"
-      ? [params.status]
-      : [...CONSULTATION_LIST_STATUS_ORDER]
-
-  const bucketCounts = await Promise.all(
-    statusBuckets.map(async (status) => {
-      const { count, error } = await applyFilters(
-        supabase
-          .from("consultations")
-          .select("id", { count: "exact", head: true }),
-        status
-      )
-      if (error) mapError(error)
-      return count ?? 0
-    })
+  // Chronological log: newest consultation_date first (simple range pagination).
+  const { count, error: countError } = await applyFilters(
+    supabase
+      .from("consultations")
+      .select("id", { count: "exact", head: true }),
+    params.status && params.status !== "all" ? params.status : "all"
   )
-  const total = bucketCounts.reduce((sum, count) => sum + count, 0)
+  if (countError) mapError(countError)
+
+  const total = count ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1)
   const safePage = Math.min(page, totalPages)
-  let skip = (safePage - 1) * pageSize
-  let need = pageSize
-  const rawRows: ConsultationJson[] = []
+  const from = (safePage - 1) * pageSize
+  const to = from + pageSize - 1
 
-  for (let i = 0; i < statusBuckets.length && need > 0; i++) {
-    const statusCount = bucketCounts[i] ?? 0
-    if (skip >= statusCount) {
-      skip -= statusCount
-      continue
-    }
+  const { data, error } = await applyListOrder(
+    buildFilteredQuery(
+      params.status && params.status !== "all" ? params.status : "all"
+    )
+  ).range(from, to)
+  if (error) mapError(error)
 
-    const from = skip
-    const to = from + need - 1
-    const { data, error } = await applyListOrder(
-      buildFilteredQuery(statusBuckets[i])
-    ).range(from, to)
-    if (error) mapError(error)
-
-    const pageRows = (data ?? []) as ConsultationJson[]
-    rawRows.push(...pageRows)
-    need -= pageRows.length
-    skip = 0
-  }
-
-  let items = mapConsultationsFromJson(rawRows)
-  // Waterfall already yields list order; keep a stable tie-break sort.
+  let items = mapConsultationsFromJson((data ?? []) as ConsultationJson[])
   items = sortConsultationsForList(items)
   items = await attachQueueNumbers(items, supabase)
 

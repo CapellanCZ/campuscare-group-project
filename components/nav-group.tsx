@@ -20,69 +20,11 @@ import {
 } from "@/components/ui/sidebar"
 import type { SidebarNavGroup, SidebarNavItem } from "@/components/app-shared"
 import { useOptionalNavPending } from "@/components/dashboard/nav-pending"
+import { warmStaffRouteData } from "@/components/nav-warm"
 import { useStaffAccess } from "@/components/staff-access-provider"
 import { IconChevronRight } from "@tabler/icons-react"
 
 type ClinicRole = "nurse" | "physician" | "dentist" | "admin"
-
-/**
- * Warm feature data only for the destination being opened.
- * Dynamic imports keep unused prefetch→action graphs out of the sidebar chunk.
- */
-async function warmRouteData(href: string, role: ClinicRole) {
-  if (href.includes("/consultations")) {
-    const { prefetchConsultationsPage } = await import(
-      "@/features/consultations/lib/prefetch-consultations"
-    )
-    prefetchConsultationsPage(role)
-    return
-  }
-  if (href.includes("/queue") && !href.includes("/display")) {
-    const { prefetchQueuePage } = await import(
-      "@/features/queue/lib/prefetch-queue"
-    )
-    prefetchQueuePage(role)
-    return
-  }
-  if (href.includes("/requests")) {
-    const { prefetchRequestsPage } = await import(
-      "@/features/requests/lib/prefetch-requests"
-    )
-    prefetchRequestsPage(role)
-    return
-  }
-  if (href.includes("/patients")) {
-    const { prefetchPatientsPage } = await import(
-      "@/features/patients/lib/prefetch-patients"
-    )
-    prefetchPatientsPage(role)
-    return
-  }
-  if (href.includes("/certificates")) {
-    const { prefetchCertificatesPage } = await import(
-      "@/features/certificates/lib/prefetch-certificates"
-    )
-    prefetchCertificatesPage(role)
-    return
-  }
-  if (href.includes("/announcements")) {
-    const { prefetchAnnouncementsPage } = await import(
-      "@/features/announcements/lib/prefetch-announcements"
-    )
-    prefetchAnnouncementsPage(role)
-    return
-  }
-  if (
-    href.endsWith("/dashboard") ||
-    href === `/${role}` ||
-    href === `/${role}/`
-  ) {
-    const { prefetchDashboardPage } = await import(
-      "@/features/dashboard/lib/prefetch-dashboard"
-    )
-    prefetchDashboardPage(role)
-  }
-}
 
 function useNavLinkHandlers() {
   const { isMobile, setOpenMobile } = useSidebar()
@@ -109,12 +51,16 @@ function useNavLinkHandlers() {
         return
       }
       navPending?.markPending(href)
-      if (role) void warmRouteData(href, role)
+      if (role) void warmStaffRouteData(href, role)
       if (isMobile) setOpenMobile(false)
     },
     onMouseEnter: () => {
-      // RSC prefetch only — do not fire feature server actions on hover.
       navPending?.prefetch(href)
+      if (role) void warmStaffRouteData(href, role)
+    },
+    onFocus: () => {
+      navPending?.prefetch(href)
+      if (role) void warmStaffRouteData(href, role)
     },
   })
 }

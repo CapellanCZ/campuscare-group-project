@@ -28,6 +28,7 @@ import {
   isEnrolledVirtualId,
   studentIdFromVirtualId,
 } from "@/lib/students/virtual-id"
+import { provisionAuthForUnlinkedPatients } from "@/lib/patients/provision-patient-auth"
 import {
   archivePatientRecords,
   createPatientRecord,
@@ -35,6 +36,7 @@ import {
   deletePatientRecords,
   getPatientRecordById,
   importPatientRecordsFromExcel,
+  restorePatientRecords,
   updatePatientMedicalRecord,
   updatePatientRecord,
 } from "@/services/patientRecords"
@@ -472,6 +474,19 @@ export async function deleteArchivedPatientRecordsAction(
   }
 }
 
+export async function restoreArchivedPatientRecordsAction(
+  ids: string[]
+): Promise<PatientRecordActionResult<{ restored: number }>> {
+  const auth = await requirePatientAccess("patients.edit_information")
+  if (!auth.ok) return auth
+  try {
+    const data = await restorePatientRecords(ids)
+    return { ok: true, data }
+  } catch (error) {
+    return toErrorResult(error)
+  }
+}
+
 export async function listPatientOptionsAction(
   query = ""
 ): Promise<PatientRecordActionResult<PatientRecord[]>> {
@@ -747,6 +762,9 @@ export async function importPatientRecordsFromExcelAction(
     if (result.updated > 0) {
       parts.push(`${result.updated} updated`)
     }
+    if (result.authProvisioned > 0) {
+      parts.push(`${result.authProvisioned} accounts linked`)
+    }
     const typeSummary = [
       result.typeCounts.faculty > 0
         ? `${result.typeCounts.faculty} faculty`
@@ -781,5 +799,73 @@ export async function importPatientRecordsFromExcelAction(
       return { ok: false, error: failed.error, code: failed.code }
     }
     return { ok: false, error: "Import failed.", code: "unknown" }
+  }
+}
+
+/**
+ * Backfill Auth + public.users for operational patients with null auth_user_id.
+ * Does not overwrite existing roles or credentials.
+ */
+export async function syncPatientAuthAccountsAction(): Promise<
+  | {
+      ok: true
+      message: string
+      warning?: string
+    }
+  | {
+      ok: false
+      error: string
+      code: "permission" | "unknown"
+    }
+> {
+  try {
+    const access = await getStaffAccess()
+    if (!access?.hasClinicMembership) {
+      return {
+        ok: false,
+        error: "Sign in with an approved clinic account.",
+        code: "permission",
+      }
+    }
+    if (!can(access.designation, "patients.edit_information")) {
+      return {
+        ok: false,
+        error: "You do not have permission to sync patient accounts.",
+        code: "permission",
+      }
+    }
+
+    const result = await provisionAuthForUnlinkedPatients()
+    const parts: string[] = []
+    if (result.linked > 0) {
+      parts.push(`${result.linked} accounts linked`)
+    }
+    if (result.created > 0) {
+      parts.push(`${result.created} new Auth users created`)
+    }
+    if (result.skippedNoEmail > 0) {
+      parts.push(`${result.skippedNoEmail} skipped (no email)`)
+    }
+
+    return {
+      ok: true,
+      message:
+        parts.length > 0
+          ? `Patient account sync complete: ${parts.join(", ")}.`
+          : "No unlinked patients needed account provisioning.",
+      warning:
+        result.failures.length > 0
+          ? `${result.failures.length} failed. ${result.failures.slice(0, 3).join(" · ")}`
+          : undefined,
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not sync patient accounts.",
+      code: "unknown",
+    }
   }
 }

@@ -51,6 +51,10 @@ import {
   loadRequestsBundle,
   saveRequestsCache,
 } from "@/features/requests/lib/prefetch-requests"
+import {
+  requestsCacheKey,
+  staffCacheIsFresh,
+} from "@/lib/ui/staff-data-cache"
 import { consultationRequestStatusLabel } from "@/features/requests/lib/format"
 import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
@@ -126,9 +130,7 @@ export function RequestsPage({
   const [status, setStatus] = useState<string>("all")
   const [list, setList] = useState(cached?.list ?? initialList)
   const [stats, setStats] = useState(cached?.stats ?? initialStats)
-  const [loading, setLoading] = useState(
-    () => hydrateFromCache && !cached && initialList.items.length === 0
-  )
+  const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<AppointmentRequest | null>(null)
   const [dialogMode, setDialogMode] = useState<RequestDialogMode | null>(null)
   const skipNextFetch = useRef(true)
@@ -238,7 +240,10 @@ export function RequestsPage({
       setStats(hit.stats)
       setLoading(false)
     }
-    void loadRequestsBundle(access.designation, { force: Boolean(hit) })
+    void loadRequestsBundle(access.designation, {
+      force:
+        Boolean(hit) && !staffCacheIsFresh(requestsCacheKey(access.designation)),
+    })
       .then((bundle) => {
         setList(bundle.list)
         setStats(bundle.stats)
@@ -246,7 +251,7 @@ export function RequestsPage({
       })
       .catch(() => {
         setLoading(false)
-        if (!hit) void loadPage("", "all")
+        if (!hit) void loadPage("", "all", { silent: true })
       })
   }, [access.designation, hydrateFromCache, loadPage])
 

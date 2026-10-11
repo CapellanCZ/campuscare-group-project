@@ -12,6 +12,8 @@ const store = new Map<string, CacheEntry<unknown>>()
 const inflight = new Map<string, Promise<unknown>>()
 
 const DEFAULT_TTL_MS = 5 * 60 * 1000
+/** Fresh enough to skip a mount soft-revalidate (realtime still refreshes). */
+export const STAFF_CACHE_SOFT_TTL_MS = 30_000
 
 export function staffCacheGet<T>(key: string, ttlMs = DEFAULT_TTL_MS): T | null {
   const entry = store.get(key)
@@ -21,6 +23,30 @@ export function staffCacheGet<T>(key: string, ttlMs = DEFAULT_TTL_MS): T | null 
     return null
   }
   return entry.data as T
+}
+
+/** Age of a cache entry in ms, or null when missing / expired under ttl. */
+export function staffCacheAgeMs(
+  key: string,
+  ttlMs = DEFAULT_TTL_MS
+): number | null {
+  const entry = store.get(key)
+  if (!entry) return null
+  const age = Date.now() - entry.savedAt
+  if (age > ttlMs) {
+    store.delete(key)
+    return null
+  }
+  return age
+}
+
+/** True when cache hit is fresh enough to skip forced remount refetch. */
+export function staffCacheIsFresh(
+  key: string,
+  softTtlMs = STAFF_CACHE_SOFT_TTL_MS
+): boolean {
+  const age = staffCacheAgeMs(key)
+  return age != null && age < softTtlMs
 }
 
 export function staffCacheSet<T>(key: string, data: T): void {
@@ -112,6 +138,7 @@ export function staffRouteHasWarmCache(path: string, role: string): boolean {
 
   switch (kind) {
     case "queue":
+    case "queue-management":
       return staffCacheGet(queueCacheKey(role)) != null
     case "consultations":
       return staffCacheGet(consultationsCacheKey(role)) != null

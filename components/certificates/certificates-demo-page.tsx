@@ -65,6 +65,10 @@ import {
   loadCertificatesBundle,
 } from "@/features/certificates/lib/prefetch-certificates"
 import {
+  certificatesCacheKey,
+  staffCacheIsFresh,
+} from "@/lib/ui/staff-data-cache"
+import {
   fetchMedicalDocumentsAction,
   logMedicalDocumentViewAction,
 } from "@/features/medical-documents/actions"
@@ -172,9 +176,7 @@ export function CertificatesPage({
   const [page, setPage] = useState(1)
   const [list, setList] = useState(cached?.list ?? initialList)
   const [stats, setStats] = useState(cached?.stats ?? initialStats)
-  const [loading, setLoading] = useState(
-    () => hydrateFromCache && !cached && initialList.items.length === 0
-  )
+  const [loading, setLoading] = useState(false)
   const [documentTypeFilter, setDocumentTypeFilter] = useState<
     MedicalDocumentType | "all"
   >("all")
@@ -304,7 +306,11 @@ export function CertificatesPage({
       setStats(hit.stats)
       setLoading(false)
     }
-    void loadCertificatesBundle(access.designation, { force: Boolean(hit) })
+    void loadCertificatesBundle(access.designation, {
+      force:
+        Boolean(hit) &&
+        !staffCacheIsFresh(certificatesCacheKey(access.designation)),
+    })
       .then((bundle) => {
         setList(bundle.list)
         setStats(bundle.stats)
@@ -312,7 +318,7 @@ export function CertificatesPage({
       })
       .catch(() => {
         setLoading(false)
-        if (!hit) void loadPage("", 1)
+        if (!hit) void loadPage("", 1, { silent: true })
       })
   }, [access.designation, hydrateFromCache, loadPage])
 

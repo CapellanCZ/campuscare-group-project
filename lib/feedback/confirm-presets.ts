@@ -12,6 +12,7 @@ export type ConfirmPresetKey =
   | "publish"
   | "unpublish"
   | "archive"
+  | "restore"
   | "generateCertificate"
   | "finalizeDocument"
   | "createStaff"
@@ -120,6 +121,12 @@ export const CONFIRM_PRESETS: Record<ConfirmPresetKey, ConfirmPreset> = {
     title: "Archive?",
     description: "Are you sure you want to archive this item?",
     confirmLabel: "Archive",
+  },
+  restore: {
+    variant: "default",
+    title: "Restore?",
+    description: "Are you sure you want to restore this item?",
+    confirmLabel: "Restore",
   },
   generateCertificate: {
     variant: "default",

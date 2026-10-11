@@ -35,16 +35,23 @@ export type FaqItem = {
   answer: string
 }
 
+/** Primary nav labels aligned to reference information architecture. */
 export const navLinks: NavLink[] = [
-  { label: "Home", href: "#home", id: "home" },
-  { label: "About", href: "#about", id: "about" },
+  { label: "Overview", href: "#home", id: "home" },
   { label: "Features", href: "#features", id: "features" },
+  { label: "Why Us", href: "#why-us", id: "why-us" },
+  { label: "Get Started", href: "#get-started", id: "get-started" },
+]
+
+export const landingNavItems = navLinks
+
+/** Secondary in-page anchors kept for deeper content sections. */
+export const secondaryNavLinks: NavLink[] = [
+  { label: "About", href: "#about", id: "about" },
   { label: "How It Works", href: "#how-it-works", id: "how-it-works" },
   { label: "FAQ", href: "#faq", id: "faq" },
   { label: "Contact", href: "#contact", id: "contact" },
 ]
-
-export const landingNavItems = navLinks
 
 export const heroRotatingPhrases = [
   "Faster clinic visits for every Bulldog",
@@ -53,10 +60,13 @@ export const heroRotatingPhrases = [
 ]
 
 export const heroCopy = {
-  brand: "CampusCare",
+  brand: "NU Dasmariñas Health Services Office",
+  eyebrow: "Clinic workflows",
   headline: "Campus health services, designed for clarity",
   description:
     "CampusCare helps the NU Dasmariñas Health Services Office manage consultations, queues, and patient records in one calm, modern workspace.",
+  primaryCta: "Access Portal",
+  secondaryCta: "Learn More",
 }
 
 export const aboutCopy = {
@@ -146,20 +156,6 @@ export const howItWorksSteps: HowItWorksStep[] = [
   },
 ]
 
-export const benefits = features
-export const heroHighlights = heroRotatingPhrases
-export const consultationSteps = howItWorksSteps
-export const userTypes = [
-  {
-    title: "Students",
-    description: "Book and track campus clinic visits.",
-  },
-  {
-    title: "Clinic staff",
-    description: "Manage queues, records, and certificates.",
-  },
-]
-
 export const faqs: FaqItem[] = [
   {
     id: "who",
@@ -219,9 +215,9 @@ export const footerContact = {
 }
 
 export const footerQuickLinks = [
-  { label: "Home", href: "#home" },
-  { label: "About", href: "#about" },
+  { label: "Overview", href: "#home" },
   { label: "Features", href: "#features" },
+  { label: "Why Us", href: "#why-us" },
   { label: "Login", href: siteRoutes.login },
 ] as const
 
@@ -233,3 +229,35 @@ export const footerLegalLinks = [
 
 export const footerBlurb =
   "A unified workspace for the NU Dasmariñas Health Services Office to manage consultations, queues, records, and campus health notices."
+
+/** “Why Us” points derived from existing product capabilities — no invented stats. */
+export const whyUsPoints = [
+  {
+    title: "Centralized patient records",
+    description:
+      "Keep consultation history and care notes in one secure place for authorized clinic staff.",
+  },
+  {
+    title: "Live queue visibility",
+    description:
+      "Give patients and staff a shared view of who’s next—reducing crowding and confusion.",
+  },
+  {
+    title: "Reports & analytics",
+    description:
+      "Understand visit volume, peak hours, and service trends to plan staffing and care.",
+  },
+  {
+    title: "Built for clinic devices",
+    description:
+      "Use CampusCare from clinic workstations and campus devices with a responsive staff interface.",
+  },
+] as const
+
+export const ctaCopy = {
+  title: "Ready to get started?",
+  description:
+    "Sign in with your work email to open the Health Services Office workspace—queues, records, certificates, and announcements in one place.",
+  primaryCta: "Access Portal",
+  secondaryCta: "Sign In",
+} as const

@@ -29,16 +29,16 @@ export function AuthEmailStep({
 }: AuthEmailStepProps) {
   return (
     <>
-      <div className="flex flex-col space-y-1">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-          Sign in
-        </p>
-        <h1 className="text-2xl font-bold tracking-wide">Sign in</h1>
-        <p className="text-base text-muted-foreground">
-          Enter your work email and we&apos;ll send a one-time password.
+      <div className="flex flex-col space-y-2">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+          Welcome Back
+        </h1>
+        <p className="text-base text-slate-500">
+          Enter your work email and we&apos;ll send a one-time password to access
+          your account.
         </p>
         {emailNotice ? (
-          <p className="text-sm text-foreground" role="status">
+          <p className="text-sm text-slate-700" role="status">
             {emailNotice}
           </p>
         ) : null}
@@ -46,21 +46,20 @@ export function AuthEmailStep({
 
       <form className="space-y-4" onSubmit={onSendOtp} noValidate>
         <Field
-          className="max-w-sm"
           data-invalid={
             typeof emailError === "string" && emailError ? true : undefined
           }
         >
-          <FieldLabel htmlFor="work-email" className="sr-only">
+          <FieldLabel htmlFor="work-email" className="text-slate-700">
             Work email
           </FieldLabel>
-          <InputGroup>
+          <InputGroup className="h-11 rounded-xl border-slate-200">
             <InputGroupInput
               id="work-email"
               name="email"
               autoComplete="email"
               inputMode="email"
-              placeholder="your.email@example.com"
+              placeholder="Enter your email"
               type="email"
               value={email}
               onChange={(event) => onEmailChange(event.target.value)}
@@ -83,12 +82,16 @@ export function AuthEmailStep({
           ) : null}
         </Field>
 
-        <p className="text-start text-xs text-muted-foreground">
+        <p className="text-start text-xs text-slate-500">
           We&apos;ll email a 6-digit code. No password needed.
         </p>
 
-        <Button className="w-full" type="submit" disabled={isSendingOtp}>
-          {isSendingOtp ? "Sending code..." : "Send one-time password"}
+        <Button
+          className="h-11 w-full rounded-xl bg-blue-600 text-base hover:bg-blue-700"
+          type="submit"
+          disabled={isSendingOtp}
+        >
+          {isSendingOtp ? "Sending code..." : "Continue"}
         </Button>
       </form>
     </>

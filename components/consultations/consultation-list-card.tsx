@@ -21,6 +21,21 @@ function formatConsultationDate(iso: string): string {
   }
 }
 
+/** Weekday + date for upcoming schedules (Manila). */
+export function formatConsultationScheduleDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString("en-PH", {
+      weekday: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      timeZone: "Asia/Manila",
+    })
+  } catch {
+    return iso.slice(0, 10)
+  }
+}
+
 function providerLabel(row: Consultation): string {
   const role = resolveConsultationProviderRole(row)
   if (role === "dentist") return "Dentist"
@@ -42,6 +57,7 @@ export function ConsultationListCard({
   onComplete,
   showComplete,
   clinicianHref,
+  emphasizeDate = false,
   className,
 }: {
   row: Consultation
@@ -49,6 +65,7 @@ export function ConsultationListCard({
   onComplete?: () => void
   showComplete?: boolean
   clinicianHref?: string
+  emphasizeDate?: boolean
   className?: string
 }) {
   return (
@@ -74,9 +91,19 @@ export function ConsultationListCard({
           <dt className="text-xs text-muted-foreground">Provider</dt>
           <dd className="font-medium">{providerLabel(row)}</dd>
         </div>
-        <div>
-          <dt className="text-xs text-muted-foreground">Date</dt>
-          <dd>{formatConsultationDate(row.consultationDate)}</dd>
+        <div className={emphasizeDate ? "col-span-2" : undefined}>
+          <dt className="text-xs text-muted-foreground">
+            {emphasizeDate ? "Consultation date" : "Date"}
+          </dt>
+          <dd
+            className={cn(
+              emphasizeDate && "font-medium text-foreground"
+            )}
+          >
+            {emphasizeDate
+              ? formatConsultationScheduleDate(row.consultationDate)
+              : formatConsultationDate(row.consultationDate)}
+          </dd>
         </div>
         <div>
           <dt className="text-xs text-muted-foreground">Queue #</dt>

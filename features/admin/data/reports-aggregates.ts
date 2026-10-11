@@ -163,54 +163,50 @@ export async function loadAdminReportsAggregates(
     const fromBounds = manilaDayBounds(new Date(`${dateFrom}T12:00:00+08:00`))
     const toBounds = manilaDayBounds(new Date(`${dateTo}T12:00:00+08:00`))
 
-    const [consultRows, ticketRows, certsByCreated, certsByIssued] =
-      await Promise.all([
-        fetchAllRows<ConsultRow>((from, to) =>
-          supabase
-            .from("consultations")
-            .select(
-              "id, station, status, consultation_date, patient_id, provider_type, chief_complaint, diagnosis, symptoms, patient_records ( patient_type )"
-            )
-            .gte("consultation_date", fromBounds.startIso)
-            .lte("consultation_date", toBounds.endIso)
-            .order("consultation_date", { ascending: true })
-            .order("id", { ascending: true })
-            .range(from, to)
-        ),
-        fetchAllRows<TicketRow>((from, to) =>
-          supabase
-            .from("health_queue_tickets")
-            .select("id, status, created_at, patient_id, consultation_id, estimated_wait_minutes")
-            .gte("created_at", fromBounds.startIso)
-            .lte("created_at", toBounds.endIso)
-            .order("created_at", { ascending: true })
-            .order("id", { ascending: true })
-            .range(from, to)
-        ),
-        fetchAllRows<CertRow>((from, to) =>
-          supabase
-            .from("medical_certificates")
-            .select("id, created_at, issued_at, status")
-            .gte("created_at", fromBounds.startIso)
-            .lte("created_at", toBounds.endIso)
-            .order("created_at", { ascending: true })
-            .order("id", { ascending: true })
-            .range(from, to)
-        ),
-        fetchAllRows<CertRow>((from, to) =>
-          supabase
-            .from("medical_certificates")
-            .select("id, created_at, issued_at, status")
-            .gte("issued_at", fromBounds.startIso)
-            .lte("issued_at", toBounds.endIso)
-            .order("issued_at", { ascending: true })
-            .order("id", { ascending: true })
-            .range(from, to)
-        ),
-      ])
+    const certWindowOr = [
+      `and(created_at.gte.${fromBounds.startIso},created_at.lte.${toBounds.endIso})`,
+      `and(issued_at.gte.${fromBounds.startIso},issued_at.lte.${toBounds.endIso})`,
+    ].join(",")
+
+    // Three parallel page-walks (certs collapsed to one OR window instead of two).
+    const [consultRows, ticketRows, certRows] = await Promise.all([
+      fetchAllRows<ConsultRow>((from, to) =>
+        supabase
+          .from("consultations")
+          .select(
+            "id, station, status, consultation_date, patient_id, provider_type, chief_complaint, diagnosis, symptoms, patient_records ( patient_type )"
+          )
+          .gte("consultation_date", fromBounds.startIso)
+          .lte("consultation_date", toBounds.endIso)
+          .order("consultation_date", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
+      fetchAllRows<TicketRow>((from, to) =>
+        supabase
+          .from("health_queue_tickets")
+          .select(
+            "id, status, created_at, patient_id, consultation_id, estimated_wait_minutes"
+          )
+          .gte("created_at", fromBounds.startIso)
+          .lte("created_at", toBounds.endIso)
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
+      fetchAllRows<CertRow>((from, to) =>
+        supabase
+          .from("medical_certificates")
+          .select("id, created_at, issued_at, status")
+          .or(certWindowOr)
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
+    ])
 
     const certById = new Map<string, CertRow>()
-    for (const cert of [...certsByCreated, ...certsByIssued]) {
+    for (const cert of certRows) {
       certById.set(cert.id, cert)
     }
 

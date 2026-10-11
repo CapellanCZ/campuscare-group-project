@@ -215,36 +215,36 @@ async function buildKpis(
     }
   }
 
-  const consultCount = await safeCount(() =>
-    supabase
-      .from("consultations")
-      .select("id", { count: "exact", head: true })
-      .gte("consultation_date", startIso)
-      .lte("consultation_date", endIso)
-  )
-
-  const certCount = await safeCount(() =>
-    supabase
-      .from("medical_certificates")
-      .select("id", { count: "exact", head: true })
-      .gte("created_at", startIso)
-      .lte("created_at", endIso)
-  )
-
-  const announcementCount = await safeCount(() =>
-    supabase
-      .from("announcements")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "published")
-  )
-
-  const appointmentCount = await safeCount(() =>
-    supabase
-      .from("health_appointments")
-      .select("id", { count: "exact", head: true })
-      .gte("created_at", startIso)
-      .lte("created_at", endIso)
-  )
+  const [consultCount, certCount, announcementCount, appointmentCount] =
+    await Promise.all([
+      safeCount(() =>
+        supabase
+          .from("consultations")
+          .select("id", { count: "exact", head: true })
+          .gte("consultation_date", startIso)
+          .lte("consultation_date", endIso)
+      ),
+      safeCount(() =>
+        supabase
+          .from("medical_certificates")
+          .select("id", { count: "exact", head: true })
+          .gte("created_at", startIso)
+          .lte("created_at", endIso)
+      ),
+      safeCount(() =>
+        supabase
+          .from("announcements")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "published")
+      ),
+      safeCount(() =>
+        supabase
+          .from("health_appointments")
+          .select("id", { count: "exact", head: true })
+          .gte("created_at", startIso)
+          .lte("created_at", endIso)
+      ),
+    ])
 
   const patientsToday = new Set(
     scoped.map((t) => t.studentId).filter(Boolean)

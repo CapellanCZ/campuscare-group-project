@@ -387,6 +387,8 @@ export function NurseTodayQueue({
                                   ticketId: row.ticketId,
                                   patch: {
                                     checkedInAt: new Date().toISOString(),
+                                    status: "waiting",
+                                    station: "nurse",
                                   },
                                 }
                               )

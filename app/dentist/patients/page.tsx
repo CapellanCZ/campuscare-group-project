@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 
 import { patientRecordsPageMetadata } from "@/lib/patients/seo"
-import { StaffPatientsPage } from "@/lib/staff/route-pages"
+import { StaffPatientsPage } from "@/lib/staff/pages/patients"
 
 export const maxDuration = 300
 

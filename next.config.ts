@@ -2,18 +2,9 @@ import type { NextConfig } from "next"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
-const projectRoot = path.dirname(fileURLToPath(import.meta.url))
+import { buildSecurityHeaders } from "./lib/security/headers"
 
-const securityHeaders = [
-  { key: "X-DNS-Prefetch-Control", value: "on" },
-  { key: "X-Frame-Options", value: "SAMEORIGIN" },
-  { key: "X-Content-Type-Options", value: "nosniff" },
-  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  {
-    key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=()",
-  },
-]
+const projectRoot = path.dirname(fileURLToPath(import.meta.url))
 
 const nextConfig: NextConfig = {
   turbopack: {
@@ -30,6 +21,13 @@ const nextConfig: NextConfig = {
   images: {
     formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 60 * 60 * 24 * 30,
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "**.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
+    ],
   },
   experimental: {
     optimizePackageImports: [
@@ -43,15 +41,15 @@ const nextConfig: NextConfig = {
     // sidebar revisits paint from cache instead of waiting on the network.
     staleTimes: {
       // Keep staff segments cached longer so sidebar revisits paint instantly.
-      dynamic: 180,
-      static: 600,
+      dynamic: 300,
+      static: 900,
     },
   },
   async headers() {
     return [
       {
         source: "/:path*",
-        headers: securityHeaders,
+        headers: buildSecurityHeaders(),
       },
       {
         source: "/images/:path*",

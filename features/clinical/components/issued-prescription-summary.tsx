@@ -2,7 +2,10 @@
 
 import { useEffect } from "react"
 
-import { formatMedicationsAsPrescriptionText } from "@/features/medical-documents/lib/map-consultation-context"
+import {
+  formatMedicationDetailParts,
+  formatMedicationsAsPrescriptionText,
+} from "@/features/medical-documents/lib/map-consultation-context"
 import { formatDiagnosticRequestLines } from "@/lib/medical-documents/diagnostic-request-options"
 import type { MedicalDocument, PrescriptionPayload } from "@/types/medicalDocument"
 
@@ -79,17 +82,14 @@ export function IssuedPrescriptionSummary({
               className="border-b border-border/60 pb-2 last:border-0"
             >
               <p className="font-medium">{med.name}</p>
-              <p className="text-muted-foreground">
-                {[
-                  med.strength,
-                  med.quantity ? `Qty: ${med.quantity}` : null,
-                  med.frequency,
-                  med.duration,
-                  med.instructions,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </p>
+              <div className="space-y-0.5 text-muted-foreground">
+                {formatMedicationDetailParts(med).map((part) => (
+                  <p key={part}>{part}</p>
+                ))}
+                {med.instructions?.trim() ? (
+                  <p className="italic">{med.instructions.trim()}</p>
+                ) : null}
+              </div>
             </li>
           ))}
         </ul>

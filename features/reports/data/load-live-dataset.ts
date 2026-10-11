@@ -152,10 +152,14 @@ export async function loadLiveReportsDataset(range?: {
     new Date(`${effectiveRange.dateTo}T12:00:00+08:00`)
   )
 
+  const certWindowOr = [
+    `and(created_at.gte.${fromBounds.startIso},created_at.lte.${toBounds.endIso})`,
+    `and(issued_at.gte.${fromBounds.startIso},issued_at.lte.${toBounds.endIso})`,
+  ].join(",")
+
   const [
     consultationRows,
-    certificatesByCreated,
-    certificatesByIssued,
+    certificateRows,
     ticketRows,
     healthAppointmentsInRange,
     legacyAppointmentsInRange,
@@ -194,33 +198,6 @@ export async function loadLiveReportsDataset(range?: {
       })
     ),
     fetchRelationOrEmpty(() =>
-      fetchAllRows((from, to) => {
-        let query = supabase
-          .from("medical_certificates")
-          .select(
-            `
-        id,
-        certificate_type,
-        doctor_name,
-        status,
-        issued_at,
-        created_at,
-        patients (
-          full_name,
-          student_id,
-          employee_id,
-          patient_type
-        )
-      `
-          )
-          .order("created_at", { ascending: true })
-          .order("id", { ascending: true })
-          .gte("created_at", fromBounds.startIso)
-          .lte("created_at", toBounds.endIso)
-        return query.range(from, to)
-      })
-    ),
-    fetchRelationOrEmpty(() =>
       fetchAllRows((from, to) =>
         supabase
           .from("medical_certificates")
@@ -240,9 +217,8 @@ export async function loadLiveReportsDataset(range?: {
         )
       `
           )
-          .gte("issued_at", fromBounds.startIso)
-          .lte("issued_at", toBounds.endIso)
-          .order("issued_at", { ascending: true })
+          .or(certWindowOr)
+          .order("created_at", { ascending: true })
           .order("id", { ascending: true })
           .range(from, to)
       )
@@ -540,8 +516,8 @@ export async function loadLiveReportsDataset(range?: {
     }
   })
 
-  const certById = new Map<string, (typeof certificatesByCreated)[number]>()
-  for (const row of [...certificatesByCreated, ...certificatesByIssued]) {
+  const certById = new Map<string, (typeof certificateRows)[number]>()
+  for (const row of certificateRows) {
     certById.set(row.id as string, row)
   }
 

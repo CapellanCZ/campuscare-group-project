@@ -60,6 +60,10 @@ import {
   getCachedDashboard,
   loadDashboardBundle,
 } from "@/features/dashboard/lib/prefetch-dashboard"
+import {
+  dashboardCacheKey,
+  staffCacheIsFresh,
+} from "@/lib/ui/staff-data-cache"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
 import { designationLabel, stationLabel } from "@/lib/health/roles"
@@ -153,9 +157,8 @@ export function RoleDashboard({
       : emptyDashboardBundle(access.designation))
 
   const [bundle, setBundle] = useState<DashboardPageBundle>(seed)
-  const [dataLoading, setDataLoading] = useState(
-    () => hydrateFromCache && !cached
-  )
+  // SSR / cache seed the UI; soft revalidate never blanks the dashboard.
+  const [dataLoading, setDataLoading] = useState(false)
   const hydratedRef = useRef(false)
 
   useEffect(() => {
@@ -164,17 +167,19 @@ export function RoleDashboard({
     const hit = getCachedDashboard(access.designation)
     if (hit) {
       applyBundle(setBundle, hit)
-      setDataLoading(false)
     }
-    // Soft revalidate never flips dataLoading — avoids skeleton flash on revisit.
-    void loadDashboardBundle(access.designation, { force: Boolean(hit) })
+    // Soft revalidate only when cache is stale — avoids duplicate server actions.
+    void loadDashboardBundle(access.designation, {
+      force:
+        Boolean(hit) && !staffCacheIsFresh(dashboardCacheKey(access.designation)),
+    })
       .then((next) => {
         applyBundle(setBundle, next)
         setDataLoading(false)
       })
       .catch((error) => {
         setDataLoading(false)
-        if (!hit) {
+        if (!hit && !initialKpis) {
           appToast.error({
             title: "Unable to load dashboard",
             description:
@@ -184,7 +189,7 @@ export function RoleDashboard({
           })
         }
       })
-  }, [access.designation, hydrateFromCache])
+  }, [access.designation, hydrateFromCache, initialKpis])
 
   useStaffRealtimeRefresh(
     `staff-dashboard-${access.designation}`,

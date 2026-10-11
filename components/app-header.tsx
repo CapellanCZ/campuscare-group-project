@@ -1,36 +1,17 @@
 "use client"
 
-import { usePathname } from "next/navigation"
-import { IconSettings } from "@tabler/icons-react"
-
 import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
-import { AppBreadcrumbs } from "@/components/app-breadcrumbs"
 import { CustomSidebarTrigger } from "@/components/custom-sidebar-trigger"
 import { DecorIcon } from "@/components/decor-icon"
-import { resolveActiveNav } from "@/components/app-shared"
 import { HeaderNotifications } from "@/components/header-notifications"
 import { NavUser } from "@/components/nav-user"
 import { OnBreakControl } from "@/components/availability/on-break-control"
 import { DutyStatusControl } from "@/components/availability/duty-status-control"
-import { useOptionalNavPending } from "@/components/dashboard/nav-pending"
 import { useOptionalStaffAccess } from "@/components/staff-access-provider"
-import { stripStaffBasePath } from "@/lib/auth/home-path"
 
 export function AppHeader() {
-  const pathname = usePathname()
-  const navPending = useOptionalNavPending()
-  // Prefer optimistic path so the title flips with the tab, not after RSC.
-  const headerPath = navPending?.activePath ?? pathname
   const access = useOptionalStaffAccess()
-  const activeItem = resolveActiveNav(headerPath, access?.primaryRole)
-  const relative = stripStaffBasePath(headerPath)
-  const page =
-    activeItem ??
-    (relative === "/settings" || relative.startsWith("/settings/")
-      ? { title: "Profile and Settings", icon: <IconSettings className="size-3.5" /> }
-      : undefined)
-
   const role = access?.primaryRole
 
   return (
@@ -43,13 +24,6 @@ export function AppHeader() {
       <DecorIcon className="hidden md:block" position="bottom-left" />
       <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
         <CustomSidebarTrigger />
-        <Separator
-          className="mr-1 hidden h-4 data-[orientation=vertical]:self-center sm:mr-2 sm:block"
-          orientation="vertical"
-        />
-        <div className="min-w-0 truncate">
-          <AppBreadcrumbs page={page} />
-        </div>
       </div>
       <div className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-3">
         {role ? (

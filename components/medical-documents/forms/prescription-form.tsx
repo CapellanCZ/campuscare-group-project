@@ -14,6 +14,12 @@ import {
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText,
+} from "@/components/ui/input-group"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 
@@ -193,7 +199,7 @@ export function PrescriptionForm({
         {medications.map((med, index) => (
           <div
             key={index}
-            className="space-y-3 rounded-xl border border-border/70 p-4"
+            className="space-y-3 border-t border-border/60 pt-3 first:border-t-0 first:pt-0"
           >
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium">Medication {index + 1}</p>
@@ -222,39 +228,67 @@ export function PrescriptionForm({
               </div>
               <div className="space-y-2">
                 <Label>Strength</Label>
-                <Input
-                  value={med.strength ?? ""}
-                  onChange={(e) =>
-                    updateMedication(index, { strength: e.target.value })
-                  }
-                />
+                <InputGroup>
+                  <InputGroupInput
+                    value={med.strength ?? ""}
+                    onChange={(e) =>
+                      updateMedication(index, { strength: e.target.value })
+                    }
+                    placeholder="e.g. 500"
+                    aria-label="Strength"
+                  />
+                  <InputGroupAddon align="inline-end">
+                    <InputGroupText>mg</InputGroupText>
+                  </InputGroupAddon>
+                </InputGroup>
               </div>
               <div className="space-y-2">
                 <Label>Quantity</Label>
-                <Input
-                  value={med.quantity ?? ""}
-                  onChange={(e) =>
-                    updateMedication(index, { quantity: e.target.value })
-                  }
-                />
+                <InputGroup>
+                  <InputGroupInput
+                    value={med.quantity ?? ""}
+                    onChange={(e) =>
+                      updateMedication(index, { quantity: e.target.value })
+                    }
+                    placeholder="e.g. 20"
+                    aria-label="Quantity"
+                  />
+                  <InputGroupAddon align="inline-end">
+                    <InputGroupText>pcs</InputGroupText>
+                  </InputGroupAddon>
+                </InputGroup>
               </div>
               <div className="space-y-2">
                 <Label>Frequency</Label>
-                <Input
-                  value={med.frequency ?? ""}
-                  onChange={(e) =>
-                    updateMedication(index, { frequency: e.target.value })
-                  }
-                />
+                <InputGroup>
+                  <InputGroupInput
+                    value={med.frequency ?? ""}
+                    onChange={(e) =>
+                      updateMedication(index, { frequency: e.target.value })
+                    }
+                    placeholder="e.g. every 8"
+                    aria-label="Frequency"
+                  />
+                  <InputGroupAddon align="inline-end">
+                    <InputGroupText>hrs</InputGroupText>
+                  </InputGroupAddon>
+                </InputGroup>
               </div>
               <div className="space-y-2">
                 <Label>Duration</Label>
-                <Input
-                  value={med.duration ?? ""}
-                  onChange={(e) =>
-                    updateMedication(index, { duration: e.target.value })
-                  }
-                />
+                <InputGroup>
+                  <InputGroupInput
+                    value={med.duration ?? ""}
+                    onChange={(e) =>
+                      updateMedication(index, { duration: e.target.value })
+                    }
+                    placeholder="e.g. 7"
+                    aria-label="Duration"
+                  />
+                  <InputGroupAddon align="inline-end">
+                    <InputGroupText>days</InputGroupText>
+                  </InputGroupAddon>
+                </InputGroup>
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <Label>Instructions</Label>

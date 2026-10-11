@@ -22,6 +22,7 @@ import {
 } from "@/components/app-shared"
 import { CampusCareLogo } from "@/components/campuscare-logo"
 import { useOptionalNavPending } from "@/components/dashboard/nav-pending"
+import { warmStaffRouteData } from "@/components/nav-warm"
 import { useStaffAccess } from "@/components/staff-access-provider"
 import { staffBasePath } from "@/lib/auth/home-path"
 
@@ -36,6 +37,18 @@ export function AppSidebar() {
   const closeMobile = () => {
     if (isMobile) setOpenMobile(false)
   }
+  const warm = (href: string) => {
+    navPending?.prefetch(href)
+    if (
+      role === "nurse" ||
+      role === "physician" ||
+      role === "dentist" ||
+      role === "admin"
+    ) {
+      void warmStaffRouteData(href, role)
+    }
+  }
+
   const onNavClick = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
     if (
       event.metaKey ||
@@ -52,6 +65,7 @@ export function AppSidebar() {
       return
     }
     navPending?.markPending(href)
+    warm(href)
     closeMobile()
   }
 
@@ -75,7 +89,8 @@ export function AppSidebar() {
             <Link
               href={base}
               onClick={(event) => onNavClick(event, base)}
-              onMouseEnter={() => navPending?.prefetch(base)}
+              onMouseEnter={() => warm(base)}
+              onFocus={() => warm(base)}
             />
           }
         >
@@ -103,9 +118,8 @@ export function AppSidebar() {
                       onClick={(event) =>
                         onNavClick(event, item.path ?? base)
                       }
-                      onMouseEnter={() =>
-                        navPending?.prefetch(item.path ?? base)
-                      }
+                      onMouseEnter={() => warm(item.path ?? base)}
+                      onFocus={() => warm(item.path ?? base)}
                     />
                   }
                 >

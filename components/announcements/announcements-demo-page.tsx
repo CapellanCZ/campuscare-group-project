@@ -59,6 +59,10 @@ import {
   loadAnnouncementsBundle,
 } from "@/features/announcements/lib/prefetch-announcements"
 import {
+  announcementsCacheKey,
+  staffCacheIsFresh,
+} from "@/lib/ui/staff-data-cache"
+import {
   announcementStatusLabel,
   formatAnnouncementDateTime,
 } from "@/features/announcements/lib/format"
@@ -174,13 +178,7 @@ export function AnnouncementsPage({
   const [feed, setFeed] = useState(cached?.feed ?? initialFeed)
   const [list, setList] = useState(cached?.list ?? initialList)
   const [stats, setStats] = useState(cached?.stats ?? initialStats)
-  const [loading, setLoading] = useState(
-    () =>
-      hydrateFromCache &&
-      !cached &&
-      initialFeed.items.length === 0 &&
-      initialList.items.length === 0
-  )
+  const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<Announcement | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [articleOpen, setArticleOpen] = useState(false)
@@ -353,7 +351,11 @@ export function AnnouncementsPage({
       setStats(hit.stats)
       setLoading(false)
     }
-    void loadAnnouncementsBundle(access.designation, { force: Boolean(hit) })
+    void loadAnnouncementsBundle(access.designation, {
+      force:
+        Boolean(hit) &&
+        !staffCacheIsFresh(announcementsCacheKey(access.designation)),
+    })
       .then((bundle) => {
         setFeed(bundle.feed)
         setList(bundle.list)
@@ -362,7 +364,7 @@ export function AnnouncementsPage({
       })
       .catch(() => {
         setLoading(false)
-        if (!hit) void loadPage("", 1, "all")
+        if (!hit) void loadPage("", 1, "all", { silent: true })
       })
   }, [access.designation, hydrateFromCache, loadPage])
 

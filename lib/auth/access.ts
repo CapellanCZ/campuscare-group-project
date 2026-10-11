@@ -1,4 +1,5 @@
 import { cache } from "react"
+import { cookies } from "next/headers"
 
 import { hasCampusAccess } from "@/lib/auth/campus-access"
 import {
@@ -6,6 +7,10 @@ import {
   hasApprovedClinicAccess,
   resolveClinicRole,
 } from "@/lib/auth/resolve-role"
+import {
+  decodeStaffAccessGate,
+  STAFF_ACCESS_GATE_COOKIE,
+} from "@/lib/auth/staff-access-gate"
 import type { StaffAccess } from "@/lib/auth/types"
 import { isStaleRefreshTokenError } from "@/lib/supabase/auth-errors"
 import { createClient } from "@/lib/supabase/server"
@@ -54,11 +59,27 @@ async function loadStaffAccess(): Promise<StaffAccess | null> {
     return null
   }
 
-  const hasClinicMembership = await hasCampusAccess(
-    supabase,
-    user.id,
-    row.primary_role
-  )
+  // Prefer proxy-issued gate cookie (same navigation) to skip a second membership query.
+  let hasClinicMembership: boolean | null = null
+  try {
+    const jar = await cookies()
+    const gate = await decodeStaffAccessGate(
+      jar.get(STAFF_ACCESS_GATE_COOKIE)?.value
+    )
+    if (gate && gate.u === user.id && gate.r === clinicRole) {
+      hasClinicMembership = gate.m === 1
+    }
+  } catch {
+    // cookies() can throw outside a request context; fall through to DB.
+  }
+
+  if (hasClinicMembership == null) {
+    hasClinicMembership = await hasCampusAccess(
+      supabase,
+      user.id,
+      row.primary_role
+    )
+  }
 
   if (!hasApprovedClinicAccess(row)) {
     return null

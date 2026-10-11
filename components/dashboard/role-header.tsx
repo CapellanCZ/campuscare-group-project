@@ -1,16 +1,8 @@
 "use client"
 
 import { HeaderNotifications } from "@/components/header-notifications"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-} from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
 import { NavUser } from "@/components/nav-user"
-import { useNavPending } from "@/components/dashboard/nav-pending"
-import { resolveRoleNavItem } from "@/lib/navigation/role-nav"
 import type { WebRole } from "@/lib/auth/types"
 
 type RoleHeaderProps = {
@@ -21,28 +13,9 @@ type RoleHeaderProps = {
   profileHref?: string
 }
 
-export function RoleHeader({ role }: RoleHeaderProps) {
-  const { activePath } = useNavPending()
-  const currentPage = resolveRoleNavItem(role, activePath)
-  const PageIcon = currentPage.icon
-
+export function RoleHeader(_props: RoleHeaderProps) {
   return (
-    <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between gap-3 border-b bg-background/95 px-4 backdrop-blur-md md:px-6">
-      <div className="flex min-w-0 items-center gap-3">
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem className="gap-2">
-              {PageIcon ? (
-                <PageIcon className="size-4 text-foreground/70" aria-hidden />
-              ) : null}
-              <BreadcrumbPage className="truncate text-sm font-medium">
-                {currentPage.title}
-              </BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-      </div>
-
+    <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center justify-end gap-3 border-b bg-background/95 px-4 backdrop-blur-md md:px-6">
       <div className="flex shrink-0 items-center gap-3">
         <HeaderNotifications />
         <Separator

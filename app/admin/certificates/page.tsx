@@ -1,1 +1,1 @@
-﻿export { StaffCertificatesPage as default } from "@/lib/staff/route-pages"
+export { StaffCertificatesPage as default } from "@/lib/staff/pages/certificates"

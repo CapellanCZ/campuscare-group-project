@@ -2,21 +2,17 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 
 import { AuthPage } from "@/components/auth/auth-page"
-import { getSiteUrl } from "@/lib/landing/seo"
+import { getSiteUrl, privateSurfaceMetadata } from "@/lib/landing/seo"
 import { siteRoutes } from "@/lib/site/routes"
 
 const siteUrl = getSiteUrl()
 
 export const metadata: Metadata = {
-  title: "Sign in",
+  ...privateSurfaceMetadata,
   description:
     "Sign in to CampusCare with your campus email to access NU Dasmariñas Health Services tools.",
   alternates: {
     canonical: `${siteUrl}${siteRoutes.login}`,
-  },
-  robots: {
-    index: true,
-    follow: true,
   },
   openGraph: {
     title: "Sign in · CampusCare",

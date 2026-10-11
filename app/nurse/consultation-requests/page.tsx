@@ -1,1 +1,1 @@
-export { StaffRequestsPage as default } from "@/lib/staff/route-pages"
+export { StaffRequestsPage as default } from "@/lib/staff/pages/requests"

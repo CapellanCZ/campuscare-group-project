@@ -66,29 +66,79 @@ const TICKET_SELECT = `
   )
 `
 
+/** Cap completed-today rows so a busy clinic day does not pull unbounded history. */
+const COMPLETED_TODAY_LIMIT = 80
+
+function isMissingQueueTable(error: { message: string }): boolean {
+  const msg = error.message.toLowerCase()
+  return (
+    msg.includes("schema cache") ||
+    msg.includes("does not exist") ||
+    msg.includes("could not find the table")
+  )
+}
+
 async function fetchJoinedTickets(): Promise<QueueTicketRow[]> {
   const supabase = await createClient()
-  const { startIso } = manilaDayBounds()
+  const { startIso, ymd } = manilaDayBounds()
 
-  const { data: tickets, error } = await supabase
-    .from("health_queue_tickets")
-    .select(TICKET_SELECT)
-    .or(`created_at.gte.${startIso},status.in.(waiting,called,ongoing,no_show)`)
-    .order("queue_position", { ascending: true })
+  // Live ops for today's service date only + completed-today for KPIs.
+  // Future-dated approved appointments stay on Consultations until their day.
+  const [liveResult, legacyLiveResult, completedResult] = await Promise.all([
+    supabase
+      .from("health_queue_tickets")
+      .select(TICKET_SELECT)
+      .in("status", ["waiting", "called", "ongoing", "no_show"])
+      .eq("service_date", ymd)
+      .order("queue_position", { ascending: true }),
+    // Legacy rows without service_date: only include if created today (Manila).
+    supabase
+      .from("health_queue_tickets")
+      .select(TICKET_SELECT)
+      .in("status", ["waiting", "called", "ongoing", "no_show"])
+      .is("service_date", null)
+      .gte("created_at", startIso)
+      .order("queue_position", { ascending: true }),
+    supabase
+      .from("health_queue_tickets")
+      .select(TICKET_SELECT)
+      .eq("status", "completed")
+      .or(`service_date.eq.${ymd},and(service_date.is.null,created_at.gte.${startIso})`)
+      .order("updated_at", { ascending: false })
+      .limit(COMPLETED_TODAY_LIMIT),
+  ])
 
-  if (error) {
-    const msg = error.message.toLowerCase()
-    if (
-      msg.includes("schema cache") ||
-      msg.includes("does not exist") ||
-      msg.includes("could not find the table")
-    ) {
-      return []
-    }
-    throw new Error(error.message)
+  if (liveResult.error) {
+    if (isMissingQueueTable(liveResult.error)) return []
+    throw new Error(liveResult.error.message)
+  }
+  if (legacyLiveResult.error) {
+    if (isMissingQueueTable(legacyLiveResult.error)) return []
+    throw new Error(legacyLiveResult.error.message)
+  }
+  if (completedResult.error) {
+    if (isMissingQueueTable(completedResult.error)) return []
+    throw new Error(completedResult.error.message)
   }
 
-  const rawTickets = (tickets ?? []) as unknown as RawQueueTicket[]
+  const byId = new Map<string, RawQueueTicket>()
+  for (const row of (liveResult.data ?? []) as unknown as RawQueueTicket[]) {
+    byId.set(String(row.id), row)
+  }
+  for (const row of (legacyLiveResult.data ?? []) as unknown as RawQueueTicket[]) {
+    byId.set(String(row.id), row)
+  }
+  for (const row of (completedResult.data ?? []) as unknown as RawQueueTicket[]) {
+    const id = String(row.id)
+    if (!byId.has(id)) byId.set(id, row)
+  }
+
+  const rawTickets = [...byId.values()].sort((a, b) => {
+    const ap = Number(a.queue_position ?? 0)
+    const bp = Number(b.queue_position ?? 0)
+    return ap - bp
+  })
+
   const accountLabels = await resolveAccountLabelsForNotes(
     supabase,
     rawTickets

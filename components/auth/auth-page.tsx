@@ -8,8 +8,8 @@ import { IconChevronLeft } from "@tabler/icons-react"
 import { AuthActivateStep } from "@/components/auth/auth-activate-step"
 import { AuthEmailStep } from "@/components/auth/auth-email-step"
 import { AuthOtpStep } from "@/components/auth/auth-otp-step"
+import { LoginClinicPreview } from "@/components/auth/login-clinic-preview"
 import { CampusCareLogoStatic } from "@/components/campuscare-logo-static"
-import { FloatingPaths } from "@/components/floating-paths"
 import { Button } from "@/components/ui/button"
 import {
   RESEND_COOLDOWN_SECONDS,
@@ -33,20 +33,22 @@ export function AuthPage() {
   const [otp, setOtp] = useState("")
   const [emailError, setEmailError] = useState<string | null>(null)
   const [otpError, setOtpError] = useState<string | null>(null)
-  const [emailNotice, setEmailNotice] = useState<string | null>(null)
+  /** `undefined` = derive from `?activated=1`; otherwise explicit notice/clear. */
+  const [emailNoticeOverride, setEmailNoticeOverride] = useState<
+    string | null | undefined
+  >(undefined)
   const [isSendingOtp, setIsSendingOtp] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
   const [resendSeconds, setResendSeconds] = useState(0)
   const displayLoginClicks = useRef(0)
   const displayLoginTimer = useRef<number | null>(null)
 
-  useEffect(() => {
-    if (searchParams.get("activated") === "1") {
-      setEmailNotice(
-        "Your account is activated. Enter your email to receive a one-time code."
-      )
-    }
-  }, [searchParams])
+  const emailNotice =
+    emailNoticeOverride !== undefined
+      ? emailNoticeOverride
+      : searchParams.get("activated") === "1"
+        ? "Your account is activated. Enter your email to receive a one-time code."
+        : null
 
   useEffect(() => {
     if (resendSeconds <= 0) return
@@ -73,7 +75,6 @@ export function AuthPage() {
     }
     if (displayLoginClicks.current >= DISPLAY_LOGIN_CLICKS_REQUIRED) {
       displayLoginClicks.current = 0
-      // Hard navigation so an existing staff session cannot soft-redirect away.
       window.location.assign("/display-login")
       return
     }
@@ -128,7 +129,7 @@ export function AuthPage() {
 
     setEmail(trimmedEmail)
     setOtp("")
-    setEmailNotice(null)
+    setEmailNoticeOverride(null)
     setStep("otp")
     setResendSeconds(RESEND_COOLDOWN_SECONDS)
   }
@@ -154,9 +155,6 @@ export function AuthPage() {
       }
 
       markSessionStarted(window.sessionStorage, Date.now())
-
-      // Hard navigation avoids leaving this screen stuck on "Verifying..."
-      // while /auth/continue resolves the role home.
       window.location.assign("/auth/continue")
     } catch {
       setOtpError("Could not verify that code.")
@@ -173,112 +171,85 @@ export function AuthPage() {
   }
 
   return (
-    <main className="relative md:h-screen md:overflow-hidden lg:grid lg:grid-cols-2">
-      <div className="relative hidden h-full flex-col border-r bg-secondary p-10 lg:flex dark:bg-secondary/20">
-        <div className="absolute inset-0 bg-linear-to-b from-transparent via-transparent to-background" />
-        <button
-          type="button"
-          onClick={handleDisplayLoginSecret}
-          className="relative z-10 mr-auto cursor-default border-0 bg-transparent p-0"
-          aria-label="CampusCare"
-        >
-          <CampusCareLogoStatic
-            variant="blue"
-            alt="CampusCare"
-            className="h-10 w-auto"
-            width={160}
-            priority
-          />
-        </button>
-
-        <div className="z-10 mt-auto">
-          <blockquote className="space-y-2">
-            <p className="text-xl">
-              &ldquo;I&apos;m a bulldog. I refuse to lose, and I&apos;m always
-              going to compete. I guarantee I&apos;m going to give everything I
-              can.&rdquo;
-            </p>
-            <footer className="font-mono text-sm font-semibold">
-              ~ Jason Place
-            </footer>
-          </blockquote>
-        </div>
-        <div className="absolute inset-0">
-          <FloatingPaths position={1} />
-          <FloatingPaths position={-1} />
-        </div>
-      </div>
-
-      <div className="relative flex min-h-screen flex-col justify-center px-8">
-        <div
-          aria-hidden
-          className="absolute inset-0 isolate -z-10 opacity-60 contain-strict"
-        >
-          <div className="absolute top-0 right-0 h-320 w-140 -translate-y-87.5 rounded-full bg-[radial-gradient(68.54%_68.72%_at_55.02%_31.46%,--theme(--color-foreground/.06)_0,hsla(0,0%,55%,.02)_50%,--theme(--color-foreground/.01)_80%)]" />
-          <div className="absolute top-0 right-0 h-320 w-60 [translate:5%_-50%] rounded-full bg-[radial-gradient(50%_50%_at_50%_50%,--theme(--color-foreground/.04)_0,--theme(--color-foreground/.01)_80%,transparent_100%)]" />
-          <div className="absolute top-0 right-0 h-320 w-60 -translate-y-87.5 rounded-full bg-[radial-gradient(50%_50%_at_50%_50%,--theme(--color-foreground/.04)_0,--theme(--color-foreground/.01)_80%,transparent_100%)]" />
-        </div>
-
+    <main className="min-h-screen bg-white lg:grid lg:grid-cols-2">
+      <div className="relative flex min-h-screen flex-col px-6 py-8 sm:px-10 lg:px-14">
         {step !== "activate" ? (
           <Button
-            className="absolute top-7 left-5"
+            className="absolute top-6 left-4 text-slate-600 sm:left-8"
             variant="ghost"
             render={<Link href={siteRoutes.home} />}
             nativeButton={false}
           >
             <IconChevronLeft data-icon="inline-start" />
-            Home
+            Back to home
           </Button>
         ) : null}
 
-        <div className="mx-auto w-full max-w-sm space-y-4">
-          {step === "email" ? (
-            <AuthEmailStep
-              email={email}
-              emailError={emailError}
-              emailNotice={emailNotice}
-              isSendingOtp={isSendingOtp}
-              onEmailChange={(value) => {
-                setEmail(value)
-                if (emailError) setEmailError(null)
-              }}
-              onSendOtp={handleSendOtp}
+        <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center space-y-8 pt-12 lg:pt-0">
+          <button
+            type="button"
+            onClick={handleDisplayLoginSecret}
+            className="mr-auto cursor-default border-0 bg-transparent p-0"
+            aria-label="CampusCare"
+          >
+            <CampusCareLogoStatic
+              variant="blue"
+              alt="CampusCare"
+              className="h-9 w-auto"
+              width={140}
+              priority
             />
-          ) : null}
+          </button>
 
-          {step === "otp" ? (
-            <AuthOtpStep
-              email={email}
-              otp={otp}
-              otpError={otpError}
-              otpNotice={null}
-              isVerifying={isVerifying}
-              isResending={isSendingOtp}
-              resendSeconds={resendSeconds}
-              onOtpChange={(value) => {
-                setOtp(value)
-                if (otpError) setOtpError(null)
-              }}
-              onVerify={handleVerifyOtp}
-              onResend={handleResendOtp}
-              onBackToEmail={handleBackToEmail}
-            />
-          ) : null}
+          <div className="space-y-6">
+            {step === "email" ? (
+              <AuthEmailStep
+                email={email}
+                emailError={emailError}
+                emailNotice={emailNotice}
+                isSendingOtp={isSendingOtp}
+                onEmailChange={(value) => {
+                  setEmail(value)
+                  if (emailError) setEmailError(null)
+                }}
+                onSendOtp={handleSendOtp}
+              />
+            ) : null}
 
-          {step === "activate" ? <AuthActivateStep /> : null}
+            {step === "otp" ? (
+              <AuthOtpStep
+                email={email}
+                otp={otp}
+                otpError={otpError}
+                otpNotice={null}
+                isVerifying={isVerifying}
+                isResending={isSendingOtp}
+                resendSeconds={resendSeconds}
+                onOtpChange={(value) => {
+                  setOtp(value)
+                  if (otpError) setOtpError(null)
+                }}
+                onVerify={handleVerifyOtp}
+                onResend={handleResendOtp}
+                onBackToEmail={handleBackToEmail}
+              />
+            ) : null}
+
+            {step === "activate" ? <AuthActivateStep /> : null}
+          </div>
 
           {step !== "activate" ? (
-            <p className="mt-8 text-sm text-muted-foreground">
-              By clicking continue, you agree to our{" "}
+            <p className="text-sm text-slate-500">
+              By continuing, you agree to our{" "}
               <Link
-                className="underline underline-offset-4 hover:text-primary"
+                className="font-medium text-blue-600 underline-offset-4 hover:underline"
                 href={siteRoutes.terms}
               >
                 Terms of Use
               </Link>{" "}
               and{" "}
               <Link
-                className="underline underline-offset-4 hover:text-primary"
+                className="font-medium text-blue-600 underline-offset-4 hover:underline"
                 href={siteRoutes.privacy}
               >
                 Privacy Policy
@@ -288,6 +259,10 @@ export function AuthPage() {
           ) : null}
         </div>
       </div>
+
+      <aside className="relative hidden overflow-hidden bg-gradient-to-br from-blue-600 via-blue-700 to-sky-700 lg:block">
+        <LoginClinicPreview />
+      </aside>
     </main>
   )
 }

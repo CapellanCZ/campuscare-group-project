@@ -43,12 +43,34 @@ const HISTORY_FLAGS: {
   { key: "kidneyDisease", label: "Kidney Disease" },
 ]
 
-const PE_SYSTEMS = [
-  ["skin", "Skin"],
-  ["eyesOd", "Eyes (O.D)"],
-  ["eyesOs", "Eyes (O.S)"],
-  ["earsAd", "Ears (A.D)"],
-  ["earsAs", "Ears (A.S)"],
+const PE_SIDE_PAIRS = [
+  {
+    right: {
+      key: "eyesOd" as const,
+      label: "Eyes (O.D)",
+      side: "Right",
+    },
+    left: {
+      key: "eyesOs" as const,
+      label: "Eyes (O.S)",
+      side: "Left",
+    },
+  },
+  {
+    right: {
+      key: "earsAd" as const,
+      label: "Ears (A.D)",
+      side: "Right",
+    },
+    left: {
+      key: "earsAs" as const,
+      label: "Ears (A.S)",
+      side: "Left",
+    },
+  },
+]
+
+const PE_SINGLE_SYSTEMS = [
   ["nose", "Nose"],
   ["throat", "Throat"],
   ["neck", "Neck"],
@@ -58,7 +80,6 @@ const PE_SYSTEMS = [
   ["abdomen", "Abdomen"],
   ["extremities", "Extremities"],
   ["deformities", "Deformities"],
-  ["otherPertinentFindings", "Other Pertinent Findings"],
 ] as const
 
 function ReadOnly({
@@ -176,11 +197,15 @@ export function VisitMedicalChart({
     <Card
       className={cn(
         paperLayout
-          ? "rounded-none border-0 border-b border-neutral-300 bg-transparent shadow-none"
+          ? "rounded-none border-0 bg-transparent py-0 shadow-none ring-0 [--card-spacing:0px]"
           : "rounded-2xl border-border/70 shadow-sm"
       )}
     >
-      <CardHeader className={cn(paperLayout ? "px-0 pt-0" : "border-b")}>
+      <CardHeader
+        className={cn(
+          paperLayout ? "gap-1 px-0 pt-0" : "border-b"
+        )}
+      >
         <CardTitle
           className={cn(
             paperLayout
@@ -317,8 +342,62 @@ export function VisitMedicalChart({
             Physical Examination
           </h3>
           <FieldGroup className="gap-5">
+            <Field className="gap-2.5">
+              <FieldLabel htmlFor="visit-pe-skin">Skin</FieldLabel>
+              <Input
+                id="visit-pe-skin"
+                value={exam.skin}
+                disabled={readOnly}
+                onChange={(e) => setExamField("skin", e.target.value)}
+              />
+            </Field>
+
+            {PE_SIDE_PAIRS.map((pair) => (
+              <div
+                key={pair.right.key}
+                className="grid gap-5 sm:grid-cols-2"
+              >
+                {/* Left side of form = sinistra (O.S / A.S) */}
+                <Field className="gap-2.5">
+                  <FieldLabel htmlFor={`visit-pe-${pair.left.key}`}>
+                    {pair.left.label}
+                    <span className="font-normal text-muted-foreground">
+                      {" "}
+                      · {pair.left.side}
+                    </span>
+                  </FieldLabel>
+                  <Input
+                    id={`visit-pe-${pair.left.key}`}
+                    value={exam[pair.left.key]}
+                    disabled={readOnly}
+                    onChange={(e) =>
+                      setExamField(pair.left.key, e.target.value)
+                    }
+                  />
+                </Field>
+                {/* Right side of form = dextra (O.D / A.D) */}
+                <Field className="gap-2.5">
+                  <FieldLabel htmlFor={`visit-pe-${pair.right.key}`}>
+                    {pair.right.label}
+                    <span className="font-normal text-muted-foreground">
+                      {" "}
+                      · {pair.right.side}
+                    </span>
+                  </FieldLabel>
+                  <Input
+                    id={`visit-pe-${pair.right.key}`}
+                    value={exam[pair.right.key]}
+                    disabled={readOnly}
+                    onChange={(e) =>
+                      setExamField(pair.right.key, e.target.value)
+                    }
+                  />
+                </Field>
+              </div>
+            ))}
+
             <div className="grid gap-5 sm:grid-cols-2">
-              {PE_SYSTEMS.map(([key, label]) => (
+              {PE_SINGLE_SYSTEMS.map(([key, label]) => (
                 <Field key={key} className="gap-2.5">
                   <FieldLabel htmlFor={`visit-pe-${key}`}>{label}</FieldLabel>
                   <Input
@@ -330,6 +409,20 @@ export function VisitMedicalChart({
                 </Field>
               ))}
             </div>
+
+            <Field className="gap-2.5">
+              <FieldLabel htmlFor="visit-pe-otherPertinentFindings">
+                Other Pertinent Findings
+              </FieldLabel>
+              <Input
+                id="visit-pe-otherPertinentFindings"
+                value={exam.otherPertinentFindings}
+                disabled={readOnly}
+                onChange={(e) =>
+                  setExamField("otherPertinentFindings", e.target.value)
+                }
+              />
+            </Field>
           </FieldGroup>
         </section>
 

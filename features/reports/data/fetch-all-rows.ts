@@ -9,8 +9,11 @@ type PageResult<T> = {
 
 /** PostgREST returns at most 1000 rows unless the query is paged with range(). */
 export const REPORTS_PAGE_SIZE = 1000
-/** Cap interactive report loads (period-scoped queries should stay well under this). */
-const REPORTS_MAX_ROWS = 12_000
+/**
+ * Cap interactive report loads. Charts/KPIs use period filters; health-case
+ * free-text ranking stays row-based, so keep a hard ceiling for nav latency.
+ */
+const REPORTS_MAX_ROWS = 4_000
 
 export async function fetchAllRows<T>(
   fetchPage: (from: number, to: number) => PromiseLike<PageResult<T>>,
