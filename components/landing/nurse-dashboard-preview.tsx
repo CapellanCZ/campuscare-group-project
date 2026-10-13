@@ -16,7 +16,6 @@ import {
 } from "@tabler/icons-react"
 
 import { NurseDashboardView } from "@/components/dashboard/nurse-dashboard-view"
-import { LandingLogo } from "@/components/landing/landing-logo"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
 import type {
@@ -318,9 +317,7 @@ export function NurseDashboardPreview({
     <div
       className={cn(
         "relative min-w-0",
-        edge
-          ? "w-full lg:ml-auto lg:w-[min(68vw,62rem)] lg:max-w-none"
-          : "w-full",
+        "w-full",
         className
       )}
     >
@@ -371,13 +368,7 @@ export function NurseDashboardPreview({
 
         <div className="flex h-[min(36rem,70vh)] min-h-[28rem] sm:h-[min(40rem,74vh)]">
           <aside className="hidden w-[11.5rem] shrink-0 flex-col border-r border-slate-200/80 bg-white p-3 md:flex lg:w-52">
-            <div className="mb-4 flex items-center gap-2 px-1">
-              <LandingLogo alt="" className="h-7 w-auto lg:h-7" />
-              <span className="truncate text-sm font-bold tracking-tight text-slate-900">
-                CampusCare
-              </span>
-            </div>
-            <nav className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
+            <nav className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden pt-1">
               {navGroups.map((group) => (
                 <div key={group.label} className="space-y-1">
                   <p className="px-2 text-[10px] font-semibold tracking-[0.12em] text-slate-400 uppercase">

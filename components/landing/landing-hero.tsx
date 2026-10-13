@@ -22,8 +22,8 @@ export function LandingHero() {
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_420px_at_15%_0%,rgba(59,130,246,0.12),transparent_55%),radial-gradient(700px_360px_at_90%_10%,rgba(14,165,233,0.1),transparent_50%)]"
       />
 
-      <div className="relative flex w-full flex-col items-center gap-10 lg:flex-row lg:items-center lg:gap-0 lg:pl-[max(1rem,calc((100%-80rem)/2+1rem))] lg:pr-0">
-        <div className="flex w-full min-w-0 max-w-xl flex-col items-start px-4 text-left sm:px-6 lg:max-w-[28rem] lg:shrink-0 xl:max-w-[32rem] xl:pr-10">
+      <div className="relative flex w-full flex-col items-center gap-10 lg:flex-row lg:items-center lg:gap-0 lg:pr-0">
+        <div className="flex w-full min-w-0 max-w-xl flex-col items-start px-4 text-left sm:px-6 lg:w-1/2 lg:max-w-none lg:shrink-0 lg:pl-[max(1rem,calc((100%-80rem)/2+1rem))] lg:pr-10 xl:pr-14">
           <p className="inline-flex max-w-full items-start gap-2 rounded-full bg-blue-50 px-3.5 py-1.5 text-left text-xs font-medium text-blue-700 sm:items-center sm:px-5 sm:py-2 sm:text-sm md:text-base">
             <IconActivity
               className="mt-0.5 size-4 shrink-0 sm:mt-0 sm:size-5"
@@ -69,7 +69,7 @@ export function LandingHero() {
           </div>
         </div>
 
-        <div className="w-full min-w-0 px-4 sm:px-6 lg:flex-1 lg:flex lg:justify-end lg:self-stretch lg:px-0 lg:pl-6">
+        <div className="w-full min-w-0 px-4 sm:px-6 lg:w-1/2 lg:self-stretch lg:px-0">
           <NurseDashboardPreview edge priority />
         </div>
       </div>

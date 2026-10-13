@@ -19,8 +19,8 @@ export function LandingFeatures() {
         "scroll-mt-20 overflow-x-clip border-b border-slate-200/80 bg-slate-50/80"
       )}
     >
-      <div className="relative flex w-full flex-col items-center gap-10 lg:flex-row lg:items-center lg:gap-0 lg:pl-[max(1rem,calc((100%-80rem)/2+1rem))] lg:pr-0">
-        <div className="w-full min-w-0 max-w-xl space-y-5 px-4 text-left sm:space-y-6 sm:px-6 lg:max-w-[28rem] lg:shrink-0 xl:max-w-[32rem] xl:pr-10">
+      <div className="relative flex w-full flex-col items-center gap-10 lg:flex-row lg:items-center lg:gap-0 lg:pr-0">
+        <div className="w-full min-w-0 max-w-xl space-y-5 px-4 text-left sm:space-y-6 sm:px-6 lg:w-1/2 lg:max-w-none lg:shrink-0 lg:pl-[max(1rem,calc((100%-80rem)/2+1rem))] lg:pr-10 xl:pr-14">
           <Reveal>
             <span className="inline-flex size-12 items-center justify-center rounded-full bg-blue-50 text-blue-600 sm:size-14">
               <IconStack2 className="size-6 sm:size-7" aria-hidden />
@@ -58,7 +58,7 @@ export function LandingFeatures() {
 
         <Reveal
           delay={0.1}
-          className="w-full min-w-0 px-4 sm:px-6 lg:flex-1 lg:flex lg:justify-end lg:self-stretch lg:px-0 lg:pl-6"
+          className="w-full min-w-0 px-4 sm:px-6 lg:w-1/2 lg:self-stretch lg:px-0"
         >
           <NurseDashboardPreview edge />
         </Reveal>
