@@ -24,7 +24,7 @@ export function LandingHowItWorks() {
       id="how-it-works"
       className="scroll-mt-20 border-b border-border/60"
     >
-      <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 md:py-24">
+      <div className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 sm:py-16 md:py-24">
         <div className="mx-auto max-w-2xl space-y-3 text-center">
           <Reveal>
             <p className="text-sm font-semibold tracking-wide text-primary uppercase">
@@ -32,7 +32,7 @@ export function LandingHowItWorks() {
             </p>
           </Reveal>
           <Reveal delay={0.06}>
-            <h2 className="text-balance text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            <h2 className="text-balance text-2xl font-bold tracking-tight text-foreground sm:text-3xl md:text-4xl">
               From request to completed consultation
             </h2>
           </Reveal>

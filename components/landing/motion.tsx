@@ -4,10 +4,10 @@ import { useEffect, useState, type ReactNode } from "react"
 import {
   AnimatePresence,
   motion,
-  useReducedMotion,
   type HTMLMotionProps,
 } from "motion/react"
 
+import { useMotionReady } from "@/components/landing/use-motion-ready"
 import { cn } from "@/lib/utils"
 
 export { scrollToId } from "@/components/landing/scroll-to-id"
@@ -18,15 +18,19 @@ type RevealProps = HTMLMotionProps<"div"> & {
   delay?: number
 }
 
+/**
+ * SSR and the first client paint must match: never branch on
+ * `useReducedMotion()` until after mount (`useMotionReady`).
+ */
 export function Reveal({
   children,
   className,
   delay = 0,
   ...props
 }: RevealProps) {
-  const reduceMotion = useReducedMotion()
+  const { allowMotion } = useMotionReady()
 
-  if (reduceMotion) {
+  if (!allowMotion) {
     return <div className={className}>{children}</div>
   }
 
@@ -53,9 +57,9 @@ export function ScrollFadeSection({
   className?: string
   id?: string
 }) {
-  const reduceMotion = useReducedMotion()
+  const { allowMotion } = useMotionReady()
 
-  if (reduceMotion) {
+  if (!allowMotion) {
     return (
       <section id={id} className={className}>
         {children}
@@ -85,17 +89,17 @@ export function TextRotator({
   className?: string
 }) {
   const [index, setIndex] = useState(0)
-  const reduceMotion = useReducedMotion()
+  const { allowMotion } = useMotionReady()
 
   useEffect(() => {
-    if (reduceMotion || phrases.length < 2) return
+    if (!allowMotion || phrases.length < 2) return
     const timer = window.setInterval(() => {
       setIndex((current) => (current + 1) % phrases.length)
     }, 3200)
     return () => window.clearInterval(timer)
-  }, [phrases.length, reduceMotion])
+  }, [allowMotion, phrases.length])
 
-  if (reduceMotion) {
+  if (!allowMotion) {
     return <p className={className}>{phrases[0]}</p>
   }
 
@@ -124,9 +128,9 @@ export function FloatingOrb({
   className?: string
   duration?: number
 }) {
-  const reduceMotion = useReducedMotion()
+  const { allowMotion } = useMotionReady()
 
-  if (reduceMotion) {
+  if (!allowMotion) {
     return <div aria-hidden className={cn("absolute rounded-full", className)} />
   }
 
@@ -151,9 +155,9 @@ export function Float({
   duration?: number
   y?: number
 }) {
-  const reduceMotion = useReducedMotion()
+  const { allowMotion } = useMotionReady()
 
-  if (reduceMotion) {
+  if (!allowMotion) {
     return <div className={className}>{children}</div>
   }
 

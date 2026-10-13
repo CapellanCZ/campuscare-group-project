@@ -4,12 +4,12 @@ import { aboutCopy } from "@/lib/landing/content"
 export function LandingAbout() {
   return (
     <section id="about" className="scroll-mt-20 border-b border-slate-200/80 bg-white">
-      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-16 sm:px-6 md:py-24 lg:grid-cols-2 lg:items-center lg:gap-14">
+      <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-12 sm:px-6 sm:py-16 md:py-24 lg:grid-cols-2 lg:items-center lg:gap-14">
         <div className="min-w-0 space-y-4">
           <p className="text-xs font-semibold tracking-[0.16em] text-blue-600 uppercase">
             {aboutCopy.eyebrow}
           </p>
-          <h2 className="text-balance text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+          <h2 className="text-balance text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl md:text-4xl">
             {aboutCopy.title}
           </h2>
           <div className="space-y-4">

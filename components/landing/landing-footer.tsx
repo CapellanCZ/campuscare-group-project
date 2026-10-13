@@ -6,7 +6,7 @@ import {
 } from "@tabler/icons-react"
 import Image from "next/image"
 
-import { CampusCareLogoStatic } from "@/components/campuscare-logo-static"
+import { LandingLogo } from "@/components/landing/landing-logo"
 import {
   footerBlurb,
   footerContact,
@@ -58,7 +58,7 @@ export function LandingFooter() {
       id="contact"
       className="scroll-mt-20 border-t border-slate-200 bg-slate-50 text-slate-900"
     >
-      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-2 lg:grid-cols-4 lg:gap-8 lg:py-16">
+      <div className="mx-auto grid w-full max-w-6xl gap-10 px-4 py-12 sm:px-6 sm:py-14 md:grid-cols-2 lg:grid-cols-4 lg:gap-8 lg:py-16">
         <div className="min-w-0 space-y-5">
           <div className="flex flex-wrap items-center gap-3">
             <a
@@ -66,12 +66,7 @@ export function LandingFooter() {
               className="inline-flex items-center gap-2 font-semibold tracking-tight text-slate-900 transition-opacity hover:opacity-90"
               aria-label="CampusCare home"
             >
-              <CampusCareLogoStatic
-                variant="blue"
-                alt="CampusCare"
-                className="h-10 w-auto"
-                width={56}
-              />
+              <LandingLogo className="h-9 w-auto sm:h-10 lg:h-11" />
             </a>
             <Image
               src="/images/NU-Logo.png"
@@ -146,6 +141,11 @@ export function LandingFooter() {
               </div>
             </li>
           </ul>
+        </div>
+      </div>
+
+      <div className="border-t border-slate-200">
+        <div className="mx-auto w-full max-w-6xl px-4 py-6 text-center text-xs text-pretty text-slate-400 sm:px-6">
         </div>
       </div>
 

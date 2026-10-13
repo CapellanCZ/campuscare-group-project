@@ -11,17 +11,17 @@ export function LandingCta() {
       id="get-started"
       className="scroll-mt-20 border-b border-slate-200/80 bg-gradient-to-b from-blue-600 to-blue-700"
     >
-      <div className="mx-auto flex max-w-6xl flex-col items-center gap-6 px-4 py-16 text-center sm:px-6 md:py-20">
-        <h2 className="max-w-2xl text-balance text-3xl font-bold tracking-tight text-white sm:text-4xl">
+      <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-6 px-4 py-12 text-center sm:px-6 sm:py-16 md:py-20">
+        <h2 className="max-w-2xl text-balance text-2xl font-bold tracking-tight text-white sm:text-3xl md:text-4xl">
           {ctaCopy.title}
         </h2>
         <p className="max-w-xl text-pretty text-base text-blue-100 sm:text-lg">
           {ctaCopy.description}
         </p>
-        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+        <div className="flex w-full max-w-md flex-col gap-3 sm:max-w-none sm:w-auto sm:flex-row">
           <Button
             size="lg"
-            className="rounded-full bg-white px-6 text-blue-700 hover:bg-blue-50"
+            className="w-full rounded-full bg-white px-6 text-blue-700 hover:bg-blue-50 sm:w-auto"
             render={<Link href={siteRoutes.login} />}
             nativeButton={false}
           >
@@ -31,7 +31,7 @@ export function LandingCta() {
           <Button
             size="lg"
             variant="outline"
-            className="rounded-full border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white"
+            className="w-full rounded-full border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white sm:w-auto"
             render={<Link href={siteRoutes.login} />}
             nativeButton={false}
           >

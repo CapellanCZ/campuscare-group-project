@@ -4,7 +4,7 @@ import { type MouseEvent, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { IconMenu2, IconX } from "@tabler/icons-react"
 
-import { CampusCareLogoStatic } from "@/components/campuscare-logo-static"
+import { LandingLogo } from "@/components/landing/landing-logo"
 import { scrollToId } from "@/components/landing/scroll-to-id"
 import { Button } from "@/components/ui/button"
 import {
@@ -52,25 +52,19 @@ export function LandingNav() {
         scrolled && "border-slate-200/80 shadow-sm bg-white/95"
       )}
     >
-      <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
+      <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-3 px-4 sm:h-16 sm:gap-4 sm:px-6">
         <a
           href="#home"
-          className="flex min-w-0 items-center gap-2.5"
+          className="flex min-w-0 max-w-[70%] items-center gap-2 sm:max-w-none sm:gap-2.5"
           aria-label="CampusCare home"
           onClick={(event) => handleSectionNav(event, "home")}
         >
-          <CampusCareLogoStatic
-            variant="blue"
-            alt=""
-            className="h-9 w-auto"
-            width={48}
-            priority
-          />
-          <span className="min-w-0 leading-tight">
-            <span className="block truncate text-[15px] font-bold tracking-tight text-slate-900">
+          <LandingLogo alt="" priority className="h-7 w-auto sm:h-8 lg:h-9" />
+          <span className="flex min-w-0 flex-col justify-center leading-none">
+            <span className="truncate text-sm font-bold tracking-tight text-slate-900 sm:text-[15px]">
               CampusCare
             </span>
-            <span className="block text-[10px] font-semibold tracking-[0.14em] text-slate-400 uppercase">
+            <span className="mt-1 truncate text-[9px] font-semibold tracking-[0.14em] text-slate-400 uppercase sm:text-[10px]">
               NU Dasmariñas
             </span>
           </span>
@@ -101,7 +95,7 @@ export function LandingNav() {
           <Button
             render={<Link href={siteRoutes.login} />}
             nativeButton={false}
-            className="hidden rounded-full bg-blue-600 px-4 shadow-[0_8px_20px_-8px_rgba(37,99,235,0.55)] hover:bg-blue-700 sm:inline-flex"
+            className="hidden rounded-full bg-blue-600 px-4 hover:bg-blue-700 sm:inline-flex"
           >
             Sign In
           </Button>
@@ -122,12 +116,7 @@ export function LandingNav() {
             <DrawerContent className="max-w-xs">
               <DrawerHeader className="flex-row items-center justify-between">
                 <DrawerTitle className="flex items-center gap-2">
-                  <CampusCareLogoStatic
-                    variant="blue"
-                    alt=""
-                    className="h-6 w-auto"
-                    width={36}
-                  />
+                  <LandingLogo alt="" className="h-6 w-auto sm:h-6 lg:h-6" />
                   CampusCare
                 </DrawerTitle>
                 <DrawerClose
