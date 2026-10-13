@@ -53,15 +53,22 @@ const statusVariant: Record<
 export function NurseRequestsPanel({
   access,
   summary,
+  decorative = false,
 }: {
   access: StaffAccess
   summary: RoleDashboardSummary
+  /** Marketing / static shot — table only, no request dialogs. */
+  decorative?: boolean
 }) {
   const router = useRouter()
-  const canApprove = can(access.designation, "requests.approve")
-  const canDecline = can(access.designation, "requests.decline")
-  const canReschedule = can(access.designation, "requests.reschedule")
-  const canViewDetails = can(access.designation, "requests.view_patient_details")
+  const canApprove =
+    !decorative && can(access.designation, "requests.approve")
+  const canDecline =
+    !decorative && can(access.designation, "requests.decline")
+  const canReschedule =
+    !decorative && can(access.designation, "requests.reschedule")
+  const canViewDetails =
+    !decorative && can(access.designation, "requests.view_patient_details")
   const [pendingView, startView] = useTransition()
   const [selectedRequest, setSelectedRequest] =
     useState<AppointmentRequest | null>(null)
@@ -150,64 +157,79 @@ export function NurseRequestsPanel({
                     </TableCell>
                     <TableCell className="pr-6">
                       <div className="flex flex-wrap justify-end gap-1">
-                        {canViewDetails ? (
-                          <Button
-                            type="button"
-                            size="xs"
-                            variant="ghost"
-                            disabled={pendingView}
-                            onClick={() => openRequest(row.id, "view")}
-                          >
-                            View
-                          </Button>
-                        ) : null}
-                        {canApprove && row.status === "pending" ? (
-                          <Button
-                            type="button"
-                            size="xs"
-                            disabled={pendingView}
-                            onClick={() => openRequest(row.id, "approve")}
-                          >
-                            Approve
-                          </Button>
-                        ) : null}
-                        {canApprove && row.status === "waitlisted" ? (
-                          <Button
-                            type="button"
-                            size="xs"
-                            disabled={pendingView}
-                            onClick={() => openRequest(row.id, "admit")}
-                          >
-                            Admit
-                          </Button>
-                        ) : null}
-                        {canReschedule &&
-                        (row.status === "pending" ||
-                          row.status === "waitlisted" ||
-                          row.status === "rescheduled") ? (
-                          <Button
-                            type="button"
-                            size="xs"
-                            variant="outline"
-                            disabled={pendingView}
-                            onClick={() => openRequest(row.id, "reschedule")}
-                          >
-                            Reschedule
-                          </Button>
-                        ) : null}
-                        {canDecline &&
-                        (row.status === "pending" ||
-                          row.status === "waitlisted") ? (
-                          <Button
-                            type="button"
-                            size="xs"
-                            variant="destructive"
-                            disabled={pendingView}
-                            onClick={() => openRequest(row.id, "decline")}
-                          >
-                            Decline
-                          </Button>
-                        ) : null}
+                        {decorative ? (
+                          <>
+                            <Button type="button" size="xs" variant="ghost" tabIndex={-1}>
+                              View
+                            </Button>
+                            {row.status === "pending" ? (
+                              <Button type="button" size="xs" tabIndex={-1}>
+                                Approve
+                              </Button>
+                            ) : null}
+                          </>
+                        ) : (
+                          <>
+                            {canViewDetails ? (
+                              <Button
+                                type="button"
+                                size="xs"
+                                variant="ghost"
+                                disabled={pendingView}
+                                onClick={() => openRequest(row.id, "view")}
+                              >
+                                View
+                              </Button>
+                            ) : null}
+                            {canApprove && row.status === "pending" ? (
+                              <Button
+                                type="button"
+                                size="xs"
+                                disabled={pendingView}
+                                onClick={() => openRequest(row.id, "approve")}
+                              >
+                                Approve
+                              </Button>
+                            ) : null}
+                            {canApprove && row.status === "waitlisted" ? (
+                              <Button
+                                type="button"
+                                size="xs"
+                                disabled={pendingView}
+                                onClick={() => openRequest(row.id, "admit")}
+                              >
+                                Admit
+                              </Button>
+                            ) : null}
+                            {canReschedule &&
+                            (row.status === "pending" ||
+                              row.status === "waitlisted" ||
+                              row.status === "rescheduled") ? (
+                              <Button
+                                type="button"
+                                size="xs"
+                                variant="outline"
+                                disabled={pendingView}
+                                onClick={() => openRequest(row.id, "reschedule")}
+                              >
+                                Reschedule
+                              </Button>
+                            ) : null}
+                            {canDecline &&
+                            (row.status === "pending" ||
+                              row.status === "waitlisted") ? (
+                              <Button
+                                type="button"
+                                size="xs"
+                                variant="destructive"
+                                disabled={pendingView}
+                                onClick={() => openRequest(row.id, "decline")}
+                              >
+                                Decline
+                              </Button>
+                            ) : null}
+                          </>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -218,60 +240,64 @@ export function NurseRequestsPanel({
         )}
       </ModuleSnapshot>
 
-      <ViewRequestDialog
-        request={selectedRequest}
-        open={dialogMode === "view"}
-        onOpenChange={(open) => {
-          if (!open) {
-            closeDialog()
-            setSelectedRequest(null)
-          }
-        }}
-      />
-      <ApproveRequestDialog
-        request={selectedRequest}
-        open={dialogMode === "approve" || dialogMode === "admit"}
-        mode={dialogMode === "admit" ? "admit" : "approve"}
-        onOpenChange={(open) => {
-          if (!open) {
-            closeDialog()
-            setSelectedRequest(null)
-          }
-        }}
-        onUpdated={() => {
-          if (selectedRequest) softRefreshAfterMutation(selectedRequest.id)
-          else router.refresh()
-        }}
-      />
-      <RescheduleRequestDialog
-        request={selectedRequest}
-        open={dialogMode === "reschedule"}
-        onOpenChange={(open) => {
-          if (!open) {
-            closeDialog()
-            setSelectedRequest(null)
-          }
-        }}
-        onUpdated={() => {
-          if (selectedRequest) softRefreshAfterMutation(selectedRequest.id)
-          else router.refresh()
-        }}
-      />
-      <DeclineRequestDialog
-        requestId={selectedRequest?.id ?? null}
-        patientName={selectedRequest?.patientName}
-        open={dialogMode === "decline"}
-        onOpenChange={(open) => {
-          if (!open) {
-            closeDialog()
-            setSelectedRequest(null)
-          }
-        }}
-        onDeclined={() => {
-          if (selectedRequest) softRefreshAfterMutation(selectedRequest.id)
-          else router.refresh()
-        }}
-      />
+      {!decorative ? (
+        <>
+          <ViewRequestDialog
+            request={selectedRequest}
+            open={dialogMode === "view"}
+            onOpenChange={(open) => {
+              if (!open) {
+                closeDialog()
+                setSelectedRequest(null)
+              }
+            }}
+          />
+          <ApproveRequestDialog
+            request={selectedRequest}
+            open={dialogMode === "approve" || dialogMode === "admit"}
+            mode={dialogMode === "admit" ? "admit" : "approve"}
+            onOpenChange={(open) => {
+              if (!open) {
+                closeDialog()
+                setSelectedRequest(null)
+              }
+            }}
+            onUpdated={() => {
+              if (selectedRequest) softRefreshAfterMutation(selectedRequest.id)
+              else router.refresh()
+            }}
+          />
+          <RescheduleRequestDialog
+            request={selectedRequest}
+            open={dialogMode === "reschedule"}
+            onOpenChange={(open) => {
+              if (!open) {
+                closeDialog()
+                setSelectedRequest(null)
+              }
+            }}
+            onUpdated={() => {
+              if (selectedRequest) softRefreshAfterMutation(selectedRequest.id)
+              else router.refresh()
+            }}
+          />
+          <DeclineRequestDialog
+            requestId={selectedRequest?.id ?? null}
+            patientName={selectedRequest?.patientName}
+            open={dialogMode === "decline"}
+            onOpenChange={(open) => {
+              if (!open) {
+                closeDialog()
+                setSelectedRequest(null)
+              }
+            }}
+            onDeclined={() => {
+              if (selectedRequest) softRefreshAfterMutation(selectedRequest.id)
+              else router.refresh()
+            }}
+          />
+        </>
+      ) : null}
     </>
   )
 }

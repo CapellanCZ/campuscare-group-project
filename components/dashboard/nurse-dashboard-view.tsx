@@ -78,6 +78,7 @@ export function NurseDashboardView({
   recent: _recent,
   summary,
   dataLoading = false,
+  decorative = false,
 }: {
   access: StaffAccess
   kpis: DashboardKpis
@@ -87,12 +88,15 @@ export function NurseDashboardView({
   stats: QueueStats
   summary: RoleDashboardSummary
   dataLoading?: boolean
+  /** Landing / marketing shot — hide interactive sheets & walk-in CTA. */
+  decorative?: boolean
 }) {
   void _recent
   const [intakeTicket, setIntakeTicket] = useState<QueueTicketRow | null>(null)
   const [walkInOpen, setWalkInOpen] = useState(false)
   const firstName = access.fullName.split(" ")[0] || access.fullName
-  const showWalkIn = canRegisterWalkIn(access.designation)
+  const showWalkIn =
+    decorative || canRegisterWalkIn(access.designation)
 
   const kpiCards = useMemo(() => {
     const byKey = new Map(kpis.cards.map((card) => [card.key, card]))
@@ -112,19 +116,28 @@ export function NurseDashboardView({
                 type="button"
                 size="sm"
                 variant="outline"
-                onClick={() => setWalkInOpen(true)}
+                tabIndex={decorative ? -1 : undefined}
+                onClick={
+                  decorative ? undefined : () => setWalkInOpen(true)
+                }
               >
                 <IconUserPlus className="size-4" aria-hidden />
                 Register walk-in
               </Button>
             ) : null}
-            <Button
-              size="sm"
-              render={<Link href="/nurse/queue" />}
-              nativeButton={false}
-            >
-              Open queue
-            </Button>
+            {decorative ? (
+              <Button size="sm" type="button" tabIndex={-1}>
+                Open queue
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                render={<Link href="/nurse/queue" />}
+                nativeButton={false}
+              >
+                Open queue
+              </Button>
+            )}
           </>
         }
       />
@@ -184,7 +197,11 @@ export function NurseDashboardView({
                   <Skeleton className="h-16 w-full rounded-lg" />
                 </div>
               ) : (
-                <NurseRequestsPanel access={access} summary={summary} />
+                <NurseRequestsPanel
+                  access={access}
+                  summary={summary}
+                  decorative={decorative}
+                />
               )}
             </PanelCell>
             <PanelCell className="lg:col-span-2">
@@ -206,19 +223,23 @@ export function NurseDashboardView({
         </PanelFrame>
       </div>
 
-      <NurseIntakeSheet
-        ticket={intakeTicket}
-        open={Boolean(intakeTicket)}
-        onOpenChange={(open) => {
-          if (!open) setIntakeTicket(null)
-        }}
-      />
+      {!decorative ? (
+        <>
+          <NurseIntakeSheet
+            ticket={intakeTicket}
+            open={Boolean(intakeTicket)}
+            onOpenChange={(open) => {
+              if (!open) setIntakeTicket(null)
+            }}
+          />
 
-      <WalkInSheet
-        open={walkInOpen}
-        onOpenChange={setWalkInOpen}
-        hideTrigger
-      />
+          <WalkInSheet
+            open={walkInOpen}
+            onOpenChange={setWalkInOpen}
+            hideTrigger
+          />
+        </>
+      ) : null}
     </div>
   )
 }
