@@ -9,7 +9,7 @@ import { siteRoutes } from "@/lib/site/routes"
 import { cn } from "@/lib/utils"
 
 /**
- * Left copy + large static nurse dashboard shot flush to the right edge.
+ * Left copy + floating full nurse dashboard window on the right.
  */
 export function LandingHero() {
   return (
@@ -22,8 +22,8 @@ export function LandingHero() {
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_420px_at_15%_0%,rgba(59,130,246,0.12),transparent_55%),radial-gradient(700px_360px_at_90%_10%,rgba(14,165,233,0.1),transparent_50%)]"
       />
 
-      <div className="relative flex w-full flex-col items-center gap-10 lg:flex-row lg:items-center lg:gap-0 lg:pr-0">
-        <div className="flex w-full min-w-0 max-w-xl flex-col items-start px-4 text-left sm:px-6 lg:w-1/2 lg:max-w-none lg:shrink-0 lg:pl-[max(1rem,calc((100%-80rem)/2+1rem))] lg:pr-10 xl:pr-14">
+      <div className="relative flex w-full flex-col items-center gap-10 lg:flex-row lg:items-center lg:gap-0">
+        <div className="flex w-full min-w-0 max-w-xl flex-col items-start px-4 text-left sm:px-6 lg:w-1/2 lg:max-w-none lg:shrink-0 lg:pl-[max(1rem,calc((100%-80rem)/2+1rem))] lg:pr-8 xl:pr-12">
           <p className="inline-flex max-w-full items-start gap-2 rounded-full bg-blue-50 px-3.5 py-1.5 text-left text-xs font-medium text-blue-700 sm:items-center sm:px-5 sm:py-2 sm:text-sm md:text-base">
             <IconActivity
               className="mt-0.5 size-4 shrink-0 sm:mt-0 sm:size-5"
@@ -69,8 +69,8 @@ export function LandingHero() {
           </div>
         </div>
 
-        <div className="w-full min-w-0 px-4 sm:px-6 lg:w-1/2 lg:self-stretch lg:px-0">
-          <NurseDashboardPreview edge priority />
+        <div className="flex w-full min-w-0 items-center justify-center px-4 sm:px-6 lg:w-1/2 lg:justify-start lg:self-center lg:px-0 lg:pr-10 lg:-translate-x-4 xl:pr-12 xl:-translate-x-6">
+          <NurseDashboardPreview priority />
         </div>
       </div>
     </section>
