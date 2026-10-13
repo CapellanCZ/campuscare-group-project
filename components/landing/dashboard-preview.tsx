@@ -61,12 +61,13 @@ export function DashboardPreview({ className }: { className?: string }) {
             <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden">
               {navItems.map((item) => {
                 const Icon = item.icon
+                const isActive = "active" in item && item.active === true
                 return (
                   <div
                     key={item.label}
                     className={cn(
                       "flex items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] font-medium md:text-xs",
-                      item.active
+                      isActive
                         ? "bg-blue-50 text-blue-700"
                         : "text-slate-500"
                     )}
