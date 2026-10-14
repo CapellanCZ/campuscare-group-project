@@ -80,7 +80,7 @@ export const aboutCopy = {
   ],
   missionLabel: "HSO mission",
   mission:
-    "Accessible campus health care that keeps the Bulldog community ready to learn and serve.",
+    "Accessible campus health care that keeps the Bulldog community well and ready for every day.",
   highlights: [
     {
       title: "Clinical consultations",
