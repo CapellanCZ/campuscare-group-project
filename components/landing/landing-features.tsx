@@ -24,16 +24,27 @@ const gridVariants = {
 }
 
 const cardVariants = {
-  hidden: { opacity: 0, y: 22 },
+  hidden: { opacity: 0, y: 28, scale: 0.98 },
   show: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.45, ease: easeOut },
+    scale: 1,
+    transition: { duration: 0.5, ease: easeOut },
+  },
+}
+
+const iconVariants = {
+  hidden: { opacity: 0, scale: 0.7 },
+  show: {
+    opacity: 1,
+    scale: 1,
+    transition: { duration: 0.4, ease: easeOut, delay: 0.05 },
   },
 }
 
 export function LandingFeatures() {
-  const { allowMotion } = useMotionReady()
+  const { allowMotion, ready } = useMotionReady()
+  const canAnimate = ready && allowMotion
 
   return (
     <section
@@ -63,48 +74,36 @@ export function LandingFeatures() {
           </Reveal>
         </div>
 
-        {allowMotion ? (
-          <motion.div
-            className="mt-10 grid gap-4 sm:mt-12 sm:grid-cols-2 lg:grid-cols-3 lg:gap-5"
-            variants={gridVariants}
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true, amount: 0.15, margin: "0px 0px -6% 0px" }}
-          >
-            {features.map((feature) => {
-              const Icon = feature.icon
-              return (
-                <motion.div
-                  key={feature.title}
-                  variants={cardVariants}
-                  whileHover={{ y: -4, transition: { duration: 0.2 } }}
-                  className="h-full min-w-0"
-                >
-                  <FeatureCard
-                    title={feature.title}
-                    description={feature.description}
-                    Icon={Icon}
-                  />
-                </motion.div>
-              )
-            })}
-          </motion.div>
-        ) : (
-          <div className="mt-10 grid gap-4 sm:mt-12 sm:grid-cols-2 lg:grid-cols-3 lg:gap-5">
-            {features.map((feature) => {
-              const Icon = feature.icon
-              return (
-                <div key={feature.title} className="h-full min-w-0">
-                  <FeatureCard
-                    title={feature.title}
-                    description={feature.description}
-                    Icon={Icon}
-                  />
-                </div>
-              )
-            })}
-          </div>
-        )}
+        <motion.div
+          className="mt-10 grid gap-4 sm:mt-12 sm:grid-cols-2 lg:grid-cols-3 lg:gap-5"
+          variants={gridVariants}
+          initial={canAnimate ? "hidden" : "show"}
+          whileInView="show"
+          viewport={{ once: true, amount: 0.12, margin: "0px 0px -6% 0px" }}
+        >
+          {features.map((feature) => {
+            const Icon = feature.icon
+            return (
+              <motion.div
+                key={feature.title}
+                variants={cardVariants}
+                whileHover={
+                  canAnimate
+                    ? { y: -5, transition: { duration: 0.2 } }
+                    : undefined
+                }
+                className="h-full min-w-0"
+              >
+                <FeatureCard
+                  title={feature.title}
+                  description={feature.description}
+                  Icon={Icon}
+                  animated={canAnimate}
+                />
+              </motion.div>
+            )
+          })}
+        </motion.div>
       </div>
     </section>
   )
@@ -114,16 +113,27 @@ function FeatureCard({
   title,
   description,
   Icon,
+  animated = false,
 }: {
   title: string
   description: string
   Icon: (typeof features)[number]["icon"]
+  animated?: boolean
 }) {
   return (
     <article className="flex h-full flex-col rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm transition-shadow hover:shadow-md sm:p-7">
-      <div className="mb-4 flex size-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-        <Icon className="size-5" aria-hidden />
-      </div>
+      {animated ? (
+        <motion.div
+          variants={iconVariants}
+          className="mb-4 flex size-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600"
+        >
+          <Icon className="size-5" aria-hidden />
+        </motion.div>
+      ) : (
+        <div className="mb-4 flex size-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+          <Icon className="size-5" aria-hidden />
+        </div>
+      )}
       <h3 className="text-base font-semibold text-slate-900 sm:text-lg">
         {title}
       </h3>

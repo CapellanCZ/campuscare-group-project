@@ -3,7 +3,9 @@ import {
   IconChartBar,
   IconClipboardHeart,
   IconCertificate,
+  IconDevices,
   IconFileDescription,
+  IconFolderHeart,
   IconSpeakerphone,
   IconStack2,
 } from "@tabler/icons-react"
@@ -38,16 +40,15 @@ export type FaqItem = {
 /** Primary nav labels aligned to reference information architecture. */
 export const navLinks: NavLink[] = [
   { label: "Overview", href: "#home", id: "home" },
+  { label: "About Us", href: "#about", id: "about" },
   { label: "Features", href: "#features", id: "features" },
   { label: "Why Us", href: "#why-us", id: "why-us" },
-  { label: "Get Started", href: "#get-started", id: "get-started" },
 ]
 
 export const landingNavItems = navLinks
 
 /** Secondary in-page anchors kept for deeper content sections. */
 export const secondaryNavLinks: NavLink[] = [
-  { label: "About", href: "#about", id: "about" },
   { label: "How It Works", href: "#how-it-works", id: "how-it-works" },
   { label: "FAQ", href: "#faq", id: "faq" },
   { label: "Contact", href: "#contact", id: "contact" },
@@ -262,23 +263,27 @@ export const whyUsPoints = [
     title: "Centralized patient records",
     description:
       "Keep consultation history and care notes in one secure place for authorized clinic staff.",
+    icon: IconFolderHeart,
   },
   {
     title: "Live queue visibility",
     description:
       "Give patients and staff a shared view of who’s next—reducing crowding and confusion.",
+    icon: IconStack2,
   },
   {
     title: "Reports & analytics",
     description:
       "Understand visit volume, peak hours, and service trends to plan staffing and care.",
+    icon: IconChartBar,
   },
   {
     title: "Built for clinic devices",
     description:
       "Use CampusCare from clinic workstations and campus devices with a responsive staff interface.",
+    icon: IconDevices,
   },
-] as const
+]
 
 export const ctaCopy = {
   title: "Ready to get started?",

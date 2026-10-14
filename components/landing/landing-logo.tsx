@@ -12,6 +12,8 @@ type LandingLogoProps = {
   className?: string
   alt?: string
   priority?: boolean
+  /** Force a white mark (e.g. on blue panels). */
+  tone?: "default" | "white"
 }
 
 /**
@@ -23,6 +25,7 @@ export function LandingLogo({
   className,
   alt = "CampusCare",
   priority = false,
+  tone = "default",
 }: LandingLogoProps) {
   return (
     <Image
@@ -36,6 +39,7 @@ export function LandingLogo({
       sizes="(max-width: 640px) 96px, 128px"
       className={cn(
         "block h-8 w-auto shrink-0 object-contain object-center sm:h-9 lg:h-10",
+        tone === "white" && "brightness-0 invert",
         className
       )}
     />
