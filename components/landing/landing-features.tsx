@@ -4,10 +4,7 @@ import { motion } from "motion/react"
 
 import { Reveal } from "@/components/landing/motion"
 import { useMotionReady } from "@/components/landing/use-motion-ready"
-import {
-  landingSectionInner,
-  landingViewportSection,
-} from "@/components/landing/section-shell"
+import { landingSectionInner } from "@/components/landing/section-shell"
 import { features } from "@/lib/landing/content"
 import { cn } from "@/lib/utils"
 
@@ -50,8 +47,8 @@ export function LandingFeatures() {
     <section
       id="features"
       className={cn(
-        landingViewportSection,
-        "scroll-mt-20 border-b border-slate-200/80 bg-slate-50/80"
+        "scroll-mt-20 overflow-x-clip border-b border-slate-200/80 bg-slate-50/80 py-10 sm:py-12 lg:py-16",
+        "lg:flex lg:min-h-[calc(100dvh-4rem)] lg:items-center lg:py-0"
       )}
     >
       <div className={landingSectionInner}>

@@ -11,7 +11,7 @@ import { siteRoutes } from "@/lib/site/routes"
 
 const ease = [0.22, 1, 0.36, 1] as const
 
-/** Landing QR band — copy + QR enter with light motion. */
+/** Landing QR band — stacked on mobile, side-by-side from lg (no width crush). */
 export function LandingMobileApp() {
   const { allowMotion } = useMotionReady()
 
@@ -20,25 +20,25 @@ export function LandingMobileApp() {
       id="mobile-app"
       className="scroll-mt-20 border-b border-slate-200/80 bg-[linear-gradient(180deg,rgba(239,246,255,0.9)_0%,rgba(255,255,255,1)_100%)]"
     >
-      <div className="mx-auto flex w-full max-w-5xl flex-col items-center gap-10 px-4 py-14 text-center sm:px-6 sm:py-16 md:py-20 lg:flex-row lg:items-center lg:gap-16 lg:px-8 lg:text-left">
+      <div className="mx-auto grid w-full max-w-5xl grid-cols-1 items-center gap-8 overflow-x-clip px-4 py-10 sm:gap-10 sm:px-6 sm:py-14 md:py-20 lg:grid-cols-2 lg:gap-14 lg:px-8">
         <motion.div
-          className="min-w-0 flex-1"
+          className="min-w-0 text-center lg:text-left"
           initial={allowMotion ? { opacity: 0, y: 20 } : false}
           whileInView={allowMotion ? { opacity: 1, y: 0 } : undefined}
-          viewport={{ once: true, amount: 0.35 }}
+          viewport={{ once: true, amount: 0.3 }}
           transition={{ duration: 0.5, ease }}
         >
-          <h2 className="text-balance text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+          <h2 className="text-balance text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl lg:text-4xl">
             CampusCare on Android
           </h2>
-          <p className="mx-auto mt-3 max-w-md text-pretty text-base text-slate-600 sm:text-lg lg:mx-0">
+          <p className="mx-auto mt-3 max-w-md text-pretty text-sm text-slate-600 sm:text-base lg:mx-0 lg:text-lg">
             For NU Dasmariñas students and faculty. Scan the code on a phone, or
             open the download page.
           </p>
-          <div className="mt-8 flex justify-center lg:justify-start">
+          <div className="mt-6 flex justify-center sm:mt-8 lg:justify-start">
             <Button
               size="lg"
-              className="h-12 rounded-full bg-blue-600 px-7 text-base hover:bg-blue-700"
+              className="h-11 w-full max-w-xs rounded-full bg-blue-600 px-7 text-base hover:bg-blue-700 sm:h-12 sm:w-auto"
               render={<Link href={siteRoutes.download} />}
               nativeButton={false}
             >
@@ -49,18 +49,16 @@ export function LandingMobileApp() {
         </motion.div>
 
         <motion.figure
-          className="shrink-0"
+          className="mx-auto w-fit shrink-0 justify-self-center text-center lg:justify-self-end"
           initial={allowMotion ? { opacity: 0, scale: 0.92, y: 16 } : false}
           whileInView={allowMotion ? { opacity: 1, scale: 1, y: 0 } : undefined}
-          viewport={{ once: true, amount: 0.4 }}
+          viewport={{ once: true, amount: 0.35 }}
           transition={{ duration: 0.55, delay: 0.12, ease }}
         >
           <motion.div
-            className="size-44 rounded-2xl border border-slate-200/90 bg-white p-4 sm:size-52 sm:p-5"
+            className="size-40 rounded-2xl border border-slate-200/90 bg-white p-3.5 sm:size-52 sm:p-5"
             animate={
-              allowMotion
-                ? { y: [0, -6, 0] }
-                : undefined
+              allowMotion ? { y: [0, -6, 0] } : undefined
             }
             transition={
               allowMotion

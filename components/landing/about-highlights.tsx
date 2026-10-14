@@ -18,42 +18,42 @@ export function AboutHighlights({ className }: { className?: string }) {
   return (
     <aside className={cn("min-w-0", className)}>
       <motion.blockquote
-        className="border-l-2 border-blue-600 pl-5 sm:pl-6"
-        initial={allowMotion ? { opacity: 0, x: -12 } : false}
-        whileInView={allowMotion ? { opacity: 1, x: 0 } : undefined}
-        viewport={{ once: true, amount: 0.45 }}
+        className="border-l-2 border-blue-600 pl-4 sm:pl-6"
+        initial={allowMotion ? { opacity: 0, y: 12 } : false}
+        whileInView={allowMotion ? { opacity: 1, y: 0 } : undefined}
+        viewport={{ once: true, amount: 0.35 }}
         transition={{ duration: 0.5, ease }}
       >
-        <p className="text-pretty text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl sm:leading-snug">
+        <p className="text-pretty text-lg font-semibold tracking-tight text-slate-900 sm:text-xl md:text-2xl sm:leading-snug">
           {aboutCopy.mission}
         </p>
-        <footer className="mt-4 text-sm text-slate-500">
+        <footer className="mt-3 text-xs text-slate-500 sm:mt-4 sm:text-sm">
           {aboutCopy.missionLabel}
         </footer>
       </motion.blockquote>
 
-      <ol className="mt-10 border-t border-slate-200 sm:mt-12">
+      <ol className="mt-8 border-t border-slate-200 sm:mt-10 md:mt-12">
         {aboutCopy.highlights.map((item, index) => (
           <motion.li
             key={item.title}
-            className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-3 border-b border-slate-200 py-5 sm:gap-4 sm:py-6"
-            initial={allowMotion ? { opacity: 0, x: 14 } : false}
-            whileInView={allowMotion ? { opacity: 1, x: 0 } : undefined}
-            viewport={{ once: true, amount: 0.35 }}
+            className="grid grid-cols-[2rem_minmax(0,1fr)] gap-2.5 border-b border-slate-200 py-4 sm:grid-cols-[2.5rem_minmax(0,1fr)] sm:gap-4 sm:py-5 md:py-6"
+            initial={allowMotion ? { opacity: 0, y: 12 } : false}
+            whileInView={allowMotion ? { opacity: 1, y: 0 } : undefined}
+            viewport={{ once: true, amount: 0.3 }}
             transition={{
               duration: 0.45,
               delay: 0.12 + index * 0.09,
               ease,
             }}
           >
-            <span className="pt-0.5 font-mono text-xs font-medium tracking-wide text-blue-600 tabular-nums">
+            <span className="pt-0.5 font-mono text-[11px] font-medium tracking-wide text-blue-600 tabular-nums sm:text-xs">
               {String(index + 1).padStart(2, "0")}
             </span>
             <div className="min-w-0">
-              <p className="text-base font-semibold text-slate-900">
+              <p className="text-sm font-semibold text-slate-900 sm:text-base">
                 {item.title}
               </p>
-              <p className="mt-1 text-sm leading-relaxed text-slate-500">
+              <p className="mt-1 text-[13px] leading-relaxed text-slate-500 sm:text-sm">
                 {item.description}
               </p>
             </div>

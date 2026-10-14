@@ -39,7 +39,7 @@ export function HeroPreviewOrbit({ children, className }: HeroPreviewOrbitProps)
 
       <ul
         aria-hidden
-        className="pointer-events-none absolute inset-0 z-20 hidden sm:block"
+        className="pointer-events-none absolute inset-0 z-20"
       >
         {heroModuleChips.map((chip, index) => (
           <li
@@ -55,14 +55,6 @@ export function HeroPreviewOrbit({ children, className }: HeroPreviewOrbitProps)
         ))}
       </ul>
 
-      {/* Mobile: compact chip row under the preview — absolute orbit overflows small viewports. */}
-      <ul className="mt-4 flex flex-wrap justify-center gap-2 sm:hidden">
-        {heroModuleChips.map((chip) => (
-          <li key={chip.label}>
-            <HeroModuleChip label={chip.label} icon={chip.icon} />
-          </li>
-        ))}
-      </ul>
     </div>
   )
 }

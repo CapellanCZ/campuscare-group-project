@@ -27,12 +27,12 @@ export function DownloadMotion({ apkUrl }: DownloadMotionProps) {
   const { allowMotion } = useMotionReady()
 
   return (
-    <div className="relative mx-auto flex w-full max-w-lg flex-col items-center px-4 py-16 text-center sm:px-6 sm:py-20">
+    <div className="relative mx-auto flex w-full max-w-lg flex-col items-center px-4 py-12 text-center sm:px-6 sm:py-16 md:py-20">
       <MotionBlock allowMotion={allowMotion} delay={0}>
-        <h1 className="text-balance text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+        <h1 className="text-balance text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl md:text-4xl">
           Download CampusCare
         </h1>
-        <p className="mt-3 max-w-sm text-pretty text-base text-slate-600 sm:text-lg">
+        <p className="mt-3 max-w-sm text-pretty text-sm text-slate-600 sm:text-base md:text-lg">
           Android app for NU Dasmariñas students and faculty.
         </p>
       </MotionBlock>
@@ -58,10 +58,10 @@ export function DownloadMotion({ apkUrl }: DownloadMotionProps) {
       </motion.div>
 
       <MotionBlock allowMotion={allowMotion} delay={0.22} className="mt-8 w-full">
-        <div className="flex w-full flex-col items-stretch gap-3 sm:w-auto sm:flex-row sm:items-center sm:justify-center">
+        <div className="flex w-full flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-center">
           <Button
             size="lg"
-            className="h-12 rounded-full bg-blue-600 px-7 text-base hover:bg-blue-700"
+            className="h-11 w-full rounded-full bg-blue-600 px-7 text-base hover:bg-blue-700 sm:h-12 sm:w-auto"
             render={<a href={apkUrl} download />}
             nativeButton={false}
           >
@@ -71,7 +71,7 @@ export function DownloadMotion({ apkUrl }: DownloadMotionProps) {
           <Button
             size="lg"
             variant="outline"
-            className="h-12 rounded-full border-slate-200 bg-white text-base text-slate-800 hover:bg-slate-50"
+            className="h-11 w-full rounded-full border-slate-200 bg-white text-base text-slate-800 hover:bg-slate-50 sm:h-12 sm:w-auto"
             render={<Link href={siteRoutes.home} />}
             nativeButton={false}
           >
@@ -80,13 +80,13 @@ export function DownloadMotion({ apkUrl }: DownloadMotionProps) {
         </div>
       </MotionBlock>
 
-      <ol className="mt-12 w-full max-w-md space-y-3 text-left text-sm text-slate-600">
+      <ol className="mt-10 w-full max-w-md space-y-3 px-1 text-left text-sm text-slate-600 sm:mt-12">
         {steps.map((step, index) => (
           <motion.li
             key={step}
             className="flex gap-3"
-            initial={allowMotion ? { opacity: 0, x: -10 } : false}
-            animate={allowMotion ? { opacity: 1, x: 0 } : undefined}
+            initial={allowMotion ? { opacity: 0, y: 8 } : false}
+            animate={allowMotion ? { opacity: 1, y: 0 } : undefined}
             transition={{
               duration: 0.4,
               delay: 0.32 + index * 0.08,
@@ -94,7 +94,7 @@ export function DownloadMotion({ apkUrl }: DownloadMotionProps) {
             }}
           >
             <span className="font-semibold text-blue-600">{index + 1}</span>
-            <span>{step}</span>
+            <span className="text-pretty">{step}</span>
           </motion.li>
         ))}
       </ol>

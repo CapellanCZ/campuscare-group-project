@@ -11,20 +11,20 @@ export function LandingAbout() {
       id="about"
       className="scroll-mt-20 border-b border-slate-200/80 bg-white"
     >
-      <div className="mx-auto grid w-full max-w-6xl items-start gap-12 px-4 py-14 sm:px-6 sm:py-16 md:py-24 lg:grid-cols-2 lg:gap-20">
+      <div className="mx-auto grid w-full max-w-6xl items-start gap-8 overflow-x-clip px-4 py-10 sm:gap-10 sm:px-6 sm:py-14 md:py-20 lg:grid-cols-2 lg:gap-16 lg:py-24 xl:gap-20">
         <div className="min-w-0 max-w-xl">
           <Reveal>
-            <p className="text-xs font-semibold tracking-[0.16em] text-blue-600 uppercase">
+            <p className="text-[11px] font-semibold tracking-[0.16em] text-blue-600 uppercase sm:text-xs">
               {aboutCopy.eyebrow}
             </p>
             <h2 className="mt-2 text-balance text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl md:text-4xl">
               {aboutCopy.title}
             </h2>
           </Reveal>
-          <div className="mt-6 space-y-4">
+          <div className="mt-5 space-y-3.5 sm:mt-6 sm:space-y-4">
             {aboutCopy.body.map((paragraph, index) => (
               <Reveal key={paragraph.slice(0, 24)} delay={0.08 + index * 0.06}>
-                <p className="text-pretty text-[15px] leading-relaxed text-slate-600 sm:text-base">
+                <p className="text-pretty text-sm leading-relaxed text-slate-600 sm:text-[15px] md:text-base">
                   {paragraph}
                 </p>
               </Reveal>
@@ -32,7 +32,7 @@ export function LandingAbout() {
           </div>
         </div>
 
-        <AboutHighlights />
+        <AboutHighlights className="w-full min-w-0" />
       </div>
     </section>
   )

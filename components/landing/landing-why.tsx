@@ -5,9 +5,9 @@ export function LandingWhy() {
   return (
     <section
       id="why-us"
-      className="scroll-mt-20 border-b border-slate-200/80 bg-slate-50/70"
+      className="scroll-mt-20 overflow-x-clip border-b border-slate-200/80 bg-slate-50/70"
     >
-      <div className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6 sm:py-16 md:py-24">
+      <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14 md:py-20 lg:py-24">
         <WhyPoints />
       </div>
     </section>
