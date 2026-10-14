@@ -13,7 +13,7 @@ import { corsHeadersFor } from "../_shared/cors.ts"
 
 const REQ_COOLDOWN_MS = 60 * 1000
 const DEFAULT_EMAIL_FROM =
-  "NU Dasmarinas Health Services Office <nud-hso@campuscare.click>"
+  "NU Dasmariñas Health Services Office <nud-hso@campuscare.click>"
 
 function json(
   request: Request,

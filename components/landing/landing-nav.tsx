@@ -26,6 +26,7 @@ function handleSectionNav(
   onNavigated?: () => void
 ) {
   event.preventDefault()
+  event.stopPropagation()
   scrollToId(sectionId)
   onNavigated?.()
 }
@@ -76,6 +77,7 @@ export function LandingNav() {
             className="flex items-center gap-1"
             history={false}
             smooth
+            scrollOnClick={false}
             targetRef={scrollRootRef}
           >
             {navLinks.map((link) => (
@@ -84,6 +86,7 @@ export function LandingNav() {
                 href={link.href}
                 data-scrollspy-anchor={link.id}
                 className="rounded-full px-3.5 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-900 data-[active=true]:bg-blue-50 data-[active=true]:text-blue-600"
+                onClick={(event) => handleSectionNav(event, link.id)}
               >
                 {link.label}
               </a>

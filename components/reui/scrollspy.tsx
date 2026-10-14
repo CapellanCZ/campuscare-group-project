@@ -2,6 +2,8 @@
 
 import { ReactNode, RefObject, useCallback, useEffect, useRef } from "react"
 
+import { smoothScrollToElement } from "@/lib/scroll/lenis-store"
+
 type ScrollspyProps = {
   children: ReactNode
   targetRef?: RefObject<
@@ -10,6 +12,8 @@ type ScrollspyProps = {
   onUpdate?: (id: string) => void
   offset?: number
   smooth?: boolean
+  /** When false, only tracks active section — clicks are handled by the caller. */
+  scrollOnClick?: boolean
   className?: string
   dataAttribute?: string
   history?: boolean
@@ -23,6 +27,7 @@ export function Scrollspy({
   className,
   offset = 0,
   smooth = true,
+  scrollOnClick = true,
   dataAttribute = "scrollspy",
   history = true,
 }: ScrollspyProps) {
@@ -157,13 +162,15 @@ export function Scrollspy({
         customOffset = parseInt(dataOffset, 10)
       }
 
-      const scrollTop = sectionElement.offsetTop - customOffset
-
-      if (scrollToElement && "scrollTo" in scrollToElement) {
+      // Prefer Lenis (landing) when registered; otherwise native scroll.
+      if (smooth) {
+        smoothScrollToElement(sectionElement, customOffset)
+      } else if (scrollToElement && "scrollTo" in scrollToElement) {
+        const scrollTop = sectionElement.offsetTop - customOffset
         scrollToElement.scrollTo({
           top: scrollTop,
           left: 0,
-          behavior: smooth ? "smooth" : "auto",
+          behavior: "auto",
         })
       }
       setActiveSection(sectionId, true)
@@ -194,9 +201,13 @@ export function Scrollspy({
     }
 
     const currentAnchors = anchorElementsRef.current
-    currentAnchors?.forEach((item) => {
-      item.addEventListener("click", scrollTo(item as HTMLElement))
-    })
+    const clickHandlers = scrollOnClick
+      ? currentAnchors?.map((item) => {
+          const handler = scrollTo(item as HTMLElement)
+          item.addEventListener("click", handler)
+          return { item, handler }
+        })
+      : []
 
     const onScroll = (event: Event) => {
       const scrollElement =
@@ -219,14 +230,14 @@ export function Scrollspy({
 
     // Check if there's a hash in the URL and scroll to the corresponding section
     const initialTimeout = setTimeout(() => {
-      scrollToHashSection()
+      if (scrollOnClick) scrollToHashSection()
       handleScroll()
     }, 100)
 
     return () => {
       window.removeEventListener("scroll", onScroll, true)
-      currentAnchors?.forEach((item) => {
-        item.removeEventListener("click", scrollTo(item as HTMLElement))
+      clickHandlers?.forEach(({ item, handler }) => {
+        item.removeEventListener("click", handler)
       })
       clearTimeout(initialTimeout)
     }
@@ -237,6 +248,7 @@ export function Scrollspy({
     dataAttribute,
     scrollTo,
     scrollToHashSection,
+    scrollOnClick,
   ])
 
   return (

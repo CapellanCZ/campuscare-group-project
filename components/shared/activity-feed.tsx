@@ -35,7 +35,10 @@ export function ActivityFeed({
                     {item.description}
                   </p>
                 </div>
-                <span className="shrink-0 text-right text-xs text-muted-foreground tabular-nums">
+                <span
+                  className="shrink-0 text-right text-xs text-muted-foreground tabular-nums"
+                  suppressHydrationWarning
+                >
                   {item.statusLabel ? (
                     <>
                       <span>{item.statusLabel}</span>

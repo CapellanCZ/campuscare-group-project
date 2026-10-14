@@ -1,7 +1,10 @@
+"use client"
+
 import Link from "next/link"
 import { IconActivity, IconArrowRight } from "@tabler/icons-react"
 
 import { NurseDashboardPreview } from "@/components/landing/nurse-dashboard-preview"
+import { scrollToId } from "@/components/landing/scroll-to-id"
 import { landingViewportSection } from "@/components/landing/section-shell"
 import { Button } from "@/components/ui/button"
 import { heroCopy, heroRotatingPhrases } from "@/lib/landing/content"
@@ -61,8 +64,8 @@ export function LandingHero() {
               size="lg"
               variant="outline"
               className="h-12 w-full rounded-full border-slate-200 bg-white text-base text-slate-800 hover:bg-slate-50 sm:h-14 sm:w-auto sm:px-8 sm:text-lg"
-              render={<a href="#about" />}
-              nativeButton={false}
+              type="button"
+              onClick={() => scrollToId("about")}
             >
               {heroCopy.secondaryCta}
             </Button>

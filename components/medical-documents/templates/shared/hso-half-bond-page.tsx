@@ -4,7 +4,7 @@ import type { ReactNode } from "react"
 import { cn } from "@/lib/utils"
 
 export const HSO_DASMA_ADDRESS =
-  "Sampaloc 1 Bridge, SM Dasmarinas, Government's Dr, Dasmarinas Cavite, Philippines"
+  "Sampaloc 1 Bridge, SM Dasmariñas, Government's Dr, Dasmariñas Cavite, Philippines"
 
 /** Official half-bond HSO form — top half of portrait letter (8.5in × 5.5in). */
 export const HSO_HALF_BOND_CLASS =

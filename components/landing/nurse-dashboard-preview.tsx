@@ -42,6 +42,11 @@ const emptyVitals: QueueVitals = {
 const DEMO_NURSE_NAME = "Nurse"
 const DEMO_NURSE_AVATAR = "/images/demo-nurse.jpg"
 
+/** Fixed ISO times — never `new Date()` at module scope (avoids SSR/client hydration drift). */
+const DEMO_NOW = "2026-10-14T01:00:00.000Z"
+const DEMO_12M_AGO = "2026-10-14T00:48:00.000Z"
+const DEMO_28M_AGO = "2026-10-14T00:32:00.000Z"
+
 const previewAccess: StaffAccess = {
   userId: "landing-preview-nurse",
   email: "nurse@nu-dasma.edu.ph",
@@ -92,9 +97,9 @@ function demoTicket(
     appointmentId: null,
     queueNumber: partial.queuePosition,
     estimatedWaitMinutes: 20,
-    checkedInAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    createdAt: new Date().toISOString(),
+    checkedInAt: DEMO_NOW,
+    updatedAt: DEMO_NOW,
+    createdAt: DEMO_NOW,
     patientId: null,
     patientType: "student",
     studentId: "2023-171853",
@@ -108,7 +113,7 @@ function demoTicket(
     callCount: 1,
     rejoinCount: 0,
     canRejoin: false,
-    intakeCompletedAt: new Date().toISOString(),
+    intakeCompletedAt: DEMO_NOW,
     chiefComplaint: "General consultation",
     vitals: emptyVitals,
     intakeNotes: null,
@@ -176,21 +181,21 @@ const previewActivity: ActivityItem[] = [
     title: "Patient checked in",
     description: "M-003 · Alex Rivera",
     statusLabel: "Waiting",
-    at: new Date().toISOString(),
+    at: DEMO_NOW,
   },
   {
     id: "a2",
     title: "Consultation completed",
     description: "M-001 · Casey Mendoza",
     statusLabel: "Completed",
-    at: new Date(Date.now() - 12 * 60_000).toISOString(),
+    at: DEMO_12M_AGO,
   },
   {
     id: "a3",
     title: "Request approved",
     description: "General consultation · Taylor Cruz",
     statusLabel: "Confirmed",
-    at: new Date(Date.now() - 28 * 60_000).toISOString(),
+    at: DEMO_28M_AGO,
   },
 ]
 

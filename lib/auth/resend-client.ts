@@ -18,7 +18,7 @@ export function resendFromAddress() {
   // Keep From display name ASCII-safe for SMTP providers.
   const fromName =
     process.env.RESEND_FROM_NAME?.trim().replace(/[^\x20-\x7E]/g, "") ||
-    "NU Dasmarinas Health Services Office"
+    "NU Dasmariñas Health Services Office"
   return `${fromName} <${fromEmail}>`
 }
 

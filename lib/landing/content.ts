@@ -54,7 +54,7 @@ export const secondaryNavLinks: NavLink[] = [
 ]
 
 export const heroRotatingPhrases = [
-  "NU Dasmarinas Health Service",
+  "NU Dasmariñas Health Service",
   "Queue visibility without the waiting-room guesswork",
   "Records, certificates, and care—connected",
 ]
