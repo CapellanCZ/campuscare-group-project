@@ -2,6 +2,8 @@
 export const siteRoutes = {
   home: "/landing",
   login: "/login",
+  /** Android APK download + QR for students / faculty. */
+  download: "/download",
   privacy: "/privacy",
   terms: "/terms",
   dataPrivacy: "/data-privacy",

@@ -77,6 +77,23 @@ export const aboutCopy = {
     "From walk-in consultations and preventive services to documentation and follow-up, HSO keeps the campus community healthy so learning and work can continue with confidence.",
     "CampusCare digitizes that day-to-day clinic flow—so requests are clearer, queues are transparent, and records stay ready when staff need them.",
   ],
+  missionLabel: "HSO mission",
+  mission:
+    "Accessible campus health care that keeps the Bulldog community ready to learn and serve.",
+  highlights: [
+    {
+      title: "Clinical consultations",
+      description: "Walk-in and scheduled care for students, faculty, and staff.",
+    },
+    {
+      title: "Preventive services",
+      description: "Health coordination and campus wellness support.",
+    },
+    {
+      title: "Medical documentation",
+      description: "Certificates and records when clinic policy allows.",
+    },
+  ],
 }
 
 export const features: FeatureItem[] = [
@@ -223,9 +240,10 @@ export const footerContact = {
 }
 
 export const footerQuickLinks = [
-  { label: "Overview", href: "#home" },
-  { label: "Features", href: "#features" },
-  { label: "Why Us", href: "#why-us" },
+  { label: "Overview", href: `${siteRoutes.home}#home` },
+  { label: "Features", href: `${siteRoutes.home}#features` },
+  { label: "Why Us", href: `${siteRoutes.home}#why-us` },
+  { label: "Mobile app", href: siteRoutes.download },
   { label: "Login", href: siteRoutes.login },
 ] as const
 

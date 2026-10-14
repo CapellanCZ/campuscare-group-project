@@ -13,6 +13,7 @@ import {
   footerLegalLinks,
   footerQuickLinks,
 } from "@/lib/landing/content"
+import { siteRoutes } from "@/lib/site/routes"
 
 function FooterLinkList({
   title,
@@ -61,13 +62,13 @@ export function LandingFooter() {
       <div className="mx-auto grid w-full max-w-6xl gap-10 px-4 py-12 sm:px-6 sm:py-14 md:grid-cols-2 lg:grid-cols-4 lg:gap-8 lg:py-16">
         <div className="min-w-0 space-y-5">
           <div className="flex flex-wrap items-center gap-3">
-            <a
-              href="#home"
+            <Link
+              href={siteRoutes.home}
               className="inline-flex items-center gap-2 font-semibold tracking-tight text-slate-900 transition-opacity hover:opacity-90"
               aria-label="CampusCare home"
             >
               <LandingLogo className="h-9 w-auto sm:h-10 lg:h-11" />
-            </a>
+            </Link>
             <Image
               src="/images/NU-Logo.png"
               alt="National University"
