@@ -118,6 +118,14 @@ export const features: FeatureItem[] = [
   },
 ]
 
+/** Short labels for floating hero chips around the product preview (keep to 4). */
+export const heroModuleChips = [
+  { label: "Consultations", icon: IconClipboardHeart },
+  { label: "Queue", icon: IconStack2 },
+  { label: "Records", icon: IconFileDescription },
+  { label: "Certificates", icon: IconCertificate },
+] as const
+
 export const howItWorksSteps: HowItWorksStep[] = [
   {
     step: 1,

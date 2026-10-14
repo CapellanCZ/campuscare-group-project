@@ -9,7 +9,9 @@ import {
 } from "motion/react"
 import { IconActivity, IconArrowRight } from "@tabler/icons-react"
 
+import { HeroPreviewOrbit } from "@/components/landing/hero-preview-orbit"
 import { NurseDashboardPreview } from "@/components/landing/nurse-dashboard-preview"
+import { RevealWord } from "@/components/landing/reveal-word"
 import { scrollToId } from "@/components/landing/scroll-to-id"
 import { useMotionReady } from "@/components/landing/use-motion-ready"
 import { landingViewportSection } from "@/components/landing/section-shell"
@@ -55,7 +57,8 @@ export function LandingHero() {
           </p>
 
           <h1 className="mt-5 text-balance text-3xl font-bold tracking-tight text-slate-900 sm:mt-6 sm:text-4xl md:text-5xl lg:text-[3.25rem] lg:leading-[1.08]">
-            {heroCopy.headline}
+            {heroCopy.headline.replace(/\bclarity\b/i, "").trimEnd()}{" "}
+            <RevealWord text="clarity" className="text-slate-900" />
           </h1>
           <p className="mt-3 text-pretty text-base font-medium text-blue-600 sm:text-lg md:text-xl">
             {heroRotatingPhrases[0]}
@@ -92,10 +95,14 @@ export function LandingHero() {
         <div className="flex w-full min-w-0 items-center justify-center px-4 sm:px-6 lg:w-1/2 lg:justify-start lg:self-center lg:px-0 lg:pr-10 lg:-translate-x-4 xl:pr-12 xl:-translate-x-6">
           {allowMotion ? (
             <motion.div style={{ y: previewY }} className="w-full will-change-transform">
-              <NurseDashboardPreview priority />
+              <HeroPreviewOrbit>
+                <NurseDashboardPreview priority />
+              </HeroPreviewOrbit>
             </motion.div>
           ) : (
-            <NurseDashboardPreview priority />
+            <HeroPreviewOrbit>
+              <NurseDashboardPreview priority />
+            </HeroPreviewOrbit>
           )}
         </div>
       </div>
