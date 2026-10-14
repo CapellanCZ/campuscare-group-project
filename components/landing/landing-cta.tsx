@@ -1,17 +1,39 @@
+"use client"
+
+import { useRef } from "react"
 import Link from "next/link"
+import { motion, useInView } from "motion/react"
 import { IconArrowRight } from "@tabler/icons-react"
 
+import { useMotionReady } from "@/components/landing/use-motion-ready"
 import { Button } from "@/components/ui/button"
 import { ctaCopy } from "@/lib/landing/content"
 import { siteRoutes } from "@/lib/site/routes"
 
 export function LandingCta() {
+  const sectionRef = useRef<HTMLElement | null>(null)
+  const inView = useInView(sectionRef, { amount: 0.45 })
+  const { allowMotion } = useMotionReady()
+
   return (
     <section
+      ref={sectionRef}
       id="get-started"
       className="scroll-mt-20 border-b border-slate-200/80 bg-gradient-to-b from-blue-600 to-blue-700"
     >
-      <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-6 px-4 py-12 text-center sm:px-6 sm:py-16 md:py-20">
+      <motion.div
+        className="mx-auto flex w-full max-w-6xl flex-col items-center gap-6 px-4 py-12 text-center sm:px-6 sm:py-16 md:py-20"
+        initial={false}
+        animate={
+          allowMotion
+            ? {
+                scale: inView ? 1.02 : 0.985,
+                opacity: inView ? 1 : 0.92,
+              }
+            : undefined
+        }
+        transition={{ type: "spring", stiffness: 220, damping: 28 }}
+      >
         <h2 className="max-w-2xl text-balance text-2xl font-bold tracking-tight text-white sm:text-3xl md:text-4xl">
           {ctaCopy.title}
         </h2>
@@ -38,7 +60,7 @@ export function LandingCta() {
             {ctaCopy.secondaryCta}
           </Button>
         </div>
-      </div>
+      </motion.div>
     </section>
   )
 }

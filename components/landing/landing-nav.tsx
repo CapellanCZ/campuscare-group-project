@@ -2,10 +2,17 @@
 
 import { type MouseEvent, useEffect, useRef, useState } from "react"
 import Link from "next/link"
+import {
+  motion,
+  useMotionTemplate,
+  useScroll,
+  useTransform,
+} from "motion/react"
 import { IconMenu2, IconX } from "@tabler/icons-react"
 
 import { LandingLogo } from "@/components/landing/landing-logo"
 import { scrollToId } from "@/components/landing/scroll-to-id"
+import { useMotionReady } from "@/components/landing/use-motion-ready"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
@@ -32,26 +39,45 @@ function handleSectionNav(
 }
 
 export function LandingNav() {
-  const [scrolled, setScrolled] = useState(false)
+  const [activeId, setActiveId] = useState(navLinks[0]?.id ?? "home")
   const [open, setOpen] = useState(false)
   const scrollRootRef = useRef<Document | null>(
     typeof document !== "undefined" ? document : null
   )
+  const { allowMotion } = useMotionReady()
+  const { scrollY } = useScroll()
+
+  const headerAlpha = useTransform(scrollY, [0, 72], [0.88, 0.97])
+  const blurPx = useTransform(scrollY, [0, 72], [10, 18])
+  const shadowAlpha = useTransform(scrollY, [0, 72], [0, 0.1])
+  const borderAlpha = useTransform(scrollY, [0, 72], [0, 0.8])
+
+  const headerBackground = useMotionTemplate`rgb(255 255 255 / ${headerAlpha})`
+  const headerFilter = useMotionTemplate`blur(${blurPx}px)`
+  const headerShadow = useMotionTemplate`0 1px 0 rgb(15 23 42 / ${shadowAlpha}), 0 8px 24px -16px rgb(15 23 42 / ${shadowAlpha})`
+  const headerBorder = useMotionTemplate`rgb(226 232 240 / ${borderAlpha})`
 
   useEffect(() => {
     scrollRootRef.current = document
-    const onScroll = () => setScrolled(window.scrollY > 8)
-    onScroll()
-    window.addEventListener("scroll", onScroll, { passive: true })
-    return () => window.removeEventListener("scroll", onScroll)
   }, [])
 
   return (
-    <header
+    <motion.header
       className={cn(
-        "sticky top-0 z-50 border-b border-transparent bg-white/90 backdrop-blur-xl transition-[border-color,box-shadow] duration-300",
-        scrolled && "border-slate-200/80 shadow-sm bg-white/95"
+        "sticky top-0 z-50 border-b backdrop-blur-xl",
+        !allowMotion && "border-slate-200/80 bg-white/95 shadow-sm"
       )}
+      style={
+        allowMotion
+          ? {
+              backgroundColor: headerBackground,
+              borderColor: headerBorder,
+              boxShadow: headerShadow,
+              backdropFilter: headerFilter,
+              WebkitBackdropFilter: headerFilter,
+            }
+          : undefined
+      }
     >
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-3 px-4 sm:h-16 sm:gap-4 sm:px-6">
         <a
@@ -74,23 +100,48 @@ export function LandingNav() {
         <nav aria-label="Primary" className="hidden lg:block">
           <Scrollspy
             offset={88}
-            className="flex items-center gap-1"
+            className="relative flex items-center gap-1"
             history={false}
             smooth
             scrollOnClick={false}
             targetRef={scrollRootRef}
+            onUpdate={setActiveId}
           >
-            {navLinks.map((link) => (
-              <a
-                key={link.id}
-                href={link.href}
-                data-scrollspy-anchor={link.id}
-                className="rounded-full px-3.5 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-900 data-[active=true]:bg-blue-50 data-[active=true]:text-blue-600"
-                onClick={(event) => handleSectionNav(event, link.id)}
-              >
-                {link.label}
-              </a>
-            ))}
+            {navLinks.map((link) => {
+              const isActive = activeId === link.id
+              return (
+                <a
+                  key={link.id}
+                  href={link.href}
+                  data-scrollspy-anchor={link.id}
+                  className={cn(
+                    "relative z-10 rounded-full px-3.5 py-2 text-sm font-medium transition-colors",
+                    isActive
+                      ? "text-blue-700"
+                      : "text-slate-500 hover:text-slate-900"
+                  )}
+                  onClick={(event) => handleSectionNav(event, link.id)}
+                >
+                  {isActive ? (
+                    allowMotion ? (
+                      <motion.span
+                        layoutId="landing-nav-pill"
+                        className="absolute inset-0 -z-10 rounded-full bg-blue-50"
+                        transition={{
+                          type: "spring",
+                          stiffness: 420,
+                          damping: 34,
+                          mass: 0.7,
+                        }}
+                      />
+                    ) : (
+                      <span className="absolute inset-0 -z-10 rounded-full bg-blue-50" />
+                    )
+                  ) : null}
+                  {link.label}
+                </a>
+              )
+            })}
           </Scrollspy>
         </nav>
 
@@ -139,7 +190,12 @@ export function LandingNav() {
                   <a
                     key={link.id}
                     href={link.href}
-                    className="rounded-xl px-3 py-3 text-sm font-medium text-slate-800 hover:bg-slate-100"
+                    className={cn(
+                      "rounded-xl px-3 py-3 text-sm font-medium hover:bg-slate-100",
+                      activeId === link.id
+                        ? "bg-blue-50 text-blue-700"
+                        : "text-slate-800"
+                    )}
                     onClick={(event) =>
                       handleSectionNav(event, link.id, () => setOpen(false))
                     }
@@ -160,6 +216,6 @@ export function LandingNav() {
           </Drawer>
         </div>
       </div>
-    </header>
+    </motion.header>
   )
 }

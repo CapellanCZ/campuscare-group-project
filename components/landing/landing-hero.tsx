@@ -1,10 +1,17 @@
 "use client"
 
+import { useRef } from "react"
 import Link from "next/link"
+import {
+  motion,
+  useScroll,
+  useTransform,
+} from "motion/react"
 import { IconActivity, IconArrowRight } from "@tabler/icons-react"
 
 import { NurseDashboardPreview } from "@/components/landing/nurse-dashboard-preview"
 import { scrollToId } from "@/components/landing/scroll-to-id"
+import { useMotionReady } from "@/components/landing/use-motion-ready"
 import { landingViewportSection } from "@/components/landing/section-shell"
 import { Button } from "@/components/ui/button"
 import { heroCopy, heroRotatingPhrases } from "@/lib/landing/content"
@@ -15,8 +22,18 @@ import { cn } from "@/lib/utils"
  * Left copy + floating full nurse dashboard window on the right.
  */
 export function LandingHero() {
+  const sectionRef = useRef<HTMLElement | null>(null)
+  const { allowMotion } = useMotionReady()
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start start", "end start"],
+  })
+  // Preview drifts slower than page scroll (~8% parallax).
+  const previewY = useTransform(scrollYProgress, [0, 1], [0, 56])
+
   return (
     <section
+      ref={sectionRef}
       id="home"
       className={cn(landingViewportSection, "relative overflow-x-clip")}
     >
@@ -73,7 +90,13 @@ export function LandingHero() {
         </div>
 
         <div className="flex w-full min-w-0 items-center justify-center px-4 sm:px-6 lg:w-1/2 lg:justify-start lg:self-center lg:px-0 lg:pr-10 lg:-translate-x-4 xl:pr-12 xl:-translate-x-6">
-          <NurseDashboardPreview priority />
+          {allowMotion ? (
+            <motion.div style={{ y: previewY }} className="w-full will-change-transform">
+              <NurseDashboardPreview priority />
+            </motion.div>
+          ) : (
+            <NurseDashboardPreview priority />
+          )}
         </div>
       </div>
     </section>

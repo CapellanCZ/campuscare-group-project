@@ -1,9 +1,10 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { useInView } from "motion/react"
+import { motion, useInView } from "motion/react"
 
-import { Reveal, ScrollFadeSection } from "@/components/landing/motion"
+import { Reveal } from "@/components/landing/motion"
+import { useMotionReady } from "@/components/landing/use-motion-ready"
 import {
   Timeline,
   TimelineContent,
@@ -16,11 +17,13 @@ import {
 } from "@/components/reui/timeline"
 import { howItWorksSteps } from "@/lib/landing/content"
 
+const easeOut = [0.22, 1, 0.36, 1] as const
+
 export function LandingHowItWorks() {
   const [activeStep, setActiveStep] = useState(1)
 
   return (
-    <ScrollFadeSection
+    <section
       id="how-it-works"
       className="scroll-mt-20 border-b border-border/60"
     >
@@ -44,7 +47,7 @@ export function LandingHowItWorks() {
           </Reveal>
         </div>
 
-        <Reveal delay={0.12} className="mt-12 min-w-0">
+        <div className="mt-12 min-w-0">
           <Timeline
             value={activeStep}
             onValueChange={setActiveStep}
@@ -62,9 +65,9 @@ export function LandingHowItWorks() {
               />
             ))}
           </Timeline>
-        </Reveal>
+        </div>
       </div>
-    </ScrollFadeSection>
+    </section>
   )
 }
 
@@ -82,7 +85,11 @@ function HowItWorksItem({
   onActive: (step: number) => void
 }) {
   const ref = useRef<HTMLDivElement | null>(null)
-  const inView = useInView(ref, { amount: 0.55 })
+  const inView = useInView(ref, {
+    amount: 0.45,
+    margin: "0px 0px -10% 0px",
+  })
+  const { allowMotion } = useMotionReady()
 
   useEffect(() => {
     if (inView) onActive(step)
@@ -90,13 +97,37 @@ function HowItWorksItem({
 
   return (
     <TimelineItem ref={ref} step={step}>
-      <TimelineHeader>
-        <TimelineSeparator />
-        <TimelineDate>{label}</TimelineDate>
-        <TimelineTitle>{title}</TimelineTitle>
-        <TimelineIndicator />
-      </TimelineHeader>
-      <TimelineContent>{description}</TimelineContent>
+      {allowMotion ? (
+        <motion.div
+          initial={{ opacity: 0, y: 26 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: false, amount: 0.35, margin: "0px 0px -8% 0px" }}
+          transition={{
+            duration: 0.5,
+            ease: easeOut,
+            delay: Math.min(0.1, (step - 1) * 0.03),
+          }}
+          className="flex flex-col gap-0.5"
+        >
+          <TimelineHeader>
+            <TimelineSeparator />
+            <TimelineDate>{label}</TimelineDate>
+            <TimelineTitle>{title}</TimelineTitle>
+            <TimelineIndicator />
+          </TimelineHeader>
+          <TimelineContent>{description}</TimelineContent>
+        </motion.div>
+      ) : (
+        <>
+          <TimelineHeader>
+            <TimelineSeparator />
+            <TimelineDate>{label}</TimelineDate>
+            <TimelineTitle>{title}</TimelineTitle>
+            <TimelineIndicator />
+          </TimelineHeader>
+          <TimelineContent>{description}</TimelineContent>
+        </>
+      )}
     </TimelineItem>
   )
 }
