@@ -19,6 +19,11 @@ import {
   transferTargetsForDesignation,
 } from "@/lib/health/roles"
 import { systemIntakeNote } from "@/lib/health/intake-notes"
+import {
+  assertAppointmentEligibleForQueueEntry,
+  assertTicketEligibleForQueueEntry,
+} from "@/lib/health/ticket-schedule"
+import { manilaPreferredStartsAtIso } from "@/lib/health/appointment-queue-eligibility"
 import { manilaDayBounds } from "@/lib/health/time"
 import type {
   HealthActionResult,
@@ -108,14 +113,30 @@ export async function callNextTicket(params: {
 
   const { data: waiting } = await supabase
     .from("health_queue_tickets")
-    .select("id, call_count, queue_position")
+    .select(
+      "id, call_count, queue_position, appointment_id, health_appointment_id, consultation_request_id"
+    )
     .eq("status", "waiting")
     .eq("station", station)
     .eq("service_date", ymd)
     .order("queue_position", { ascending: true })
-    .limit(1)
+    .limit(40)
 
-  const chosen = waiting?.[0]
+  let chosen: {
+    id: string
+    call_count: number | null
+  } | null = null
+  for (const candidate of waiting ?? []) {
+    const eligibility = await assertTicketEligibleForQueueEntry(
+      supabase,
+      candidate
+    )
+    if (eligibility.ok) {
+      chosen = candidate
+      break
+    }
+  }
+
   if (!chosen) {
     return { ok: false, error: `No waiting patients in the ${station} queue.` }
   }
@@ -153,7 +174,9 @@ export async function recallTicket(params: {
   const supabase = await createClient()
   const { data: ticket } = await supabase
     .from("health_queue_tickets")
-    .select("id, status, call_count, station")
+    .select(
+      "id, status, call_count, station, appointment_id, health_appointment_id, consultation_request_id"
+    )
     .eq("id", params.ticketId)
     .maybeSingle()
 
@@ -164,6 +187,11 @@ export async function recallTicket(params: {
     ticket.status !== "ongoing"
   ) {
     return { ok: false, error: "Only waiting, called, or ongoing tickets can be recalled." }
+  }
+
+  if (ticket.status === "waiting") {
+    const eligibility = await assertTicketEligibleForQueueEntry(supabase, ticket)
+    if (!eligibility.ok) return eligibility
   }
 
   const nextCount = (ticket.call_count ?? 0) + 1
@@ -484,49 +512,59 @@ export async function skipOrNoShow(params: {
   designation: ClinicDesignation
   ticketId: string
   reason: "skip" | "no_show"
+  staffName?: string
 }): Promise<HealthActionResult> {
   const denied = await requireMutable(params.designation)
   if (denied) return { ok: false, error: denied }
 
   const supabase = await createClient()
+  const { data: ticket } = await supabase
+    .from("health_queue_tickets")
+    .select("id, call_count, status, intake_notes")
+    .eq("id", params.ticketId)
+    .maybeSingle()
+
+  if (!ticket) return { ok: false, error: "Ticket not found." }
 
   if (params.reason === "no_show") {
-    const { data: ticket } = await supabase
-      .from("health_queue_tickets")
-      .select("id, call_count, status")
-      .eq("id", params.ticketId)
-      .maybeSingle()
-
-    if (!ticket) return { ok: false, error: "Ticket not found." }
     if ((ticket.call_count ?? 0) < 2) {
       return {
         ok: false,
         error: "Call the patient twice before marking no-show.",
       }
     }
-
-    const { error } = await supabase
-      .from("health_queue_tickets")
-      .update({
-        status: "no_show",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", ticket.id)
-
-    if (error) return { ok: false, error: error.message }
-    return { ok: true, message: "Marked no-show." }
   }
+
+  // Skip and no-show both use `no_show` so the ticket stays on the live queue
+  // (Exceptions lane) and staff can rejoin. Do not use `expired` — that status
+  // is for released reservations and is excluded from active queue fetches.
+  const now = new Date().toISOString()
+  const note = systemIntakeNote({
+    action: params.reason === "skip" ? "Skipped in queue" : "Marked no-show",
+    by: params.staffName,
+  })
+  const priorNotes =
+    typeof ticket.intake_notes === "string" && ticket.intake_notes.trim()
+      ? `${ticket.intake_notes.trim()}\n`
+      : ""
 
   const { error } = await supabase
     .from("health_queue_tickets")
     .update({
-      status: "expired",
-      updated_at: new Date().toISOString(),
+      status: "no_show",
+      intake_notes: `${priorNotes}${note}`,
+      updated_at: now,
     })
-    .eq("id", params.ticketId)
+    .eq("id", ticket.id)
 
   if (error) return { ok: false, error: error.message }
-  return { ok: true, message: "Patient skipped." }
+  return {
+    ok: true,
+    message:
+      params.reason === "skip"
+        ? "Patient skipped — reopen Exceptions to rejoin the queue."
+        : "Marked no-show — reopen Exceptions to rejoin the queue.",
+  }
 }
 
 export async function rejoinQueue(params: {
@@ -544,8 +582,12 @@ export async function rejoinQueue(params: {
     .maybeSingle()
 
   if (!ticket) return { ok: false, error: "Ticket not found." }
-  if (ticket.status !== "no_show") {
-    return { ok: false, error: "Only no-show tickets can rejoin." }
+  // Recover legacy skips that were stored as `expired`, plus normal no-shows.
+  if (ticket.status !== "no_show" && ticket.status !== "expired") {
+    return {
+      ok: false,
+      error: "Only skipped or no-show tickets can rejoin the queue.",
+    }
   }
   if ((ticket.rejoin_count ?? 0) >= 1) {
     return {
@@ -588,6 +630,21 @@ export async function verifyCheckIn(params: {
   }
 
   const supabase = await createClient()
+  const { data: ticket } = await supabase
+    .from("health_queue_tickets")
+    .select(
+      "id, appointment_id, health_appointment_id, consultation_request_id"
+    )
+    .eq("id", params.ticketId)
+    .maybeSingle()
+
+  if (!ticket) {
+    return { ok: false, error: "Ticket not found or check-in could not be saved." }
+  }
+
+  const eligibility = await assertTicketEligibleForQueueEntry(supabase, ticket)
+  if (!eligibility.ok) return eligibility
+
   const now = new Date().toISOString()
   const { data: updated, error } = await supabase
     .from("health_queue_tickets")
@@ -666,6 +723,12 @@ export async function completeNurseIntakeAndAssign(params: {
     .maybeSingle()
 
   if (!ticket) return { ok: false, error: "Ticket not found." }
+
+  const intakeEligibility = await assertTicketEligibleForQueueEntry(
+    supabase,
+    ticket
+  )
+  if (!intakeEligibility.ok) return intakeEligibility
 
   let toStation: SpecialtyStationId | null =
     params.intake.toStation === "physician" || params.intake.toStation === "dentist"
@@ -1423,6 +1486,14 @@ export async function admitWaitlistedConsultationRequest(params: {
   if (request.status !== "waitlisted" && !params.force) {
     return { ok: false, error: "Only waitlisted requests can be admitted." }
   }
+
+  const preferredStartsAt = manilaPreferredStartsAtIso(
+    request.preferred_date as string | null,
+    request.preferred_time as string | null
+  )
+  const scheduleGate =
+    await assertAppointmentEligibleForQueueEntry(preferredStartsAt)
+  if (!scheduleGate.ok) return scheduleGate
 
   const providerType: SpecialtyStationId =
     request.provider_type === "dentist" ? "dentist" : "physician"

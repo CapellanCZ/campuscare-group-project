@@ -4,6 +4,7 @@ import type { ClinicDesignation } from "@/lib/auth/types"
 import { CAMPUS_CLINIC_ID } from "@/lib/auth/campus-clinic"
 import { canApproveConsultationRequest } from "@/lib/health/roles"
 import { systemIntakeNote } from "@/lib/health/intake-notes"
+import { assertAppointmentEligibleForQueueEntry } from "@/lib/health/ticket-schedule"
 import type { HealthActionResult, SpecialtyStationId } from "@/lib/health/types"
 import { createClient } from "@/lib/supabase/server"
 import { nextReservedQueueNumber } from "@/services/consultation-capacity"
@@ -340,6 +341,11 @@ export async function admitWaitlistedAppointment(params: {
   if (appt.status !== "waitlisted" && !params.force) {
     return { ok: false, error: "Only waitlisted appointments can be admitted." }
   }
+
+  const scheduleGate = await assertAppointmentEligibleForQueueEntry(
+    appt.starts_at as string
+  )
+  if (!scheduleGate.ok) return scheduleGate
 
   const created = await createAndLinkQueueTicket({
     supabase,

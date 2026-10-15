@@ -53,6 +53,7 @@ import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import {
   actionCallNext,
+  actionRejoinQueue,
   actionSkipTicket,
   actionVerifyCheckIn,
 } from "@/lib/health/queue-server-actions"
@@ -449,6 +450,7 @@ export function NurseTodayQueue({
                               </DropdownMenuItem>
                               {canSkip &&
                               row.status !== "completed" &&
+                              row.status !== "no_show" &&
                               row.status !== "expired" ? (
                                 <>
                                   <DropdownMenuSeparator />
@@ -456,16 +458,45 @@ export function NurseTodayQueue({
                                     variant="destructive"
                                     onClick={() =>
                                       runAction(
-                                        "Patient skipped",
+                                        "Patient skipped — open Exceptions to rejoin",
                                         () => actionSkipTicket(row.ticketId),
                                         {
                                           ticketId: row.ticketId,
-                                          patch: { status: "waiting" },
+                                          patch: {
+                                            status: "no_show",
+                                            canRejoin: row.rejoinCount < 1,
+                                          },
                                         }
                                       )
                                     }
                                   >
                                     Skip patient
+                                  </DropdownMenuItem>
+                                </>
+                              ) : null}
+                              {canMutate &&
+                              (row.status === "no_show" ||
+                                row.status === "expired") &&
+                              row.canRejoin ? (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      runAction(
+                                        "Patient rejoined at end of queue",
+                                        () => actionRejoinQueue(row.ticketId),
+                                        {
+                                          ticketId: row.ticketId,
+                                          patch: {
+                                            status: "waiting",
+                                            rejoinCount: row.rejoinCount + 1,
+                                            canRejoin: false,
+                                          },
+                                        }
+                                      )
+                                    }
+                                  >
+                                    Rejoin end of queue
                                   </DropdownMenuItem>
                                 </>
                               ) : null}

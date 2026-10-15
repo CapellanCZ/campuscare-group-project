@@ -21,7 +21,7 @@ const LANES: Array<{
   {
     id: "exceptions",
     label: "Exceptions",
-    hint: "No-show & rejoin",
+    hint: "Skipped / no-show — rejoin",
   },
 ]
 

@@ -35,6 +35,8 @@ export type PatientVitalsRecord = {
 export type QueueTicketRow = {
   ticketId: string
   appointmentId: string | null
+  /** Scheduled start (ISO). Null for walk-ins / unscheduled tickets. */
+  appointmentStartsAt: string | null
   ticketCode: string
   queueNumber: number | null
   queuePosition: number

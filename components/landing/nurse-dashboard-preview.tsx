@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useRef, useState } from "react"
 import {
   IconBell,
   IconChartBar,
@@ -95,6 +96,7 @@ function demoTicket(
 ): QueueTicketRow {
   return {
     appointmentId: null,
+    appointmentStartsAt: null,
     queueNumber: partial.queuePosition,
     estimatedWaitMinutes: 20,
     checkedInAt: DEMO_NOW,
@@ -306,11 +308,9 @@ const navGroups = [
   },
 ] as const
 
-/** Design canvas for a complete nurse dashboard page (then scaled down). */
+/** Design canvas for a complete nurse dashboard page (then scaled to fit). */
 const PAGE_W = 1180
 const PAGE_H = 860
-/** Preview scale — readable full-page shot on the right, not a tiny thumbnail. */
-const PAGE_SCALE = 0.72
 
 type NurseDashboardPreviewProps = {
   className?: string
@@ -321,26 +321,45 @@ type NurseDashboardPreviewProps = {
 }
 
 /**
- * Real CampusCare nurse dashboard as a scaled full-page preview
- * (complete layout, not cropped) — decorative, no live fetch.
+ * Real CampusCare nurse dashboard as a fluid full-page preview.
+ * Scales to the column width so the full mock fits at any desktop size.
  */
 export function NurseDashboardPreview({
   className,
 }: NurseDashboardPreviewProps) {
+  const shellRef = useRef<HTMLDivElement | null>(null)
+  const [scale, setScale] = useState(0.55)
+
+  useEffect(() => {
+    const shell = shellRef.current
+    if (!shell) return
+
+    const updateScale = () => {
+      const width = shell.getBoundingClientRect().width
+      if (width > 0) setScale(width / PAGE_W)
+    }
+
+    updateScale()
+    const observer = new ResizeObserver(updateScale)
+    observer.observe(shell)
+    return () => observer.disconnect()
+  }, [])
+
   return (
     <div
-      className={cn("relative mx-auto min-w-0 w-full max-w-[54rem]", className)}
-      style={{
-        maxWidth: PAGE_W * PAGE_SCALE,
-        height: PAGE_H * PAGE_SCALE,
-      }}
+      ref={shellRef}
+      className={cn(
+        "relative mx-auto w-full min-w-0 max-w-full overflow-hidden",
+        className
+      )}
+      style={{ aspectRatio: `${PAGE_W} / ${PAGE_H}` }}
     >
       <div
         className="pointer-events-none absolute top-0 left-0 origin-top-left select-none overflow-hidden rounded-2xl border border-slate-200/90 bg-[#f4f6f9] shadow-[0_32px_80px_-24px_rgba(15,23,42,0.4),0_12px_28px_-12px_rgba(15,23,42,0.18)] ring-1 ring-slate-900/5"
         style={{
           width: PAGE_W,
           height: PAGE_H,
-          transform: `scale(${PAGE_SCALE})`,
+          transform: `scale(${scale})`,
         }}
         aria-hidden
       >

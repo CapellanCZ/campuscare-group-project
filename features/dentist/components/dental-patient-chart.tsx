@@ -604,7 +604,7 @@ export function DentalPatientChartForm({
           ) : null}
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5 sm:col-span-2 [&_[data-slot=checkbox]]:border-neutral-700 [&_[data-slot=checkbox]]:bg-white [&_[data-slot=checkbox]]:dark:border-neutral-700 [&_[data-slot=checkbox]]:dark:bg-white [&_[data-slot=checkbox]]:dark:data-checked:border-neutral-900 [&_[data-slot=checkbox]]:dark:data-checked:bg-neutral-900 [&_[data-slot=checkbox]]:dark:data-checked:text-white">
+            <div className="space-y-1.5 sm:col-span-2">
               <HealthCaseChecklist
                 catalog="dentist"
                 value={parseHealthCaseSelection("dentist", chart.diagnosis)}

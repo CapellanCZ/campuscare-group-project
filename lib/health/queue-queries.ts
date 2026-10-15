@@ -10,6 +10,10 @@ import {
   extractUuidsFromText,
   formatAccountRoleLabel,
 } from "@/lib/health/intake-notes"
+import {
+  filterActiveQueueTickets,
+  manilaPreferredStartsAtIso,
+} from "@/lib/health/appointment-queue-eligibility"
 import { pickNowServingTicket } from "@/lib/health/nurse-queue"
 import { stationLabel } from "@/lib/health/roles"
 import { manilaDayBounds } from "@/lib/health/time"
@@ -88,14 +92,15 @@ async function fetchJoinedTickets(): Promise<QueueTicketRow[]> {
     supabase
       .from("health_queue_tickets")
       .select(TICKET_SELECT)
-      .in("status", ["waiting", "called", "ongoing", "no_show"])
+      // Include no_show + expired so skipped patients remain visible to rejoin.
+      .in("status", ["waiting", "called", "ongoing", "no_show", "expired"])
       .eq("service_date", ymd)
       .order("queue_position", { ascending: true }),
     // Legacy rows without service_date: only include if created today (Manila).
     supabase
       .from("health_queue_tickets")
       .select(TICKET_SELECT)
-      .in("status", ["waiting", "called", "ongoing", "no_show"])
+      .in("status", ["waiting", "called", "ongoing", "no_show", "expired"])
       .is("service_date", null)
       .gte("created_at", startIso)
       .order("queue_position", { ascending: true }),
@@ -139,12 +144,72 @@ async function fetchJoinedTickets(): Promise<QueueTicketRow[]> {
     return ap - bp
   })
 
+  const withStarts = await attachAppointmentStartsAt(supabase, rawTickets)
   const accountLabels = await resolveAccountLabelsForNotes(
     supabase,
-    rawTickets
+    withStarts
   )
 
-  return rawTickets.map((t) => mapTicketRow(t, { accountLabels }))
+  const mapped = withStarts.map((t) => mapTicketRow(t, { accountLabels }))
+  // Scheduled appointments only appear in the active queue at/after starts_at.
+  // Re-evaluated on every fetch (realtime refresh, display poll, soft reload).
+  return filterActiveQueueTickets(mapped)
+}
+
+async function attachAppointmentStartsAt(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  tickets: RawQueueTicket[]
+): Promise<RawQueueTicket[]> {
+  const appointmentIds = new Set<string>()
+  const requestIds = new Set<string>()
+  for (const ticket of tickets) {
+    const apptId = ticket.health_appointment_id ?? ticket.appointment_id
+    if (apptId) appointmentIds.add(apptId)
+    if (ticket.consultation_request_id) {
+      requestIds.add(ticket.consultation_request_id)
+    }
+  }
+
+  const startsByAppointment = new Map<string, string>()
+  const startsByRequest = new Map<string, string>()
+
+  if (appointmentIds.size > 0) {
+    const { data } = await supabase
+      .from("appointments")
+      .select("id, starts_at")
+      .in("id", [...appointmentIds])
+    for (const row of data ?? []) {
+      if (row.starts_at) {
+        startsByAppointment.set(String(row.id), String(row.starts_at))
+      }
+    }
+  }
+
+  if (requestIds.size > 0) {
+    const { data } = await supabase
+      .from("consultation_requests")
+      .select("id, preferred_date, preferred_time")
+      .in("id", [...requestIds])
+    for (const row of data ?? []) {
+      const iso = manilaPreferredStartsAtIso(
+        row.preferred_date as string | null,
+        row.preferred_time as string | null
+      )
+      if (iso) startsByRequest.set(String(row.id), iso)
+    }
+  }
+
+  return tickets.map((ticket) => {
+    const apptId = ticket.health_appointment_id ?? ticket.appointment_id
+    const fromAppt = apptId ? startsByAppointment.get(apptId) : undefined
+    const fromReq = ticket.consultation_request_id
+      ? startsByRequest.get(ticket.consultation_request_id)
+      : undefined
+    return {
+      ...ticket,
+      appointment_starts_at: fromAppt ?? fromReq ?? null,
+    }
+  })
 }
 
 async function resolveAccountLabelsForNotes(

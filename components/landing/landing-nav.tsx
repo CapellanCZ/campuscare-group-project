@@ -79,7 +79,7 @@ export function LandingNav() {
           : undefined
       }
     >
-      <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-3 px-4 sm:h-16 sm:gap-4 sm:px-6">
+      <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between gap-3 px-4 sm:h-16 sm:gap-4 sm:px-6 lg:px-8">
         <a
           href="#home"
           className="flex min-w-0 max-w-[70%] items-center gap-2 sm:max-w-none sm:gap-2.5"

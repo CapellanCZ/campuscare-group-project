@@ -68,7 +68,8 @@ export const queueToasts = {
   skipped: () =>
     appToast.success({
       title: "Patient Skipped",
-      description: "The patient has been skipped in the queue.",
+      description:
+        "Moved to Exceptions. Use Rejoin end of queue when they are ready.",
     }),
   recalled: () =>
     appToast.success({

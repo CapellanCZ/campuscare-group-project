@@ -1,3 +1,4 @@
+import { isAppointmentEligibleForQueue } from "@/lib/health/appointment-queue-eligibility"
 import type { QueueTicketRow } from "@/lib/health/types"
 
 export type NurseQueueLane = "needs_intake" | "at_specialty" | "exceptions"
@@ -25,18 +26,34 @@ export function isScheduledTicket(row: QueueTicketRow): boolean {
   return Boolean(row.appointmentId) && !isWalkInTicket(row)
 }
 
-export function canOpenNurseIntake(row: QueueTicketRow): boolean {
+/** Scheduled start has arrived (or walk-in / unscheduled). */
+export function isQueueTimeEligible(
+  row: Pick<QueueTicketRow, "appointmentStartsAt">,
+  now: Date = new Date()
+): boolean {
+  return isAppointmentEligibleForQueue(row.appointmentStartsAt, now)
+}
+
+export function canOpenNurseIntake(
+  row: QueueTicketRow,
+  now: Date = new Date()
+): boolean {
   return (
     needsNurseIntake(row) &&
+    isQueueTimeEligible(row, now) &&
     (!isScheduledTicket(row) || Boolean(row.checkedInAt))
   )
 }
 
 /** Patient still needs check-in verification before intake. */
-export function needsCheckInVerify(row: QueueTicketRow): boolean {
+export function needsCheckInVerify(
+  row: QueueTicketRow,
+  now: Date = new Date()
+): boolean {
   if (row.status === "completed" || row.status === "no_show" || row.status === "expired") {
     return false
   }
+  if (!isQueueTimeEligible(row, now)) return false
   if (isScheduledTicket(row) && !row.checkedInAt) return true
   return row.status === "called" && !row.checkedInAt
 }
@@ -57,8 +74,10 @@ export function queueActionsForTicket(row: QueueTicketRow): Set<QueueActionKey> 
   if (row.status === "completed") {
     return new Set(["view_details"])
   }
-  if (row.status === "no_show") {
-    return new Set(["rejoin", "skip", "reschedule"])
+  if (row.status === "no_show" || row.status === "expired") {
+    const actions = new Set<QueueActionKey>(["view_details", "reschedule"])
+    if (row.canRejoin) actions.add("rejoin")
+    return actions
   }
   const actions = new Set<QueueActionKey>([
     "call",
@@ -69,7 +88,6 @@ export function queueActionsForTicket(row: QueueTicketRow): Set<QueueActionKey> 
   ])
   if (needsCheckInVerify(row)) actions.add("verify")
   if (canOpenNurseIntake(row)) actions.add("intake")
-  if (row.canRejoin) actions.add("rejoin")
   return actions
 }
 
@@ -82,7 +100,11 @@ export function isAtSpecialtyAfterIntake(row: QueueTicketRow): boolean {
 }
 
 export function isNurseQueueException(row: QueueTicketRow): boolean {
-  return row.status === "no_show" || (row.status === "waiting" && row.canRejoin)
+  return (
+    row.status === "no_show" ||
+    row.status === "expired" ||
+    (row.status === "waiting" && row.canRejoin)
+  )
 }
 
 export function nurseLaneForTicket(row: QueueTicketRow): NurseQueueLane {
@@ -102,8 +124,8 @@ export function ticketsInNurseLane(
 export function nextNurseIntakeTicket(
   tickets: QueueTicketRow[]
 ): QueueTicketRow | null {
-  const waiting = ticketsInNurseLane(tickets, "needs_intake").filter(
-    canOpenNurseIntake
+  const waiting = ticketsInNurseLane(tickets, "needs_intake").filter((row) =>
+    canOpenNurseIntake(row)
   )
   const called = waiting.find((row) => row.status === "called")
   return called ?? waiting[0] ?? null

@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils"
 /**
  * Mobile: copy-first hero (no scaled dashboard).
  * Desktop (lg+): copy + floating nurse preview with module chips.
+ * Constrained to max-w-7xl so the composition holds on wide monitors.
  */
 export function LandingHero() {
   const sectionRef = useRef<HTMLElement | null>(null)
@@ -39,7 +40,7 @@ export function LandingHero() {
       className={cn(
         "relative flex scroll-mt-20 overflow-x-clip",
         "min-h-[calc(100dvh-3.5rem)] items-center py-10 sm:min-h-[calc(100dvh-4rem)] sm:py-12",
-        "lg:py-0"
+        "lg:py-8 xl:py-10"
       )}
     >
       <div
@@ -47,8 +48,8 @@ export function LandingHero() {
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_420px_at_15%_0%,rgba(59,130,246,0.12),transparent_55%),radial-gradient(700px_360px_at_90%_10%,rgba(14,165,233,0.1),transparent_50%)]"
       />
 
-      <div className="relative flex w-full flex-col lg:flex-row lg:items-center lg:gap-0">
-        <div className="flex w-full min-w-0 flex-col items-start px-4 text-left sm:px-6 lg:w-1/2 lg:max-w-none lg:shrink-0 lg:pl-[max(1rem,calc((100%-80rem)/2+1rem))] lg:pr-8 xl:pr-12">
+      <div className="relative mx-auto flex w-full max-w-7xl flex-col lg:flex-row lg:items-center lg:gap-8 xl:gap-10">
+        <div className="flex w-full min-w-0 flex-col items-start px-4 text-left sm:px-6 lg:w-[min(100%,26.5rem)] lg:shrink-0 lg:px-8 xl:w-[min(100%,28rem)]">
           <p className="inline-flex max-w-full items-start gap-2 rounded-full bg-blue-50 px-3.5 py-1.5 text-left text-xs font-medium text-blue-700 sm:items-center sm:px-5 sm:py-2 sm:text-sm">
             <IconActivity
               className="mt-0.5 size-4 shrink-0 sm:mt-0 sm:size-5"
@@ -59,7 +60,7 @@ export function LandingHero() {
             </span>
           </p>
 
-          <h1 className="mt-5 text-balance text-[1.75rem] font-bold leading-tight tracking-tight text-slate-900 sm:mt-6 sm:text-4xl sm:leading-tight md:text-5xl lg:text-[3.25rem] lg:leading-[1.08]">
+          <h1 className="mt-5 text-balance text-[1.75rem] font-bold leading-tight tracking-tight text-slate-900 sm:mt-6 sm:text-4xl sm:leading-tight md:text-5xl lg:text-[2.75rem] lg:leading-[1.1] xl:text-[3.1rem]">
             {heroCopy.headline.replace(/\bclarity\b/i, "").trimEnd()}{" "}
             <RevealWord text="clarity" className="text-slate-900" />
           </h1>
@@ -93,10 +94,9 @@ export function LandingHero() {
               {heroCopy.secondaryCta}
             </Button>
           </div>
-
         </div>
 
-        <div className="hidden min-w-0 lg:flex lg:w-1/2 lg:items-center lg:justify-start lg:self-center lg:pr-10 lg:-translate-x-4 xl:pr-12 xl:-translate-x-6">
+        <div className="hidden min-w-0 flex-1 px-4 sm:px-6 lg:block lg:px-8 lg:pr-10">
           {allowMotion ? (
             <motion.div
               style={{ y: previewY }}

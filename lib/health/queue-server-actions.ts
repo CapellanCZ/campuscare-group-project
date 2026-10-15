@@ -96,6 +96,7 @@ export async function actionSkipTicket(ticketId: string) {
       designation: access.designation,
       ticketId,
       reason: "skip",
+      staffName: access.fullName,
     })
   )
 }
@@ -106,6 +107,7 @@ export async function actionNoShowTicket(ticketId: string) {
       designation: access.designation,
       ticketId,
       reason: "no_show",
+      staffName: access.fullName,
     })
   )
 }

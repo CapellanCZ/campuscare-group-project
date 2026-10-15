@@ -31,7 +31,8 @@ export function ticketStatusLabel(status: string): string {
     case "completed":
       return "Completed"
     case "expired":
-      return "Expired"
+      // Legacy skip status — still shown so staff can rejoin.
+      return "Skipped"
     default:
       return status.replace(/_/g, " ")
   }
@@ -49,6 +50,8 @@ export type RawQueueTicket = {
   created_at: string | null
   appointment_id: string | null
   health_appointment_id: string | null
+  /** Resolved from appointments.starts_at or consultation_requests preferred slot. */
+  appointment_starts_at?: string | null
   patient_id: string | null
   station: string | null
   call_count: number | null
@@ -225,6 +228,7 @@ export function mapTicketRow(
     ticketId: raw.id,
     appointmentId:
       raw.health_appointment_id ?? raw.appointment_id ?? null,
+    appointmentStartsAt: raw.appointment_starts_at ?? null,
     ticketCode: raw.ticket_code,
     queueNumber: raw.queue_number,
     queuePosition: raw.queue_position,
@@ -255,7 +259,8 @@ export function mapTicketRow(
     station,
     callCount: raw.call_count ?? 0,
     rejoinCount,
-    canRejoin: status === "no_show" && rejoinCount < 1,
+    canRejoin:
+      (status === "no_show" || status === "expired") && rejoinCount < 1,
     intakeCompletedAt: raw.intake_completed_at,
     chiefComplaint: raw.chief_complaint,
     vitals,

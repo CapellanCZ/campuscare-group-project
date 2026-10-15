@@ -141,7 +141,7 @@ const STATUS_OPTIONS: Array<{ value: TicketStatus | "all"; label: string }> = [
   { value: "called", label: "Called" },
   { value: "completed", label: "Completed" },
   { value: "no_show", label: "No Show" },
-  { value: "expired", label: "Expired" },
+  { value: "expired", label: "Skipped" },
 ]
 
 export function QueuePage({
@@ -242,6 +242,25 @@ export function QueuePage({
     },
     500
   )
+
+  // Re-evaluate appointment time eligibility while the dashboard stays open
+  // (scheduled tickets become eligible at starts_at without a DB change).
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const epoch = ticketsEpochRef.current
+      void loadQueueBundle(access.designation, { force: true })
+        .then((bundle) => {
+          if (epoch !== ticketsEpochRef.current) return
+          setLocalTickets(bundle.tickets)
+          setStats(bundle.stats)
+          setBoards(bundle.boards)
+          setRecent(bundle.recent)
+          setActivity(bundle.activity)
+        })
+        .catch(() => undefined)
+    }, 30_000)
+    return () => window.clearInterval(id)
+  }, [access.designation])
   const [query, setQuery] = useState("")
   const deferredQuery = useDeferredValue(query)
   const [statusFilter, setStatusFilter] = useState<string>("all")
@@ -1473,7 +1492,9 @@ export function QueuePage({
                                                   optimistic: {
                                                     ticketId: row.ticketId,
                                                     patch: {
-                                                      status: "waiting",
+                                                      status: "no_show",
+                                                      canRejoin:
+                                                        row.rejoinCount < 1,
                                                     },
                                                   },
                                                 }
@@ -1552,7 +1573,8 @@ export function QueuePage({
                                         access.designation
                                       ).length > 0 &&
                                       row.status !== "completed" &&
-                                      row.status !== "no_show" ? (
+                                      row.status !== "no_show" &&
+                                      row.status !== "expired" ? (
                                         <>
                                           <DropdownMenuSeparator />
                                           {transferTargetsForDesignation(

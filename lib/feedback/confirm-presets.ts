@@ -87,15 +87,15 @@ export const CONFIRM_PRESETS: Record<ConfirmPresetKey, ConfirmPreset> = {
     variant: "default",
     title: "Skip Patient?",
     description:
-      "Are you sure you want to skip this patient in the queue?",
+      "This removes the patient from the active line and moves them to Exceptions. You can rejoin them to the end of the queue later.",
     confirmLabel: "Skip Patient",
   },
   removeFromQueue: {
     variant: "destructive",
-    title: "Remove Patient from Queue?",
+    title: "Mark as No-Show?",
     description:
-      "Are you sure you want to remove this patient from the queue?",
-    confirmLabel: "Remove Patient",
+      "This moves the patient to Exceptions after two calls. You can rejoin them to the end of the queue once if they return.",
+    confirmLabel: "Mark No-Show",
   },
   delete: {
     variant: "destructive",
