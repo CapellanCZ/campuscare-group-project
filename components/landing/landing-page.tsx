@@ -6,7 +6,6 @@ import { LandingFooter } from "@/components/landing/landing-footer"
 import { LandingHero } from "@/components/landing/landing-hero"
 import { LandingHowItWorks } from "@/components/landing/landing-how-it-works"
 import { LandingLenis } from "@/components/landing/landing-lenis"
-import { LandingMobileApp } from "@/components/landing/landing-mobile-app"
 import { LandingNav } from "@/components/landing/landing-nav"
 import { LandingWhy } from "@/components/landing/landing-why"
 
@@ -32,7 +31,6 @@ export function LandingPage() {
           <LandingWhy />
           <LandingHowItWorks />
           <LandingFaq />
-          <LandingMobileApp />
           <LandingCta />
         </main>
         <LandingFooter />
