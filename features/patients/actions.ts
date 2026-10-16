@@ -1,7 +1,7 @@
 "use server"
 
 import {
-  filterCertificatesByScope,
+  filterDocumentsByScope,
   type ClinicalRecordScope,
 } from "@/lib/clinical/record-scope"
 import { getStaffAccess } from "@/lib/auth/access"
@@ -67,13 +67,11 @@ import {
   getConsultationVisitDetail,
   getConsultationsByPatientId,
 } from "@/services/consultations"
-import { getMedicalCertificatesForPatientRecord } from "@/services/medicalCertificates"
+import { getMedicalDocumentsForPatientRecord } from "@/services/medicalDocuments"
 import type { QueueVitals } from "@/lib/health/types"
 import type { Consultation } from "@/types/consultation"
-import type {
-  MedicalCertificate,
-  MedicalCertificatePatient,
-} from "@/types/medicalCertificate"
+import type { MedicalCertificatePatient } from "@/types/medicalCertificate"
+import type { MedicalDocument } from "@/types/medicalDocument"
 
 export type PatientRecordActionResult<T> =
   | { ok: true; data: T }
@@ -570,15 +568,15 @@ export async function fetchDentalChartPreviewAction(
 export async function fetchPatientDocumentsAction(
   patient: Pick<PatientRecord, "studentId" | "employeeId">,
   scope: ClinicalRecordScope = "all"
-): Promise<PatientRecordActionResult<MedicalCertificate[]>> {
+): Promise<PatientRecordActionResult<MedicalDocument[]>> {
   const auth = await requirePatientAccess("patients.search")
   if (!auth.ok) return auth
   try {
-    const data = await getMedicalCertificatesForPatientRecord({
+    const data = await getMedicalDocumentsForPatientRecord({
       studentId: patient.studentId,
       employeeId: patient.employeeId,
     })
-    return { ok: true, data: filterCertificatesByScope(data, scope) }
+    return { ok: true, data: filterDocumentsByScope(data, scope) }
   } catch (error) {
     return toErrorResult(error)
   }

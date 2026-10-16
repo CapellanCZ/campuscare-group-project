@@ -4,6 +4,7 @@ import {
   resolveConsultationProviderRole,
 } from "@/types/consultation"
 import type { MedicalCertificate } from "@/types/medicalCertificate"
+import type { MedicalDocument } from "@/types/medicalDocument"
 
 export type ClinicalRecordScope = "dental" | "medical" | "all"
 
@@ -52,6 +53,33 @@ export function filterCertificatesByScope(
   return rows.filter(
     (row) => consultationTypeOf(null, row.certificateType) === scope
   )
+}
+
+export function filterDocumentsByScope(
+  rows: MedicalDocument[],
+  scope: ClinicalRecordScope
+): MedicalDocument[] {
+  if (scope === "all") return rows
+  return rows.filter((row) => {
+    const catalog =
+      typeof row.payload?.diagnosticRequests === "object" &&
+      row.payload.diagnosticRequests &&
+      "catalog" in (row.payload.diagnosticRequests as object)
+        ? String(
+            (row.payload.diagnosticRequests as { catalog?: string }).catalog ??
+              ""
+          )
+        : ""
+    const hay = [
+      row.documentType,
+      row.certificateType,
+      row.purpose,
+      catalog,
+    ]
+      .filter(Boolean)
+      .join(" ")
+    return consultationTypeOf(null, hay) === scope
+  })
 }
 
 export function patientMatchesSearchQuery(

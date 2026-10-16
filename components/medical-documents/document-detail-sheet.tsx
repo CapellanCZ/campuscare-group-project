@@ -140,7 +140,7 @@ export function DocumentDetailSheet({
                 void logMedicalDocumentViewAction(document.id)
               }}
             >
-              Preview
+              View file
             </Button>
             {canPrint && document.status !== "voided" ? (
               <Button onClick={() => onPrint?.(document)}>Print</Button>

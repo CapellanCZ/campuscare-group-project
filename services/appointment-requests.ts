@@ -10,7 +10,6 @@ import {
   consultationServiceLabel,
   recommendComeEarly,
   resolveConsultationProviderType,
-  type ConsultationProviderType,
 } from "@/lib/health/consultation-workflow"
 import { manilaPartsFromIso as manilaParts } from "@/lib/health/clinic-datetime"
 import { createClient } from "@/lib/supabase/server"

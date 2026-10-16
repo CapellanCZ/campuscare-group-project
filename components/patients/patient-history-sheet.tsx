@@ -3,10 +3,7 @@
 import { useEffect, useState } from "react"
 
 import { DocumentPreviewDialog } from "@/components/medical-documents/document-preview-dialog"
-import {
-  certificateToDocument,
-  documentTypeLabel,
-} from "@/components/medical-documents/document-print-view"
+import { documentTypeLabel } from "@/components/medical-documents/document-print-view"
 import { documentStatusLabel } from "@/features/medical-documents/lib/document-status"
 import {
   getCachedPatientHistory,
@@ -161,20 +158,18 @@ export function PatientHistorySheet({
                       variant="ghost"
                       className="h-auto w-full flex-col items-stretch gap-1 rounded-xl px-3 py-3 text-left whitespace-normal"
                       onClick={() => {
-                        setPreview(certificateToDocument(row))
+                        setPreview(row)
                         setPreviewOpen(true)
                       }}
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <p className="font-medium">
-                          {documentTypeLabel(certificateToDocument(row))}
-                        </p>
+                        <p className="font-medium">{documentTypeLabel(row)}</p>
                         <Badge variant="secondary">Report</Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">
                         {formatHistoryDate(entry.date)}
-                        {row.certificateNumber
-                          ? ` · ${row.certificateNumber}`
+                        {row.documentNumber
+                          ? ` · ${row.documentNumber}`
                           : ""}
                         {row.status
                           ? ` · ${documentStatusLabel(row.status)}`

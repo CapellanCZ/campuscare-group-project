@@ -64,7 +64,7 @@ export function IssuedPrescriptionSummary({
     return (
       <div className="rounded-md border border-dashed border-neutral-300 px-3 py-3 text-sm text-muted-foreground">
         No prescription issued yet. Use Issue Medical Document below to add
-        medications from the Prescription Form.
+        medications and/or laboratory requests from the Prescription Form.
       </div>
     )
   }

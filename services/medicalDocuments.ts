@@ -14,11 +14,11 @@ import {
   type MedicalDocumentStatus,
   type MedicalDocumentType,
   MEDICAL_DOCUMENT_STATUSES,
-  MEDICAL_DOCUMENT_TYPES,
   normalizeDocumentStatus,
 } from "@/types/medicalDocument"
 import { PatientRecordServiceError } from "@/types/patientRecord"
 import { formatMedicationsAsPrescriptionText } from "@/features/medical-documents/lib/map-consultation-context"
+import { resolveMedicalDocumentType } from "@/lib/medical-documents/resolve-document-type"
 import type { PrescriptionPayload } from "@/types/medicalDocument"
 
 type PatientJoin = {
@@ -85,10 +85,6 @@ const SELECT_WITH_PATIENT = `
   )
 `
 
-function isDocumentType(value: string): value is MedicalDocumentType {
-  return (MEDICAL_DOCUMENT_TYPES as readonly string[]).includes(value)
-}
-
 function isDocumentStatus(value: string): value is MedicalDocumentStatus {
   return (MEDICAL_DOCUMENT_STATUSES as readonly string[]).includes(value)
 }
@@ -145,13 +141,12 @@ function isUniqueDocumentNumberViolation(error: {
 }
 
 function mapDocument(row: DocumentRow): MedicalDocument {
-  const docType = row.document_type ?? "medical_certification"
-  if (!isDocumentType(docType)) {
-    throw new MedicalDocumentServiceError(
-      "database",
-      `Unexpected document type: ${docType}`
-    )
-  }
+  const payload = (row.payload as Record<string, unknown>) ?? {}
+  const docType = resolveMedicalDocumentType({
+    documentType: row.document_type,
+    certificateType: row.certificate_type,
+    payload,
+  })
   const status = row.status
   if (!isDocumentStatus(status)) {
     throw new MedicalDocumentServiceError(
@@ -177,7 +172,7 @@ function mapDocument(row: DocumentRow): MedicalDocument {
     validUntil: row.valid_until,
     issuedBy: row.issued_by ?? null,
     templateVersion: row.template_version ?? "1",
-    payload: (row.payload as Record<string, unknown>) ?? {},
+    payload,
     voidedBy: row.voided_by,
     voidedAt: row.voided_at,
     voidReason: row.void_reason,
@@ -724,4 +719,49 @@ export async function logMedicalDocumentEvent(
 ): Promise<void> {
   const supabase = await getClient(client)
   await appendAudit(supabase, input)
+}
+
+/**
+ * Issued medical documents for a clinical patient_records row
+ * (soft-linked via campus student/employee ID → patients.id).
+ */
+export async function getMedicalDocumentsForPatientRecord(
+  input: {
+    studentId?: string | null
+    employeeId?: string | null
+  },
+  client?: SupabaseClient
+): Promise<MedicalDocument[]> {
+  const supabase = await getClient(client)
+  const studentId = input.studentId?.trim() || null
+  const employeeId = input.employeeId?.trim() || null
+
+  if (!studentId && !employeeId) return []
+
+  let patientQuery = supabase.from("patients").select("id").limit(1)
+  if (studentId) {
+    patientQuery = patientQuery.eq("student_id", studentId)
+  } else if (employeeId) {
+    patientQuery = patientQuery.eq("employee_id", employeeId)
+  }
+
+  const { data: patient, error: patientError } = await patientQuery.maybeSingle()
+  if (patientError) mapError(patientError)
+  if (!patient?.id) return []
+
+  const { data, error } = await supabase
+    .from("medical_certificates")
+    .select(SELECT_WITH_PATIENT)
+    .eq("patient_id", patient.id)
+    .neq("status", "voided")
+    .order("created_at", { ascending: false })
+
+  if (error) mapError(error)
+  return ((data ?? []) as DocumentRow[])
+    .map(mapDocument)
+    .sort((a, b) => {
+      const left = a.issuedAt ? Date.parse(a.issuedAt) : Date.parse(a.createdAt)
+      const right = b.issuedAt ? Date.parse(b.issuedAt) : Date.parse(b.createdAt)
+      return right - left
+    })
 }

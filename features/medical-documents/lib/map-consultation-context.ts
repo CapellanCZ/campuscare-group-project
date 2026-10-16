@@ -143,10 +143,8 @@ export function defaultPrescriptionPayload(
   catalog: "physician" | "dentist" = "physician"
 ): PrescriptionPayload {
   return {
-    medications:
-      ctx.medications.length > 0
-        ? ctx.medications
-        : [{ name: "", strength: "", quantity: "", frequency: "", instructions: "" }],
+    // Empty by default so lab-only prescriptions are not blocked by a blank med row.
+    medications: ctx.medications.length > 0 ? ctx.medications : [],
     patientAddress: ctx.address,
     patientAge: ctx.age,
     patientSex: ctx.sex,

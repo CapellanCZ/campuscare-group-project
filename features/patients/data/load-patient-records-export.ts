@@ -10,12 +10,11 @@ import {
   type Consultation,
   type ConsultationJson,
 } from "@/types/consultation"
+import { resolveMedicalDocumentType } from "@/lib/medical-documents/resolve-document-type"
 import {
-  MEDICAL_DOCUMENT_TYPES,
   MEDICAL_DOCUMENT_STATUSES,
   normalizeDocumentStatus,
   type MedicalDocument,
-  type MedicalDocumentType,
   type MedicalDocumentStatus,
 } from "@/types/medicalDocument"
 
@@ -134,14 +133,17 @@ function chunkIds(ids: string[]): string[][] {
 }
 
 function mapExportDocument(row: DocumentRow): MedicalDocument | null {
-  const docType = row.document_type ?? "medical_certification"
-  if (!(MEDICAL_DOCUMENT_TYPES as readonly string[]).includes(docType)) {
-    return null
-  }
   if (!(MEDICAL_DOCUMENT_STATUSES as readonly string[]).includes(row.status)) {
     return null
   }
   if (row.status === "voided") return null
+
+  const payload = (row.payload as Record<string, unknown>) ?? {}
+  const docType = resolveMedicalDocumentType({
+    documentType: row.document_type,
+    certificateType: row.certificate_type,
+    payload,
+  })
 
   const patientJoin = Array.isArray(row.patients)
     ? row.patients[0]
@@ -150,7 +152,7 @@ function mapExportDocument(row: DocumentRow): MedicalDocument | null {
   return {
     id: row.id,
     documentNumber: row.certificate_number,
-    documentType: docType as MedicalDocumentType,
+    documentType: docType,
     patientId: row.patient_id,
     consultationId: row.consultation_id,
     patientRecordId: row.patient_record_id,
@@ -162,7 +164,7 @@ function mapExportDocument(row: DocumentRow): MedicalDocument | null {
     validUntil: row.valid_until,
     issuedBy: row.issued_by,
     templateVersion: row.template_version ?? "1",
-    payload: row.payload ?? {},
+    payload,
     voidedBy: row.voided_by,
     voidedAt: row.voided_at,
     voidReason: row.void_reason,

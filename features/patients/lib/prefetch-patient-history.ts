@@ -11,12 +11,12 @@ import {
   staffCacheLoad,
 } from "@/lib/ui/staff-data-cache"
 import type { Consultation } from "@/types/consultation"
-import type { MedicalCertificate } from "@/types/medicalCertificate"
+import type { MedicalDocument } from "@/types/medicalDocument"
 import type { PatientRecord } from "@/types/patientRecord"
 
 export type PatientHistoryEntry =
   | { kind: "consultation"; date: string; row: Consultation }
-  | { kind: "report"; date: string; row: MedicalCertificate }
+  | { kind: "report"; date: string; row: MedicalDocument }
 
 export type PatientHistoryBundle = {
   entries: PatientHistoryEntry[]

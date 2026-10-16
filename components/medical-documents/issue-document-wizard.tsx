@@ -23,6 +23,10 @@ import {
 } from "@/features/medical-documents/lib/map-consultation-context"
 import { ISSUE_DOCUMENT_TYPE_OPTIONS } from "@/features/medical-documents/lib/document-labels"
 import type { ClinicalVisitWorkspace } from "@/features/clinical/data/load-consultation-workspace"
+import {
+  sanitizePrescriptionPayload,
+  validatePrescriptionPayload,
+} from "@/lib/medical-documents/prescription-validation"
 import type {
   GoHomeSlipPayload,
   MedicalCertificationPayload,
@@ -68,9 +72,7 @@ function validatePayload(
     if (!p.reason?.trim()) return "Reason is required for Go Home Slip."
   }
   if (type === "prescription") {
-    const p = payload as PrescriptionPayload
-    const meds = p.medications?.filter((m) => m.name?.trim()) ?? []
-    if (meds.length === 0) return "Add at least one medication."
+    return validatePrescriptionPayload(payload as PrescriptionPayload)
   }
   if (type === "medical_certification") {
     const p = payload as MedicalCertificationPayload
@@ -161,7 +163,12 @@ export function IssueDocumentWizard({
       case "go_home_slip":
         return goHomePayload as Record<string, unknown>
       case "prescription":
-        return rxPayload as Record<string, unknown>
+        // Persist sanitized meds (drop blank rows) while form state may still
+        // hold empty stubs for editing.
+        return sanitizePrescriptionPayload(rxPayload) as Record<
+          string,
+          unknown
+        >
       case "nfg_medical_clearance":
         return nfgPayload as Record<string, unknown>
       case "medical_certification":
@@ -169,6 +176,14 @@ export function IssueDocumentWizard({
         return certPayload as Record<string, unknown>
     }
   }, [documentType, certPayload, goHomePayload, rxPayload, nfgPayload])
+
+  function validationErrorForCurrent(): string | null {
+    if (documentType === "prescription") {
+      // Validate the live form (incl. incomplete rows), not only sanitized payload.
+      return validatePrescriptionPayload(rxPayload)
+    }
+    return validatePayload(documentType, payload)
+  }
 
   const purpose = useMemo(() => {
     if (documentType === "medical_certification") {
@@ -228,7 +243,7 @@ export function IssueDocumentWizard({
   }
 
   function handleSave() {
-    const validationError = validatePayload(documentType, payload)
+    const validationError = validationErrorForCurrent()
     if (validationError) {
       documentToasts.failed(validationError)
       return
@@ -278,7 +293,7 @@ export function IssueDocumentWizard({
   }
 
   function requestSave() {
-    const validationError = validatePayload(documentType, payload)
+    const validationError = validationErrorForCurrent()
     if (validationError) {
       documentToasts.failed(validationError)
       return
@@ -376,7 +391,7 @@ export function IssueDocumentWizard({
                 </Button>
                 <Button
                   onClick={() => {
-                    const err = validatePayload(documentType, payload)
+                    const err = validationErrorForCurrent()
                     if (err) {
                       documentToasts.failed(err)
                       return

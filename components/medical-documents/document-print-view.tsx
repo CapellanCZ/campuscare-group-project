@@ -6,18 +6,31 @@ import { NfgClearancePrint } from "@/components/medical-documents/templates/nfg-
 import { PrescriptionPrint } from "@/components/medical-documents/templates/prescription-print"
 import { HsoFormPreviewFrame } from "@/components/medical-documents/templates/shared/hso-half-bond-page"
 import { HsoFullPagePreviewFrame } from "@/components/medical-documents/templates/shared/hso-full-page"
+import { resolveMedicalDocumentType } from "@/lib/medical-documents/resolve-document-type"
 import type { MedicalCertificate } from "@/types/medicalCertificate"
 import type { MedicalDocument } from "@/types/medicalDocument"
 import { DOCUMENT_TYPE_LABELS } from "@/types/medicalDocument"
 import { cn } from "@/lib/utils"
 
+/**
+ * Legacy adapter for MedicalCertificate rows that lack document_type / payload.
+ * Prefer loading MedicalDocument via getMedicalDocumentsForPatientRecord when
+ * previewing issued templates.
+ */
 export function certificateToDocument(
   certificate: MedicalCertificate
 ): MedicalDocument {
+  const payload = {
+    legacyCertificateType: certificate.certificateType,
+    legacyRemarks: certificate.remarks,
+  }
   return {
     id: certificate.id,
     documentNumber: certificate.certificateNumber,
-    documentType: "medical_certification",
+    documentType: resolveMedicalDocumentType({
+      certificateType: certificate.certificateType,
+      payload,
+    }),
     patientId: certificate.patientId,
     consultationId: null,
     patientRecordId: null,
@@ -32,10 +45,7 @@ export function certificateToDocument(
     validUntil: certificate.validUntil,
     issuedBy: certificate.issuedBy,
     templateVersion: "1",
-    payload: {
-      legacyCertificateType: certificate.certificateType,
-      legacyRemarks: certificate.remarks,
-    },
+    payload,
     voidedBy: null,
     voidedAt: null,
     voidReason: null,
@@ -112,5 +122,9 @@ export function MedicalDocumentPreviewBody({
 }
 
 export function documentTypeLabel(document: MedicalDocument): string {
-  return DOCUMENT_TYPE_LABELS[document.documentType] ?? document.certificateType
+  return (
+    DOCUMENT_TYPE_LABELS[document.documentType] ??
+    document.certificateType?.trim() ??
+    "Medical document"
+  )
 }

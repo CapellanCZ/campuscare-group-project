@@ -3,10 +3,8 @@
 import { useEffect, useRef, useState } from "react"
 
 import { DocumentPreviewDialog } from "@/components/medical-documents/document-preview-dialog"
-import {
-  certificateToDocument,
-  documentTypeLabel,
-} from "@/components/medical-documents/document-print-view"
+import { documentTypeLabel } from "@/components/medical-documents/document-print-view"
+import { fetchMedicalDocumentByIdAction } from "@/features/medical-documents/actions"
 import { fetchPatientDocumentsAction } from "@/features/patients/actions"
 import { documentStatusLabel } from "@/features/medical-documents/lib/document-status"
 import type { ClinicalRecordScope } from "@/lib/clinical/record-scope"
@@ -21,7 +19,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
-import type { MedicalCertificate } from "@/types/medicalCertificate"
 import type { MedicalDocument } from "@/types/medicalDocument"
 import { patientFullName, type PatientRecord } from "@/types/patientRecord"
 
@@ -48,16 +45,18 @@ export function PatientDocumentsSheet({
   onOpenChange: (open: boolean) => void
   documentScope?: ClinicalRecordScope
 }) {
-  const [rows, setRows] = useState<MedicalCertificate[]>([])
+  const [rows, setRows] = useState<MedicalDocument[]>([])
   const [loading, setLoading] = useState(false)
   const [preview, setPreview] = useState<MedicalDocument | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
-  const cacheRef = useRef(new Map<string, MedicalCertificate[]>())
+  const cacheRef = useRef(new Map<string, MedicalDocument[]>())
 
   useEffect(() => {
     if (!open || !patient) return
     let cancelled = false
+    // v2: MedicalDocument with resolved documentType (not legacy certificate-only).
     const key = [
+      "v2",
       patient.studentId ?? "",
       patient.employeeId ?? "",
       patient.id,
@@ -115,8 +114,8 @@ export function PatientDocumentsSheet({
             <DialogTitle>Medical documents</DialogTitle>
             <DialogDescription>
               {patient
-                ? `Certificates on file for ${patientFullName(patient)}. Select one to preview.`
-                : "Patient certificates"}
+                ? `Documents on file for ${patientFullName(patient)}. Select one to preview.`
+                : "Patient documents"}
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4 pb-6">
@@ -136,16 +135,28 @@ export function PatientDocumentsSheet({
                   variant="outline"
                   className="h-auto w-full items-start justify-between gap-3 rounded-xl px-3 py-3 text-left whitespace-normal"
                   onClick={() => {
-                    setPreview(certificateToDocument(row))
+                    setPreview(row)
                     setPreviewOpen(true)
+                    void fetchMedicalDocumentByIdAction(row.id).then(
+                      (result) => {
+                        if (!result.ok) {
+                          appToast.error({
+                            title: "Unable to load document",
+                            description: result.error,
+                          })
+                          return
+                        }
+                        setPreview(result.data)
+                      }
+                    )
                   }}
                 >
                   <div className="min-w-0 space-y-1">
                     <p className="truncate text-sm font-medium">
-                      {documentTypeLabel(certificateToDocument(row))}
+                      {documentTypeLabel(row)}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {row.certificateNumber}
+                      {row.documentNumber}
                       {row.doctorName ? ` · ${row.doctorName}` : ""}
                     </p>
                     <p className="text-xs text-muted-foreground">

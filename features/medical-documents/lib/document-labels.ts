@@ -21,7 +21,7 @@ export const ISSUE_DOCUMENT_TYPE_OPTIONS: Array<{
     type: "prescription",
     title: "Prescription",
     description:
-      "An official medical prescription containing the medications prescribed by the physician, including dosage, quantity, and instructions for use.",
+      "An official prescription for medications and/or laboratory or diagnostic requests, including dosage details when medication is prescribed.",
   },
   {
     type: "nfg_medical_clearance",

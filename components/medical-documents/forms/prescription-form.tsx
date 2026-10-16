@@ -63,9 +63,7 @@ export function PrescriptionForm({
   onChange: (value: PrescriptionPayload) => void
   catalog?: DiagnosticRequestCatalog
 }) {
-  const medications = value.medications.length
-    ? value.medications
-    : [emptyMedication()]
+  const medications = value.medications
   const diagnostic = ensureDiagnosticRequests(value, catalog)
   const options = diagnosticRequestOptions(catalog)
   const selected = new Set(diagnostic.selectedIds)
@@ -84,7 +82,6 @@ export function PrescriptionForm({
   }
 
   function removeMedication(index: number) {
-    if (medications.length <= 1) return
     onChange({
       ...value,
       medications: medications.filter((_, i) => i !== index),
@@ -145,6 +142,10 @@ export function PrescriptionForm({
         <div>
           <Label>Request for</Label>
           <p className="mt-1 text-sm font-medium text-foreground">{roleLabel}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Select laboratory or diagnostic requests when no medication is
+            prescribed.
+          </p>
         </div>
         <ul className="space-y-2">
           {options.map((option) => {
@@ -188,22 +189,32 @@ export function PrescriptionForm({
       </div>
 
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <Label>Medications</Label>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <Label>Medications</Label>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Optional — skip when issuing a laboratory request only.
+            </p>
+          </div>
           <Button type="button" size="xs" variant="outline" onClick={addMedication}>
             <IconPlus className="size-3.5" />
             Add medication
           </Button>
         </div>
 
-        {medications.map((med, index) => (
-          <div
-            key={index}
-            className="space-y-3 border-t border-border/60 pt-3 first:border-t-0 first:pt-0"
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium">Medication {index + 1}</p>
-              {medications.length > 1 ? (
+        {medications.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border/70 px-4 py-5 text-sm text-muted-foreground">
+            No medications added. Select a laboratory request above, or add a
+            medication if needed.
+          </div>
+        ) : (
+          medications.map((med, index) => (
+            <div
+              key={index}
+              className="space-y-3 border-t border-border/60 pt-3 first:border-t-0 first:pt-0"
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">Medication {index + 1}</p>
                 <Button
                   type="button"
                   size="xs"
@@ -213,96 +224,96 @@ export function PrescriptionForm({
                 >
                   <IconTrash className="size-3.5" />
                 </Button>
-              ) : null}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Name</Label>
+                  <Input
+                    value={med.name}
+                    onChange={(e) =>
+                      updateMedication(index, { name: e.target.value })
+                    }
+                    placeholder="Drug name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Strength</Label>
+                  <InputGroup>
+                    <InputGroupInput
+                      value={med.strength ?? ""}
+                      onChange={(e) =>
+                        updateMedication(index, { strength: e.target.value })
+                      }
+                      placeholder="e.g. 500"
+                      aria-label="Strength"
+                    />
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupText>mg</InputGroupText>
+                    </InputGroupAddon>
+                  </InputGroup>
+                </div>
+                <div className="space-y-2">
+                  <Label>Quantity</Label>
+                  <InputGroup>
+                    <InputGroupInput
+                      value={med.quantity ?? ""}
+                      onChange={(e) =>
+                        updateMedication(index, { quantity: e.target.value })
+                      }
+                      placeholder="e.g. 20"
+                      aria-label="Quantity"
+                    />
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupText>pcs</InputGroupText>
+                    </InputGroupAddon>
+                  </InputGroup>
+                </div>
+                <div className="space-y-2">
+                  <Label>Frequency</Label>
+                  <InputGroup>
+                    <InputGroupInput
+                      value={med.frequency ?? ""}
+                      onChange={(e) =>
+                        updateMedication(index, { frequency: e.target.value })
+                      }
+                      placeholder="e.g. every 8"
+                      aria-label="Frequency"
+                    />
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupText>hrs</InputGroupText>
+                    </InputGroupAddon>
+                  </InputGroup>
+                </div>
+                <div className="space-y-2">
+                  <Label>Duration</Label>
+                  <InputGroup>
+                    <InputGroupInput
+                      value={med.duration ?? ""}
+                      onChange={(e) =>
+                        updateMedication(index, { duration: e.target.value })
+                      }
+                      placeholder="e.g. 7"
+                      aria-label="Duration"
+                    />
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupText>days</InputGroupText>
+                    </InputGroupAddon>
+                  </InputGroup>
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Instructions</Label>
+                  <Textarea
+                    rows={2}
+                    value={med.instructions ?? ""}
+                    onChange={(e) =>
+                      updateMedication(index, { instructions: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2 sm:col-span-2">
-                <Label>Name</Label>
-                <Input
-                  value={med.name}
-                  onChange={(e) =>
-                    updateMedication(index, { name: e.target.value })
-                  }
-                  placeholder="Drug name"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Strength</Label>
-                <InputGroup>
-                  <InputGroupInput
-                    value={med.strength ?? ""}
-                    onChange={(e) =>
-                      updateMedication(index, { strength: e.target.value })
-                    }
-                    placeholder="e.g. 500"
-                    aria-label="Strength"
-                  />
-                  <InputGroupAddon align="inline-end">
-                    <InputGroupText>mg</InputGroupText>
-                  </InputGroupAddon>
-                </InputGroup>
-              </div>
-              <div className="space-y-2">
-                <Label>Quantity</Label>
-                <InputGroup>
-                  <InputGroupInput
-                    value={med.quantity ?? ""}
-                    onChange={(e) =>
-                      updateMedication(index, { quantity: e.target.value })
-                    }
-                    placeholder="e.g. 20"
-                    aria-label="Quantity"
-                  />
-                  <InputGroupAddon align="inline-end">
-                    <InputGroupText>pcs</InputGroupText>
-                  </InputGroupAddon>
-                </InputGroup>
-              </div>
-              <div className="space-y-2">
-                <Label>Frequency</Label>
-                <InputGroup>
-                  <InputGroupInput
-                    value={med.frequency ?? ""}
-                    onChange={(e) =>
-                      updateMedication(index, { frequency: e.target.value })
-                    }
-                    placeholder="e.g. every 8"
-                    aria-label="Frequency"
-                  />
-                  <InputGroupAddon align="inline-end">
-                    <InputGroupText>hrs</InputGroupText>
-                  </InputGroupAddon>
-                </InputGroup>
-              </div>
-              <div className="space-y-2">
-                <Label>Duration</Label>
-                <InputGroup>
-                  <InputGroupInput
-                    value={med.duration ?? ""}
-                    onChange={(e) =>
-                      updateMedication(index, { duration: e.target.value })
-                    }
-                    placeholder="e.g. 7"
-                    aria-label="Duration"
-                  />
-                  <InputGroupAddon align="inline-end">
-                    <InputGroupText>days</InputGroupText>
-                  </InputGroupAddon>
-                </InputGroup>
-              </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label>Instructions</Label>
-                <Textarea
-                  rows={2}
-                  value={med.instructions ?? ""}
-                  onChange={(e) =>
-                    updateMedication(index, { instructions: e.target.value })
-                  }
-                />
-              </div>
-            </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
     </div>
   )

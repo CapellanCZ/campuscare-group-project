@@ -10,9 +10,11 @@ import { DocumentPreviewDialog } from "@/components/medical-documents/document-p
 import { MedicalDocumentPrintView } from "@/components/medical-documents/document-print-view"
 import { documentTypeLabel, isHalfBondDocument } from "@/components/medical-documents/document-print-view"
 import {
+  fetchMedicalDocumentByIdAction,
   fetchMedicalDocumentsByConsultationAction,
   logMedicalDocumentViewAction,
 } from "@/features/medical-documents/actions"
+import { appToast } from "@/lib/feedback/app-toast"
 import type { ClinicalVisitWorkspace } from "@/features/clinical/data/load-consultation-workspace"
 import type { MedicalDocument, MedicalDocumentType } from "@/types/medicalDocument"
 import { Badge } from "@/components/ui/badge"
@@ -146,6 +148,18 @@ export function ConsultationDocumentsPanel({
                       setPreviewDoc(doc)
                       setPreviewOpen(true)
                       void logMedicalDocumentViewAction(doc.id)
+                      void fetchMedicalDocumentByIdAction(doc.id).then(
+                        (result) => {
+                          if (!result.ok) {
+                            appToast.error({
+                              title: "Unable to load document",
+                              description: result.error,
+                            })
+                            return
+                          }
+                          setPreviewDoc(result.data)
+                        }
+                      )
                     }}
                   >
                     View

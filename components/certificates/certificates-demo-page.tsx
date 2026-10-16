@@ -69,9 +69,11 @@ import {
   staffCacheIsFresh,
 } from "@/lib/ui/staff-data-cache"
 import {
+  fetchMedicalDocumentByIdAction,
   fetchMedicalDocumentsAction,
   logMedicalDocumentViewAction,
 } from "@/features/medical-documents/actions"
+import { appToast } from "@/lib/feedback/app-toast"
 import { can, canMutate, getAccessLevel } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { DemoStat } from "@/lib/demo/types"
@@ -339,16 +341,31 @@ export function CertificatesPage({
     isPending
   )
 
-  function openDocument(document: MedicalDocument) {
-    setSelected(document)
-    setSheetOpen(true)
-    void logMedicalDocumentViewAction(document.id)
-  }
-
-  function openPreview(document: MedicalDocument) {
+  /** Open the official HSO file preview for the selected record (not metadata-only). */
+  function openFilePreview(document: MedicalDocument) {
     setSelected(document)
     setPreviewOpen(true)
     void logMedicalDocumentViewAction(document.id)
+    // Re-fetch so label + template use the full payload / resolved document type.
+    void fetchMedicalDocumentByIdAction(document.id).then((result) => {
+      if (!result.ok) {
+        appToast.error({
+          title: "Unable to load document",
+          description: result.error,
+        })
+        return
+      }
+      setSelected(result.data)
+    })
+  }
+
+  function openDocumentDetails(document: MedicalDocument) {
+    setSelected(document)
+    setSheetOpen(true)
+    void logMedicalDocumentViewAction(document.id)
+    void fetchMedicalDocumentByIdAction(document.id).then((result) => {
+      if (result.ok) setSelected(result.data)
+    })
   }
 
   function openCreate() {
@@ -615,13 +632,23 @@ export function CertificatesPage({
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap justify-end gap-1">
-                          {can(d, "certificates.view_history") ? (
+                          {can(d, "certificates.view_history") ||
+                          can(d, "certificates.preview") ? (
                             <Button
                               size="xs"
                               variant="outline"
-                              onClick={() => openDocument(row)}
+                              onClick={() => openFilePreview(row)}
                             >
                               View
+                            </Button>
+                          ) : null}
+                          {can(d, "certificates.view_history") ? (
+                            <Button
+                              size="xs"
+                              variant="ghost"
+                              onClick={() => openDocumentDetails(row)}
+                            >
+                              Details
                             </Button>
                           ) : null}
                           {canCreateFromRepo ? (
@@ -631,17 +658,6 @@ export function CertificatesPage({
                               onClick={() => openEdit(row as unknown as MedicalCertificate)}
                             >
                               Edit
-                            </Button>
-                          ) : null}
-                          {can(d, "certificates.preview") &&
-                          row.status !== "draft" &&
-                          row.status !== "voided" ? (
-                            <Button
-                              size="xs"
-                              variant="outline"
-                              onClick={() => openPreview(row)}
-                            >
-                              Preview
                             </Button>
                           ) : null}
                           {canPrint &&
@@ -669,7 +685,7 @@ export function CertificatesPage({
                               variant="secondary"
                               onClick={() => {
                                 setPrintDoc(row)
-                                openDocument(row)
+                                openFilePreview(row)
                                 triggerMedicalDocumentPrint(
                                   isHalfBondDocument(row) ? "half-bond" : "full-page"
                                 )

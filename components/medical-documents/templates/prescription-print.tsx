@@ -58,23 +58,31 @@ export function PrescriptionPrint({
         <p className="font-serif text-3xl italic leading-none text-neutral-800">
           ℞
         </p>
-        <ol className="mt-4 list-decimal space-y-4 pl-5">
-          {meds.map((med, index) => (
-            <li key={index} className="print:break-inside-avoid">
-              <p className="font-semibold">{med.name}</p>
-              <div className="mt-0.5 space-y-0.5 text-[10px] leading-snug text-neutral-700">
-                {formatMedicationDetailParts(med).map((part) => (
-                  <p key={part}>{part}</p>
-                ))}
-              </div>
-              {med.instructions ? (
-                <p className="mt-1 text-[10px] italic text-neutral-600">
-                  {med.instructions}
-                </p>
-              ) : null}
-            </li>
-          ))}
-        </ol>
+        {meds.filter((med) => med.name?.trim()).length > 0 ? (
+          <ol className="mt-4 list-decimal space-y-4 pl-5">
+            {meds
+              .filter((med) => med.name?.trim())
+              .map((med, index) => (
+                <li key={index} className="print:break-inside-avoid">
+                  <p className="font-semibold">{med.name}</p>
+                  <div className="mt-0.5 space-y-0.5 text-[10px] leading-snug text-neutral-700">
+                    {formatMedicationDetailParts(med).map((part) => (
+                      <p key={part}>{part}</p>
+                    ))}
+                  </div>
+                  {med.instructions ? (
+                    <p className="mt-1 text-[10px] italic text-neutral-600">
+                      {med.instructions}
+                    </p>
+                  ) : null}
+                </li>
+              ))}
+          </ol>
+        ) : (
+          <p className="mt-4 text-[11px] text-neutral-600">
+            No medication prescribed.
+          </p>
+        )}
       </div>
 
       {diagnosticLines.length > 0 ? (
