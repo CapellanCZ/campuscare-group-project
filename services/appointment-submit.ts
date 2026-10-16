@@ -4,9 +4,11 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { CAMPUS_CLINIC_ID } from "@/lib/auth/campus-clinic"
 import {
-  isConsultationProviderType,
+  consultationServiceLabel,
   recommendComeEarly,
   recommendationMessageKeys,
+  resolveConsultationProviderType,
+  resolveProviderTypeFromBookingBody,
   type ConsultationProviderType,
 } from "@/lib/health/consultation-workflow"
 import { nextReservedQueueNumber } from "@/services/consultation-capacity"
@@ -18,7 +20,15 @@ export type SubmitAppointmentRequestInput = {
   studentId?: string | null
   email?: string | null
   phone?: string | null
-  providerType: ConsultationProviderType
+  /** Canonical or alias (Dentist, dental, …); normalized before insert. */
+  providerType: ConsultationProviderType | string
+  /** Optional aliases some mobile builds send instead of / beside providerType. */
+  specialty?: string | null
+  specialtyType?: string | null
+  selectedSpecialty?: string | null
+  serviceType?: string | null
+  consultationType?: string | null
+  service?: string | null
   preferredDate: string
   preferredTime?: string | null
   reason: string
@@ -31,6 +41,9 @@ export type SubmitAppointmentRequestResult = {
   status: "pending" | "waitlisted"
   providerType: ConsultationProviderType
   preferredDate: string
+  /** Asia/Manila HH:mm wall clock — use this for display, not starts_at UTC digits. */
+  preferredTime: string
+  startsAt: string
   queueNumber: number | null
   queueTicketId: string | null
   recommendComeEarly: boolean
@@ -47,7 +60,17 @@ export async function submitAppointmentRequestWithCapacity(
   input: SubmitAppointmentRequestInput,
   client: SupabaseClient
 ): Promise<SubmitAppointmentRequestResult> {
-  if (!isConsultationProviderType(input.providerType)) {
+  const providerType =
+    resolveProviderTypeFromBookingBody({
+      providerType: input.providerType,
+      specialty: input.specialty,
+      specialtyType: input.specialtyType,
+      selectedSpecialty: input.selectedSpecialty,
+      serviceType: input.serviceType,
+      consultationType: input.consultationType,
+      service: input.service,
+    }) ?? resolveConsultationProviderType(input.providerType)
+  if (providerType !== "physician" && providerType !== "dentist") {
     throw new Error("providerType must be physician or dentist.")
   }
   const preferredDate = input.preferredDate.trim()
@@ -59,14 +82,25 @@ export async function submitAppointmentRequestWithCapacity(
   const reason = input.reason.trim()
   if (!reason) throw new Error("reason is required.")
 
-  const preferredTime = (input.preferredTime?.trim() || "08:00").slice(0, 5)
+  const preferredTimeRaw = (input.preferredTime?.trim() || "08:00").trim()
+  // Must be Manila HH:mm — sending UTC hours (e.g. from toISOString) shifts display by 8h.
+  if (/[TtZz]|[+-]\d{2}/.test(preferredTimeRaw)) {
+    throw new Error(
+      "preferredTime must be HH:mm in Asia/Manila (do not send UTC/ISO timestamps)."
+    )
+  }
+  const preferredTime = preferredTimeRaw.slice(0, 5)
+  if (!/^\d{2}:\d{2}$/.test(preferredTime)) {
+    throw new Error("preferredTime must be HH:mm.")
+  }
   const startsAt = manilaDateTimeToIso(preferredDate, preferredTime)
   const endsAt = new Date(
     new Date(startsAt).getTime() + 30 * 60 * 1000
   ).toISOString()
+  const serviceLabel = consultationServiceLabel(providerType)
 
   const { nextNumber, used, max } = await nextReservedQueueNumber(
-    input.providerType,
+    providerType,
     preferredDate,
     client
   )
@@ -119,7 +153,7 @@ export async function submitAppointmentRequestWithCapacity(
         ends_at: endsAt,
         status: "waitlisted",
         reason,
-        provider_type: input.providerType,
+        provider_type: providerType,
         waitlisted_at: now,
       })
       .select("id")
@@ -130,8 +164,10 @@ export async function submitAppointmentRequestWithCapacity(
     return {
       appointmentId: appt.id as string,
       status: "waitlisted",
-      providerType: input.providerType,
+      providerType,
       preferredDate,
+      preferredTime,
+      startsAt,
       queueNumber: null,
       queueTicketId: null,
       recommendComeEarly: false,
@@ -151,7 +187,7 @@ export async function submitAppointmentRequestWithCapacity(
       ends_at: endsAt,
       status: "pending",
       reason,
-      provider_type: input.providerType,
+      provider_type: providerType,
       queue_number: nextNumber,
     })
     .select("id")
@@ -161,10 +197,6 @@ export async function submitAppointmentRequestWithCapacity(
 
   const appointmentId = appt.id as string
   const ticketCode = `CR-${String(nextNumber).padStart(4, "0")}`
-  const service =
-    input.providerType === "dentist"
-      ? "Dental consultation"
-      : "General consultation"
 
   const { data: ticket, error: ticketError } = await client
     .from("health_queue_tickets")
@@ -179,10 +211,10 @@ export async function submitAppointmentRequestWithCapacity(
       patient_id: patientId,
       patient_name: patientName,
       campus_id: input.studentId?.trim() || null,
-      consultation_type: service,
+      consultation_type: serviceLabel,
       chief_complaint: reason,
       appointment_id: appointmentId,
-      provider_type: input.providerType,
+      provider_type: providerType,
       expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     })
     .select("id")
@@ -205,8 +237,10 @@ export async function submitAppointmentRequestWithCapacity(
   return {
     appointmentId,
     status: "pending",
-    providerType: input.providerType,
+    providerType,
     preferredDate,
+    preferredTime,
+    startsAt,
     queueNumber: nextNumber,
     queueTicketId: ticket.id as string,
     recommendComeEarly: recommendComeEarly(nextNumber),

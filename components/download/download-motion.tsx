@@ -19,12 +19,14 @@ const steps = [
 ] as const
 
 type DownloadMotionProps = {
-  apkUrl: string
+  /** Absolute APK/app URL, or null when not configured. */
+  apkUrl: string | null
 }
 
-/** Animated download page body — QR scales in, steps stagger. */
+/** Animated download page body — QR + CTA share the same configured URL. */
 export function DownloadMotion({ apkUrl }: DownloadMotionProps) {
   const { allowMotion } = useMotionReady()
+  const ready = Boolean(apkUrl)
 
   return (
     <div className="relative mx-auto flex w-full max-w-lg flex-col items-center px-4 py-12 text-center sm:px-6 sm:py-16 md:py-20">
@@ -44,30 +46,52 @@ export function DownloadMotion({ apkUrl }: DownloadMotionProps) {
         transition={{ duration: 0.55, delay: 0.12, ease }}
       >
         <motion.div
-          animate={
-            allowMotion ? { y: [0, -7, 0] } : undefined
-          }
+          animate={allowMotion ? { y: [0, -7, 0] } : undefined}
           transition={
             allowMotion
-              ? { duration: 4.8, repeat: Infinity, ease: "easeInOut", delay: 0.6 }
+              ? {
+                  duration: 4.8,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                  delay: 0.6,
+                }
               : undefined
           }
         >
-          <DownloadQrPanel caption="Preview code · APK coming soon" />
+          <DownloadQrPanel
+            downloadUrl={apkUrl}
+            caption={
+              ready
+                ? "Point your camera here"
+                : "Preview code · APK coming soon"
+            }
+          />
         </motion.div>
       </motion.div>
 
       <MotionBlock allowMotion={allowMotion} delay={0.22} className="mt-8 w-full">
         <div className="flex w-full flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-center">
-          <Button
-            size="lg"
-            className="h-11 w-full rounded-full bg-blue-600 px-7 text-base hover:bg-blue-700 sm:h-12 sm:w-auto"
-            render={<a href={apkUrl} download />}
-            nativeButton={false}
-          >
-            <IconDownload data-icon="inline-start" className="size-4" />
-            Download APK
-          </Button>
+          {ready && apkUrl ? (
+            <Button
+              size="lg"
+              className="h-11 w-full rounded-full bg-blue-600 px-7 text-base hover:bg-blue-700 sm:h-12 sm:w-auto"
+              render={
+                <a href={apkUrl} target="_blank" rel="noopener noreferrer" />
+              }
+              nativeButton={false}
+            >
+              <IconDownload data-icon="inline-start" className="size-4" />
+              Download APK
+            </Button>
+          ) : (
+            <Button
+              size="lg"
+              disabled
+              className="h-11 w-full rounded-full bg-blue-600 px-7 text-base opacity-60 sm:h-12 sm:w-auto"
+            >
+              APK coming soon
+            </Button>
+          )}
           <Button
             size="lg"
             variant="outline"

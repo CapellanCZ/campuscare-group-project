@@ -1,11 +1,10 @@
 import { siteRoutes } from "@/lib/site/routes"
 
 /**
- * Public path for the student/faculty Android build.
- * Override with NEXT_PUBLIC_ANDROID_APK_URL for CDN / external hosting.
+ * Configure the live Android destination with:
+ * NEXT_PUBLIC_ANDROID_APK_URL=https://…/campuscare.apk
+ * Prefer a stable host (CDN APK, Play, EAS) — Expo Go project QR links expire.
  */
-export const DEFAULT_APK_PATH = "/downloads/campuscare.apk"
-
 export const downloadCopy = {
   headline: "Download CampusCare",
   description: "Android app for NU Dasmariñas students and faculty.",

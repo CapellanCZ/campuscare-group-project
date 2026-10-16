@@ -7,9 +7,12 @@ import { CAMPUS_CLINIC_ID } from "@/lib/auth/campus-clinic"
 import { can } from "@/lib/auth/permissions"
 import type { ClinicDesignation } from "@/lib/auth/types"
 import {
+  consultationServiceLabel,
   recommendComeEarly,
+  resolveConsultationProviderType,
   type ConsultationProviderType,
 } from "@/lib/health/consultation-workflow"
+import { manilaPartsFromIso as manilaParts } from "@/lib/health/clinic-datetime"
 import { createClient } from "@/lib/supabase/server"
 import {
   admitWaitlistedAppointment,
@@ -147,21 +150,27 @@ async function requireStaffActor() {
   }
 }
 
-function manilaParts(iso: string): { date: string; time: string } {
-  const d = new Date(iso)
-  const date = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Manila",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(d)
-  const time = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Manila",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(d)
-  return { date, time }
+/** Pending first, then waitlisted → rescheduled → others; soonest start within status. */
+const REQUEST_STATUS_SORT_RANK: Record<AppointmentRequestStatus, number> = {
+  pending: 0,
+  waitlisted: 1,
+  rescheduled: 2,
+  confirmed: 3,
+  in_progress: 4,
+  completed: 5,
+  cancelled: 6,
+  no_show: 7,
+}
+
+function compareAppointmentRequestsForList(
+  a: AppointmentRequest,
+  b: AppointmentRequest
+): number {
+  const rank =
+    (REQUEST_STATUS_SORT_RANK[a.status] ?? 99) -
+    (REQUEST_STATUS_SORT_RANK[b.status] ?? 99)
+  if (rank !== 0) return rank
+  return new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
 }
 
 function mapRow(row: AppointmentRow): AppointmentRequest {
@@ -173,8 +182,7 @@ function mapRow(row: AppointmentRow): AppointmentRequest {
   }
   const patient = patientJoin(row.patients)
   const doctor = doctorJoin(row.doctor)
-  const providerType: ConsultationProviderType =
-    row.provider_type === "dentist" ? "dentist" : "physician"
+  const providerType = resolveConsultationProviderType(row.provider_type)
   const campusId =
     patient?.patient_type === "faculty"
       ? (patient.employee_id ?? patient.student_id)
@@ -192,8 +200,7 @@ function mapRow(row: AppointmentRow): AppointmentRequest {
     email: patient?.email ?? null,
     phone: patient?.phone ?? null,
     providerType,
-    service:
-      providerType === "dentist" ? "Dental consultation" : "General consultation",
+    service: consultationServiceLabel(providerType),
     preferredDate: date,
     preferredTime: time,
     startsAt: row.starts_at,
@@ -279,10 +286,23 @@ export async function getAppointmentRequests(
 
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
-  const { data, error, count } = await request.range(from, to)
+  // When mixing statuses, fetch a bounded window then sort pending-first so
+  // page 1 is not dominated by recent non-pending starts_at rows.
+  const mixStatuses = status === "all"
+  const sortWindow = mixStatuses ? Math.min(500, Math.max(to + 1, pageSize * 3)) : to + 1
+  const { data, error, count } = await request.range(
+    mixStatuses ? 0 : from,
+    mixStatuses ? sortWindow - 1 : to
+  )
   if (error) mapError(error)
 
-  const items = (data ?? []).map((row) => mapRow(row as unknown as AppointmentRow))
+  const mapped = (data ?? []).map((row) =>
+    mapRow(row as unknown as AppointmentRow)
+  )
+  const sorted = mixStatuses
+    ? mapped.sort(compareAppointmentRequestsForList)
+    : mapped
+  const items = mixStatuses ? sorted.slice(from, from + pageSize) : sorted
   const total = count ?? items.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const safePage = Math.min(page, totalPages)
@@ -557,8 +577,7 @@ export async function ensureCampusClinicId() {
   return CAMPUS_CLINIC_ID
 }
 
-/** Build starts_at / ends_at ISO from Manila date + HH:mm */
-export function manilaDateTimeToIso(date: string, time: string): string {
-  const t = time.length === 5 ? `${time}:00` : time
-  return new Date(`${date}T${t}+08:00`).toISOString()
-}
+export {
+  manilaDateTimeToIso,
+  manilaPartsFromIso,
+} from "@/lib/health/clinic-datetime"

@@ -1,19 +1,21 @@
 "use client"
 
-import Link from "next/link"
 import { motion } from "motion/react"
-import { IconArrowRight } from "@tabler/icons-react"
 
+import { GoQrImage } from "@/components/download/go-qr-image"
 import { FakeQr } from "@/components/landing/fake-qr"
 import { useMotionReady } from "@/components/landing/use-motion-ready"
-import { Button } from "@/components/ui/button"
-import { siteRoutes } from "@/lib/site/routes"
+import { getConfiguredAndroidApkUrl } from "@/lib/download/apk"
 
 const ease = [0.22, 1, 0.36, 1] as const
 
-/** Landing QR band — stacked on mobile, side-by-side from lg (no width crush). */
+/**
+ * Landing QR band — scan-only. No APK download button on the landing page.
+ */
 export function LandingMobileApp() {
   const { allowMotion } = useMotionReady()
+  const downloadUrl = getConfiguredAndroidApkUrl()
+  const ready = Boolean(downloadUrl)
 
   return (
     <section
@@ -32,20 +34,9 @@ export function LandingMobileApp() {
             CampusCare on Android
           </h2>
           <p className="mx-auto mt-3 max-w-md text-pretty text-sm text-slate-600 sm:text-base lg:mx-0 lg:text-lg">
-            For NU Dasmariñas students and faculty. Scan the code on a phone, or
-            open the download page.
+            For NU Dasmariñas students and faculty. Scan the QR code with your
+            phone to get the CampusCare app.
           </p>
-          <div className="mt-6 flex justify-center sm:mt-8 lg:justify-start">
-            <Button
-              size="lg"
-              className="h-11 w-full max-w-xs rounded-full bg-blue-600 px-7 text-base hover:bg-blue-700 sm:h-12 sm:w-auto"
-              render={<Link href={siteRoutes.download} />}
-              nativeButton={false}
-            >
-              Get the app
-              <IconArrowRight data-icon="inline-end" className="size-4" />
-            </Button>
-          </div>
         </motion.div>
 
         <motion.figure
@@ -56,20 +47,24 @@ export function LandingMobileApp() {
           transition={{ duration: 0.55, delay: 0.12, ease }}
         >
           <motion.div
-            className="size-40 rounded-2xl border border-slate-200/90 bg-white p-3.5 sm:size-52 sm:p-5"
-            animate={
-              allowMotion ? { y: [0, -6, 0] } : undefined
-            }
+            className="size-40 overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-3.5 sm:size-52 sm:p-5"
+            animate={allowMotion ? { y: [0, -6, 0] } : undefined}
             transition={
               allowMotion
                 ? { duration: 4.5, repeat: Infinity, ease: "easeInOut" }
                 : undefined
             }
           >
-            <FakeQr />
+            {ready && downloadUrl ? (
+              <GoQrImage data={downloadUrl} />
+            ) : (
+              <FakeQr />
+            )}
           </motion.div>
           <figcaption className="mt-3 text-sm text-slate-500">
-            Preview code · APK coming soon
+            {ready
+              ? "Scan to download CampusCare"
+              : "Preview code · APK coming soon"}
           </figcaption>
         </motion.figure>
       </div>

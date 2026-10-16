@@ -6,6 +6,7 @@ import {
   hasRecordedVitals,
 } from "@/components/queue/vitals-strip"
 import { Badge } from "@/components/ui/badge"
+import { formatManilaDateTime } from "@/lib/health/clinic-datetime"
 import { consultationStatusLabel } from "@/types/consultation"
 import type { Consultation } from "@/types/consultation"
 import type { QueueVitals } from "@/lib/health/types"

@@ -244,7 +244,6 @@ export const footerQuickLinks = [
   { label: "Overview", href: `${siteRoutes.home}#home` },
   { label: "Features", href: `${siteRoutes.home}#features` },
   { label: "Why Us", href: `${siteRoutes.home}#why-us` },
-  { label: "Mobile app", href: siteRoutes.download },
   { label: "Login", href: siteRoutes.login },
 ] as const
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useTransition } from "react"
+import { useEffect, useState } from "react"
 import { useConfirm } from "@/components/feedback/confirm-provider"
 import { appToast } from "@/lib/feedback/app-toast"
 import { requestToasts } from "@/lib/feedback/toast-messages"
@@ -32,7 +32,7 @@ export function RescheduleRequestDialog({
   onUpdated: (request: AppointmentRequest) => void
 }) {
   const { confirmPreset } = useConfirm()
-  const [pending, startTransition] = useTransition()
+  const [pending, setPending] = useState(false)
   const [rescheduleDate, setRescheduleDate] = useState("")
   const [rescheduleTime, setRescheduleTime] = useState("")
   const [rescheduleReason, setRescheduleReason] = useState("")
@@ -40,14 +40,18 @@ export function RescheduleRequestDialog({
   useEffect(() => {
     if (!open || !request) return
     setRescheduleDate(request.preferredDate ?? "")
-    setRescheduleTime(request.preferredTime ?? "")
+    setRescheduleTime((request.preferredTime ?? "").slice(0, 5))
     setRescheduleReason("")
+    setPending(false)
   }, [open, request])
 
   if (!request) return null
 
   function handleSave() {
     const trimmed = rescheduleReason.trim()
+    const preferredDate = rescheduleDate.trim()
+    // HTML time inputs may include seconds; API expects Manila HH:mm.
+    const preferredTime = rescheduleTime.trim().slice(0, 5)
     if (!trimmed) {
       appToast.error({
         title: "Reschedule reason required",
@@ -55,7 +59,7 @@ export function RescheduleRequestDialog({
       })
       return
     }
-    if (!rescheduleDate || !rescheduleTime) {
+    if (!preferredDate || !/^\d{2}:\d{2}$/.test(preferredTime)) {
       appToast.error({
         title: "Date and time required",
         description: "New date and time are required.",
@@ -63,25 +67,27 @@ export function RescheduleRequestDialog({
       return
     }
 
+    // Await the mutation inside onConfirm (do not wrap in startTransition) so
+    // nested AlertDialog confirm finishes before closing — otherwise the save
+    // can be abandoned when dialogs unmount.
+    setPending(true)
     void confirmPreset("reschedule", {
-      onConfirm: () => {
-        startTransition(async () => {
-          const result = await rescheduleConsultationRequestAction({
-            id: request!.id,
-            preferredDate: rescheduleDate,
-            preferredTime: rescheduleTime,
-            reason: trimmed,
-          })
-          if (!result.ok) {
-            requestToasts.failed(result.error)
-            return
-          }
-          requestToasts.rescheduled()
-          onUpdated(result.data)
-          onOpenChange(false)
+      pendingLabel: "Saving…",
+      onConfirm: async () => {
+        const result = await rescheduleConsultationRequestAction({
+          id: request!.id,
+          preferredDate,
+          preferredTime,
+          reason: trimmed,
         })
+        if (!result.ok) {
+          throw new Error(result.error)
+        }
+        requestToasts.rescheduled()
+        onUpdated(result.data)
+        onOpenChange(false)
       },
-    })
+    }).finally(() => setPending(false))
   }
 
   return (

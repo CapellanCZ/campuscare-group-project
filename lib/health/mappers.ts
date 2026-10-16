@@ -1,3 +1,4 @@
+import { parseConsultationProviderType } from "@/lib/health/consultation-workflow"
 import { sanitizeIntakeNotesForDisplay } from "@/lib/health/intake-notes"
 import type {
   PatientType,
@@ -216,10 +217,16 @@ export function mapTicketRow(
     respiratoryRate: raw.vitals_respiratory_rate ?? null,
   }
 
-  const providerType =
-    raw.provider_type === "physician" || raw.provider_type === "dentist"
-      ? raw.provider_type
-      : specialtyFromConsultationType(raw.consultation_type)
+  // Prefer dentist if either column says so — recovers mobile bookings where
+  // provider_type defaulted to physician but consultation_type is dental.
+  const fromProvider = parseConsultationProviderType(raw.provider_type)
+  const fromService = specialtyFromConsultationType(raw.consultation_type)
+  const providerType: SpecialtyStationId | null =
+    fromProvider === "dentist" || fromService === "dentist"
+      ? "dentist"
+      : fromProvider === "physician" || fromService === "physician"
+        ? "physician"
+        : null
 
   const status = asStatus(raw.status)
   const rejoinCount = raw.rejoin_count ?? 0

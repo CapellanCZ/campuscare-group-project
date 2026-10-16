@@ -80,7 +80,7 @@ export function ViewRequestDialog({
             <DetailRow label="Phone" value={request.phone} />
             <DetailRow label="Service" value={serviceLabel} />
             <DetailRow
-              label="Provider type"
+              label="Specialty"
               value={
                 request.providerType === "dentist" ? "Dentist" : "Physician"
               }

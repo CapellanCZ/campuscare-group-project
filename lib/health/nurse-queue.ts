@@ -79,13 +79,14 @@ export function queueActionsForTicket(row: QueueTicketRow): Set<QueueActionKey> 
     if (row.canRejoin) actions.add("rejoin")
     return actions
   }
-  const actions = new Set<QueueActionKey>([
-    "call",
-    "start",
-    "complete",
-    "skip",
-    "no_show",
-  ])
+  // Pre-intake nurse tickets: Intake & assign specialty is the workflow —
+  // do not offer Start/Complete (conflicts with incomplete intake).
+  const awaitingIntake = needsNurseIntake(row)
+  const actions = new Set<QueueActionKey>(["call", "skip", "no_show"])
+  if (!awaitingIntake) {
+    actions.add("start")
+    actions.add("complete")
+  }
   if (needsCheckInVerify(row)) actions.add("verify")
   if (canOpenNurseIntake(row)) actions.add("intake")
   return actions

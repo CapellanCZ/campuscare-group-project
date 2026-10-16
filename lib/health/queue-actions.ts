@@ -52,7 +52,10 @@ import {
   vitalsFromIntake,
   type ConsultationVitals,
 } from "@/lib/health/consultation-lifecycle"
-import type { ConsultationProviderType } from "@/lib/health/consultation-workflow"
+import {
+  resolveConsultationProviderType,
+  type ConsultationProviderType,
+} from "@/lib/health/consultation-workflow"
 
 async function requireSessionRole(designation: ClinicDesignation) {
   const access = await getStaffAccess()
@@ -1495,8 +1498,9 @@ export async function admitWaitlistedConsultationRequest(params: {
     await assertAppointmentEligibleForQueueEntry(preferredStartsAt)
   if (!scheduleGate.ok) return scheduleGate
 
-  const providerType: SpecialtyStationId =
-    request.provider_type === "dentist" ? "dentist" : "physician"
+  const providerType: SpecialtyStationId = resolveConsultationProviderType(
+    request.provider_type
+  )
   const serviceDate =
     (request.preferred_date as string | null) || manilaDayBounds().ymd
 

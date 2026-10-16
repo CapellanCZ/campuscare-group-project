@@ -68,30 +68,28 @@ function toNumber(value: string): number | null {
 
 /** Patient-requested specialty from the ticket; nurse can still change it. */
 function defaultIntakeStation(ticket: QueueTicketRow): SpecialtyStationId {
-  if (
-    ticket.providerType === "dentist" ||
-    ticket.providerType === "physician"
-  ) {
-    return ticket.providerType
-  }
-  if (ticket.station === "dentist" || ticket.station === "physician") {
-    return ticket.station
-  }
+  // Prefer dentist if either providerType or service label says so (mobile
+  // bookings sometimes default provider_type to physician incorrectly).
   const service = (
     ticket.consultationType ??
     ticket.service ??
     ""
   ).toLowerCase()
-  // Never infer specialty from free-text "Other".
-  if (service === "other" || service === OTHER_SELECT_VALUE) {
+  const serviceIsDental =
+    service !== "other" &&
+    service !== OTHER_SELECT_VALUE &&
+    (service.includes("dental") ||
+      service.includes("dentist") ||
+      service.includes("tooth"))
+
+  if (ticket.providerType === "dentist" || serviceIsDental) {
+    return "dentist"
+  }
+  if (ticket.providerType === "physician") {
     return "physician"
   }
-  if (
-    service.includes("dental") ||
-    service.includes("dentist") ||
-    service.includes("tooth")
-  ) {
-    return "dentist"
+  if (ticket.station === "dentist" || ticket.station === "physician") {
+    return ticket.station
   }
   return "physician"
 }

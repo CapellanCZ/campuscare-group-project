@@ -40,6 +40,50 @@ function manilaDateTimeToIso(date: string, time: string): string {
   return new Date(`${date}T${t}+08:00`).toISOString()
 }
 
+/** Normalize specialty aliases from mobile (Dentist, dental, provider_type, …). */
+function parseProviderType(value: unknown): "physician" | "dentist" | null {
+  if (value == null) return null
+  const raw = String(value).trim().toLowerCase()
+  if (!raw) return null
+  if (
+    raw === "dentist" ||
+    raw === "dental" ||
+    raw === "dentistry" ||
+    raw.includes("dentist") ||
+    raw.includes("dental")
+  ) {
+    return "dentist"
+  }
+  if (
+    raw === "physician" ||
+    raw === "doctor" ||
+    raw === "medical" ||
+    raw === "general" ||
+    raw === "md" ||
+    raw.includes("physician") ||
+    raw.includes("medical") ||
+    raw.includes("general consult")
+  ) {
+    return "physician"
+  }
+  return null
+}
+
+function resolveProviderTypeFromBody(
+  body: Record<string, unknown>
+): "physician" | "dentist" | null {
+  // Prefer specialty* — mobile may leave providerType as physician default.
+  return (
+    parseProviderType(
+      body.specialty ?? body.specialtyType ?? body.selectedSpecialty
+    ) ??
+    parseProviderType(body.providerType ?? body.provider_type) ??
+    parseProviderType(
+      body.serviceType ?? body.consultationType ?? body.service
+    )
+  )
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders })
@@ -61,9 +105,15 @@ Deno.serve(async (req) => {
     return json({ error: "Invalid JSON body" }, 400)
   }
 
-  const providerType = String(body.providerType ?? "").trim()
-  if (providerType !== "physician" && providerType !== "dentist") {
-    return json({ error: "providerType must be physician or dentist" }, 400)
+  const providerType = resolveProviderTypeFromBody(body)
+  if (!providerType) {
+    return json(
+      {
+        error:
+          "providerType must be physician or dentist (also accepts specialty / provider_type / service)",
+      },
+      400
+    )
   }
 
   const preferredDate = String(body.preferredDate ?? "").trim()
@@ -77,7 +127,21 @@ Deno.serve(async (req) => {
     return json({ error: "patientName and reason are required" }, 400)
   }
 
-  const preferredTime = String(body.preferredTime ?? "08:00").trim().slice(0, 5)
+  // preferredTime must be Asia/Manila HH:mm wall-clock — never UTC hours from toISOString().
+  const preferredTimeRaw = String(body.preferredTime ?? "08:00").trim()
+  if (/[TtZz]|[+-]\d{2}/.test(preferredTimeRaw)) {
+    return json(
+      {
+        error:
+          "preferredTime must be HH:mm in Asia/Manila (do not send UTC/ISO timestamps)",
+      },
+      400
+    )
+  }
+  const preferredTime = preferredTimeRaw.slice(0, 5)
+  if (!/^\d{2}:\d{2}$/.test(preferredTime)) {
+    return json({ error: "preferredTime must be HH:mm" }, 400)
+  }
   const clinicId = String(body.clinicId ?? "").trim() || CAMPUS_CLINIC_ID
   const doctorId = body.doctorId ? String(body.doctorId) : null
   const studentId = body.studentId ? String(body.studentId).trim() : null
@@ -158,6 +222,8 @@ Deno.serve(async (req) => {
       status: "waitlisted",
       providerType,
       preferredDate,
+      preferredTime,
+      startsAt,
       queueNumber: null,
       queueTicketId: null,
       recommendComeEarly: false,
@@ -239,6 +305,8 @@ Deno.serve(async (req) => {
     status: "pending",
     providerType,
     preferredDate,
+    preferredTime,
+    startsAt,
     queueNumber: nextNumber,
     queueTicketId,
     recommendComeEarly: early,

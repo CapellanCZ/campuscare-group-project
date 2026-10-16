@@ -2,6 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { ClinicDesignation } from "@/lib/auth/types"
 import { CAMPUS_CLINIC_ID } from "@/lib/auth/campus-clinic"
+import {
+  consultationServiceLabel,
+  resolveConsultationProviderType,
+} from "@/lib/health/consultation-workflow"
 import { canApproveConsultationRequest } from "@/lib/health/roles"
 import { systemIntakeNote } from "@/lib/health/intake-notes"
 import { assertAppointmentEligibleForQueueEntry } from "@/lib/health/ticket-schedule"
@@ -46,8 +50,9 @@ async function createAndLinkQueueTicket(params: {
   | { ok: true; ticketId: string; ticketCode: string; queueNumber: number }
   | { ok: false; error: string }
 > {
-  const providerType: SpecialtyStationId =
-    params.appt.provider_type === "dentist" ? "dentist" : "physician"
+  const providerType: SpecialtyStationId = resolveConsultationProviderType(
+    params.appt.provider_type
+  )
   const serviceDate = manilaServiceDate(params.appt.starts_at)
 
   const { nextNumber, used, max } = await nextReservedQueueNumber(
@@ -90,10 +95,7 @@ async function createAndLinkQueueTicket(params: {
       patient_id: params.appt.patient_id,
       patient_name: patientName,
       campus_id: campusId,
-      consultation_type:
-        providerType === "dentist"
-          ? "Dental consultation"
-          : "General consultation",
+      consultation_type: consultationServiceLabel(providerType),
       chief_complaint: params.appt.reason,
       appointment_id: params.appt.id,
       provider_type: providerType,
@@ -191,8 +193,9 @@ export async function approveAppointmentReservation(params: {
     }
   }
 
-  const specialty: SpecialtyStationId =
-    appt.provider_type === "dentist" ? "dentist" : "physician"
+  const specialty: SpecialtyStationId = resolveConsultationProviderType(
+    appt.provider_type
+  )
 
   let ticketId = appt.queue_ticket_id as string | null
   let ticketCode: string | undefined
@@ -271,6 +274,7 @@ export async function approveAppointmentReservation(params: {
     .update({
       assigned_staff_name: params.staffName,
       provider_type: specialty,
+      consultation_type: consultationServiceLabel(specialty),
       intake_notes: systemIntakeNote({
         action: "Approved appointment",
         by: params.staffName,
@@ -410,21 +414,29 @@ export async function rescheduleAppointmentReservation(params: {
 
   if (!appt) return { ok: false, error: "Appointment not found." }
 
+  const preferredDate = params.preferredDate.trim()
+  const preferredTime = params.preferredTime.trim().slice(0, 5)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(preferredDate)) {
+    return { ok: false, error: "preferredDate must be YYYY-MM-DD." }
+  }
+  if (!/^\d{2}:\d{2}$/.test(preferredTime)) {
+    return { ok: false, error: "preferredTime must be HH:mm." }
+  }
+
   await releaseAppointmentReservation({
     appointmentId: params.appointmentId,
     ticketId: appt.queue_ticket_id as string | null,
   })
 
-  const providerType: SpecialtyStationId =
-    appt.provider_type === "dentist" ? "dentist" : "physician"
-  const startsAt = manilaDateTimeToIso(
-    params.preferredDate,
-    params.preferredTime
+  const providerType: SpecialtyStationId = resolveConsultationProviderType(
+    appt.provider_type
   )
+  const startsAt = manilaDateTimeToIso(preferredDate, preferredTime)
   const endsAt = new Date(
     new Date(startsAt).getTime() + 30 * 60 * 1000
   ).toISOString()
-  const serviceDate = params.preferredDate
+  const serviceDate = preferredDate
+  const reasonNote = `${appt.reason ?? ""}\nReschedule: ${params.reason}`.trim()
 
   const { used, max } = await nextReservedQueueNumber(
     providerType,
@@ -434,7 +446,7 @@ export async function rescheduleAppointmentReservation(params: {
   const now = new Date().toISOString()
 
   if (used >= max) {
-    await supabase
+    const { error } = await supabase
       .from("appointments")
       .update({
         starts_at: startsAt,
@@ -444,33 +456,44 @@ export async function rescheduleAppointmentReservation(params: {
         queue_ticket_id: null,
         queue_number: null,
         cancellation_reason: null,
-        reason: `${appt.reason ?? ""}\nReschedule: ${params.reason}`.trim(),
+        reason: reasonNote,
+        clinic_id: appt.clinic_id ?? CAMPUS_CLINIC_ID,
         updated_at: now,
       })
       .eq("id", params.appointmentId)
+    if (error) return { ok: false, error: error.message }
     return {
       ok: true,
       message: `Rescheduled to ${serviceDate} but date is full — waitlisted.`,
     }
   }
 
-  // Set new time first so ticket service_date matches the rescheduled day
-  await supabase
+  // Persist new schedule + status before linking a ticket so list/UI always
+  // reflect the updated preferred date/time even if ticket creation races.
+  const { error: scheduleError } = await supabase
     .from("appointments")
     .update({
       starts_at: startsAt,
       ends_at: endsAt,
+      status: "rescheduled",
+      waitlisted_at: null,
+      queue_ticket_id: null,
+      queue_number: null,
+      cancellation_reason: null,
+      reason: reasonNote,
       clinic_id: appt.clinic_id ?? CAMPUS_CLINIC_ID,
       updated_at: now,
     })
     .eq("id", params.appointmentId)
+
+  if (scheduleError) return { ok: false, error: scheduleError.message }
 
   const created = await createAndLinkQueueTicket({
     supabase,
     appt: {
       id: appt.id as string,
       provider_type: providerType,
-      reason: appt.reason as string | null,
+      reason: reasonNote,
       patient_id: appt.patient_id as string | null,
       starts_at: startsAt,
     },
@@ -483,18 +506,30 @@ export async function rescheduleAppointmentReservation(params: {
     forceOverCapacity: false,
   })
 
-  if (!created.ok) return { ok: false, error: created.error }
-
-  await supabase
-    .from("appointments")
-    .update({
-      status: "rescheduled",
-      waitlisted_at: null,
-      queue_ticket_id: created.ticketId,
-      queue_number: created.queueNumber,
-      updated_at: now,
-    })
-    .eq("id", params.appointmentId)
+  if (!created.ok) {
+    // Capacity race after release — keep schedule, move to waitlist.
+    if (/capacity|full/i.test(created.error)) {
+      await supabase
+        .from("appointments")
+        .update({
+          status: "waitlisted",
+          waitlisted_at: now,
+          queue_ticket_id: null,
+          queue_number: null,
+          updated_at: now,
+        })
+        .eq("id", params.appointmentId)
+      return {
+        ok: true,
+        message: `Rescheduled to ${serviceDate} but date is full — waitlisted.`,
+      }
+    }
+    // Schedule already saved; surface ticket error without rolling back time.
+    return {
+      ok: true,
+      message: `Rescheduled, but queue ticket was not created: ${created.error}`,
+    }
+  }
 
   return {
     ok: true,

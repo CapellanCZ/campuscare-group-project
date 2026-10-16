@@ -300,7 +300,20 @@ export function RequestsPage({
       const matchesFilter =
         status === "all" || request.status === status
       const without = prev.items.filter((item) => item.id !== request.id)
-      const items = matchesFilter ? [request, ...without] : without
+      const nextItems = matchesFilter ? [request, ...without] : without
+      const items = [...nextItems].sort((a, b) => {
+        const rank = (status: AppointmentRequest["status"]) =>
+          status === "pending"
+            ? 0
+            : status === "waitlisted"
+              ? 1
+              : status === "rescheduled"
+                ? 2
+                : 3
+        const byStatus = rank(a.status) - rank(b.status)
+        if (byStatus !== 0) return byStatus
+        return new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
+      })
       return {
         ...prev,
         items,

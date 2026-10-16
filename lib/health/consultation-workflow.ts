@@ -13,6 +13,107 @@ export function isConsultationProviderType(
   return (CONSULTATION_PROVIDER_TYPES as readonly string[]).includes(value)
 }
 
+/**
+ * Normalize specialty from mobile/web payloads.
+ * Accepts case variants and common aliases (dental, doctor, …).
+ */
+export function parseConsultationProviderType(
+  value: unknown
+): ConsultationProviderType | null {
+  if (value == null) return null
+  const raw = String(value).trim().toLowerCase()
+  if (!raw) return null
+
+  if (
+    raw === "dentist" ||
+    raw === "dental" ||
+    raw === "dentistry" ||
+    raw === "dental consultation" ||
+    raw === "dental consult"
+  ) {
+    return "dentist"
+  }
+  if (
+    raw.includes("dentist") ||
+    raw.includes("dental") ||
+    raw.includes("odont")
+  ) {
+    return "dentist"
+  }
+
+  if (
+    raw === "physician" ||
+    raw === "doctor" ||
+    raw === "medical" ||
+    raw === "general" ||
+    raw === "md" ||
+    raw === "general consultation" ||
+    raw === "general consult" ||
+    raw === "medical consultation"
+  ) {
+    return "physician"
+  }
+  if (
+    raw.includes("physician") ||
+    raw.includes("medical") ||
+    raw.includes("general consult")
+  ) {
+    return "physician"
+  }
+
+  return null
+}
+
+/** First matching specialty, else physician (DB default). */
+export function resolveConsultationProviderType(
+  ...values: unknown[]
+): ConsultationProviderType {
+  for (const value of values) {
+    const parsed = parseConsultationProviderType(value)
+    if (parsed) return parsed
+  }
+  return "physician"
+}
+
+/**
+ * Resolve specialty from a booking body.
+ * Prefer dedicated specialty fields — mobile sometimes leaves providerType as
+ * the physician default while specialty/service correctly says dentist.
+ */
+export function resolveProviderTypeFromBookingBody(
+  body: Record<string, unknown>
+): ConsultationProviderType | null {
+  const specialtyFirst = parseConsultationProviderType(
+    body.specialty ?? body.specialtyType ?? body.selectedSpecialty
+  )
+  if (specialtyFirst) return specialtyFirst
+
+  const fromProvider = parseConsultationProviderType(
+    body.providerType ?? body.provider_type
+  )
+  if (fromProvider) return fromProvider
+
+  return parseConsultationProviderType(
+    body.serviceType ?? body.consultationType ?? body.service
+  )
+}
+
+export function consultationProviderLabel(
+  value: ConsultationProviderType | string | null | undefined
+): string {
+  return parseConsultationProviderType(value) === "dentist"
+    ? "Dentist"
+    : "Physician"
+}
+
+export function consultationServiceLabel(
+  value: ConsultationProviderType | string | null | undefined
+): string {
+  return parseConsultationProviderType(value) === "dentist"
+    ? "Dental consultation"
+    : "General consultation"
+}
+
 export function recommendComeEarly(queueNumber: number | null | undefined) {
   return queueNumber != null && queueNumber <= EARLY_QUEUE_THRESHOLD
 }

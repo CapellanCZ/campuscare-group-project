@@ -3,7 +3,10 @@ import "server-only"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { CAMPUS_CLINIC_ID } from "@/lib/auth/campus-clinic"
-import type { ConsultationProviderType } from "@/lib/health/consultation-workflow"
+import {
+  resolveConsultationProviderType,
+  type ConsultationProviderType,
+} from "@/lib/health/consultation-workflow"
 import type { NurseIntakeInput } from "@/lib/health/types"
 import { createClient } from "@/lib/supabase/server"
 
@@ -171,7 +174,7 @@ export async function ensureConsultationFromAppointment(params: {
   if (!appt) return { error: "Appointment not found." }
 
   const providerType: ConsultationProviderType =
-    appt.provider_type === "dentist" ? "dentist" : "physician"
+    resolveConsultationProviderType(appt.provider_type)
 
   const clinicalPatientId = await resolveClinicalPatientId(
     appt.patient_id as string | null,

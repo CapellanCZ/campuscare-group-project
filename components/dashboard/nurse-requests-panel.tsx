@@ -25,6 +25,7 @@ import {
   consultationRequestStatusLabel,
   formatRequestDate,
 } from "@/features/requests/lib/format"
+import { consultationProviderLabel } from "@/lib/health/consultation-workflow"
 import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
@@ -144,7 +145,8 @@ export function NurseRequestsPanel({
                       </div>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
-                      {row.service}
+                      {consultationProviderLabel(row.providerType)}
+                      {row.service ? ` · ${row.service}` : ""}
                     </TableCell>
                     <TableCell className="hidden text-sm md:table-cell">
                       {formatRequestDate(row.preferredDate)}{" "}

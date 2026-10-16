@@ -54,6 +54,10 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  isoToManilaDatetimeLocal,
+  manilaDatetimeLocalToIso,
+} from "@/lib/health/clinic-datetime"
 import { CHIEF_COMPLAINT_OPTIONS } from "@/lib/health/form-options"
 import {
   DENTAL_CHIEF_COMPLAINT_OPTIONS,
@@ -137,18 +141,17 @@ const emptyForm: FormState = {
 
 function toDatetimeLocalValue(iso: string | null | undefined): string {
   if (!iso) return ""
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ""
-  const pad = (value: number) => String(value).padStart(2, "0")
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  return isoToManilaDatetimeLocal(iso)
 }
 
 function fromDatetimeLocalValue(value: string): string | null {
   const trimmed = value.trim()
   if (!trimmed) return null
-  const date = new Date(trimmed)
-  if (Number.isNaN(date.getTime())) return null
-  return date.toISOString()
+  try {
+    return manilaDatetimeLocalToIso(trimmed)
+  } catch {
+    return null
+  }
 }
 
 function toForm(

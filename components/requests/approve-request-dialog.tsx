@@ -32,6 +32,11 @@ import {
   formatRequestDate,
 } from "@/features/requests/lib/format"
 import { displayConsultationLabel } from "@/lib/health/consultation-display"
+import { consultationProviderLabel } from "@/lib/health/consultation-workflow"
+import {
+  isoToManilaDatetimeLocal,
+  manilaDatetimeLocalToIso,
+} from "@/lib/health/clinic-datetime"
 import { selectItemsRecord } from "@/lib/ui/select-label"
 import type { AppointmentRequest } from "@/types/appointmentRequest"
 
@@ -61,7 +66,15 @@ export function ApproveRequestDialog({
   useEffect(() => {
     if (!open || !request) return
     setDoctorId(request.doctorId ?? "")
-    setScheduleAt(request.startsAt ? request.startsAt.slice(0, 16) : "")
+    // Prefer Manila preferredDate/time; never ISO.slice (UTC hours → 9 PM shows as 1 PM).
+    const fromPreferred =
+      request.preferredDate && request.preferredTime
+        ? `${request.preferredDate}T${request.preferredTime}`
+        : ""
+    setScheduleAt(
+      fromPreferred ||
+        (request.startsAt ? isoToManilaDatetimeLocal(request.startsAt) : "")
+    )
     setRoom(request.location ?? "")
     setApprovalNotes("")
     void listAssignableDoctorsAction().then((result) => {
@@ -131,7 +144,7 @@ export function ApproveRequestDialog({
         id: request!.id,
         doctorId: doctorId || null,
         doctorName: doctor?.fullName ?? request!.doctorName ?? null,
-        scheduleAt: scheduleAt ? new Date(scheduleAt).toISOString() : null,
+        scheduleAt: scheduleAt ? manilaDatetimeLocalToIso(scheduleAt) : null,
         location: room,
         notes: approvalNotes,
       })
@@ -179,6 +192,10 @@ export function ApproveRequestDialog({
           <p>
             <span className="text-muted-foreground">Patient:</span>{" "}
             {request.patientName}
+          </p>
+          <p>
+            <span className="text-muted-foreground">Specialty:</span>{" "}
+            {consultationProviderLabel(request.providerType)}
           </p>
           <p>
             <span className="text-muted-foreground">Service:</span>{" "}

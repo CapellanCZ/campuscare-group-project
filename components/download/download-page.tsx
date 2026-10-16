@@ -1,13 +1,13 @@
 import { DownloadHeader } from "@/components/download/download-header"
 import { DownloadMotion } from "@/components/download/download-motion"
 import { LandingFooter } from "@/components/landing/landing-footer"
-import { getAndroidApkUrl } from "@/lib/download/apk"
+import { getConfiguredAndroidApkUrl } from "@/lib/download/apk"
 
 /**
- * Single-focus download handoff — centered QR, short copy, one primary action.
+ * Single-focus download handoff — QR + CTA use NEXT_PUBLIC_ANDROID_APK_URL when set.
  */
 export function DownloadPage() {
-  const apkUrl = getAndroidApkUrl()
+  const apkUrl = getConfiguredAndroidApkUrl()
 
   return (
     <div className="landing-theme flex min-h-screen w-full flex-col overflow-x-clip bg-white text-slate-900">
