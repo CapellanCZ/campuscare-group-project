@@ -1,22 +1,14 @@
 "use client"
 
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/ui/status-badge"
+import {
+  consultationStatusDot,
+  consultationStatusTone,
+} from "@/lib/ui/status-badge-tone"
 import {
   consultationStatusLabel,
   normalizeConsultationStatus,
-  type ConsultationStatus,
 } from "@/types/consultation"
-import { cn } from "@/lib/utils"
-
-const statusVariant: Record<
-  ConsultationStatus,
-  "default" | "secondary" | "outline" | "destructive"
-> = {
-  waiting: "outline",
-  ongoing: "secondary",
-  completed: "default",
-  cancelled: "destructive",
-}
 
 type ConsultationStatusBadgeProps = {
   status: string
@@ -29,17 +21,13 @@ export function ConsultationStatusBadge({
 }: ConsultationStatusBadgeProps) {
   const normalized = consultationStatusLabel(status)
   const key = normalizeConsultationStatus(status)
-  const variant =
-    statusVariant[key] ??
-    (normalized === "Completed"
-      ? "default"
-      : normalized === "Ongoing"
-        ? "secondary"
-        : "outline")
 
   return (
-    <Badge variant={variant} className={cn("capitalize", className)}>
-      {normalized}
-    </Badge>
+    <StatusBadge
+      label={normalized}
+      toneClassName={consultationStatusTone(key)}
+      dotClassName={consultationStatusDot(key)}
+      className={className}
+    />
   )
 }

@@ -39,3 +39,27 @@ export function formatRequestDate(value: string | null | undefined): string {
     dateStyle: "medium",
   }).format(date)
 }
+
+/** Convert stored HH:mm (24h) preferred time to 12-hour clock. */
+export function formatRequestTime12h(value: string | null | undefined): string {
+  if (!value?.trim()) return ""
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})/)
+  if (!match) return value.trim()
+  let hour = Number(match[1])
+  if (!Number.isFinite(hour) || hour < 0 || hour > 23) return value.trim()
+  const minute = match[2]
+  const suffix = hour >= 12 ? "PM" : "AM"
+  hour = hour % 12
+  if (hour === 0) hour = 12
+  return `${hour}:${minute} ${suffix}`
+}
+
+export function formatRequestPreferred(
+  date: string | null | undefined,
+  time: string | null | undefined
+): string {
+  const day = formatRequestDate(date)
+  const clock = formatRequestTime12h(time)
+  if (day === "—" && !clock) return "—"
+  return [day !== "—" ? day : null, clock || null].filter(Boolean).join(" · ")
+}

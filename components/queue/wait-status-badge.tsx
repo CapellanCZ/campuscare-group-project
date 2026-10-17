@@ -54,6 +54,8 @@ export function WaitStatusBadge({
         urgency ? badgeClass[urgency] : undefined,
         status === "ongoing" &&
           "border-primary/30 bg-primary/10 text-primary",
+        status === "completed" &&
+          "border-success/30 bg-success/10 text-success dark:text-emerald-400",
         className
       )}
     >

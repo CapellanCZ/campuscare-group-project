@@ -1,14 +1,18 @@
 "use client"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { StatusBadge } from "@/components/ui/status-badge"
 import {
   consultationRequestStatusLabel,
   formatRequestDate,
 } from "@/features/requests/lib/format"
 import { displayConsultationLabel } from "@/lib/health/consultation-display"
 import { consultationProviderLabel } from "@/lib/health/consultation-workflow"
-import type { AppointmentRequest, AppointmentRequestStatus } from "@/types/appointmentRequest"
+import {
+  appointmentRequestStatusDot,
+  appointmentRequestStatusTone,
+} from "@/lib/ui/status-badge-tone"
+import type { AppointmentRequest } from "@/types/appointmentRequest"
 import { cn } from "@/lib/utils"
 
 export type RequestDialogMode =
@@ -18,19 +22,6 @@ export type RequestDialogMode =
   | "decline"
   | "admit"
 
-const statusVariant: Record<
-  AppointmentRequestStatus,
-  "default" | "secondary" | "outline" | "destructive"
-> = {
-  pending: "secondary",
-  confirmed: "default",
-  waitlisted: "outline",
-  rescheduled: "outline",
-  in_progress: "default",
-  completed: "default",
-  cancelled: "destructive",
-  no_show: "destructive",
-}
 
 export function ConsultationRequestCard({
   request,
@@ -74,9 +65,12 @@ export function ConsultationRequestCard({
           <p className="truncate font-medium text-foreground">
             {request.patientName}
           </p>
-          <Badge variant={statusVariant[request.status]} className="shrink-0">
-            {consultationRequestStatusLabel(request.status)}
-          </Badge>
+          <StatusBadge
+            className="shrink-0"
+            label={consultationRequestStatusLabel(request.status)}
+            toneClassName={appointmentRequestStatusTone(request.status)}
+            dotClassName={appointmentRequestStatusDot(request.status)}
+          />
         </div>
         <p className="truncate text-sm text-muted-foreground">
           {metaParts.join(" · ")}

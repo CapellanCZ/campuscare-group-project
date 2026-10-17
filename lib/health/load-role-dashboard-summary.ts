@@ -295,7 +295,7 @@ export async function loadRoleDashboardSummary(input: {
     // Admin must not hydrate named request previews.
     isAdmin
       ? Promise.resolve({ pendingCount: 0, recent: [] })
-      : buildRequests(isNurse ? 8 : 6),
+      : buildRequests(isNurse ? 50 : 6),
     isSpecialty
       ? loadRecentConsultations(isDentist ? "dentist" : "physician")
       : Promise.resolve([]),
