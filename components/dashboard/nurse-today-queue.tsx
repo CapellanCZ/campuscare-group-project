@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation"
 import { appToast } from "@/lib/feedback/app-toast"
 import { patientToasts, queueToasts } from "@/lib/feedback/toast-messages"
 import {
+  IconCheck,
+  IconClipboardList,
   IconDots,
   IconListCheck,
 } from "@tabler/icons-react"
@@ -16,6 +18,11 @@ import { PatientProfileSheet } from "@/components/patients/patient-profile-sheet
 import { StudentIdSearchInput } from "@/components/shared/student-id-search-input"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { StatusBadge } from "@/components/ui/status-badge"
+import {
+  STATUS_BADGE_DOT,
+  STATUS_BADGE_TONE,
+} from "@/lib/ui/status-badge-tone"
 import {
   Card,
   CardContent,
@@ -279,7 +286,6 @@ export function NurseTodayQueue({
                   <TableHead className="hidden sm:table-cell">Type</TableHead>
                   <TableHead className="hidden md:table-cell">Consult</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="hidden lg:table-cell">Wait</TableHead>
                   <TableHead className="hidden xl:table-cell">Assigned</TableHead>
                   <TableHead className="pr-6 text-right">Actions</TableHead>
                 </TableRow>
@@ -334,7 +340,6 @@ export function NurseTodayQueue({
                   <TableHead className="hidden sm:table-cell">Type</TableHead>
                   <TableHead className="hidden md:table-cell">Consult</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="hidden lg:table-cell">Wait</TableHead>
                   <TableHead className="hidden xl:table-cell">Assigned</TableHead>
                   <TableHead className="pr-6 text-right">Actions</TableHead>
                 </TableRow>
@@ -365,11 +370,6 @@ export function NurseTodayQueue({
                         waitMinutes={row.estimatedWaitMinutes}
                       />
                     </TableCell>
-                    <TableCell className="hidden text-muted-foreground tabular-nums lg:table-cell">
-                      {row.estimatedWaitMinutes != null
-                        ? `${row.estimatedWaitMinutes}m`
-                        : "—"}
-                    </TableCell>
                     <TableCell className="hidden max-w-[8rem] truncate text-muted-foreground xl:table-cell">
                       {row.assignedPersonnel || "—"}
                     </TableCell>
@@ -378,8 +378,11 @@ export function NurseTodayQueue({
                         {canVerify && needsCheckInVerify(row) ? (
                           <Button
                             type="button"
-                            size="xs"
+                            size="icon-sm"
+                            className="size-7"
                             disabled={pending}
+                            aria-label="Verify check-in"
+                            title="Verify"
                             onClick={() =>
                               runAction(
                                 "Check-in verified",
@@ -395,25 +398,27 @@ export function NurseTodayQueue({
                               )
                             }
                           >
-                            Verify
+                            <IconCheck className="size-3.5" aria-hidden />
                           </Button>
                         ) : null}
                         {row.checkedInAt && !row.intakeCompletedAt ? (
-                          <Badge
-                            variant="outline"
-                            className="h-6 px-1.5 text-[10px]"
-                          >
-                            Verified
-                          </Badge>
+                          <StatusBadge
+                            label="Verified"
+                            toneClassName={STATUS_BADGE_TONE.completed}
+                            dotClassName={STATUS_BADGE_DOT.completed}
+                            className="h-6 px-1.5 text-[10px] normal-case"
+                          />
                         ) : null}
                         {needsNurseIntake(row) ? (
                           <Button
                             type="button"
-                            size="xs"
+                            size="icon-sm"
+                            className="size-7"
                             disabled={pending || !canOpenNurseIntake(row)}
+                            aria-label="Start intake"
                             title={
                               canOpenNurseIntake(row)
-                                ? undefined
+                                ? "Intake"
                                 : "Verify check-in first"
                             }
                             onClick={() => {
@@ -421,7 +426,10 @@ export function NurseTodayQueue({
                               onStartIntake(row)
                             }}
                           >
-                            Intake
+                            <IconClipboardList
+                              className="size-3.5"
+                              aria-hidden
+                            />
                           </Button>
                         ) : null}
                         {canMutate ? (
@@ -464,6 +472,7 @@ export function NurseTodayQueue({
                                           ticketId: row.ticketId,
                                           patch: {
                                             status: "no_show",
+                                            estimatedWaitMinutes: 0,
                                             canRejoin: row.rejoinCount < 1,
                                           },
                                         }

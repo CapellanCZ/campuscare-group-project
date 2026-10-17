@@ -133,7 +133,6 @@ type QueueSortColumn =
   | "status"
   | "consultation"
   | "station"
-  | "wait"
 
 const STATUS_OPTIONS: Array<{ value: TicketStatus | "all"; label: string }> = [
   { value: "all", label: "All statuses" },
@@ -365,8 +364,7 @@ export function QueuePage({
       } else if (sortColumn === "station") {
         compare = a.station.localeCompare(b.station)
       } else {
-        compare =
-          (a.estimatedWaitMinutes ?? -1) - (b.estimatedWaitMinutes ?? -1)
+        compare = a.status.localeCompare(b.status)
       }
       if (compare === 0) {
         compare = a.patientName.localeCompare(b.patientName)
@@ -944,17 +942,6 @@ export function QueuePage({
                                 }
                               />
                             </TableHead>
-                            <TableHead className="hidden h-12 sm:table-cell">
-                              <DirectoryColumnHeader
-                                title="Wait"
-                                sortDirection={sortDirectionFor("wait")}
-                                onSortAsc={() => setColumnSort("wait", "asc")}
-                                onSortDesc={() => setColumnSort("wait", "desc")}
-                                onClearSort={() =>
-                                  setColumnSort("ticket", "asc")
-                                }
-                              />
-                            </TableHead>
                           </>
                         ) : (
                           <>
@@ -1097,17 +1084,6 @@ export function QueuePage({
                                 }
                               />
                             </TableHead>
-                            <TableHead className="hidden h-12 sm:table-cell">
-                              <DirectoryColumnHeader
-                                title="Wait"
-                                sortDirection={sortDirectionFor("wait")}
-                                onSortAsc={() => setColumnSort("wait", "asc")}
-                                onSortDesc={() => setColumnSort("wait", "desc")}
-                                onClearSort={() =>
-                                  setColumnSort("ticket", "asc")
-                                }
-                              />
-                            </TableHead>
                           </>
                         )}
                         {!readOnly ? (
@@ -1133,7 +1109,7 @@ export function QueuePage({
                           Boolean(row.checkedInAt) &&
                           !row.intakeCompletedAt
                         return (
-                          <TableRow className="h-12" key={row.ticketId}>
+                          <TableRow key={row.ticketId}>
                             <TableCell className="pl-6 font-semibold tabular-nums">
                               {ticketLabel(row.queueNumber, row.ticketCode)}
                             </TableCell>
@@ -1182,11 +1158,6 @@ export function QueuePage({
                                     waitMinutes={row.estimatedWaitMinutes}
                                   />
                                 </TableCell>
-                                <TableCell className="hidden tabular-nums sm:table-cell">
-                                  {row.estimatedWaitMinutes != null
-                                    ? `${row.estimatedWaitMinutes}m`
-                                    : "—"}
-                                </TableCell>
                               </>
                             ) : (
                               <>
@@ -1211,11 +1182,6 @@ export function QueuePage({
                                     status={row.status}
                                     waitMinutes={row.estimatedWaitMinutes}
                                   />
-                                </TableCell>
-                                <TableCell className="hidden tabular-nums sm:table-cell">
-                                  {row.estimatedWaitMinutes != null
-                                    ? `${row.estimatedWaitMinutes}m`
-                                    : "—"}
                                 </TableCell>
                               </>
                             )}
@@ -1362,6 +1328,7 @@ export function QueuePage({
                                                   patch: {
                                                     status: "called",
                                                     callCount: row.callCount + 1,
+                                                    estimatedWaitMinutes: 0,
                                                   },
                                                 },
                                               }
@@ -1384,6 +1351,7 @@ export function QueuePage({
                                                         ? {
                                                             ...ticket,
                                                             status: "ongoing" as const,
+                                                            estimatedWaitMinutes: 0,
                                                             assignedPersonnel:
                                                               access.fullName,
                                                           }
@@ -1441,6 +1409,7 @@ export function QueuePage({
                                                     ticketId: row.ticketId,
                                                     patch: {
                                                       status: "ongoing",
+                                                      estimatedWaitMinutes: 0,
                                                       assignedPersonnel:
                                                         access.fullName,
                                                     },
@@ -1463,7 +1432,10 @@ export function QueuePage({
                                             {
                                               optimistic: {
                                                 ticketId: row.ticketId,
-                                                patch: { status: "completed" },
+                                                patch: {
+                                                  status: "completed",
+                                                  estimatedWaitMinutes: 0,
+                                                },
                                               },
                                             }
                                           )
@@ -1493,6 +1465,7 @@ export function QueuePage({
                                                     ticketId: row.ticketId,
                                                     patch: {
                                                       status: "no_show",
+                                                      estimatedWaitMinutes: 0,
                                                       canRejoin:
                                                         row.rejoinCount < 1,
                                                     },
@@ -1524,6 +1497,7 @@ export function QueuePage({
                                                     ticketId: row.ticketId,
                                                     patch: {
                                                       status: "no_show",
+                                                      estimatedWaitMinutes: 0,
                                                     },
                                                   },
                                                 }

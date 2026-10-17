@@ -7,7 +7,7 @@ import { DocumentVoidDialog } from "@/components/medical-documents/document-void
 import { documentTypeLabel } from "@/components/medical-documents/document-print-view"
 import {
   documentStatusLabel,
-  documentStatusVariant,
+  documentStatusToneKey,
 } from "@/features/medical-documents/lib/document-status"
 import { logMedicalDocumentViewAction } from "@/features/medical-documents/actions"
 import {
@@ -16,8 +16,12 @@ import {
 } from "@/features/certificates/lib/format"
 import { CAMPUS_ID_LABEL } from "@/types/patientRecord"
 import type { MedicalDocument } from "@/types/medicalDocument"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { StatusBadge } from "@/components/ui/status-badge"
+import {
+  STATUS_BADGE_DOT,
+  STATUS_BADGE_TONE,
+} from "@/lib/ui/status-badge-tone"
 import {
   Sheet,
   SheetContent,
@@ -85,9 +89,19 @@ export function DocumentDetailSheet({
                 label="Status"
                 value={
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant={documentStatusVariant(document.status)}>
-                      {documentStatusLabel(document.status)}
-                    </Badge>
+                    <StatusBadge
+                      label={documentStatusLabel(document.status)}
+                      toneClassName={
+                        STATUS_BADGE_TONE[
+                          documentStatusToneKey(document.status)
+                        ]
+                      }
+                      dotClassName={
+                        STATUS_BADGE_DOT[
+                          documentStatusToneKey(document.status)
+                        ]
+                      }
+                    />
                     {document.status === "voided" && document.voidReason ? (
                       <span className="text-xs font-normal text-destructive">
                         {document.voidReason}

@@ -6,11 +6,18 @@ import { DocumentPreviewDialog } from "@/components/medical-documents/document-p
 import { documentTypeLabel } from "@/components/medical-documents/document-print-view"
 import { fetchMedicalDocumentByIdAction } from "@/features/medical-documents/actions"
 import { fetchPatientDocumentsAction } from "@/features/patients/actions"
-import { documentStatusLabel } from "@/features/medical-documents/lib/document-status"
+import {
+  documentStatusLabel,
+  documentStatusToneKey,
+} from "@/features/medical-documents/lib/document-status"
 import type { ClinicalRecordScope } from "@/lib/clinical/record-scope"
 import { appToast } from "@/lib/feedback/app-toast"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { StatusBadge } from "@/components/ui/status-badge"
+import {
+  STATUS_BADGE_DOT,
+  STATUS_BADGE_TONE,
+} from "@/lib/ui/status-badge-tone"
 import {
   Dialog,
   DialogContent,
@@ -171,9 +178,16 @@ export function PatientDocumentsSheet({
                       </p>
                     ) : null}
                   </div>
-                  <Badge variant="outline" className="shrink-0">
-                    {documentStatusLabel(row.status)}
-                  </Badge>
+                  <StatusBadge
+                    className="shrink-0"
+                    label={documentStatusLabel(row.status)}
+                    toneClassName={
+                      STATUS_BADGE_TONE[documentStatusToneKey(row.status)]
+                    }
+                    dotClassName={
+                      STATUS_BADGE_DOT[documentStatusToneKey(row.status)]
+                    }
+                  />
                 </Button>
               ))
             )}

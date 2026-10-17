@@ -5,8 +5,8 @@ import {
   AnnouncementImageGallery,
   announcementImages,
 } from "@/components/announcements/announcement-image-gallery"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { StatusBadge } from "@/components/ui/status-badge"
 import {
   Sheet,
   SheetContent,
@@ -19,14 +19,18 @@ import {
   announcementStatusLabel,
   formatAnnouncementDateTime,
 } from "@/features/announcements/lib/format"
+import {
+  STATUS_BADGE_DOT,
+  STATUS_BADGE_TONE,
+} from "@/lib/ui/status-badge-tone"
 import type { Announcement, AnnouncementStatus } from "@/types/announcement"
 
-function statusVariant(
+function announcementStatusToneKey(
   status: AnnouncementStatus
-): "default" | "secondary" | "outline" {
-  if (status === "published") return "default"
-  if (status === "scheduled") return "secondary"
-  return "outline"
+): "published" | "scheduled" | "draft" {
+  if (status === "published") return "published"
+  if (status === "scheduled") return "scheduled"
+  return "draft"
 }
 
 function DetailRow({
@@ -79,9 +83,19 @@ export function AnnouncementDetailSheet({
 
         <div className="flex-1 overflow-y-auto px-6 py-2">
           <div className="mb-5">
-            <Badge variant={statusVariant(announcement.status)}>
-              {announcementStatusLabel(announcement.status)}
-            </Badge>
+            <StatusBadge
+              label={announcementStatusLabel(announcement.status)}
+              toneClassName={
+                STATUS_BADGE_TONE[
+                  announcementStatusToneKey(announcement.status)
+                ]
+              }
+              dotClassName={
+                STATUS_BADGE_DOT[
+                  announcementStatusToneKey(announcement.status)
+                ]
+              }
+            />
           </div>
 
           <dl>

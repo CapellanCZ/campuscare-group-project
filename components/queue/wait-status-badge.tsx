@@ -1,6 +1,10 @@
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/ui/status-badge"
 import { ticketStatusLabel } from "@/lib/health/mappers"
 import type { TicketStatus } from "@/lib/health/types"
+import {
+  STATUS_BADGE_DOT,
+  STATUS_BADGE_TONE,
+} from "@/lib/ui/status-badge-tone"
 import { cn } from "@/lib/utils"
 
 export type WaitUrgency = "ok" | "warn" | "urgent"
@@ -13,16 +17,34 @@ export function waitUrgencyFromMinutes(
   return "urgent"
 }
 
-const badgeClass: Record<WaitUrgency, string> = {
-  ok: "border-success/30 bg-success/10 text-success",
-  warn: "border-warning/40 bg-warning/15 text-warning-foreground",
-  urgent: "border-destructive/40 bg-destructive/10 text-destructive",
+const urgencyTone: Record<WaitUrgency, string> = {
+  ok: STATUS_BADGE_TONE.completed,
+  warn: STATUS_BADGE_TONE.pending,
+  urgent: STATUS_BADGE_TONE.cancelled,
 }
 
-const dotClass: Record<WaitUrgency, string> = {
-  ok: "bg-success animate-wait-pulse-ok",
-  warn: "bg-warning animate-wait-pulse-warn",
-  urgent: "bg-destructive animate-wait-pulse-urgent",
+const urgencyDot: Record<WaitUrgency, string> = {
+  ok: cn(STATUS_BADGE_DOT.completed, "animate-wait-pulse-ok"),
+  warn: cn(STATUS_BADGE_DOT.pending, "animate-wait-pulse-warn"),
+  urgent: cn(STATUS_BADGE_DOT.cancelled, "animate-wait-pulse-urgent"),
+}
+
+const ticketTone: Record<string, string> = {
+  waiting: STATUS_BADGE_TONE.waiting,
+  called: STATUS_BADGE_TONE.confirmed,
+  ongoing: STATUS_BADGE_TONE.ongoing,
+  completed: STATUS_BADGE_TONE.completed,
+  expired: STATUS_BADGE_TONE.cancelled,
+  no_show: STATUS_BADGE_TONE.no_show,
+}
+
+const ticketDot: Record<string, string> = {
+  waiting: STATUS_BADGE_DOT.waiting,
+  called: STATUS_BADGE_DOT.confirmed,
+  ongoing: STATUS_BADGE_DOT.ongoing,
+  completed: STATUS_BADGE_DOT.completed,
+  expired: STATUS_BADGE_DOT.cancelled,
+  no_show: STATUS_BADGE_DOT.no_show,
 }
 
 export function WaitStatusBadge({
@@ -35,11 +57,11 @@ export function WaitStatusBadge({
   className?: string
 }) {
   const urgency =
-    status === "waiting" || status === "called"
-      ? waitUrgencyFromMinutes(waitMinutes)
-      : null
+    status === "waiting" ? waitUrgencyFromMinutes(waitMinutes) : null
 
   const statusText = ticketStatusLabel(status)
+  // Timer stays in the pill for active queue states. Call / start / complete
+  // actions reset estimated_wait_minutes to 0 so the pill shows · 0m.
   const label =
     waitMinutes != null &&
     (status === "waiting" || status === "called" || status === "ongoing")
@@ -47,25 +69,15 @@ export function WaitStatusBadge({
       : statusText
 
   return (
-    <Badge
-      variant="outline"
-      className={cn(
-        "gap-1.5 tabular-nums",
-        urgency ? badgeClass[urgency] : undefined,
-        status === "ongoing" &&
-          "border-primary/30 bg-primary/10 text-primary",
-        status === "completed" &&
-          "border-success/30 bg-success/10 text-success dark:text-emerald-400",
-        className
-      )}
-    >
-      {urgency ? (
-        <span
-          className={cn("size-1.5 shrink-0 rounded-full", dotClass[urgency])}
-          aria-hidden
-        />
-      ) : null}
-      {label}
-    </Badge>
+    <StatusBadge
+      label={label}
+      toneClassName={
+        urgency ? urgencyTone[urgency] : (ticketTone[status] ?? STATUS_BADGE_TONE.waiting)
+      }
+      dotClassName={
+        urgency ? urgencyDot[urgency] : (ticketDot[status] ?? STATUS_BADGE_DOT.waiting)
+      }
+      className={cn("tabular-nums normal-case", className)}
+    />
   )
 }

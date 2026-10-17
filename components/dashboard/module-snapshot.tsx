@@ -18,6 +18,7 @@ export function ModuleSnapshot({
   href,
   linkLabel = "View all",
   badge,
+  toolbar,
   children,
   className,
 }: {
@@ -26,12 +27,19 @@ export function ModuleSnapshot({
   href?: string
   linkLabel?: string
   badge?: string | number
+  /** Optional controls (e.g. search) aligned with the title row. */
+  toolbar?: React.ReactNode
   children: React.ReactNode
   className?: string
 }) {
   return (
     <Card className={cn(panelCardClassName, "h-full", className)}>
-      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+      <CardHeader
+        className={cn(
+          "flex flex-col space-y-0 sm:flex-row sm:items-center sm:justify-between",
+          toolbar ? "gap-4 pb-1" : "gap-3"
+        )}
+      >
         <div className="min-w-0 space-y-1">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <CardTitle className="truncate text-base">{title}</CardTitle>
@@ -47,19 +55,26 @@ export function ModuleSnapshot({
             </CardDescription>
           ) : null}
         </div>
-        {href ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="shrink-0 text-muted-foreground hover:text-foreground"
-            render={<Link href={href} />}
-            nativeButton={false}
-          >
-            {linkLabel}
-          </Button>
-        ) : null}
+        <div className="flex min-w-0 w-full flex-col gap-2 sm:w-auto sm:max-w-sm sm:flex-row sm:items-center sm:justify-end">
+          {toolbar}
+          {href ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+              render={<Link href={href} />}
+              nativeButton={false}
+            >
+              {linkLabel}
+            </Button>
+          ) : null}
+        </div>
       </CardHeader>
-      <CardContent className="min-w-0 space-y-3">{children}</CardContent>
+      <CardContent
+        className={cn("min-w-0", toolbar ? "space-y-4 pt-2" : "space-y-3")}
+      >
+        {children}
+      </CardContent>
     </Card>
   )
 }

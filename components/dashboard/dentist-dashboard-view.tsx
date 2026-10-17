@@ -316,10 +316,7 @@ export function DentistDashboardView({
                             <TableHead className="hidden md:table-cell">
                               Complaint
                             </TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="hidden pr-6 lg:table-cell">
-                              Wait
-                            </TableHead>
+                            <TableHead className="pr-6">Status</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -339,16 +336,11 @@ export function DentistDashboardView({
                               <TableCell className="hidden max-w-[10rem] truncate text-muted-foreground md:table-cell">
                                 {row.chiefComplaint || "—"}
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="pr-6">
                                 <WaitStatusBadge
                                   status={row.status}
                                   waitMinutes={row.estimatedWaitMinutes}
                                 />
-                              </TableCell>
-                              <TableCell className="hidden pr-6 text-muted-foreground tabular-nums lg:table-cell">
-                                {row.estimatedWaitMinutes != null
-                                  ? `${row.estimatedWaitMinutes}m`
-                                  : "—"}
                               </TableCell>
                             </TableRow>
                           ))}

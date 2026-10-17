@@ -6,7 +6,7 @@ import { CertificatePreviewDialog } from "@/components/certificates/certificate-
 import { CertificatePrintView } from "@/components/certificates/certificate-print-view"
 import { triggerMedicalDocumentPrint } from "@/lib/print/trigger-medical-document-print"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/ui/status-badge"
 import {
   Sheet,
   SheetContent,
@@ -20,17 +20,21 @@ import {
   formatCertificateDate,
   formatCertificateDateTime,
 } from "@/features/certificates/lib/format"
+import {
+  STATUS_BADGE_DOT,
+  STATUS_BADGE_TONE,
+} from "@/lib/ui/status-badge-tone"
 import type {
   MedicalCertificate,
   MedicalCertificateStatus,
 } from "@/types/medicalCertificate"
 
-function statusVariant(
+function certificateStatusToneKey(
   status: MedicalCertificateStatus
-): "default" | "secondary" | "outline" {
-  if (status === "issued") return "default"
-  if (status === "printed") return "default"
-  return "outline"
+): "issued" | "pending" | "draft" {
+  if (status === "issued" || status === "printed") return "issued"
+  if (status === "pending") return "pending"
+  return "draft"
 }
 
 function DetailRow({
@@ -131,9 +135,19 @@ export function CertificateDetailSheet({
                 <DetailRow
                   label="Status"
                   value={
-                    <Badge variant={statusVariant(certificate.status)}>
-                      {certificateStatusLabel(certificate.status)}
-                    </Badge>
+                    <StatusBadge
+                      label={certificateStatusLabel(certificate.status)}
+                      toneClassName={
+                        STATUS_BADGE_TONE[
+                          certificateStatusToneKey(certificate.status)
+                        ]
+                      }
+                      dotClassName={
+                        STATUS_BADGE_DOT[
+                          certificateStatusToneKey(certificate.status)
+                        ]
+                      }
+                    />
                   }
                 />
                 <DetailRow

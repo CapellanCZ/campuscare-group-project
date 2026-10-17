@@ -7,11 +7,15 @@ import { documentTypeLabel } from "@/components/medical-documents/document-print
 import { formatCertificateDateTime } from "@/features/certificates/lib/format"
 import {
   documentStatusLabel,
-  documentStatusVariant,
+  documentStatusToneKey,
 } from "@/features/medical-documents/lib/document-status"
 import type { MedicalDocument } from "@/types/medicalDocument"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { StatusBadge } from "@/components/ui/status-badge"
+import {
+  STATUS_BADGE_DOT,
+  STATUS_BADGE_TONE,
+} from "@/lib/ui/status-badge-tone"
 import {
   Dialog,
   DialogContent,
@@ -70,9 +74,15 @@ export function DocumentPreviewDialog({
               </DialogDescription>
             </div>
             {document ? (
-              <Badge variant={documentStatusVariant(document.status)}>
-                {documentStatusLabel(document.status)}
-              </Badge>
+              <StatusBadge
+                label={documentStatusLabel(document.status)}
+                toneClassName={
+                  STATUS_BADGE_TONE[documentStatusToneKey(document.status)]
+                }
+                dotClassName={
+                  STATUS_BADGE_DOT[documentStatusToneKey(document.status)]
+                }
+              />
             ) : null}
           </div>
 

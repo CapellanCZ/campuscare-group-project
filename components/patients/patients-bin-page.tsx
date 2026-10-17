@@ -847,21 +847,26 @@ function ArchivedPatientRow({
           {canManage ? (
             <>
               <Button
-                size="xs"
+                size="icon-sm"
                 variant="outline"
+                className="size-7"
                 disabled={actionPending}
+                aria-label="Restore patient"
+                title="Restore"
                 onClick={onRestore}
               >
                 <IconRestore className="size-3.5" aria-hidden />
-                Restore
               </Button>
               <Button
-                size="xs"
-                variant="outline"
+                size="icon-sm"
+                variant="destructive"
+                className="size-7"
                 disabled={actionPending}
+                aria-label="Delete patient permanently"
+                title="Delete"
                 onClick={onDelete}
               >
-                Delete
+                <IconTrash className="size-3.5" aria-hidden />
               </Button>
             </>
           ) : null}

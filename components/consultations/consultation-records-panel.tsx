@@ -1,6 +1,13 @@
 "use client"
 
 import Link from "next/link"
+import {
+  IconCheck,
+  IconEye,
+  IconFileText,
+  IconPencil,
+  IconTrash,
+} from "@tabler/icons-react"
 
 import {
   ConsultationListCard,
@@ -71,8 +78,8 @@ export function ConsultationRecordsPanel({
       <div className="hidden min-w-0 overflow-x-auto md:block">
         <Table>
           <TableHeader>
-            <TableRow className={isDentist ? "h-14" : undefined}>
-              <TableHead className={isDentist ? "px-4" : undefined}>
+            <TableRow>
+              <TableHead className={cn("pl-6", isDentist && "px-4")}>
                 Patient
               </TableHead>
               <TableHead
@@ -106,19 +113,35 @@ export function ConsultationRecordsPanel({
               <TableHead className={isDentist ? "px-4" : undefined}>
                 Status
               </TableHead>
-              <TableHead className={cn("text-right", isDentist && "px-4")}>
+              <TableHead
+                className={cn("pr-6 text-right", isDentist && "px-4")}
+              >
                 Actions
               </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((row) => (
-              <TableRow
-                key={row.id}
-                className={isDentist ? "h-14" : undefined}
-              >
-                <TableCell className={isDentist ? "px-4" : undefined}>
-                  <p className="font-medium">{row.patient.fullName}</p>
+              <TableRow key={row.id}>
+                <TableCell className={cn("pl-6", isDentist && "px-4")}>
+                  <div className="flex min-w-0 items-start gap-1.5">
+                    <p className="min-w-0 flex-1 truncate font-medium">
+                      {row.patient.fullName}
+                    </p>
+                    {!isClinician ? (
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
+                        className="size-7 shrink-0 text-muted-foreground"
+                        aria-label={`View ${row.patient.fullName}`}
+                        title="View details"
+                        onClick={() => onView(row)}
+                      >
+                        <IconEye className="size-4" aria-hidden />
+                      </Button>
+                    ) : null}
+                  </div>
                 </TableCell>
                 <TableCell
                   className={cn("hidden lg:table-cell", isDentist && "px-4")}
@@ -157,13 +180,16 @@ export function ConsultationRecordsPanel({
                 <TableCell className={isDentist ? "px-4" : undefined}>
                   <ConsultationStatusBadge status={row.status} />
                 </TableCell>
-                <TableCell className={isDentist ? "px-4" : undefined}>
+                <TableCell className={cn("pr-6", isDentist && "px-4")}>
                   <div className="flex flex-wrap justify-end gap-1">
                     {isClinician ? (
                       <>
                         <Button
                           type="button"
-                          size="xs"
+                          size="icon-sm"
+                          className="size-7"
+                          aria-label="Open consultation"
+                          title="Open"
                           render={
                             <Link
                               href={`/${rolePath}/consultation/${row.id}`}
@@ -171,104 +197,76 @@ export function ConsultationRecordsPanel({
                           }
                           nativeButton={false}
                         >
-                          Open
+                          <IconFileText className="size-3.5" aria-hidden />
                         </Button>
                         {row.status !== "completed" ? (
                           <Button
-                            size="xs"
+                            type="button"
+                            size="icon-sm"
                             variant="secondary"
+                            className="size-7"
+                            aria-label="Complete"
+                            title="Complete"
                             onClick={() => onComplete(row)}
                           >
-                            Complete
+                            <IconCheck className="size-3.5" aria-hidden />
                           </Button>
                         ) : null}
                       </>
                     ) : (
                       <>
-                        <Button
-                          type="button"
-                          size="xs"
-                          variant="outline"
-                          onClick={() => onView(row)}
-                        >
-                          View
-                        </Button>
-                        {can(d, "consultations.view_patient") ? (
-                          <Button
-                            type="button"
-                            size="xs"
-                            variant="outline"
-                            onClick={() =>
-                              appToast.info({
-                                title: "Patient",
-                                description: `${row.patient.fullName} · ${row.patient.studentId}`,
-                              })
-                            }
-                          >
-                            Patient
-                          </Button>
-                        ) : null}
                         {can(d, "consultations.record_initial_assessment") &&
                         !row.assessment ? (
                           <Button
                             type="button"
-                            size="xs"
+                            size="icon-sm"
+                            className="size-7"
+                            aria-label="Assess"
+                            title="Assess"
                             onClick={() => onEdit(row)}
                           >
-                            Assess
+                            <IconPencil className="size-3.5" aria-hidden />
                           </Button>
                         ) : null}
-                        {can(d, "consultations.create_record") &&
+                        {(can(d, "consultations.create_record") ||
+                          can(d, "consultations.record_diagnosis") ||
+                          can(d, "consultations.record_treatment") ||
+                          can(d, "consultations.record_prescription")) &&
                         row.status !== "completed" ? (
                           <Button
                             type="button"
-                            size="xs"
-                            onClick={() => onEdit(row)}
-                          >
-                            Chart
-                          </Button>
-                        ) : null}
-                        {can(d, "consultations.record_diagnosis") ? (
-                          <Button
-                            size="xs"
+                            size="icon-sm"
                             variant="outline"
+                            className="size-7"
+                            aria-label="Edit record"
+                            title="Edit"
                             onClick={() => onEdit(row)}
                           >
-                            Dx
-                          </Button>
-                        ) : null}
-                        {can(d, "consultations.record_treatment") ? (
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            onClick={() => onEdit(row)}
-                          >
-                            Tx
-                          </Button>
-                        ) : null}
-                        {can(d, "consultations.record_prescription") ? (
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            onClick={() => onEdit(row)}
-                          >
-                            Rx
+                            <IconPencil className="size-3.5" aria-hidden />
                           </Button>
                         ) : null}
                         {can(d, "consultations.complete") &&
                         row.status !== "completed" ? (
                           <Button
-                            size="xs"
+                            type="button"
+                            size="icon-sm"
                             variant="secondary"
+                            className="size-7"
+                            aria-label="Complete"
+                            title="Complete"
                             onClick={() => onComplete(row)}
                           >
-                            Complete
+                            <IconCheck className="size-3.5" aria-hidden />
                           </Button>
                         ) : null}
                         {can(d, "consultations.generate_certificate") ? (
                           <Button
-                            size="xs"
+                            type="button"
+                            size="icon-sm"
                             variant="outline"
+                            className="size-7"
+                            aria-label="Medical certificate"
+                            title="Certificate"
                             onClick={() =>
                               appToast.info({
                                 title: "Medical Certificate",
@@ -277,16 +275,20 @@ export function ConsultationRecordsPanel({
                               })
                             }
                           >
-                            Certificate
+                            <IconFileText className="size-3.5" aria-hidden />
                           </Button>
                         ) : null}
                         {can(d, "consultations.update_record") ? (
                           <Button
-                            size="xs"
+                            type="button"
+                            size="icon-sm"
                             variant="destructive"
+                            className="size-7"
+                            aria-label="Delete"
+                            title="Delete"
                             onClick={() => onDelete(row)}
                           >
-                            Delete
+                            <IconTrash className="size-3.5" aria-hidden />
                           </Button>
                         ) : null}
                       </>

@@ -1,7 +1,13 @@
 "use client"
 
 import { useCallback, useEffect, useState, useTransition } from "react"
-import { IconFileText, IconPlus } from "@tabler/icons-react"
+import {
+  IconEye,
+  IconFileText,
+  IconPencil,
+  IconPlus,
+  IconPrinter,
+} from "@tabler/icons-react"
 import { documentToasts } from "@/lib/feedback/toast-messages"
 
 import { IssueDocumentTypeDialog } from "@/components/medical-documents/issue-document-type-dialog"
@@ -17,14 +23,18 @@ import {
 import { appToast } from "@/lib/feedback/app-toast"
 import type { ClinicalVisitWorkspace } from "@/features/clinical/data/load-consultation-workspace"
 import type { MedicalDocument, MedicalDocumentType } from "@/types/medicalDocument"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { StatusBadge } from "@/components/ui/status-badge"
 import {
   documentStatusLabel,
-  documentStatusVariant,
+  documentStatusToneKey,
 } from "@/features/medical-documents/lib/document-status"
+import {
+  STATUS_BADGE_DOT,
+  STATUS_BADGE_TONE,
+} from "@/lib/ui/status-badge-tone"
 import { formatCertificateDateTime } from "@/features/certificates/lib/format"
 import { triggerMedicalDocumentPrint } from "@/lib/print/trigger-medical-document-print"
 
@@ -137,13 +147,22 @@ export function ConsultationDocumentsPanel({
                     </p>
                   ) : null}
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant={documentStatusVariant(doc.status)}>
-                    {documentStatusLabel(doc.status)}
-                  </Badge>
+                <div className="flex items-center gap-1">
+                  <StatusBadge
+                    label={documentStatusLabel(doc.status)}
+                    toneClassName={
+                      STATUS_BADGE_TONE[documentStatusToneKey(doc.status)]
+                    }
+                    dotClassName={
+                      STATUS_BADGE_DOT[documentStatusToneKey(doc.status)]
+                    }
+                  />
                   <Button
-                    size="xs"
-                    variant="outline"
+                    size="icon-sm"
+                    variant="ghost"
+                    className="size-7 text-muted-foreground"
+                    aria-label="View document"
+                    title="View"
                     onClick={() => {
                       setPreviewDoc(doc)
                       setPreviewOpen(true)
@@ -162,23 +181,32 @@ export function ConsultationDocumentsPanel({
                       )
                     }}
                   >
-                    View
+                    <IconEye className="size-4" aria-hidden />
                   </Button>
                   {canEditExisting && doc.status !== "voided" ? (
                     <Button
-                      size="xs"
+                      size="icon-sm"
                       variant="outline"
+                      className="size-7"
+                      aria-label="Edit document"
+                      title="Edit"
                       onClick={() => {
                         setEditingDoc(doc)
                         setSelectedType(doc.documentType)
                         setWizardOpen(true)
                       }}
                     >
-                      Edit
+                      <IconPencil className="size-3.5" aria-hidden />
                     </Button>
                   ) : null}
-                  <Button size="xs" onClick={() => handlePrint(doc)}>
-                    Print
+                  <Button
+                    size="icon-sm"
+                    className="size-7"
+                    aria-label="Print document"
+                    title="Print"
+                    onClick={() => handlePrint(doc)}
+                  >
+                    <IconPrinter className="size-3.5" aria-hidden />
                   </Button>
                 </div>
               </div>

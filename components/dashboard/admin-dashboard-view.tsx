@@ -17,8 +17,12 @@ import {
 import { PageIntro } from "@/components/layout/panel-frame"
 import { StatCard } from "@/components/shared/stat-card"
 import { ReportChartCard } from "@/features/reports/components/report-chart-card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { StatusBadge } from "@/components/ui/status-badge"
+import {
+  STATUS_BADGE_DOT,
+  STATUS_BADGE_TONE,
+} from "@/lib/ui/status-badge-tone"
 import {
   Card,
   CardContent,
@@ -50,12 +54,10 @@ function roleLabel(role: string) {
   return role
 }
 
-function statusVariant(
+function staffStatusToneKey(
   status: "active" | "invited" | "inactive"
-): "default" | "secondary" | "outline" {
-  if (status === "active") return "default"
-  if (status === "invited") return "secondary"
-  return "outline"
+): "active" | "invited" | "inactive" {
+  return status
 }
 
 export function AdminDashboardView({
@@ -304,9 +306,15 @@ export function AdminDashboardView({
                       </CardTitle>
                       <CardDescription>{roleLabel(person.role)}</CardDescription>
                     </div>
-                    <Badge variant={statusVariant(person.status)} className="capitalize">
-                      {person.status}
-                    </Badge>
+                    <StatusBadge
+                      label={person.status}
+                      toneClassName={
+                        STATUS_BADGE_TONE[staffStatusToneKey(person.status)]
+                      }
+                      dotClassName={
+                        STATUS_BADGE_DOT[staffStatusToneKey(person.status)]
+                      }
+                    />
                   </div>
                 </CardHeader>
                 <CardContent className="text-sm text-muted-foreground">

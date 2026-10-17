@@ -117,7 +117,14 @@ import {
   type PatientRecordStats,
   type PatientType,
 } from "@/types/patientRecord"
-import { IconSearch, IconUsers } from "@tabler/icons-react"
+import {
+  IconFileText,
+  IconHistory,
+  IconSearch,
+  IconStethoscope,
+  IconUser,
+  IconUsers,
+} from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 20
@@ -958,19 +965,25 @@ export function PatientsPage({
                         <div className="flex flex-wrap justify-end gap-1">
                           {can(access.designation, "patients.view_profile") ? (
                             <Button
-                              size="xs"
-                              variant="outline"
+                              size="icon-sm"
+                              variant="ghost"
+                              className="size-7 text-muted-foreground"
+                              aria-label={`Profile ${row.fullName}`}
+                              title="Profile"
                               onClick={() =>
                                 openEnsuredPatient(row, setProfilePatient)
                               }
                             >
-                              Profile
+                              <IconUser className="size-4" aria-hidden />
                             </Button>
                           ) : null}
                           {canViewHistory ? (
                             <Button
-                              size="xs"
-                              variant="outline"
+                              size="icon-sm"
+                              variant="ghost"
+                              className="size-7 text-muted-foreground"
+                              aria-label={`History ${row.fullName}`}
+                              title="History"
                               onMouseEnter={() =>
                                 prefetchPatientHistory(
                                   row,
@@ -997,28 +1010,37 @@ export function PatientsPage({
                                 openEnsuredPatient(row, setHistoryPatient)
                               }
                             >
-                              History
+                              <IconHistory className="size-4" aria-hidden />
                             </Button>
                           ) : null}
                           {canViewDocs ? (
                             <Button
-                              size="xs"
-                              variant="outline"
+                              size="icon-sm"
+                              variant="ghost"
+                              className="size-7 text-muted-foreground"
+                              aria-label={`Documents ${row.fullName}`}
+                              title="Documents"
                               onClick={() =>
                                 openEnsuredPatient(row, setDocumentsPatient)
                               }
                             >
-                              Documents
+                              <IconFileText className="size-4" aria-hidden />
                             </Button>
                           ) : null}
                           {canUpdateMedical ? (
                             <Button
-                              size="xs"
+                              size="icon-sm"
+                              className="size-7"
+                              aria-label={`Update medical ${row.fullName}`}
+                              title="Update medical"
                               onClick={() =>
                                 openEnsuredPatient(row, setMedicalPatient)
                               }
                             >
-                              Update medical
+                              <IconStethoscope
+                                className="size-3.5"
+                                aria-hidden
+                              />
                             </Button>
                           ) : null}
                         </div>

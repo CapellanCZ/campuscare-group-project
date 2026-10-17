@@ -4,7 +4,10 @@ import { useEffect, useState } from "react"
 
 import { DocumentPreviewDialog } from "@/components/medical-documents/document-preview-dialog"
 import { documentTypeLabel } from "@/components/medical-documents/document-print-view"
-import { documentStatusLabel } from "@/features/medical-documents/lib/document-status"
+import {
+  documentStatusLabel,
+  documentStatusToneKey,
+} from "@/features/medical-documents/lib/document-status"
 import {
   getCachedPatientHistory,
   loadPatientHistoryBundle,
@@ -13,6 +16,13 @@ import {
 import type { ClinicalRecordScope } from "@/lib/clinical/record-scope"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { StatusBadge } from "@/components/ui/status-badge"
+import {
+  consultationStatusDot,
+  consultationStatusTone,
+  STATUS_BADGE_DOT,
+  STATUS_BADGE_TONE,
+} from "@/lib/ui/status-badge-tone"
 import {
   Dialog,
   DialogContent,
@@ -164,15 +174,28 @@ export function PatientHistorySheet({
                     >
                       <div className="flex items-start justify-between gap-2">
                         <p className="font-medium">{documentTypeLabel(row)}</p>
-                        <Badge variant="secondary">Report</Badge>
+                        {row.status ? (
+                          <StatusBadge
+                            label={documentStatusLabel(row.status)}
+                            toneClassName={
+                              STATUS_BADGE_TONE[
+                                documentStatusToneKey(row.status)
+                              ]
+                            }
+                            dotClassName={
+                              STATUS_BADGE_DOT[
+                                documentStatusToneKey(row.status)
+                              ]
+                            }
+                          />
+                        ) : (
+                          <Badge variant="secondary">Report</Badge>
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground">
                         {formatHistoryDate(entry.date)}
                         {row.documentNumber
                           ? ` · ${row.documentNumber}`
-                          : ""}
-                        {row.status
-                          ? ` · ${documentStatusLabel(row.status)}`
                           : ""}
                       </p>
                     </Button>
@@ -201,9 +224,11 @@ export function PatientHistorySheet({
                       <p className="font-medium">
                         {row.diagnosis || row.chiefComplaint || "Consultation"}
                       </p>
-                      <Badge variant="outline">
-                        {consultationStatusLabel(row.status)}
-                      </Badge>
+                      <StatusBadge
+                        label={consultationStatusLabel(row.status)}
+                        toneClassName={consultationStatusTone(row.status)}
+                        dotClassName={consultationStatusDot(row.status)}
+                      />
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {formatHistoryDate(entry.date)}

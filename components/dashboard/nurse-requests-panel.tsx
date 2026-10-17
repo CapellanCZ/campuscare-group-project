@@ -28,6 +28,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  DirectoryColumnHeader,
+  DirectoryColumnLabel,
+  type ColumnSortDirection,
+} from "@/features/admin/components/directory-column-header"
 import { fetchConsultationRequestByIdAction } from "@/features/requests/actions"
 import {
   consultationRequestStatusLabel,
@@ -37,7 +42,10 @@ import { consultationProviderLabel } from "@/lib/health/consultation-workflow"
 import { requestToasts } from "@/lib/feedback/toast-messages"
 import { can } from "@/lib/auth/permissions"
 import type { StaffAccess } from "@/lib/auth/types"
-import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
+import type {
+  DashboardRequestPreview,
+  RoleDashboardSummary,
+} from "@/lib/health/dashboard-summary-types"
 import {
   appointmentRequestStatusDot,
   appointmentRequestStatusTone,
@@ -46,6 +54,54 @@ import type { AppointmentRequest } from "@/types/appointmentRequest"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 10
+
+type SortKey = "patient" | "service" | "preferred" | "status"
+
+const STATUS_SORT_RANK: Record<string, number> = {
+  pending: 0,
+  waitlisted: 1,
+  rescheduled: 2,
+  in_progress: 3,
+  completed: 4,
+  cancelled: 5,
+  no_show: 6,
+  confirmed: 7,
+}
+
+function preferredSortValue(row: DashboardRequestPreview) {
+  return `${row.preferredDate || ""}T${row.preferredTime || ""}`
+}
+
+function serviceSortValue(row: DashboardRequestPreview) {
+  return `${row.providerType || ""} ${row.service || ""}`.trim().toLowerCase()
+}
+
+function compareRows(
+  a: DashboardRequestPreview,
+  b: DashboardRequestPreview,
+  key: SortKey,
+  direction: "asc" | "desc"
+) {
+  let result = 0
+  switch (key) {
+    case "patient":
+      result = a.patientName.localeCompare(b.patientName, undefined, {
+        sensitivity: "base",
+      })
+      break
+    case "service":
+      result = serviceSortValue(a).localeCompare(serviceSortValue(b))
+      break
+    case "preferred":
+      result = preferredSortValue(a).localeCompare(preferredSortValue(b))
+      break
+    case "status":
+      result =
+        (STATUS_SORT_RANK[a.status] ?? 99) - (STATUS_SORT_RANK[b.status] ?? 99)
+      break
+  }
+  return direction === "asc" ? result : -result
+}
 
 export function NurseRequestsPanel({
   access,
@@ -73,10 +129,13 @@ export function NurseRequestsPanel({
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => new Set())
   const [query, setQuery] = useState("")
   const [page, setPage] = useState(1)
+  const [sortKey, setSortKey] = useState<SortKey>("preferred")
+  const [sortDirection, setSortDirection] =
+    useState<ColumnSortDirection>("desc")
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return summary.requests.recent.filter((row) => {
+    const next = summary.requests.recent.filter((row) => {
       if (row.status === "confirmed" || dismissedIds.has(row.id)) return false
       if (!q) return true
       const haystack = [
@@ -92,7 +151,18 @@ export function NurseRequestsPanel({
         .toLowerCase()
       return haystack.includes(q)
     })
-  }, [summary.requests.recent, dismissedIds, query])
+
+    if (!sortDirection) return next
+    return [...next].sort((a, b) =>
+      compareRows(a, b, sortKey, sortDirection)
+    )
+  }, [
+    summary.requests.recent,
+    dismissedIds,
+    query,
+    sortKey,
+    sortDirection,
+  ])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
@@ -100,6 +170,22 @@ export function NurseRequestsPanel({
     (safePage - 1) * PAGE_SIZE,
     safePage * PAGE_SIZE
   )
+
+  function sortDirectionFor(key: SortKey): ColumnSortDirection {
+    return sortKey === key ? sortDirection : false
+  }
+
+  function setColumnSort(key: SortKey, direction: "asc" | "desc") {
+    setSortKey(key)
+    setSortDirection(direction)
+    setPage(1)
+  }
+
+  function clearColumnSort(key: SortKey) {
+    if (sortKey !== key) return
+    setSortDirection(false)
+    setPage(1)
+  }
 
   function softRefreshAfterMutation(requestId: string) {
     setDismissedIds((prev) => new Set(prev).add(requestId))
@@ -129,26 +215,26 @@ export function NurseRequestsPanel({
       <ModuleSnapshot
         title="Request queue"
         badge={summary.requests.pendingCount}
-        className="gap-0"
+        toolbar={
+          <div className="relative w-full">
+            <IconSearch
+              className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              className="h-9 pl-8"
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value)
+                setPage(1)
+              }}
+              placeholder="Search patient or ID"
+              aria-label="Search request queue"
+              disabled={decorative}
+            />
+          </div>
+        }
       >
-        <div className="relative px-1">
-          <IconSearch
-            className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            className="h-9 pl-9"
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value)
-              setPage(1)
-            }}
-            placeholder="Search patient, ID, or service"
-            aria-label="Search request queue"
-            disabled={decorative}
-          />
-        </div>
-
         {filtered.length === 0 ? (
           <p className="px-1 py-6 text-sm text-muted-foreground">
             {query.trim()
@@ -161,15 +247,48 @@ export function NurseRequestsPanel({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="pl-6">Patient</TableHead>
+                    <TableHead className="pl-6">
+                      <DirectoryColumnHeader
+                        title="Patient"
+                        sortDirection={sortDirectionFor("patient")}
+                        onSortAsc={() => setColumnSort("patient", "asc")}
+                        onSortDesc={() => setColumnSort("patient", "desc")}
+                        onClearSort={() => clearColumnSort("patient")}
+                      />
+                    </TableHead>
                     <TableHead className="hidden sm:table-cell">
-                      Service
+                      <DirectoryColumnHeader
+                        title="Service"
+                        sortDirection={sortDirectionFor("service")}
+                        onSortAsc={() => setColumnSort("service", "asc")}
+                        onSortDesc={() => setColumnSort("service", "desc")}
+                        onClearSort={() => clearColumnSort("service")}
+                      />
                     </TableHead>
                     <TableHead className="hidden md:table-cell">
-                      Preferred
+                      <DirectoryColumnHeader
+                        title="Preferred"
+                        sortDirection={sortDirectionFor("preferred")}
+                        onSortAsc={() => setColumnSort("preferred", "asc")}
+                        onSortDesc={() => setColumnSort("preferred", "desc")}
+                        onClearSort={() => clearColumnSort("preferred")}
+                      />
                     </TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="pr-6 text-right">Actions</TableHead>
+                    <TableHead>
+                      <DirectoryColumnHeader
+                        title="Status"
+                        sortDirection={sortDirectionFor("status")}
+                        onSortAsc={() => setColumnSort("status", "asc")}
+                        onSortDesc={() => setColumnSort("status", "desc")}
+                        onClearSort={() => clearColumnSort("status")}
+                      />
+                    </TableHead>
+                    <TableHead className="pr-6 text-right">
+                      <DirectoryColumnLabel
+                        title="Actions"
+                        className="justify-end"
+                      />
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -197,7 +316,7 @@ export function NurseRequestsPanel({
                     return (
                       <TableRow key={row.id}>
                         <TableCell className="pl-6">
-                          <div className="flex min-w-0 items-start gap-1.5 py-1">
+                          <div className="flex min-w-0 items-start gap-1.5">
                             <div className="min-w-0 flex-1">
                               <p className="truncate font-medium">
                                 {row.patientName}

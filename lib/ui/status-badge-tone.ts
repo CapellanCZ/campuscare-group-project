@@ -17,6 +17,18 @@ export const STATUS_BADGE_TONE = {
   no_show: "border-destructive/40 bg-destructive/10 text-destructive",
   on_break:
     "border-warning/40 bg-warning/15 text-warning-foreground dark:text-warning",
+  draft: "border-border bg-muted/60 text-muted-foreground",
+  issued:
+    "border-success/30 bg-success/10 text-success dark:text-emerald-400",
+  voided: "border-destructive/40 bg-destructive/10 text-destructive",
+  published: "border-success/30 bg-success/10 text-success dark:text-emerald-400",
+  scheduled:
+    "border-primary/30 bg-primary/10 text-primary",
+  active:
+    "border-success/30 bg-success/10 text-success dark:text-emerald-400",
+  invited:
+    "border-warning/40 bg-warning/15 text-warning-foreground dark:text-warning",
+  inactive: "border-border bg-muted/60 text-muted-foreground",
 } as const
 
 export const STATUS_BADGE_DOT = {
@@ -31,6 +43,14 @@ export const STATUS_BADGE_DOT = {
   cancelled: "bg-destructive",
   no_show: "bg-destructive",
   on_break: "bg-warning",
+  draft: "bg-muted-foreground/50",
+  issued: "bg-success",
+  voided: "bg-destructive",
+  published: "bg-success",
+  scheduled: "bg-primary",
+  active: "bg-success",
+  invited: "bg-warning",
+  inactive: "bg-muted-foreground/50",
 } as const
 
 export type StatusBadgeToneKey = keyof typeof STATUS_BADGE_TONE

@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState, useTransition } from "react"
-import { IconFileText, IconPlus } from "@tabler/icons-react"
+import { IconEye, IconFileText, IconPlus, IconPrinter } from "@tabler/icons-react"
 
 import { DocumentPreviewDialog } from "@/components/medical-documents/document-preview-dialog"
 import { IssueDocumentWizard } from "@/components/medical-documents/issue-document-wizard"
@@ -20,12 +20,16 @@ import {
 } from "@/features/medical-documents/actions"
 import {
   documentStatusLabel,
-  documentStatusVariant,
+  documentStatusToneKey,
 } from "@/features/medical-documents/lib/document-status"
 import { triggerMedicalDocumentPrint } from "@/lib/print/trigger-medical-document-print"
 import type { MedicalDocument } from "@/types/medicalDocument"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { StatusBadge } from "@/components/ui/status-badge"
+import {
+  STATUS_BADGE_DOT,
+  STATUS_BADGE_TONE,
+} from "@/lib/ui/status-badge-tone"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -140,28 +144,40 @@ export function DentalChartPrescriptionPanel({
                       {formatCertificateDateTime(doc.issuedAt)}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={documentStatusVariant(doc.status)}>
-                      {documentStatusLabel(doc.status)}
-                    </Badge>
+                  <div className="flex items-center gap-1">
+                    <StatusBadge
+                      label={documentStatusLabel(doc.status)}
+                      toneClassName={
+                        STATUS_BADGE_TONE[documentStatusToneKey(doc.status)]
+                      }
+                      dotClassName={
+                        STATUS_BADGE_DOT[documentStatusToneKey(doc.status)]
+                      }
+                    />
                     <Button
                       type="button"
-                      size="xs"
-                      variant="outline"
+                      size="icon-sm"
+                      variant="ghost"
+                      className="size-7 text-muted-foreground"
+                      aria-label="View document"
+                      title="View"
                       onClick={() => {
                         setPreviewDoc(doc)
                         setPreviewOpen(true)
                         void logMedicalDocumentViewAction(doc.id)
                       }}
                     >
-                      View
+                      <IconEye className="size-4" aria-hidden />
                     </Button>
                     <Button
                       type="button"
-                      size="xs"
+                      size="icon-sm"
+                      className="size-7"
+                      aria-label="Print document"
+                      title="Print"
                       onClick={() => handlePrint(doc)}
                     >
-                      Print
+                      <IconPrinter className="size-3.5" aria-hidden />
                     </Button>
                   </div>
                 </li>

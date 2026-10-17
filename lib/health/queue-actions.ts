@@ -150,6 +150,7 @@ export async function callNextTicket(params: {
     .update({
       status: "called",
       call_count: nextCount,
+      estimated_wait_minutes: 0,
       assigned_staff_name: params.staffName,
       updated_at: new Date().toISOString(),
     })
@@ -205,6 +206,7 @@ export async function recallTicket(params: {
       // Keep ongoing visits in progress; still bump call metadata so display/TTS refresh.
       status: ticket.status === "ongoing" ? "ongoing" : "called",
       call_count: nextCount,
+      estimated_wait_minutes: 0,
       assigned_staff_name: params.staffName,
       updated_at: now,
     })
@@ -415,6 +417,7 @@ export async function startConsultation(params: {
 
   const patch: Record<string, unknown> = {
     status: preferredStatus,
+    estimated_wait_minutes: 0,
     assigned_staff_name: params.staffName,
     updated_at: new Date().toISOString(),
   }
@@ -503,6 +506,7 @@ export async function completeTicket(params: {
     .from("health_queue_tickets")
     .update({
       status: "completed",
+      estimated_wait_minutes: 0,
       updated_at: now,
     })
     .eq("id", params.ticketId)
@@ -555,6 +559,7 @@ export async function skipOrNoShow(params: {
     .from("health_queue_tickets")
     .update({
       status: "no_show",
+      estimated_wait_minutes: 0,
       intake_notes: `${priorNotes}${note}`,
       updated_at: now,
     })

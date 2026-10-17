@@ -52,8 +52,12 @@ import {
   AlertTitle,
 } from "@/components/reui/alert"
 import { StatCard } from "@/components/shared/stat-card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { StatusBadge } from "@/components/ui/status-badge"
+import {
+  STATUS_BADGE_DOT,
+  STATUS_BADGE_TONE,
+} from "@/lib/ui/status-badge-tone"
 import {
   Card,
   CardContent,
@@ -97,35 +101,25 @@ type SortColumn = "user" | "role" | "status" | "lastSignIn"
 type StatusColumnFilter = "all" | "active" | "invited" | "inactive"
 
 function statusBadge(user: ManagedStaffUser) {
-  if (user.status === "inactive") {
-    return (
-      <Badge
-        variant="secondary"
-        className="border-transparent bg-muted text-muted-foreground"
-      >
-        Inactive
-      </Badge>
-    )
-  }
-
-  if (user.status === "invited") {
-    return (
-      <Badge
-        variant="secondary"
-        className="border-transparent bg-warning/15 text-warning-foreground"
-      >
-        Invited
-      </Badge>
-    )
-  }
+  const toneKey =
+    user.status === "inactive"
+      ? "inactive"
+      : user.status === "invited"
+        ? "invited"
+        : "active"
+  const label =
+    user.status === "inactive"
+      ? "Inactive"
+      : user.status === "invited"
+        ? "Invited"
+        : "Active"
 
   return (
-    <Badge
-      variant="secondary"
-      className="border-transparent bg-success/15 text-success-foreground"
-    >
-      Active
-    </Badge>
+    <StatusBadge
+      label={label}
+      toneClassName={STATUS_BADGE_TONE[toneKey]}
+      dotClassName={STATUS_BADGE_DOT[toneKey]}
+    />
   )
 }
 

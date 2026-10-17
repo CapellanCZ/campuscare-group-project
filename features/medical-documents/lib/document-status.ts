@@ -18,6 +18,16 @@ export function documentStatusVariant(
   return "outline"
 }
 
+export function documentStatusToneKey(
+  status: MedicalDocumentStatus | string
+): "draft" | "pending" | "issued" | "voided" {
+  const normalized = normalizeDocumentStatus(status)
+  if (normalized === "issued") return "issued"
+  if (normalized === "voided") return "voided"
+  if (normalized === "pending") return "pending"
+  return "draft"
+}
+
 export const DOCUMENT_STATUS_FILTER_OPTIONS = (
   ["draft", "pending", "issued", "voided"] as const
 ).map((status) => ({

@@ -9,7 +9,15 @@ import {
   useTransition,
 } from "react"
 import { documentToasts } from "@/lib/feedback/toast-messages"
-import { IconFileText, IconPrinter, IconFileTypePdf } from "@tabler/icons-react"
+import {
+  IconEye,
+  IconFileText,
+  IconFileTypePdf,
+  IconInfoCircle,
+  IconPencil,
+  IconPrinter,
+  IconTrash,
+} from "@tabler/icons-react"
 
 import { DocumentDetailSheet } from "@/components/medical-documents/document-detail-sheet"
 import { DocumentPreviewDialog } from "@/components/medical-documents/document-preview-dialog"
@@ -23,7 +31,7 @@ import { DemoPageHeader, DemoStatGrid } from "@/components/demo/demo-page"
 import {
   formatCertificateDateTime,
 } from "@/features/certificates/lib/format"
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/ui/status-badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -89,8 +97,12 @@ import type {
 import {
   DOCUMENT_STATUS_FILTER_OPTIONS,
   documentStatusLabel,
-  documentStatusVariant,
+  documentStatusToneKey,
 } from "@/features/medical-documents/lib/document-status"
+import {
+  STATUS_BADGE_DOT,
+  STATUS_BADGE_TONE,
+} from "@/lib/ui/status-badge-tone"
 import { isHalfBondDocument } from "@/components/medical-documents/document-print-view"
 import { triggerMedicalDocumentPrint } from "@/lib/print/trigger-medical-document-print"
 import {
@@ -626,53 +638,72 @@ export function CertificatesPage({
                         </p>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={documentStatusVariant(row.status)}>
-                          {documentStatusLabel(row.status)}
-                        </Badge>
+                        <StatusBadge
+                          label={documentStatusLabel(row.status)}
+                          toneClassName={
+                            STATUS_BADGE_TONE[
+                              documentStatusToneKey(row.status)
+                            ]
+                          }
+                          dotClassName={
+                            STATUS_BADGE_DOT[
+                              documentStatusToneKey(row.status)
+                            ]
+                          }
+                        />
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap justify-end gap-1">
                           {can(d, "certificates.view_history") ||
                           can(d, "certificates.preview") ? (
                             <Button
-                              size="xs"
-                              variant="outline"
+                              size="icon-sm"
+                              variant="ghost"
+                              className="size-7 text-muted-foreground"
+                              aria-label="View document"
+                              title="View"
                               onClick={() => openFilePreview(row)}
                             >
-                              View
+                              <IconEye className="size-4" aria-hidden />
                             </Button>
                           ) : null}
                           {can(d, "certificates.view_history") ? (
                             <Button
-                              size="xs"
+                              size="icon-sm"
                               variant="ghost"
+                              className="size-7 text-muted-foreground"
+                              aria-label="Document details"
+                              title="Details"
                               onClick={() => openDocumentDetails(row)}
                             >
-                              Details
+                              <IconInfoCircle className="size-4" aria-hidden />
                             </Button>
                           ) : null}
                           {canCreateFromRepo ? (
                             <Button
-                              size="xs"
+                              size="icon-sm"
                               variant="outline"
-                              onClick={() => openEdit(row as unknown as MedicalCertificate)}
+                              className="size-7"
+                              aria-label="Edit document"
+                              title="Edit"
+                              onClick={() =>
+                                openEdit(row as unknown as MedicalCertificate)
+                              }
                             >
-                              Edit
+                              <IconPencil className="size-3.5" aria-hidden />
                             </Button>
                           ) : null}
                           {canPrint &&
                           row.status !== "draft" &&
                           row.status !== "voided" ? (
                             <Button
-                              size="xs"
+                              size="icon-sm"
+                              className="size-7"
                               onClick={() => handlePrintRow(row)}
                               aria-label="Print document"
+                              title="Print"
                             >
-                              {d === "nurse" ? (
-                                <IconPrinter className="size-3.5" aria-hidden />
-                              ) : (
-                                "Print"
-                              )}
+                              <IconPrinter className="size-3.5" aria-hidden />
                             </Button>
                           ) : null}
                           {can(d, "certificates.download_pdf") &&
@@ -681,33 +712,39 @@ export function CertificatesPage({
                           row.status !== "draft" &&
                           row.status !== "voided" ? (
                             <Button
-                              size="xs"
+                              size="icon-sm"
                               variant="secondary"
+                              className="size-7"
                               onClick={() => {
                                 setPrintDoc(row)
                                 openFilePreview(row)
                                 triggerMedicalDocumentPrint(
-                                  isHalfBondDocument(row) ? "half-bond" : "full-page"
+                                  isHalfBondDocument(row)
+                                    ? "half-bond"
+                                    : "full-page"
                                 )
                               }}
                               aria-label="Export PDF"
+                              title="PDF"
                             >
-                              {d === "nurse" ? (
-                                <IconFileTypePdf className="size-3.5" aria-hidden />
-                              ) : (
-                                "PDF"
-                              )}
+                              <IconFileTypePdf
+                                className="size-3.5"
+                                aria-hidden
+                              />
                             </Button>
                           ) : null}
                           {canCreateFromRepo ? (
                             <Button
-                              size="xs"
+                              size="icon-sm"
                               variant="destructive"
+                              className="size-7"
+                              aria-label="Delete document"
+                              title="Delete"
                               onClick={() =>
                                 openDelete(row as unknown as MedicalCertificate)
                               }
                             >
-                              Delete
+                              <IconTrash className="size-3.5" aria-hidden />
                             </Button>
                           ) : null}
                         </div>

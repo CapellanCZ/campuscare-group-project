@@ -10,7 +10,12 @@ import {
 } from "react"
 import { announcementToasts } from "@/lib/feedback/toast-messages"
 import { useConfirm } from "@/components/feedback/confirm-provider"
-import { IconSpeakerphone } from "@tabler/icons-react"
+import {
+  IconPencil,
+  IconSend,
+  IconSpeakerphone,
+  IconTrash,
+} from "@tabler/icons-react"
 
 import { AnnouncementArticleDialog } from "@/components/announcements/announcement-article-dialog"
 import { AnnouncementDeleteDialog } from "@/components/announcements/announcement-delete-dialog"
@@ -18,8 +23,12 @@ import { AnnouncementDetailSheet } from "@/components/announcements/announcement
 import { AnnouncementFormSheet } from "@/components/announcements/announcement-form-sheet"
 import { AnnouncementNewsCard } from "@/components/announcements/announcement-news-card"
 import { DemoPageHeader, DemoStatGrid } from "@/components/demo/demo-page"
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/ui/status-badge"
 import { Button } from "@/components/ui/button"
+import {
+  STATUS_BADGE_DOT,
+  STATUS_BADGE_TONE,
+} from "@/lib/ui/status-badge-tone"
 import {
   Card,
   CardContent,
@@ -86,12 +95,12 @@ const SEARCH_DEBOUNCE_MS = 300
 const STATUS_FILTERS = ["all", "published", "scheduled", "draft"] as const
 type StatusFilter = (typeof STATUS_FILTERS)[number]
 
-function statusVariant(
+function announcementStatusToneKey(
   status: AnnouncementStatus
-): "default" | "secondary" | "outline" {
-  if (status === "published") return "default"
-  if (status === "scheduled") return "secondary"
-  return "outline"
+): "published" | "scheduled" | "draft" {
+  if (status === "published") return "published"
+  if (status === "scheduled") return "scheduled"
+  return "draft"
 }
 
 function toStatCards(stats: AnnouncementStats): DemoStat[] {
@@ -641,9 +650,19 @@ export function AnnouncementsPage({
                         </TableCell>
                         <TableCell>{row.audience}</TableCell>
                         <TableCell>
-                          <Badge variant={statusVariant(row.status)}>
-                            {announcementStatusLabel(row.status)}
-                          </Badge>
+                          <StatusBadge
+                            label={announcementStatusLabel(row.status)}
+                            toneClassName={
+                              STATUS_BADGE_TONE[
+                                announcementStatusToneKey(row.status)
+                              ]
+                            }
+                            dotClassName={
+                              STATUS_BADGE_DOT[
+                                announcementStatusToneKey(row.status)
+                              ]
+                            }
+                          />
                         </TableCell>
                         <TableCell className="text-sm">
                           {formatAnnouncementDateTime(
@@ -654,34 +673,49 @@ export function AnnouncementsPage({
                           <div className="flex flex-wrap justify-end gap-1">
                             {canEdit ? (
                               <Button
-                                size="xs"
+                                size="icon-sm"
                                 variant="outline"
+                                className="size-7"
+                                aria-label="Edit announcement"
+                                title="Edit"
                                 onClick={() => openEdit(row)}
                               >
-                                Edit
+                                <IconPencil className="size-3.5" aria-hidden />
                               </Button>
                             ) : null}
                             {canPublish ? (
                               row.status !== "published" ? (
                                 <Button
-                                  size="xs"
+                                  size="icon-sm"
+                                  className="size-7"
+                                  aria-label="Publish announcement"
+                                  title="Publish"
                                   onClick={() => handlePublish(row)}
                                 >
-                                  Publish
+                                  <IconSend className="size-3.5" aria-hidden />
                                 </Button>
                               ) : (
-                                <Button size="xs" disabled>
-                                  Published
+                                <Button
+                                  size="icon-sm"
+                                  className="size-7"
+                                  disabled
+                                  aria-label="Already published"
+                                  title="Published"
+                                >
+                                  <IconSend className="size-3.5" aria-hidden />
                                 </Button>
                               )
                             ) : null}
                             {canDelete ? (
                               <Button
-                                size="xs"
+                                size="icon-sm"
                                 variant="destructive"
+                                className="size-7"
+                                aria-label="Delete announcement"
+                                title="Delete"
                                 onClick={() => openDelete(row)}
                               >
-                                Delete
+                                <IconTrash className="size-3.5" aria-hidden />
                               </Button>
                             ) : null}
                           </div>
