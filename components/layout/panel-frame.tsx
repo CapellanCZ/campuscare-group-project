@@ -49,7 +49,7 @@ export function PanelFrame({
   return (
     <div
       className={cn(
-        "min-w-0 overflow-hidden rounded-2xl border border-border",
+        "min-w-0 overflow-clip rounded-xl border border-border isolate",
         className
       )}
     >
@@ -88,4 +88,4 @@ export function PanelCell({
 
 /** Flush card chrome for cells inside PanelFrame (Efferd dashboard pattern). */
 export const panelCardClassName =
-  "rounded-none bg-background shadow-none ring-0 dark:ring-0"
+  "rounded-none bg-background shadow-none ring-0 dark:ring-0 *:data-[slot=card-header]:rounded-none *:data-[slot=card-footer]:rounded-none"

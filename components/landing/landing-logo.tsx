@@ -35,7 +35,6 @@ export function LandingLogo({
       height={LOGO.height}
       priority={priority}
       unoptimized
-      quality={100}
       sizes="(max-width: 640px) 96px, 128px"
       className={cn(
         "block h-8 w-auto shrink-0 object-contain object-center sm:h-9 lg:h-10",

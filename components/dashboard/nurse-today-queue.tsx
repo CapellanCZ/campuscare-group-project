@@ -270,7 +270,7 @@ export function NurseTodayQueue({
       </CardHeader>
       <CardContent className="min-w-0 p-0">
         {dataLoading ? (
-          <div className="min-w-0 overflow-x-auto">
+          <div className="min-w-0 overflow-x-auto overflow-y-hidden">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -325,9 +325,9 @@ export function NurseTodayQueue({
             </EmptyHeader>
           </Empty>
         ) : (
-          <div className="min-w-0 overflow-x-auto">
-            <Table>
-              <TableHeader>
+          <div className="min-w-0 overflow-x-auto overflow-y-hidden">
+          <Table>
+                    <TableHeader>
                 <TableRow>
                   <TableHead className="pl-6">#</TableHead>
                   <TableHead>Patient</TableHead>

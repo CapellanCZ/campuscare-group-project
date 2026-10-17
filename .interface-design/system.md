@@ -9,7 +9,7 @@ Reference: [@efferd/dashboard-1](https://efferd.com/) — `gap-6` page · `PageI
 **Vitals board** on nurse intake; specialty surfaces show nurse vitals as chips.
 
 ## Depth strategy
-Borders-only. Outer `rounded-2xl border`. Inner cells separated by `gap-px`, not card gaps/shadows.
+Borders-only. Outer `rounded-xl border` on all four corners. Inner cells separated by `gap-px`, not card gaps/shadows.
 
 ## Spacing
 - Page: `gap-6` (shell + page)

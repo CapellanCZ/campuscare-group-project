@@ -355,7 +355,7 @@ export function NurseDashboardPreview({
       style={{ aspectRatio: `${PAGE_W} / ${PAGE_H}` }}
     >
       <div
-        className="pointer-events-none absolute top-0 left-0 origin-top-left select-none overflow-hidden rounded-2xl border border-slate-200/90 bg-[#f4f6f9] shadow-[0_32px_80px_-24px_rgba(15,23,42,0.4),0_12px_28px_-12px_rgba(15,23,42,0.18)] ring-1 ring-slate-900/5"
+        className="pointer-events-none absolute top-0 left-0 origin-top-left select-none overflow-clip rounded-2xl border border-slate-200/90 bg-[#f4f6f9] shadow-[0_32px_80px_-24px_rgba(15,23,42,0.4),0_12px_28px_-12px_rgba(15,23,42,0.18)] ring-1 ring-slate-900/5"
         style={{
           width: PAGE_W,
           height: PAGE_H,
