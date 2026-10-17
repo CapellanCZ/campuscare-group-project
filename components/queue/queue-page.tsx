@@ -124,7 +124,7 @@ import type {
 } from "@/lib/health/types"
 import { studentIdMatchesQuery } from "@/lib/students/student-id-input"
 import { cn } from "@/lib/utils"
-import { IconDots, IconRefresh, IconSearch } from "@tabler/icons-react"
+import { IconBell, IconDots, IconRefresh, IconSearch } from "@tabler/icons-react"
 
 type QueueSortColumn =
   | "ticket"
@@ -565,6 +565,7 @@ export function QueuePage({
                   )
                 }
               >
+                <IconBell data-icon="inline-start" className="size-4" aria-hidden />
                 Call next
               </Button>
             ) : null}

@@ -23,10 +23,10 @@ const urgencyTone: Record<WaitUrgency, string> = {
   urgent: STATUS_BADGE_TONE.cancelled,
 }
 
-const urgencyDot: Record<WaitUrgency, string> = {
-  ok: cn(STATUS_BADGE_DOT.completed, "animate-wait-pulse-ok"),
-  warn: cn(STATUS_BADGE_DOT.pending, "animate-wait-pulse-warn"),
-  urgent: cn(STATUS_BADGE_DOT.cancelled, "animate-wait-pulse-urgent"),
+const urgencyDotColor: Record<WaitUrgency, string> = {
+  ok: STATUS_BADGE_DOT.completed,
+  warn: STATUS_BADGE_DOT.pending,
+  urgent: STATUS_BADGE_DOT.cancelled,
 }
 
 const ticketTone: Record<string, string> = {
@@ -47,6 +47,30 @@ const ticketDot: Record<string, string> = {
   no_show: STATUS_BADGE_DOT.no_show,
 }
 
+/** Active queue states blink; no_show / completed / expired stay static. */
+function blinkClassForStatus(
+  status: string,
+  waitMinutes: number | null | undefined
+): string | null {
+  if (
+    status === "no_show" ||
+    status === "completed" ||
+    status === "expired"
+  ) {
+    return null
+  }
+  if (status === "waiting") {
+    const urgency = waitUrgencyFromMinutes(waitMinutes)
+    if (urgency === "urgent") return "animate-wait-pulse-urgent"
+    if (urgency === "warn") return "animate-wait-pulse-warn"
+    return "animate-wait-pulse-ok"
+  }
+  if (status === "called" || status === "ongoing") {
+    return "animate-wait-pulse-ok"
+  }
+  return null
+}
+
 export function WaitStatusBadge({
   status,
   waitMinutes,
@@ -58,6 +82,7 @@ export function WaitStatusBadge({
 }) {
   const urgency =
     status === "waiting" ? waitUrgencyFromMinutes(waitMinutes) : null
+  const blink = blinkClassForStatus(status, waitMinutes)
 
   const statusText = ticketStatusLabel(status)
   // Timer stays in the pill for active queue states. Call / start / complete
@@ -72,11 +97,16 @@ export function WaitStatusBadge({
     <StatusBadge
       label={label}
       toneClassName={
-        urgency ? urgencyTone[urgency] : (ticketTone[status] ?? STATUS_BADGE_TONE.waiting)
+        urgency
+          ? urgencyTone[urgency]
+          : (ticketTone[status] ?? STATUS_BADGE_TONE.waiting)
       }
-      dotClassName={
-        urgency ? urgencyDot[urgency] : (ticketDot[status] ?? STATUS_BADGE_DOT.waiting)
-      }
+      dotClassName={cn(
+        urgency
+          ? urgencyDotColor[urgency]
+          : (ticketDot[status] ?? STATUS_BADGE_DOT.waiting),
+        blink
+      )}
       className={cn("tabular-nums normal-case", className)}
     />
   )

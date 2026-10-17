@@ -6,10 +6,13 @@ import { useRouter } from "next/navigation"
 import { appToast } from "@/lib/feedback/app-toast"
 import { patientToasts, queueToasts } from "@/lib/feedback/toast-messages"
 import {
+  IconArrowBackUp,
+  IconBell,
   IconCheck,
   IconClipboardList,
-  IconDots,
+  IconEye,
   IconListCheck,
+  IconPlayerSkipForward,
 } from "@tabler/icons-react"
 
 import { NurseWorkbench } from "@/components/queue/nurse-workbench"
@@ -18,24 +21,25 @@ import { PatientProfileSheet } from "@/components/patients/patient-profile-sheet
 import { StudentIdSearchInput } from "@/components/shared/student-id-search-input"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { StatusBadge } from "@/components/ui/status-badge"
 import {
   STATUS_BADGE_DOT,
   STATUS_BADGE_TONE,
 } from "@/lib/ui/status-badge-tone"
+import { selectItemsRecord } from "@/lib/ui/select-label"
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import {
   Empty,
   EmptyDescription,
@@ -77,7 +81,16 @@ import { studentIdDigits, studentIdMatchesQuery } from "@/lib/students/student-i
 import type { PatientRecord } from "@/types/patientRecord"
 import { cn } from "@/lib/utils"
 
-const PAGE_SIZE = 8
+const PAGE_SIZE = 10
+
+const STATUS_FILTER_OPTIONS = [
+  { value: "all", label: "All statuses" },
+  { value: "intake", label: "Needs intake" },
+  { value: "waiting", label: "Waiting" },
+  { value: "called", label: "Called" },
+  { value: "completed", label: "Completed" },
+  { value: "no_show", label: "No show" },
+] as const
 
 function consultationLabel(row: QueueTicketRow) {
   const shown = displayConsultationLabel(
@@ -219,12 +232,12 @@ export function NurseTodayQueue({
         onStartIntake={onStartIntake}
         variant="embedded"
       />
-      <CardHeader className="gap-3 border-b px-4 py-4 sm:gap-4 sm:px-6 sm:py-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 space-y-1.5">
-            <CardTitle>Today&apos;s queue</CardTitle>
-          </div>
-          <div className="flex w-full flex-wrap items-stretch gap-2 sm:w-auto sm:items-center sm:pt-0.5 [&_a]:flex-1 sm:[&_a]:flex-none [&_button]:flex-1 sm:[&_button]:flex-none">
+      <CardHeader className="gap-4 border-b px-4 py-4 sm:px-6 sm:py-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle className="text-base sm:text-lg">
+            Today&apos;s queue
+          </CardTitle>
+          <div className="flex flex-wrap items-center gap-2">
             {canCall ? (
               <Button
                 type="button"
@@ -234,6 +247,7 @@ export function NurseTodayQueue({
                   runAction("Called next patient", () => actionCallNext("nurse"))
                 }
               >
+                <IconBell data-icon="inline-start" className="size-4" aria-hidden />
                 Call next
               </Button>
             ) : null}
@@ -258,21 +272,29 @@ export function NurseTodayQueue({
             placeholder="Search by ID Number"
             aria-label="Search by ID Number"
           />
-          <select
-            aria-label="Filter by status"
-            className="h-9 w-full rounded-4xl border border-border bg-input/30 px-3 text-sm sm:w-auto"
+          <Select
             value={status}
-            onChange={(event) => {
-              setStatus(event.target.value as typeof status)
+            items={selectItemsRecord([...STATUS_FILTER_OPTIONS])}
+            onValueChange={(value) => {
+              if (!value) return
+              setStatus(value as typeof status)
               setPage(1)
             }}
           >
-            <option value="all">All statuses</option>
-            <option value="intake">Needs intake</option>
-            <option value="waiting">Waiting</option>
-            <option value="called">Called</option>
-            <option value="completed">Completed</option>
-          </select>
+            <SelectTrigger
+              className="w-full sm:w-44"
+              aria-label="Filter by status"
+            >
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUS_FILTER_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </CardHeader>
       <CardContent className="min-w-0 p-0">
@@ -309,7 +331,7 @@ export function NurseTodayQueue({
                       <Skeleton className="h-5 w-16" />
                     </TableCell>
                     <TableCell className="pr-6">
-                      <Skeleton className="h-8 w-8 rounded-md" />
+                      <Skeleton className="ml-auto h-7 w-16 rounded-md" />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -332,8 +354,8 @@ export function NurseTodayQueue({
           </Empty>
         ) : (
           <div className="min-w-0 overflow-x-auto overflow-y-hidden">
-          <Table>
-                    <TableHeader>
+            <Table>
+              <TableHeader>
                 <TableRow>
                   <TableHead className="pl-6">#</TableHead>
                   <TableHead>Patient</TableHead>
@@ -345,186 +367,200 @@ export function NurseTodayQueue({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pageRows.map((row) => (
-                  <TableRow key={row.ticketId} className="h-14">
-                    <TableCell className="pl-6 font-medium tabular-nums">
-                      {ticketLabel(row.queueNumber, row.ticketCode)}
-                    </TableCell>
-                    <TableCell className="max-w-40 truncate font-medium">
-                      {row.patientName}
-                      <p className="truncate text-xs font-normal text-muted-foreground">
-                        {row.campusId || row.studentId || "—"}
-                      </p>
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      <Badge variant="outline">
-                        {patientTypeLabel(row.patientType)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="hidden max-w-[8rem] truncate md:table-cell">
-                      {consultationLabel(row)}
-                    </TableCell>
-                    <TableCell>
-                      <WaitStatusBadge
-                        status={row.status}
-                        waitMinutes={row.estimatedWaitMinutes}
-                      />
-                    </TableCell>
-                    <TableCell className="hidden max-w-[8rem] truncate text-muted-foreground xl:table-cell">
-                      {row.assignedPersonnel || "—"}
-                    </TableCell>
-                    <TableCell className="pr-6 text-right">
-                      <div className="flex flex-wrap justify-end gap-1">
-                        {canVerify && needsCheckInVerify(row) ? (
-                          <Button
-                            type="button"
-                            size="icon-sm"
-                            className="size-7"
-                            disabled={pending}
-                            aria-label="Verify check-in"
-                            title="Verify"
-                            onClick={() =>
-                              runAction(
-                                "Check-in verified",
-                                () => actionVerifyCheckIn(row.ticketId),
-                                {
-                                  ticketId: row.ticketId,
-                                  patch: {
-                                    checkedInAt: new Date().toISOString(),
-                                    status: "waiting",
-                                    station: "nurse",
-                                  },
-                                }
-                              )
-                            }
-                          >
-                            <IconCheck className="size-3.5" aria-hidden />
-                          </Button>
-                        ) : null}
-                        {row.checkedInAt && !row.intakeCompletedAt ? (
-                          <StatusBadge
-                            label="Verified"
-                            toneClassName={STATUS_BADGE_TONE.completed}
-                            dotClassName={STATUS_BADGE_DOT.completed}
-                            className="h-6 px-1.5 text-[10px] normal-case"
-                          />
-                        ) : null}
-                        {needsNurseIntake(row) ? (
-                          <Button
-                            type="button"
-                            size="icon-sm"
-                            className="size-7"
-                            disabled={pending || !canOpenNurseIntake(row)}
-                            aria-label="Start intake"
-                            title={
-                              canOpenNurseIntake(row)
-                                ? "Intake"
-                                : "Verify check-in first"
-                            }
-                            onClick={() => {
-                              if (!canOpenNurseIntake(row)) return
-                              onStartIntake(row)
-                            }}
-                          >
-                            <IconClipboardList
-                              className="size-3.5"
-                              aria-hidden
-                            />
-                          </Button>
-                        ) : null}
-                        {canMutate ? (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger
-                              render={
-                                <Button
-                                  type="button"
-                                  size="icon-xs"
-                                  variant="outline"
-                                  aria-label={`Actions for ${row.patientName}`}
-                                  disabled={pending}
-                                />
+                {pageRows.map((row) => {
+                  const canSkipRow =
+                    canSkip &&
+                    row.status !== "completed" &&
+                    row.status !== "no_show" &&
+                    row.status !== "expired"
+                  const canRejoinRow =
+                    canMutate &&
+                    (row.status === "no_show" || row.status === "expired") &&
+                    row.canRejoin
+
+                  return (
+                    <TableRow key={row.ticketId} className="h-14">
+                      <TableCell className="pl-6 font-medium tabular-nums">
+                        {ticketLabel(row.queueNumber, row.ticketCode)}
+                      </TableCell>
+                      <TableCell className="max-w-48">
+                        <div className="flex min-w-0 items-start gap-1.5">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-medium">
+                              {row.patientName}
+                            </p>
+                            <p className="truncate text-xs font-normal text-muted-foreground">
+                              {row.campusId || row.studentId || "—"}
+                            </p>
+                          </div>
+                          {canMutate ? (
+                            <Button
+                              type="button"
+                              size="icon-sm"
+                              variant="ghost"
+                              className="mt-0.5 size-7 shrink-0 text-muted-foreground"
+                              disabled={loadingPatient || pending}
+                              aria-label={`View ${row.patientName}`}
+                              title="View patient"
+                              onClick={() => {
+                                void openPatientRecord(row)
+                              }}
+                            >
+                              <IconEye className="size-4" aria-hidden />
+                            </Button>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        <Badge variant="outline">
+                          {patientTypeLabel(row.patientType)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden max-w-[8rem] truncate md:table-cell">
+                        {consultationLabel(row)}
+                      </TableCell>
+                      <TableCell>
+                        <WaitStatusBadge
+                          status={row.status}
+                          waitMinutes={row.estimatedWaitMinutes}
+                        />
+                      </TableCell>
+                      <TableCell className="hidden max-w-[8rem] truncate text-muted-foreground xl:table-cell">
+                        {row.assignedPersonnel || "—"}
+                      </TableCell>
+                      <TableCell className="pr-6 text-right">
+                        <div className="flex flex-wrap justify-end gap-1">
+                          {canVerify && needsCheckInVerify(row) ? (
+                            <Button
+                              type="button"
+                              size="icon-sm"
+                              className="size-7"
+                              disabled={pending}
+                              aria-label="Verify check-in"
+                              title="Verify"
+                              onClick={() =>
+                                runAction(
+                                  "Check-in verified",
+                                  () => actionVerifyCheckIn(row.ticketId),
+                                  {
+                                    ticketId: row.ticketId,
+                                    patch: {
+                                      checkedInAt: new Date().toISOString(),
+                                      status: "waiting",
+                                      station: "nurse",
+                                    },
+                                  }
+                                )
                               }
                             >
-                              <IconDots className="size-3.5" aria-hidden />
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                disabled={loadingPatient || pending}
-                                onClick={() => {
-                                  void openPatientRecord(row)
-                                }}
-                              >
-                                View patient
-                              </DropdownMenuItem>
-                              {canSkip &&
-                              row.status !== "completed" &&
-                              row.status !== "no_show" &&
-                              row.status !== "expired" ? (
-                                <>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    variant="destructive"
-                                    onClick={() =>
-                                      runAction(
-                                        "Patient skipped — open Exceptions to rejoin",
-                                        () => actionSkipTicket(row.ticketId),
-                                        {
-                                          ticketId: row.ticketId,
-                                          patch: {
-                                            status: "no_show",
-                                            estimatedWaitMinutes: 0,
-                                            canRejoin: row.rejoinCount < 1,
-                                          },
-                                        }
-                                      )
-                                    }
-                                  >
-                                    Skip patient
-                                  </DropdownMenuItem>
-                                </>
-                              ) : null}
-                              {canMutate &&
-                              (row.status === "no_show" ||
-                                row.status === "expired") &&
-                              row.canRejoin ? (
-                                <>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    onClick={() =>
-                                      runAction(
-                                        "Patient rejoined at end of queue",
-                                        () => actionRejoinQueue(row.ticketId),
-                                        {
-                                          ticketId: row.ticketId,
-                                          patch: {
-                                            status: "waiting",
-                                            rejoinCount: row.rejoinCount + 1,
-                                            canRejoin: false,
-                                          },
-                                        }
-                                      )
-                                    }
-                                  >
-                                    Rejoin end of queue
-                                  </DropdownMenuItem>
-                                </>
-                              ) : null}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        ) : null}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                              <IconCheck className="size-3.5" aria-hidden />
+                            </Button>
+                          ) : null}
+                          {row.checkedInAt && !row.intakeCompletedAt ? (
+                            <StatusBadge
+                              label="Verified"
+                              toneClassName={STATUS_BADGE_TONE.completed}
+                              dotClassName={STATUS_BADGE_DOT.completed}
+                              className="h-6 px-1.5 text-[10px] normal-case"
+                            />
+                          ) : null}
+                          {needsNurseIntake(row) ? (
+                            <Button
+                              type="button"
+                              size="icon-sm"
+                              className="size-7"
+                              disabled={pending || !canOpenNurseIntake(row)}
+                              aria-label="Start intake"
+                              title={
+                                canOpenNurseIntake(row)
+                                  ? "Intake"
+                                  : "Verify check-in first"
+                              }
+                              onClick={() => {
+                                if (!canOpenNurseIntake(row)) return
+                                onStartIntake(row)
+                              }}
+                            >
+                              <IconClipboardList
+                                className="size-3.5"
+                                aria-hidden
+                              />
+                            </Button>
+                          ) : null}
+                          {canSkipRow ? (
+                            <Button
+                              type="button"
+                              size="icon-sm"
+                              variant="destructive"
+                              className="size-7"
+                              disabled={pending}
+                              aria-label={`Skip ${row.patientName}`}
+                              title="Skip patient"
+                              onClick={() =>
+                                runAction(
+                                  "Patient skipped — open Exceptions to rejoin",
+                                  () => actionSkipTicket(row.ticketId),
+                                  {
+                                    ticketId: row.ticketId,
+                                    patch: {
+                                      status: "no_show",
+                                      estimatedWaitMinutes: 0,
+                                      canRejoin: row.rejoinCount < 1,
+                                    },
+                                  }
+                                )
+                              }
+                            >
+                              <IconPlayerSkipForward
+                                className="size-3.5"
+                                aria-hidden
+                              />
+                            </Button>
+                          ) : null}
+                          {canRejoinRow ? (
+                            <Button
+                              type="button"
+                              size="icon-sm"
+                              variant="outline"
+                              className="size-7"
+                              disabled={pending}
+                              aria-label={`Rejoin ${row.patientName}`}
+                              title="Rejoin end of queue"
+                              onClick={() =>
+                                runAction(
+                                  "Patient rejoined at end of queue",
+                                  () => actionRejoinQueue(row.ticketId),
+                                  {
+                                    ticketId: row.ticketId,
+                                    patch: {
+                                      status: "waiting",
+                                      rejoinCount: row.rejoinCount + 1,
+                                      canRejoin: false,
+                                    },
+                                  }
+                                )
+                              }
+                            >
+                              <IconArrowBackUp
+                                className="size-3.5"
+                                aria-hidden
+                              />
+                            </Button>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           </div>
         )}
 
         {filtered.length > PAGE_SIZE ? (
-          <div className="flex items-center justify-between gap-3 border-t px-4 py-3">
+          <div className="flex items-center justify-between gap-3 border-t px-4 py-3 sm:px-6">
             <p className="text-sm text-muted-foreground" role="status">
-              Page {safePage} of {totalPages}
+              Page {safePage} of {totalPages} · {filtered.length} tickets
             </p>
             <div className="flex gap-2">
               <Button
