@@ -168,6 +168,7 @@ export function RoleSidebar({ role }: RoleSidebarProps) {
     <Sidebar collapsible="icon" variant="inset">
       <SidebarHeader className="h-14 justify-center">
         <SidebarMenuButton
+          className="hover:bg-transparent focus-visible:ring-0 active:bg-transparent data-active:bg-transparent"
           render={
             <Link
               href={homeHref}

@@ -6,14 +6,8 @@ import { CustomSidebarTrigger } from "@/components/custom-sidebar-trigger"
 import { DecorIcon } from "@/components/decor-icon"
 import { HeaderNotifications } from "@/components/header-notifications"
 import { NavUser } from "@/components/nav-user"
-import { OnBreakControl } from "@/components/availability/on-break-control"
-import { DutyStatusControl } from "@/components/availability/duty-status-control"
-import { useOptionalStaffAccess } from "@/components/staff-access-provider"
 
 export function AppHeader() {
-  const access = useOptionalStaffAccess()
-  const role = access?.primaryRole
-
   return (
     <header
       className={cn(
@@ -26,12 +20,6 @@ export function AppHeader() {
         <CustomSidebarTrigger />
       </div>
       <div className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-3">
-        {role ? (
-          <div className="flex flex-nowrap items-center gap-1.5 sm:gap-2">
-            <DutyStatusControl compact />
-            <OnBreakControl />
-          </div>
-        ) : null}
         <HeaderNotifications />
         <Separator
           className="hidden h-4 data-[orientation=vertical]:self-center sm:block"

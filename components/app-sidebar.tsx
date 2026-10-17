@@ -15,6 +15,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { SidebarDutyControls } from "@/components/availability/sidebar-duty-controls"
 import { NavGroup } from "@/components/nav-group"
 import {
   getFooterNavLinks,
@@ -84,7 +85,7 @@ export function AppSidebar() {
     >
       <SidebarHeader className="h-14 justify-center border-b px-2">
         <SidebarMenuButton
-          isActive={activePath === base || activePath === `${base}/`}
+          className="hover:bg-transparent focus-visible:ring-0 active:bg-transparent data-active:bg-transparent"
           render={
             <Link
               href={base}
@@ -104,6 +105,7 @@ export function AppSidebar() {
         ))}
       </SidebarContent>
       <SidebarFooter className="gap-0 p-0">
+        <SidebarDutyControls />
         {footerNavLinks.length > 0 ? (
           <SidebarMenu className="border-t p-2">
             {footerNavLinks.map((item) => (
