@@ -968,7 +968,7 @@ export function PatientsPage({
                               size="icon-sm"
                               variant="ghost"
                               className="size-7 text-muted-foreground"
-                              aria-label={`Profile ${row.fullName}`}
+                              aria-label={`Profile ${patientFullName(row)}`}
                               title="Profile"
                               onClick={() =>
                                 openEnsuredPatient(row, setProfilePatient)
@@ -982,7 +982,7 @@ export function PatientsPage({
                               size="icon-sm"
                               variant="ghost"
                               className="size-7 text-muted-foreground"
-                              aria-label={`History ${row.fullName}`}
+                              aria-label={`History ${patientFullName(row)}`}
                               title="History"
                               onMouseEnter={() =>
                                 prefetchPatientHistory(
@@ -1018,7 +1018,7 @@ export function PatientsPage({
                               size="icon-sm"
                               variant="ghost"
                               className="size-7 text-muted-foreground"
-                              aria-label={`Documents ${row.fullName}`}
+                              aria-label={`Documents ${patientFullName(row)}`}
                               title="Documents"
                               onClick={() =>
                                 openEnsuredPatient(row, setDocumentsPatient)
@@ -1031,7 +1031,7 @@ export function PatientsPage({
                             <Button
                               size="icon-sm"
                               className="size-7"
-                              aria-label={`Update medical ${row.fullName}`}
+                              aria-label={`Update medical ${patientFullName(row)}`}
                               title="Update medical"
                               onClick={() =>
                                 openEnsuredPatient(row, setMedicalPatient)
