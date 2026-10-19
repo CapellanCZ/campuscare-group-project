@@ -14,7 +14,6 @@ import {
   IconUserCheck,
 } from "@tabler/icons-react"
 
-import { PageIntro } from "@/components/layout/panel-frame"
 import { StatCard } from "@/components/shared/stat-card"
 import { ReportChartCard } from "@/features/reports/components/report-chart-card"
 import { Button } from "@/components/ui/button"
@@ -61,13 +60,13 @@ function staffStatusToneKey(
 }
 
 export function AdminDashboardView({
-  access,
+  access: _access,
   ops,
 }: {
   access: StaffAccess
   ops: AdminOpsSnapshot
 }) {
-  const firstName = access.fullName.split(" ")[0] || access.fullName
+  void _access
   const [trendMode, setTrendMode] = useState<"daily" | "weekly" | "monthly">(
     "daily"
   )
@@ -146,11 +145,6 @@ export function AdminDashboardView({
 
   return (
     <div className={adminPageShellClassName("gap-8")}>
-      <PageIntro
-        title={`Welcome back, ${firstName}`}
-        description="Live HSO operations overview — aggregated clinic metrics only."
-      />
-
       {ops.error ? (
         <p className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
           {ops.error}

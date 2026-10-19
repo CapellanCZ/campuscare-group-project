@@ -1,34 +1,27 @@
 "use client"
 
-import Link from "next/link"
 import { useMemo, useState, type ComponentType } from "react"
 import {
   IconClipboardList,
   IconHeartbeat,
   IconListCheck,
   IconUserHeart,
-  IconUserPlus,
 } from "@tabler/icons-react"
 
-import { NurseGreetingTitle } from "@/components/dashboard/clinic-datetime"
 import { NurseRequestsPanel } from "@/components/dashboard/nurse-requests-panel"
 import { NurseTodayQueue } from "@/components/dashboard/nurse-today-queue"
 import { NurseIntakeSheet } from "@/components/queue/nurse-intake-sheet"
-import { WalkInSheet } from "@/components/queue/walk-in-sheet"
 import { ActivityFeed } from "@/components/shared/activity-feed"
 import { StatCard } from "@/components/shared/stat-card"
 import {
-  PageIntro,
   PanelCell,
   PanelFrame,
   PanelGrid,
   panelCardClassName,
 } from "@/components/layout/panel-frame"
-import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
-import { canRegisterWalkIn } from "@/lib/health/roles"
 import type {
   ActivityItem,
   DashboardKpis,
@@ -93,10 +86,6 @@ export function NurseDashboardView({
 }) {
   void _recent
   const [intakeTicket, setIntakeTicket] = useState<QueueTicketRow | null>(null)
-  const [walkInOpen, setWalkInOpen] = useState(false)
-  const firstName = access.fullName.split(" ")[0] || access.fullName
-  const showWalkIn =
-    decorative || canRegisterWalkIn(access.designation)
 
   const kpiCards = useMemo(() => {
     const byKey = new Map(kpis.cards.map((card) => [card.key, card]))
@@ -107,41 +96,6 @@ export function NurseDashboardView({
 
   return (
     <div className="flex flex-1 flex-col gap-6 sm:gap-8 lg:gap-10">
-      <PageIntro
-        title={<NurseGreetingTitle firstName={firstName} />}
-        action={
-          <>
-            {showWalkIn ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                tabIndex={decorative ? -1 : undefined}
-                onClick={
-                  decorative ? undefined : () => setWalkInOpen(true)
-                }
-              >
-                <IconUserPlus className="size-4" aria-hidden />
-                Register walk-in
-              </Button>
-            ) : null}
-            {decorative ? (
-              <Button size="sm" type="button" tabIndex={-1}>
-                Open queue
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                render={<Link href="/nurse/queue" />}
-                nativeButton={false}
-              >
-                Open queue
-              </Button>
-            )}
-          </>
-        }
-      />
-
       <div className="flex flex-col gap-3">
         <SectionLabel>At a glance</SectionLabel>
         <PanelFrame>
@@ -179,6 +133,7 @@ export function NurseDashboardView({
                 tickets={tickets}
                 onStartIntake={setIntakeTicket}
                 dataLoading={dataLoading}
+                enableWalkIn={!decorative}
               />
             </PanelCell>
           </PanelGrid>
@@ -224,21 +179,13 @@ export function NurseDashboardView({
       </div>
 
       {!decorative ? (
-        <>
-          <NurseIntakeSheet
-            ticket={intakeTicket}
-            open={Boolean(intakeTicket)}
-            onOpenChange={(open) => {
-              if (!open) setIntakeTicket(null)
-            }}
-          />
-
-          <WalkInSheet
-            open={walkInOpen}
-            onOpenChange={setWalkInOpen}
-            hideTrigger
-          />
-        </>
+        <NurseIntakeSheet
+          ticket={intakeTicket}
+          open={Boolean(intakeTicket)}
+          onOpenChange={(open) => {
+            if (!open) setIntakeTicket(null)
+          }}
+        />
       ) : null}
     </div>
   )

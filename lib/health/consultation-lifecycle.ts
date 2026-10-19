@@ -243,6 +243,8 @@ export async function ensureWalkInConsultation(params: {
   chiefComplaint?: string | null
   staffName: string
   consultationDate?: string
+  /** Consultation priority — Emergency jump-starts triage. */
+  priority?: "Low" | "Normal" | "High" | "Emergency"
   client?: SupabaseClient
 }): Promise<{ id: string } | { error: string }> {
   const supabase = params.client ?? (await createClient())
@@ -262,7 +264,7 @@ export async function ensureWalkInConsultation(params: {
       provider_type: params.providerType,
       station: "nurse",
       status: "waiting",
-      priority: "Normal",
+      priority: params.priority ?? "Normal",
       chief_complaint: params.chiefComplaint ?? "Walk-in consultation",
       provider_name: params.staffName,
       provider_role: "nurse",

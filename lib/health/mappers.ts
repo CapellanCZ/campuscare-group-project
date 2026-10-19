@@ -94,6 +94,13 @@ export type RawQueueTicket = {
     | null
 }
 
+function isEmergencyTicket(raw: RawQueueTicket): boolean {
+  const notes = (raw.intake_notes ?? "").toLowerCase()
+  if (notes.includes("emergency walk-in")) return true
+  const consult = (raw.consultation_type ?? "").toLowerCase()
+  return consult.startsWith("emergency")
+}
+
 function asStation(value: string | null | undefined): StationId {
   if (value === "physician" || value === "dentist" || value === "nurse") {
     return value
@@ -275,7 +282,7 @@ export function mapTicketRow(
       raw.intake_notes,
       opts?.accountLabels
     ),
-    priority: "normal",
+    priority: isEmergencyTicket(raw) ? "urgent" : "normal",
     consultationRequestId: raw.consultation_request_id ?? null,
     consultationId: raw.consultation_id ?? null,
     providerType,

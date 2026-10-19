@@ -117,7 +117,7 @@ export async function callNextTicket(params: {
   const { data: waiting } = await supabase
     .from("health_queue_tickets")
     .select(
-      "id, call_count, queue_position, appointment_id, health_appointment_id, consultation_request_id"
+      "id, call_count, queue_position, appointment_id, health_appointment_id, consultation_request_id, intake_notes, consultation_type"
     )
     .eq("status", "waiting")
     .eq("station", station)
@@ -125,11 +125,30 @@ export async function callNextTicket(params: {
     .order("queue_position", { ascending: true })
     .limit(40)
 
+  const rankedWaiting = [...(waiting ?? [])].sort((a, b) => {
+    const aEmergency =
+      String(a.intake_notes ?? "")
+        .toLowerCase()
+        .includes("emergency walk-in") ||
+      String(a.consultation_type ?? "")
+        .toLowerCase()
+        .startsWith("emergency")
+    const bEmergency =
+      String(b.intake_notes ?? "")
+        .toLowerCase()
+        .includes("emergency walk-in") ||
+      String(b.consultation_type ?? "")
+        .toLowerCase()
+        .startsWith("emergency")
+    if (aEmergency !== bEmergency) return aEmergency ? -1 : 1
+    return (a.queue_position ?? 0) - (b.queue_position ?? 0)
+  })
+
   let chosen: {
     id: string
     call_count: number | null
   } | null = null
-  for (const candidate of waiting ?? []) {
+  for (const candidate of rankedWaiting) {
     const eligibility = await assertTicketEligibleForQueueEntry(
       supabase,
       candidate
@@ -954,6 +973,8 @@ export async function registerWalkIn(params: {
   providerQueue: StationId
   staffName: string
   actingUserId?: string
+  /** Emergency walk-ins go to the front of the nurse queue. */
+  emergency?: boolean
 }): Promise<HealthActionResult> {
   const sessionDenied = await requireSessionRole(params.designation)
   if (sessionDenied) return { ok: false, error: sessionDenied }
@@ -1214,12 +1235,21 @@ export async function registerWalkIn(params: {
       ? "dentist"
       : "physician"
 
+  const isEmergency = Boolean(params.emergency)
+  const consultationLabel = params.consultationType || "Walk-in consultation"
+  const chiefComplaint = isEmergency
+    ? consultationLabel.toLowerCase().includes("emergency")
+      ? consultationLabel
+      : `Emergency — ${consultationLabel}`
+    : consultationLabel
+
   const ensured = await ensureWalkInConsultation({
     operationalPatientId: patientId,
     providerType,
     patientName: resolvedName,
-    chiefComplaint: params.consultationType || "Walk-in consultation",
+    chiefComplaint,
     staffName: params.staffName,
+    priority: isEmergency ? "Emergency" : "Normal",
     client: supabase,
   })
   if ("error" in ensured) {
@@ -1227,16 +1257,26 @@ export async function registerWalkIn(params: {
   }
 
   const { nextPos, nextNum } = await nextQueueSlot(supabase)
+  // Emergency jumps the line — stay ahead of every waiting/called ticket.
+  const queuePosition = isEmergency ? 0 : nextPos
+  const estimatedWaitMinutes = isEmergency ? 0 : nextPos * 10
   const ticketCode = formatClinicQueueCode(providerType, nextNum)
   const now = new Date().toISOString()
+  const intakeNotes = isEmergency
+    ? systemIntakeNote({
+        action: "Emergency walk-in",
+        by: params.staffName,
+        detail: consultationLabel,
+      })
+    : null
 
   const { data: ticket, error } = await supabase
     .from("health_queue_tickets")
     .insert({
       ticket_code: ticketCode,
-      queue_position: nextPos,
+      queue_position: queuePosition,
       queue_number: nextNum,
-      estimated_wait_minutes: nextPos * 10,
+      estimated_wait_minutes: estimatedWaitMinutes,
       status: "waiting",
       station: "nurse",
       checked_in_at: now,
@@ -1246,10 +1286,11 @@ export async function registerWalkIn(params: {
       patient_name: resolvedName,
       campus_id: resolvedCampusId,
       patient_type: patientType,
-      consultation_type: params.consultationType || "Walk-in consultation",
+      consultation_type: chiefComplaint,
       assigned_staff_name: params.staffName,
       provider_type: providerType,
       consultation_id: ensured.id,
+      intake_notes: intakeNotes,
     })
     .select("id")
     .single()
@@ -1266,7 +1307,9 @@ export async function registerWalkIn(params: {
 
   return {
     ok: true,
-    message: `Walk-in registered as ${ticketCode} in the nurse queue.`,
+    message: isEmergency
+      ? `Emergency walk-in registered as ${ticketCode} — moved to front of nurse queue.`
+      : `Walk-in registered as ${ticketCode} in the nurse queue.`,
   }
 }
 

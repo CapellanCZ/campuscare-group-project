@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import { CONSULTATION_TYPE_OPTIONS } from "@/lib/health/form-options"
 import { CampusIdInput } from "@/components/shared/campus-id-input"
 import { actionRegisterWalkIn } from "@/lib/health/queue-server-actions"
@@ -40,7 +41,8 @@ import {
   CAMPUS_ID_LABEL,
   type PatientType,
 } from "@/types/patientRecord"
-import { IconUserPlus } from "@tabler/icons-react"
+import { IconAlertTriangle, IconUserPlus } from "@tabler/icons-react"
+import { cn } from "@/lib/utils"
 
 const WALK_IN_PATIENT_TYPES = [
   "student",
@@ -63,10 +65,12 @@ export function WalkInSheet({
   open: controlledOpen,
   onOpenChange,
   hideTrigger = false,
+  triggerClassName,
 }: {
   open?: boolean
   onOpenChange?: (open: boolean) => void
   hideTrigger?: boolean
+  triggerClassName?: string
 } = {}) {
   const router = useRouter()
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
@@ -78,6 +82,7 @@ export function WalkInSheet({
   const [patientName, setPatientName] = useState("")
   const [patientType, setPatientType] = useState<WalkInPatientType | "">("")
   const [consultationType, setConsultationType] = useState("")
+  const [emergency, setEmergency] = useState(false)
   const [lookupHint, setLookupHint] = useState<string | null>(null)
   const [lookupPending, setLookupPending] = useState(false)
   const [nameAutoFilled, setNameAutoFilled] = useState(false)
@@ -155,6 +160,7 @@ export function WalkInSheet({
     setPatientName("")
     setPatientType("")
     setConsultationType("")
+    setEmergency(false)
     setLookupHint(null)
     setNameAutoFilled(false)
     setError(null)
@@ -193,6 +199,7 @@ export function WalkInSheet({
         patientType: backendPatientType,
         consultationType: consultationType.trim(),
         providerQueue: "nurse",
+        emergency,
       })
 
       if (!result.ok) {
@@ -203,7 +210,9 @@ export function WalkInSheet({
 
       appToast.success({
         title: result.message ?? "Walk-in registered",
-        description: "The walk-in patient has been added to the queue.",
+        description: emergency
+          ? "Emergency patient was moved to the front of the nurse queue."
+          : "The walk-in patient has been added to the queue.",
       })
       setOpen(false)
       resetForm()
@@ -220,7 +229,9 @@ export function WalkInSheet({
       }}
     >
       {hideTrigger ? null : (
-        <DialogTrigger render={<Button variant="outline" />}>
+        <DialogTrigger
+          render={<Button size="sm" variant="outline" className={triggerClassName} />}
+        >
           <IconUserPlus data-icon="inline-start" aria-hidden />
           Register walk-in
         </DialogTrigger>
@@ -230,7 +241,8 @@ export function WalkInSheet({
           <DialogTitle>Register walk-in</DialogTitle>
           <DialogDescription className="text-xs">
             Enter the {CAMPUS_ID_LABEL.toLowerCase()} first. The system will look
-            up the patient record and fill in the name when found.
+            up the patient record and fill in the name when found. Mark Emergency
+            to place the patient at the front of the nurse queue.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -324,6 +336,40 @@ export function WalkInSheet({
             disabled={pending}
             required
           />
+
+          <div
+            className={cn(
+              "flex items-start justify-between gap-3 rounded-xl border px-3 py-3",
+              emergency
+                ? "border-destructive/40 bg-destructive/5"
+                : "border-border bg-muted/20"
+            )}
+          >
+            <div className="min-w-0 space-y-1">
+              <div className="flex items-center gap-2">
+                <IconAlertTriangle
+                  className={cn(
+                    "size-4 shrink-0",
+                    emergency ? "text-destructive" : "text-muted-foreground"
+                  )}
+                  aria-hidden
+                />
+                <p className="text-sm font-medium">Emergency</p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Jump this patient to the front of the nurse queue and flag the
+                visit as Emergency.
+              </p>
+            </div>
+            <Switch
+              checked={emergency}
+              onCheckedChange={setEmergency}
+              disabled={pending}
+              aria-label="Mark as emergency walk-in"
+              className="mt-0.5 shrink-0"
+            />
+          </div>
+
           {error ? (
             <p role="alert" className="text-sm text-destructive">
               {error}
@@ -333,9 +379,14 @@ export function WalkInSheet({
             <Button
               type="submit"
               disabled={pending || lookupPending}
+              variant={emergency ? "destructive" : "default"}
               className="w-full"
             >
-              {pending ? "Registering…" : "Register to nurse queue"}
+              {pending
+                ? "Registering…"
+                : emergency
+                  ? "Register emergency to nurse queue"
+                  : "Register to nurse queue"}
             </Button>
           </DialogFooter>
         </form>

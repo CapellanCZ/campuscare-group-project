@@ -17,6 +17,7 @@ import {
 
 import { NurseWorkbench } from "@/components/queue/nurse-workbench"
 import { WaitStatusBadge } from "@/components/queue/wait-status-badge"
+import { WalkInSheet } from "@/components/queue/walk-in-sheet"
 import { PatientProfileSheet } from "@/components/patients/patient-profile-sheet"
 import { StudentIdSearchInput } from "@/components/shared/student-id-search-input"
 import { Badge } from "@/components/ui/badge"
@@ -114,12 +115,15 @@ export function NurseTodayQueue({
   onStartIntake,
   className,
   dataLoading = false,
+  enableWalkIn = true,
 }: {
   access: StaffAccess
   tickets: QueueTicketRow[]
   onStartIntake: (ticket: QueueTicketRow) => void
   className?: string
   dataLoading?: boolean
+  /** When false (e.g. decorative preview), hide the register walk-in control. */
+  enableWalkIn?: boolean
 }) {
   const router = useRouter()
   const [query, setQuery] = useState("")
@@ -140,7 +144,8 @@ export function NurseTodayQueue({
   const canSkip = can(access.designation, "queue.skip")
   const canVerify = can(access.designation, "queue.verify_check_in")
   const canMutate = canMutateQueue(access.designation)
-  const showWalkIn = canRegisterWalkIn(access.designation)
+  const showWalkIn =
+    enableWalkIn && canRegisterWalkIn(access.designation)
 
   const filtered = useMemo(() => {
     const q = studentIdDigits(query)
@@ -155,6 +160,8 @@ export function NurseTodayQueue({
         )
       })
       .sort((a, b) => {
+        if (a.priority === "urgent" && b.priority !== "urgent") return -1
+        if (b.priority === "urgent" && a.priority !== "urgent") return 1
         const aWait = a.estimatedWaitMinutes ?? 0
         const bWait = b.estimatedWaitMinutes ?? 0
         if (a.status === "called" && b.status !== "called") return -1
@@ -251,6 +258,7 @@ export function NurseTodayQueue({
                 Call next
               </Button>
             ) : null}
+            {showWalkIn ? <WalkInSheet /> : null}
             <Button
               size="sm"
               variant="outline"
@@ -386,9 +394,19 @@ export function NurseTodayQueue({
                       <TableCell className="max-w-48">
                         <div className="flex min-w-0 items-start gap-1.5">
                           <div className="min-w-0 flex-1">
-                            <p className="truncate font-medium">
-                              {row.patientName}
-                            </p>
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <p className="truncate font-medium">
+                                {row.patientName}
+                              </p>
+                              {row.priority === "urgent" ? (
+                                <StatusBadge
+                                  label="Emergency"
+                                  toneClassName={STATUS_BADGE_TONE.cancelled}
+                                  dotClassName={STATUS_BADGE_DOT.cancelled}
+                                  className="h-5 shrink-0 px-1.5 text-[10px]"
+                                />
+                              ) : null}
+                            </div>
                             <p className="truncate text-xs font-normal text-muted-foreground">
                               {row.campusId || row.studentId || "—"}
                             </p>

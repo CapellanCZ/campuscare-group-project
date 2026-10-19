@@ -23,7 +23,6 @@ import { ActivityFeed } from "@/components/shared/activity-feed"
 import { StatCard } from "@/components/shared/stat-card"
 import { WaitStatusBadge } from "@/components/queue/wait-status-badge"
 import {
-  PageIntro,
   PanelCell,
   PanelFrame,
   PanelGrid,
@@ -66,7 +65,7 @@ import {
 } from "@/lib/ui/staff-data-cache"
 import type { StaffAccess } from "@/lib/auth/types"
 import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
-import { designationLabel, stationLabel } from "@/lib/health/roles"
+import { stationLabel } from "@/lib/health/roles"
 import { ticketLabel } from "@/lib/health/mappers"
 import type {
   ActivityItem,
@@ -258,10 +257,8 @@ export function RoleDashboard({
 
   if (access.designation === "admin") {
     if (!ops) {
-      const firstName = access.fullName.split(" ")[0] || access.fullName
       return (
         <div className="flex flex-1 flex-col gap-6">
-          <PageIntro title={`Welcome back, ${firstName}`} />
           <div className="flex flex-col gap-2">
             <SectionLabel>At a glance</SectionLabel>
             <PanelFrame>
@@ -293,7 +290,7 @@ export function RoleDashboard({
 
   const waiting = tickets
     .filter((t) => t.status === "waiting")
-    .slice(0, 8)
+    .slice(0, 10)
 
   const kpiCards = kpis.cards.slice(0, 3)
 
@@ -302,33 +299,13 @@ export function RoleDashboard({
       ? "/queue-management/display"
       : `/${access.designation}/queue`
 
-  const firstName = access.fullName.split(" ")[0] || access.fullName
   const queueTitle = "Live queue"
   const queueDescription = "Active tickets at your station."
   const emptyQueueCopy = "Queue is clear."
 
   return (
     <div className="flex flex-1 flex-col gap-6">
-      <div className="flex flex-col gap-4">
-        <PageIntro
-          title={`Welcome back, ${firstName}`}
-          description={
-            dataLoading
-              ? `${designationLabel(access.designation)} overview`
-              : `${designationLabel(access.designation)} overview · ${stats.totalWaiting} waiting · ${stats.currentlyServing} serving`
-          }
-          action={
-            <Button
-              size="sm"
-              render={<Link href={queueHref} />}
-              nativeButton={false}
-            >
-              Open queue
-            </Button>
-          }
-        />
-        <DashboardQuickNav designation={access.designation} />
-      </div>
+      <DashboardQuickNav designation={access.designation} />
 
       <div className="flex flex-col gap-2">
         <SectionLabel>Today at a glance</SectionLabel>
@@ -369,13 +346,15 @@ export function RoleDashboard({
           <PanelGrid className="lg:grid-cols-3">
             <PanelCell className="lg:col-span-2">
               <Card className={cn(panelCardClassName, "gap-0 py-0")}>
-                <CardHeader className="border-b">
-                  <div className="flex items-center justify-between gap-2">
+                <CardHeader className="gap-4 border-b px-4 py-4 sm:px-6 sm:py-5">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0 space-y-1">
-                      <CardTitle>{queueTitle}</CardTitle>
+                      <CardTitle className="text-base sm:text-lg">
+                        {queueTitle}
+                      </CardTitle>
                       <CardDescription>{queueDescription}</CardDescription>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       {dataLoading ? (
                         <Skeleton className="h-5 w-8 rounded-full" />
                       ) : (
@@ -385,12 +364,11 @@ export function RoleDashboard({
                       )}
                       <Button
                         size="sm"
-                        variant="ghost"
-                        className="hidden sm:inline-flex"
+                        variant="outline"
                         render={<Link href={queueHref} />}
                         nativeButton={false}
                       >
-                        Open
+                        Open queue
                       </Button>
                     </div>
                   </div>

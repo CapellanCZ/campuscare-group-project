@@ -189,6 +189,7 @@ export async function actionRegisterWalkIn(input: {
   patientType?: import("@/lib/health/types").PatientType
   consultationType: string
   providerQueue: StationId
+  emergency?: boolean
 }) {
   return withStaff((access) =>
     registerWalkIn({
@@ -198,6 +199,7 @@ export async function actionRegisterWalkIn(input: {
       patientType: input.patientType,
       consultationType: input.consultationType,
       providerQueue: input.providerQueue,
+      emergency: input.emergency,
       staffName: access.fullName,
       actingUserId: access.userId,
     })
