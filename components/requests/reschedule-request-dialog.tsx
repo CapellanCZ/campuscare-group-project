@@ -18,7 +18,19 @@ import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { rescheduleConsultationRequestAction } from "@/features/requests/actions"
+import {
+  formatRequestPreferred,
+} from "@/features/requests/lib/format"
+import { displayConsultationLabel } from "@/lib/health/consultation-display"
+import { consultationProviderLabel } from "@/lib/health/consultation-workflow"
 import type { AppointmentRequest } from "@/types/appointmentRequest"
+import { cn } from "@/lib/utils"
+
+const slotInputClassName = cn(
+  "h-10 rounded-xl border-input bg-input/30 shadow-none",
+  "[&::-webkit-calendar-picker-indicator]:opacity-60",
+  "[&::-webkit-calendar-picker-indicator]:hover:opacity-100"
+)
 
 export function RescheduleRequestDialog({
   open,
@@ -46,6 +58,15 @@ export function RescheduleRequestDialog({
   }, [open, request])
 
   if (!request) return null
+
+  const currentPreferred = formatRequestPreferred(
+    request.preferredDate,
+    request.preferredTime
+  )
+  const serviceLabel = displayConsultationLabel(
+    request.service,
+    request.reason
+  )
 
   function handleSave() {
     const trimmed = rescheduleReason.trim()
@@ -92,55 +113,87 @@ export function RescheduleRequestDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md">
+        <DialogHeader className="gap-1.5 border-b border-border px-6 py-5 pr-12 text-left">
           <DialogTitle>Reschedule consultation request</DialogTitle>
           <DialogDescription>
-            Propose a new date and time for {request.patientName}. A reason is
-            required and will be saved with the request.
+            Propose a new preferred slot. A reason is required and stays on the
+            request record.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field>
-            <FieldLabel htmlFor="reschedule-date">New date</FieldLabel>
-            <Input
-              id="reschedule-date"
-              type="date"
-              value={rescheduleDate}
-              onChange={(event) => setRescheduleDate(event.target.value)}
+        <div className="flex flex-col gap-5 px-6 py-5">
+          <div className="space-y-1.5 text-sm">
+            <p>
+              <span className="text-muted-foreground">Patient:</span>{" "}
+              <span className="font-medium text-foreground">
+                {request.patientName}
+              </span>
+            </p>
+            <p>
+              <span className="text-muted-foreground">Specialty:</span>{" "}
+              {consultationProviderLabel(request.providerType)}
+            </p>
+            {serviceLabel !== "—" ? (
+              <p>
+                <span className="text-muted-foreground">Service:</span>{" "}
+                {serviceLabel}
+              </p>
+            ) : null}
+            <p>
+              <span className="text-muted-foreground">Current preferred:</span>{" "}
+              {currentPreferred}
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 sm:gap-3">
+            <Field className="gap-2">
+              <FieldLabel htmlFor="reschedule-date">New date</FieldLabel>
+              <Input
+                id="reschedule-date"
+                type="date"
+                value={rescheduleDate}
+                onChange={(event) => setRescheduleDate(event.target.value)}
+                disabled={pending}
+                className={slotInputClassName}
+              />
+            </Field>
+            <Field className="gap-2">
+              <FieldLabel htmlFor="reschedule-time">New time</FieldLabel>
+              <Input
+                id="reschedule-time"
+                type="time"
+                value={rescheduleTime}
+                onChange={(event) => setRescheduleTime(event.target.value)}
+                disabled={pending}
+                className={slotInputClassName}
+              />
+            </Field>
+          </div>
+
+          <Field className="gap-2">
+            <FieldLabel htmlFor="reschedule-reason">
+              Reschedule reason
+            </FieldLabel>
+            <Textarea
+              id="reschedule-reason"
+              value={rescheduleReason}
+              onChange={(event) => setRescheduleReason(event.target.value)}
+              rows={4}
               disabled={pending}
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="reschedule-time">New time</FieldLabel>
-            <Input
-              id="reschedule-time"
-              type="time"
-              value={rescheduleTime}
-              onChange={(event) => setRescheduleTime(event.target.value)}
-              disabled={pending}
+              aria-required
+              placeholder="Explain why this request is being rescheduled"
+              className="min-h-24 resize-none shadow-none"
             />
           </Field>
         </div>
-        <Field>
-          <FieldLabel htmlFor="reschedule-reason">Reschedule reason</FieldLabel>
-          <Textarea
-            id="reschedule-reason"
-            value={rescheduleReason}
-            onChange={(event) => setRescheduleReason(event.target.value)}
-            rows={3}
-            disabled={pending}
-            aria-required
-            placeholder="Explain why this request is being rescheduled"
-          />
-        </Field>
 
-        <DialogFooter className="gap-2 sm:gap-2">
+        <DialogFooter className="gap-2 border-t border-border bg-muted/10 px-6 py-4 sm:justify-end">
           <Button
             type="button"
             variant="outline"
             disabled={pending}
+            className="border-border/70"
             onClick={() => onOpenChange(false)}
           >
             Cancel
@@ -155,7 +208,7 @@ export function RescheduleRequestDialog({
             }
             onClick={handleSave}
           >
-            Save reschedule
+            {pending ? "Saving…" : "Save reschedule"}
           </Button>
         </DialogFooter>
       </DialogContent>

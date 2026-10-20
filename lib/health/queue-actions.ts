@@ -52,6 +52,7 @@ import {
   vitalsFromIntake,
   type ConsultationVitals,
 } from "@/lib/health/consultation-lifecycle"
+import { syncNurseVitalsToPatientRecord } from "@/lib/health/sync-nurse-vitals-to-record"
 import {
   resolveConsultationProviderType,
   type ConsultationProviderType,
@@ -744,7 +745,7 @@ export async function completeNurseIntakeAndAssign(params: {
   const { data: ticket } = await supabase
     .from("health_queue_tickets")
     .select(
-      "id, station, status, provider_type, consultation_request_id, consultation_id, appointment_id, patient_id, patient_name, chief_complaint"
+      "id, station, status, provider_type, consultation_request_id, consultation_id, appointment_id, patient_id, patient_name, patient_type, campus_id, chief_complaint"
     )
     .eq("id", params.ticketId)
     .maybeSingle()
@@ -868,6 +869,18 @@ export async function completeNurseIntakeAndAssign(params: {
     .eq("id", ticket.id)
 
   if (error) return { ok: false, error: error.message }
+
+  // Push nurse vitals into patient_records so the patient app shows them
+  // right away (physician/dentist chart save is unchanged).
+  const synced = await syncNurseVitalsToPatientRecord({
+    client: supabase,
+    campusId: (ticket.campus_id as string | null) ?? null,
+    operationalPatientId: (ticket.patient_id as string | null) ?? null,
+    vitals,
+  })
+  if (!synced.ok) {
+    console.warn("[nurse-intake] patient_records vitals sync failed:", synced.error)
+  }
 
   const providerLabel = toStation === "dentist" ? "Dentist" : "Physician"
   const message = providerAvailable

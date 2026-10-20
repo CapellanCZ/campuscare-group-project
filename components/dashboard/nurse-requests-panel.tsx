@@ -306,8 +306,9 @@ export function NurseRequestsPanel({
                       canDecline &&
                       (row.status === "pending" ||
                         row.status === "waitlisted")
+                    const showView = decorative || canViewDetails
                     const hasActions =
-                      decorative ||
+                      showView ||
                       showApprove ||
                       showAdmit ||
                       showReschedule ||
@@ -316,36 +317,16 @@ export function NurseRequestsPanel({
                     return (
                       <TableRow key={row.id}>
                         <TableCell className="pl-6">
-                          <div className="flex min-w-0 items-start gap-1.5">
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate font-medium">
-                                {row.patientName}
-                              </p>
-                              <p className="truncate text-xs text-muted-foreground tabular-nums">
-                                {row.studentId || "—"}
-                                {row.queueNumber != null
-                                  ? ` · #${row.queueNumber}`
-                                  : ""}
-                              </p>
-                            </div>
-                            {decorative || canViewDetails ? (
-                              <Button
-                                type="button"
-                                size="icon-sm"
-                                variant="ghost"
-                                className="mt-0.5 size-7 shrink-0 text-muted-foreground"
-                                disabled={decorative ? false : pendingView}
-                                tabIndex={decorative ? -1 : undefined}
-                                aria-label={`View ${row.patientName}`}
-                                title="View details"
-                                onClick={() => {
-                                  if (decorative) return
-                                  openRequest(row.id, "view")
-                                }}
-                              >
-                                <IconEye className="size-4" aria-hidden />
-                              </Button>
-                            ) : null}
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">
+                              {row.patientName}
+                            </p>
+                            <p className="truncate text-xs text-muted-foreground tabular-nums">
+                              {row.studentId || "—"}
+                              {row.queueNumber != null
+                                ? ` · #${row.queueNumber}`
+                                : ""}
+                            </p>
                           </div>
                         </TableCell>
                         <TableCell className="hidden sm:table-cell">
@@ -371,7 +352,7 @@ export function NurseRequestsPanel({
                         </TableCell>
                         <TableCell className="pr-6">
                           {hasActions ? (
-                            <div className="flex flex-wrap justify-end gap-1">
+                            <div className="flex flex-wrap items-center justify-end gap-1">
                               {decorative ? (
                                 row.status === "pending" ? (
                                   <>
@@ -410,6 +391,19 @@ export function NurseRequestsPanel({
                                     >
                                       <IconX
                                         className="size-3.5"
+                                        aria-hidden
+                                      />
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="icon-sm"
+                                      variant="outline"
+                                      className="size-7 border-border/70 bg-background text-muted-foreground"
+                                      tabIndex={-1}
+                                      aria-label="View"
+                                    >
+                                      <IconEye
+                                        className="size-4"
                                         aria-hidden
                                       />
                                     </Button>
@@ -491,6 +485,25 @@ export function NurseRequestsPanel({
                                     >
                                       <IconX
                                         className="size-3.5"
+                                        aria-hidden
+                                      />
+                                    </Button>
+                                  ) : null}
+                                  {showView ? (
+                                    <Button
+                                      type="button"
+                                      size="icon-sm"
+                                      variant="outline"
+                                      className="size-7 border-border/70 bg-background text-muted-foreground"
+                                      disabled={pendingView}
+                                      aria-label={`View ${row.patientName}`}
+                                      title="View details"
+                                      onClick={() =>
+                                        openRequest(row.id, "view")
+                                      }
+                                    >
+                                      <IconEye
+                                        className="size-4"
                                         aria-hidden
                                       />
                                     </Button>

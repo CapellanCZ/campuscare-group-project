@@ -68,7 +68,8 @@ export function ConsultationRequestCard({
   const showDecline =
     canDecline &&
     (request.status === "pending" || request.status === "waitlisted")
-  const hasActions = showApprove || showAdmit || showReschedule || showDecline
+  const hasActions =
+    canViewDetails || showApprove || showAdmit || showReschedule || showDecline
 
   return (
     <div
@@ -77,36 +78,21 @@ export function ConsultationRequestCard({
         "sm:flex-row sm:items-center sm:justify-between sm:gap-4"
       )}
     >
-      <div className="flex min-w-0 flex-1 items-start gap-2">
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <p className="truncate font-medium text-foreground">
-              {request.patientName}
-            </p>
-            <StatusBadge
-              className="shrink-0"
-              label={consultationRequestStatusLabel(request.status)}
-              toneClassName={appointmentRequestStatusTone(request.status)}
-              dotClassName={appointmentRequestStatusDot(request.status)}
-            />
-          </div>
-          <p className="truncate text-sm text-muted-foreground">
-            {metaParts.join(" · ")}
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <p className="truncate font-medium text-foreground">
+            {request.patientName}
           </p>
+          <StatusBadge
+            className="shrink-0"
+            label={consultationRequestStatusLabel(request.status)}
+            toneClassName={appointmentRequestStatusTone(request.status)}
+            dotClassName={appointmentRequestStatusDot(request.status)}
+          />
         </div>
-        {canViewDetails ? (
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="ghost"
-            className="size-7 shrink-0 text-muted-foreground"
-            aria-label={`View ${request.patientName}`}
-            title="View details"
-            onClick={() => onAction("view")}
-          >
-            <IconEye className="size-4" aria-hidden />
-          </Button>
-        ) : null}
+        <p className="truncate text-sm text-muted-foreground">
+          {metaParts.join(" · ")}
+        </p>
       </div>
 
       {hasActions ? (
@@ -159,6 +145,19 @@ export function ConsultationRequestCard({
               onClick={() => onAction("decline")}
             >
               <IconX className="size-3.5" aria-hidden />
+            </Button>
+          ) : null}
+          {canViewDetails ? (
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="outline"
+              className="size-7 border-border/70 bg-background text-muted-foreground"
+              aria-label={`View ${request.patientName}`}
+              title="View details"
+              onClick={() => onAction("view")}
+            >
+              <IconEye className="size-4" aria-hidden />
             </Button>
           ) : null}
         </div>
