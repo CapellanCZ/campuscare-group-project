@@ -32,8 +32,8 @@ import { formatRequestPreferred } from "@/features/requests/lib/format"
 import { displayConsultationLabel } from "@/lib/health/consultation-display"
 import { consultationProviderLabel } from "@/lib/health/consultation-workflow"
 import {
-  isoToManilaDatetimeLocal,
-  manilaDatetimeLocalToIso,
+  manilaDateTimeToIso,
+  manilaPartsFromIso,
 } from "@/lib/health/clinic-datetime"
 import { selectItemsRecord } from "@/lib/ui/select-label"
 import { cn } from "@/lib/utils"
@@ -65,21 +65,27 @@ export function ApproveRequestDialog({
     { id: string; fullName: string; email: string | null }[]
   >([])
   const [doctorId, setDoctorId] = useState("")
-  const [scheduleAt, setScheduleAt] = useState("")
+  const [scheduleDate, setScheduleDate] = useState("")
+  const [scheduleTime, setScheduleTime] = useState("")
   const [approvalNotes, setApprovalNotes] = useState("")
 
   useEffect(() => {
     if (!open || !request) return
-    setDoctorId(request.doctorId ?? "")
+    const nextDoctorId = request.doctorId ?? ""
+    let nextDate = ""
+    let nextTime = ""
     // Prefer Manila preferredDate/time; never ISO.slice (UTC hours → 9 PM shows as 1 PM).
-    const fromPreferred =
-      request.preferredDate && request.preferredTime
-        ? `${request.preferredDate}T${request.preferredTime}`
-        : ""
-    setScheduleAt(
-      fromPreferred ||
-        (request.startsAt ? isoToManilaDatetimeLocal(request.startsAt) : "")
-    )
+    if (request.preferredDate && request.preferredTime) {
+      nextDate = request.preferredDate
+      nextTime = request.preferredTime.slice(0, 5)
+    } else if (request.startsAt) {
+      const parts = manilaPartsFromIso(request.startsAt)
+      nextDate = parts.date
+      nextTime = parts.time
+    }
+    setDoctorId(nextDoctorId)
+    setScheduleDate(nextDate)
+    setScheduleTime(nextTime)
     setApprovalNotes("")
     void listAssignableDoctorsAction().then((result) => {
       if (result.ok) setDoctors(result.data)
@@ -157,6 +163,12 @@ export function ApproveRequestDialog({
     { label: "Preferred", value: preferredWithQueue },
   ]
 
+  // Approve is allowed with the prefilled preferred slot — no edit required.
+  const scheduleReady =
+    Boolean(scheduleDate.trim()) &&
+    /^\d{2}:\d{2}$/.test(scheduleTime.trim().slice(0, 5))
+  const canConfirmApprove = isAdmit || scheduleReady
+
   function executeConfirm() {
     startTransition(async () => {
       if (isAdmit) {
@@ -172,11 +184,16 @@ export function ApproveRequestDialog({
       }
 
       const doctor = doctorOptions.find((item) => item.id === doctorId)
+      const date = scheduleDate.trim()
+      const time = scheduleTime.trim().slice(0, 5)
       const result = await approveConsultationRequestAction({
         id: request!.id,
         doctorId: doctorId || null,
         doctorName: doctor?.fullName ?? request!.doctorName ?? null,
-        scheduleAt: scheduleAt ? manilaDatetimeLocalToIso(scheduleAt) : null,
+        scheduleAt:
+          date && /^\d{2}:\d{2}$/.test(time)
+            ? manilaDateTimeToIso(date, time)
+            : null,
         location: request!.location ?? null,
         notes: approvalNotes,
       })
@@ -215,8 +232,8 @@ export function ApproveRequestDialog({
           </DialogTitle>
           <DialogDescription>
             {isAdmit
-              ? "Move this student into the queue for their preferred date."
-              : "Confirm the schedule, then move them into Consultations (Waiting)."}
+              ? "Place this student in today’s queue for their preferred date."
+              : "Review the details, then approve to add them to the Consultations queue."}
           </DialogDescription>
         </DialogHeader>
 
@@ -286,16 +303,30 @@ export function ApproveRequestDialog({
                   </SelectContent>
                 </Select>
               </Field>
-              <Field className="gap-2">
-                <FieldLabel>Schedule</FieldLabel>
-                <Input
-                  type="datetime-local"
-                  value={scheduleAt}
-                  onChange={(event) => setScheduleAt(event.target.value)}
-                  disabled={pending}
-                  className={fieldInputClassName}
-                />
-              </Field>
+              <div className="grid gap-4 sm:grid-cols-2 sm:gap-3">
+                <Field className="gap-2">
+                  <FieldLabel htmlFor="approve-schedule-date">Date</FieldLabel>
+                  <Input
+                    id="approve-schedule-date"
+                    type="date"
+                    value={scheduleDate}
+                    onChange={(event) => setScheduleDate(event.target.value)}
+                    disabled={pending}
+                    className={fieldInputClassName}
+                  />
+                </Field>
+                <Field className="gap-2">
+                  <FieldLabel htmlFor="approve-schedule-time">Time</FieldLabel>
+                  <Input
+                    id="approve-schedule-time"
+                    type="time"
+                    value={scheduleTime}
+                    onChange={(event) => setScheduleTime(event.target.value)}
+                    disabled={pending}
+                    className={fieldInputClassName}
+                  />
+                </Field>
+              </div>
               <Field className="gap-2">
                 <FieldLabel>Notes</FieldLabel>
                 <Textarea
@@ -321,7 +352,11 @@ export function ApproveRequestDialog({
           >
             Cancel
           </Button>
-          <Button type="button" disabled={pending} onClick={handleConfirm}>
+          <Button
+            type="button"
+            disabled={pending || !canConfirmApprove}
+            onClick={handleConfirm}
+          >
             {pending
               ? isAdmit
                 ? "Admitting…"

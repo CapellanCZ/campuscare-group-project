@@ -11,6 +11,10 @@ import {
   resolveProviderTypeFromBookingBody,
   type ConsultationProviderType,
 } from "@/lib/health/consultation-workflow"
+import {
+  assertNoDoubleBooking,
+} from "@/lib/health/appointment-double-booking"
+import { normalizeConsultationReason } from "@/lib/health/consultation-display"
 import { nextReservedQueueNumber } from "@/services/consultation-capacity"
 import { manilaDateTimeToIso } from "@/services/appointment-requests"
 
@@ -79,7 +83,7 @@ export async function submitAppointmentRequestWithCapacity(
   }
   const patientName = input.patientName.trim()
   if (!patientName) throw new Error("patientName is required.")
-  const reason = input.reason.trim()
+  const reason = normalizeConsultationReason(input.reason)
   if (!reason) throw new Error("reason is required.")
 
   const preferredTimeRaw = (input.preferredTime?.trim() || "08:00").trim()
@@ -141,6 +145,15 @@ export async function submitAppointmentRequestWithCapacity(
       patientId = created.id as string
     }
   }
+
+  // One open booking per patient + specialty (blocks mobile double-submit races
+  // when patient_id / student_id can be resolved).
+  await assertNoDoubleBooking(client, {
+    clinicId,
+    providerType,
+    patientId,
+    studentId: input.studentId?.trim() || null,
+  })
 
   if (used >= max) {
     const { data: appt, error } = await client

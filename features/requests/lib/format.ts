@@ -10,6 +10,8 @@ export function consultationRequestStatusLabel(status: string): string {
       return "Rescheduled"
     case "waitlisted":
       return "Waitlisted"
+    case "in_progress":
+      return "In Progress"
     default:
       return status
         .split("_")
@@ -31,7 +33,18 @@ export function formatRequestDateTime(value: string | null | undefined): string 
 
 export function formatRequestDate(value: string | null | undefined): string {
   if (!value) return "—"
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  // Calendar dates (YYYY-MM-DD) — format as readable text, not raw digits.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split("-").map(Number)
+    // Noon avoids timezone edge cases flipping the calendar day.
+    const date = new Date(year, month - 1, day, 12, 0, 0)
+    if (Number.isNaN(date.getTime())) return value
+    return new Intl.DateTimeFormat("en-PH", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }).format(date)
+  }
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return new Intl.DateTimeFormat("en-PH", {

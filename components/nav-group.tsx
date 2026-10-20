@@ -19,6 +19,10 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import type { SidebarNavGroup, SidebarNavItem } from "@/components/app-shared"
+import {
+  ConsultationRequestNavBadge,
+  isConsultationRequestsNavHref,
+} from "@/components/dashboard/consultation-request-nav-badge"
 import { useOptionalNavPending } from "@/components/dashboard/nav-pending"
 import { warmStaffRouteData } from "@/components/nav-warm"
 import { useStaffAccess } from "@/components/staff-access-provider"
@@ -88,6 +92,9 @@ export function NavGroup({ label, items }: SidebarNavGroup) {
               >
                 {item.icon}
                 <span>{item.title}</span>
+                {item.path && isConsultationRequestsNavHref(item.path) ? (
+                  <ConsultationRequestNavBadge />
+                ) : null}
               </SidebarMenuButton>
             </SidebarMenuItem>
           )

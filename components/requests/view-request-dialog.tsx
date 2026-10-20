@@ -14,7 +14,10 @@ import {
   formatRequestDateTime,
   formatRequestTime12h,
 } from "@/features/requests/lib/format"
-import { displayConsultationLabel } from "@/lib/health/consultation-display"
+import {
+  displayConsultationLabel,
+  normalizeConsultationReason,
+} from "@/lib/health/consultation-display"
 import {
   appointmentRequestStatusDot,
   appointmentRequestStatusTone,
@@ -131,17 +134,15 @@ export function ViewRequestDialog({
             />
             {request.recommendComeEarly ? (
               <DetailRow
-                label="Recommendation"
-                value="Come early and keep the scheduled date (queue #1–5)."
+                label="Queue tip"
+                value="Auto tip for early slots (queue #1–5): suggest the student arrive early and keep this date."
               />
             ) : null}
-            {request.reason?.trim() &&
-            request.reason.trim() !== serviceLabel &&
-            !request.reason
-              .trim()
-              .toLowerCase()
-              .startsWith("consultation request:") ? (
-              <DetailRow label="Reason" value={request.reason} />
+            {normalizeConsultationReason(request.reason) ? (
+              <DetailRow
+                label="Reason"
+                value={normalizeConsultationReason(request.reason)}
+              />
             ) : null}
             <DetailRow
               label="Submitted"

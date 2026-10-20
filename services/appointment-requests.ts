@@ -6,6 +6,7 @@ import { getStaffAccess } from "@/lib/auth/access"
 import { CAMPUS_CLINIC_ID } from "@/lib/auth/campus-clinic"
 import { can } from "@/lib/auth/permissions"
 import type { ClinicDesignation } from "@/lib/auth/types"
+import { normalizeConsultationReason } from "@/lib/health/consultation-display"
 import {
   consultationServiceLabel,
   recommendComeEarly,
@@ -13,6 +14,10 @@ import {
 } from "@/lib/health/consultation-workflow"
 import { manilaPartsFromIso as manilaParts } from "@/lib/health/clinic-datetime"
 import { createClient } from "@/lib/supabase/server"
+import {
+  declineDuplicateOpenBookings,
+  DUPLICATE_DECLINE_REASON,
+} from "@/lib/health/appointment-double-booking"
 import {
   admitWaitlistedAppointment,
   approveAppointmentReservation,
@@ -187,6 +192,10 @@ function mapRow(row: AppointmentRow): AppointmentRequest {
       ? (patient.employee_id ?? patient.student_id)
       : (patient?.student_id ?? patient?.employee_id ?? null)
   const { date, time } = manilaParts(row.starts_at)
+  // Prefer the patient's submitted chief complaint over the specialty default
+  // ("General consultation" / "Dental consultation") written at booking time.
+  const reason = normalizeConsultationReason(row.reason)
+  const specialtyDefault = consultationServiceLabel(providerType)
 
   return {
     id: row.id,
@@ -199,12 +208,12 @@ function mapRow(row: AppointmentRow): AppointmentRequest {
     email: patient?.email ?? null,
     phone: patient?.phone ?? null,
     providerType,
-    service: consultationServiceLabel(providerType),
+    service: reason || specialtyDefault,
     preferredDate: date,
     preferredTime: time,
     startsAt: row.starts_at,
     endsAt: row.ends_at,
-    reason: row.reason?.trim() || "",
+    reason,
     status: row.status,
     location: row.location,
     cancellationReason: row.cancellation_reason,
@@ -434,6 +443,18 @@ export async function approveAppointmentRequestRecord(
     .eq("id", input.id)
 
   if (error) mapError(error)
+
+  // Web: auto-decline sibling open requests for the same patient + specialty.
+  if (existing.patientId) {
+    await declineDuplicateOpenBookings(supabase, {
+      clinicId: existing.clinicId || CAMPUS_CLINIC_ID,
+      providerType: resolveConsultationProviderType(existing.providerType),
+      patientId: existing.patientId,
+      keepAppointmentId: existing.id,
+      reason: DUPLICATE_DECLINE_REASON,
+    })
+  }
+
   return getAppointmentRequestById(input.id, supabase)
 }
 
@@ -549,7 +570,18 @@ export async function admitAppointmentRequestRecord(
     )
   }
 
-  return getAppointmentRequestById(input.id, supabase)
+  const existing = await getAppointmentRequestById(input.id, supabase)
+  if (existing.patientId) {
+    await declineDuplicateOpenBookings(supabase, {
+      clinicId: existing.clinicId || CAMPUS_CLINIC_ID,
+      providerType: resolveConsultationProviderType(existing.providerType),
+      patientId: existing.patientId,
+      keepAppointmentId: existing.id,
+      reason: DUPLICATE_DECLINE_REASON,
+    })
+  }
+
+  return existing
 }
 
 export async function listAssignableDoctorsForAppointments(

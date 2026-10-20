@@ -24,6 +24,10 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
+import {
+  ConsultationRequestNavBadge,
+  isConsultationRequestsNavHref,
+} from "@/components/dashboard/consultation-request-nav-badge"
 import { SidebarUtilityFooter } from "@/components/dashboard/sidebar-utility-footer"
 import { useNavPending } from "@/components/dashboard/nav-pending"
 import {
@@ -85,6 +89,9 @@ function NavLeaf({
       >
         {item.icon ? <item.icon aria-hidden /> : null}
         <span>{item.title}</span>
+        {isConsultationRequestsNavHref(item.href) ? (
+          <ConsultationRequestNavBadge />
+        ) : null}
       </SidebarMenuButton>
     </SidebarMenuItem>
   )

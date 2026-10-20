@@ -76,6 +76,8 @@ export function DemoStatGrid({
               label={stat.label}
               value={stat.value}
               description={stat.description}
+              icon={stat.icon}
+              iconPlacement={stat.icon ? "start" : "end"}
             />
           </PanelCell>
         ))}

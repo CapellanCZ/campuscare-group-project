@@ -1,3 +1,5 @@
+import type { ReactNode } from "react"
+
 /** Shared UI typing for dashboard stat cards (live metrics, not fixtures). */
 
 export type DemoStat = {
@@ -5,4 +7,5 @@ export type DemoStat = {
   label: string
   value: string
   description?: string
+  icon?: ReactNode
 }

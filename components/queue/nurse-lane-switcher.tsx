@@ -1,5 +1,6 @@
 "use client"
 
+import { AnimatedCount } from "@/components/shared/animated-count"
 import type { NurseQueueLane } from "@/lib/health/nurse-queue"
 import { cn } from "@/lib/utils"
 
@@ -72,14 +73,14 @@ export function NurseLaneSwitcher({
                 />
               ) : null}
             </div>
-            <span
+            <AnimatedCount
+              value={count}
               className={cn(
-                "font-semibold text-2xl tabular-nums tracking-tight",
-                selected ? "text-foreground" : "text-muted-foreground"
+                "font-semibold text-2xl tracking-tight",
+                selected ? "text-foreground" : "text-muted-foreground",
+                count > 0 && selected && "text-primary"
               )}
-            >
-              {count}
-            </span>
+            />
             <span className="truncate text-xs text-muted-foreground">
               {lane.hint}
             </span>

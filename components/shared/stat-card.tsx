@@ -22,6 +22,8 @@ type StatCardProps = {
   icon?: React.ReactNode
   /** Soft icon/accent tint (e.g. patient-type color). Card body stays neutral. */
   accentColor?: string
+  /** `end` (default) sits top-right; `start` sits left of the label. */
+  iconPlacement?: "start" | "end"
   /** Efferd flush cell — no radius/ring when nested in PanelFrame */
   flush?: boolean
   /** Tighter padding / type for dense mobile KPI grids */
@@ -43,6 +45,7 @@ export function StatCard({
   className,
   icon,
   accentColor,
+  iconPlacement = "end",
   flush = false,
   compact = false,
   href,
@@ -58,6 +61,29 @@ export function StatCard({
 
   const interactive = Boolean(href || onClick) && !loading
   const ariaLabel = loading ? `${label}: loading` : `${label}: ${value}`
+  const iconNode = icon ? (
+    <div
+      className={cn(
+        "flex shrink-0 items-center justify-center rounded-lg [&_svg]:size-4",
+        compact ? "size-8 sm:size-9" : "size-9",
+        !accentColor &&
+          (iconPlacement === "start"
+            ? "bg-muted/80 text-muted-foreground"
+            : "bg-primary/10 text-primary")
+      )}
+      style={
+        accentColor
+          ? {
+              color: accentColor,
+              backgroundColor: `color-mix(in srgb, ${accentColor} 14%, transparent)`,
+            }
+          : undefined
+      }
+      aria-hidden
+    >
+      {icon}
+    </div>
+  ) : null
 
   return (
     <Card
@@ -87,8 +113,16 @@ export function StatCard({
         />
       ) : null}
 
-      <CardHeader className="relative z-0 flex flex-row items-start justify-between gap-2 space-y-0 pb-1 sm:gap-3 sm:pb-2">
-        <div className="min-w-0 space-y-0.5 sm:space-y-1">
+      <CardHeader
+        className={cn(
+          "relative z-0 flex flex-row items-start space-y-0 pb-1 sm:pb-2",
+          iconPlacement === "start" && icon
+            ? "gap-2.5 sm:gap-3"
+            : "justify-between gap-2 sm:gap-3"
+        )}
+      >
+        {iconPlacement === "start" ? iconNode : null}
+        <div className="min-w-0 flex-1 space-y-0.5 sm:space-y-1">
           <CardTitle className="font-normal text-[10px] tracking-wide text-muted-foreground uppercase sm:text-xs">
             {label}
           </CardTitle>
@@ -110,26 +144,7 @@ export function StatCard({
             </p>
           )}
         </div>
-        {icon ? (
-          <div
-            className={cn(
-              "flex shrink-0 items-center justify-center rounded-lg [&_svg]:size-4",
-              compact ? "size-8 sm:size-9" : "size-9",
-              !accentColor && "bg-primary/10 text-primary"
-            )}
-            style={
-              accentColor
-                ? {
-                    color: accentColor,
-                    backgroundColor: `color-mix(in srgb, ${accentColor} 14%, transparent)`,
-                  }
-                : undefined
-            }
-            aria-hidden
-          >
-            {icon}
-          </div>
-        ) : null}
+        {iconPlacement === "end" ? iconNode : null}
       </CardHeader>
       <CardContent className="relative z-0 flex flex-wrap items-center gap-x-2 gap-y-1 pt-0">
         {loading ? (

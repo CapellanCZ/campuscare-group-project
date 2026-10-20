@@ -48,12 +48,16 @@ export function RescheduleRequestDialog({
   const [rescheduleDate, setRescheduleDate] = useState("")
   const [rescheduleTime, setRescheduleTime] = useState("")
   const [rescheduleReason, setRescheduleReason] = useState("")
+  const [baseline, setBaseline] = useState({ date: "", time: "" })
 
   useEffect(() => {
     if (!open || !request) return
-    setRescheduleDate(request.preferredDate ?? "")
-    setRescheduleTime((request.preferredTime ?? "").slice(0, 5))
+    const nextDate = request.preferredDate ?? ""
+    const nextTime = (request.preferredTime ?? "").slice(0, 5)
+    setRescheduleDate(nextDate)
+    setRescheduleTime(nextTime)
     setRescheduleReason("")
+    setBaseline({ date: nextDate, time: nextTime })
     setPending(false)
   }, [open, request])
 
@@ -67,6 +71,16 @@ export function RescheduleRequestDialog({
     request.service,
     request.reason
   )
+  const preferredTime = rescheduleTime.trim().slice(0, 5)
+  const slotChanged =
+    rescheduleDate.trim() !== baseline.date ||
+    preferredTime !== baseline.time
+  const hasReason = Boolean(rescheduleReason.trim())
+  const canSave =
+    slotChanged &&
+    hasReason &&
+    Boolean(rescheduleDate.trim()) &&
+    /^\d{2}:\d{2}$/.test(preferredTime)
 
   function handleSave() {
     const trimmed = rescheduleReason.trim()
@@ -200,12 +214,7 @@ export function RescheduleRequestDialog({
           </Button>
           <Button
             type="button"
-            disabled={
-              pending ||
-              !rescheduleDate ||
-              !rescheduleTime ||
-              !rescheduleReason.trim()
-            }
+            disabled={pending || !canSave}
             onClick={handleSave}
           >
             {pending ? "Saving…" : "Save reschedule"}

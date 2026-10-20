@@ -122,7 +122,11 @@ Deno.serve(async (req) => {
   }
 
   const patientName = String(body.patientName ?? "").trim()
-  const reason = String(body.reason ?? "").trim()
+  // Strip mobile/legacy wrappers like "Consultation request: headache"
+  const reason = String(body.reason ?? "")
+    .trim()
+    .replace(/^consultation\s+requests?\s*[:\-–—]\s*/i, "")
+    .trim()
   if (!patientName || !reason) {
     return json({ error: "patientName and reason are required" }, 400)
   }
@@ -189,13 +193,59 @@ Deno.serve(async (req) => {
   let patientId: string | null = body.patientId
     ? String(body.patientId)
     : null
-  if (!patientId && studentId) {
+  const patientIdsForCheck: string[] = []
+  if (patientId) patientIdsForCheck.push(patientId)
+  if (studentId) {
     const pRes = await fetch(
-      `${supabaseUrl}/rest/v1/patients?or=(student_id.eq.${encodeURIComponent(studentId)},employee_id.eq.${encodeURIComponent(studentId)})&select=id&limit=1`,
+      `${supabaseUrl}/rest/v1/patients?or=(student_id.eq.${encodeURIComponent(studentId)},employee_id.eq.${encodeURIComponent(studentId)})&select=id&limit=5`,
       { headers: authHeaders }
     )
     const pRows = (await pRes.json()) as { id: string }[]
-    patientId = pRows?.[0]?.id ?? null
+    if (!patientId) patientId = pRows?.[0]?.id ?? null
+    for (const row of pRows ?? []) {
+      if (row?.id && !patientIdsForCheck.includes(row.id)) {
+        patientIdsForCheck.push(row.id)
+      }
+    }
+  }
+
+  // One open booking per patient + specialty — block mobile double-book.
+  if (patientIdsForCheck.length > 0) {
+    const openStatuses = "pending,waitlisted,rescheduled,confirmed,in_progress"
+    const patientFilter = encodeURIComponent(`(${patientIdsForCheck.join(",")})`)
+    const openRes = await fetch(
+      `${supabaseUrl}/rest/v1/appointments?clinic_id=eq.${clinicId}&provider_type=eq.${providerType}&patient_id=in.${patientFilter}&status=in.(${openStatuses})&select=id,status&order=starts_at.asc&limit=1`,
+      { headers: authHeaders }
+    )
+    if (openRes.ok) {
+      const openRows = (await openRes.json()) as { id: string; status: string }[]
+      const existing = openRows?.[0]
+      if (existing) {
+        const messages: Record<string, string> = {
+          pending:
+            "You already have a pending consultation request for this specialty. Wait for nurse review or cancel it before booking again.",
+          waitlisted:
+            "You are already on the waitlist for this specialty. Wait for an opening or cancel that request before booking again.",
+          rescheduled:
+            "You already have a rescheduled consultation request for this specialty. Wait for nurse review before booking again.",
+          confirmed:
+            "You already have an active consultation for this specialty. Finish or cancel it before booking again.",
+          in_progress:
+            "You already have an active consultation for this specialty. Finish or cancel it before booking again.",
+        }
+        return json(
+          {
+            error:
+              messages[existing.status] ??
+              "You already have an open consultation request for this specialty.",
+            code: "double_booking",
+            existingAppointmentId: existing.id,
+            existingStatus: existing.status,
+          },
+          409
+        )
+      }
+    }
   }
 
   if (used >= max) {
