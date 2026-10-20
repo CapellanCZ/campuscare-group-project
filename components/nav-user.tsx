@@ -16,10 +16,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useOptionalDutyStatus } from "@/components/availability/duty-status-control"
 import { useConfirm } from "@/components/feedback/confirm-provider"
 import { useOptionalStaffAccess } from "@/components/staff-access-provider"
 import { signOut } from "@/app/auth/actions"
 import { staffBasePath } from "@/lib/auth/home-path"
+import { allowNextUnload } from "@/lib/auth/session-unload"
+import { dutyToasts } from "@/lib/feedback/toast-messages"
 import { useStaffThemeToggle } from "@/hooks/use-staff-theme-toggle"
 import { resetActiveThemeStorage } from "@/lib/theme/staff-theme-storage"
 import {
@@ -38,6 +41,7 @@ function initials(name: string) {
 
 export function NavUser() {
   const access = useOptionalStaffAccess()
+  const duty = useOptionalDutyStatus()
   const { isDark, pending, toggleTheme } = useStaffThemeToggle()
   const { confirmPreset } = useConfirm()
 
@@ -47,6 +51,8 @@ export function NavUser() {
   const base = access ? staffBasePath(access.primaryRole) : "/login"
   const settingsHref = `${base}/settings`
   const mark = initials(name)
+  const dutyActive =
+    duty != null && duty.dutyStatus.status !== "not_available"
 
   return (
     <DropdownMenu>
@@ -116,11 +122,21 @@ export function NavUser() {
             variant="destructive"
             disabled={pending}
             onClick={() => {
+              if (dutyActive) {
+                dutyToasts.logoutBlocked()
+                return
+              }
               void confirmPreset("logout", {
                 onConfirm: async () => {
-                  await signOut()
+                  const result = await signOut()
+                  if (!result.ok) {
+                    dutyToasts.logoutBlocked(result.error)
+                    throw new Error(result.error)
+                  }
+                  allowNextUnload()
                   resetActiveThemeStorage("light")
-                  window.location.assign("/login")
+                  // Use the logout route so cookies clear and /login history traps apply.
+                  window.location.replace("/auth/logout")
                 },
               })
             }}

@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 
-import { signOut } from "@/app/auth/actions"
 import { IdleSessionWarning } from "@/components/auth/idle-session-warning"
 import { SessionLockOverlay } from "@/components/auth/session-lock-overlay"
+import { allowNextUnload } from "@/lib/auth/session-unload"
 import { resetActiveThemeStorage } from "@/lib/theme/staff-theme-storage"
 import { cn } from "@/lib/utils"
 import {
@@ -43,10 +43,10 @@ export function IdleSessionProvider({
     if (loggingOutRef.current) return
     loggingOutRef.current = true
     clearSessionStartedAt(window.sessionStorage)
-    void signOut().finally(() => {
-      resetActiveThemeStorage("light")
-      window.location.assign("/login?reason=absolute")
-    })
+    allowNextUnload()
+    resetActiveThemeStorage("light")
+    // Route clears the session server-side; force flag path is the logout route.
+    window.location.replace("/auth/logout?reason=absolute")
   }, [])
 
   const continueSession = useCallback(() => {

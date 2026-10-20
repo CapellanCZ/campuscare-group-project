@@ -30,7 +30,7 @@ export default async function AuthPendingPage() {
       <form
         action={async () => {
           "use server"
-          await signOut()
+          await signOut({ force: true })
           redirect(siteRoutes.login)
         }}
       >

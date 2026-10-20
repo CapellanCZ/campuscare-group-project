@@ -182,7 +182,8 @@ export const CONFIRM_PRESETS: Record<ConfirmPresetKey, ConfirmPreset> = {
   endDuty: {
     variant: "default",
     title: "End Duty?",
-    description: "Are you sure you want to end your duty?",
+    description:
+      "Are you sure you want to end your duty? You cannot end duty while patients remain in the queue.",
     confirmLabel: "End Duty",
   },
   resumeWork: {
@@ -201,7 +202,8 @@ export const CONFIRM_PRESETS: Record<ConfirmPresetKey, ConfirmPreset> = {
   logout: {
     variant: "default",
     title: "Log Out?",
-    description: "Are you sure you want to log out of CampusCare?",
+    description:
+      "Are you sure you want to log out of CampusCare? End your duty first if it is still active.",
     confirmLabel: "Log Out",
   },
 }

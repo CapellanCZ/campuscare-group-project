@@ -53,8 +53,8 @@ export function DisplayHeader({
   async function confirmLogout() {
     setLoggingOut(true)
     try {
-      await signOut()
-      window.location.assign("/login")
+      await signOut({ force: true })
+      window.location.replace("/login")
     } catch {
       setLoggingOut(false)
       setLogoutOpen(false)

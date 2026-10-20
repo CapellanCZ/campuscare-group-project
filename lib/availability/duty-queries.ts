@@ -7,6 +7,7 @@ import type {
   StaffDutyStatus,
   StationRoleDutyKey,
 } from "@/lib/availability/types"
+import { manilaDayBounds } from "@/lib/health/time"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 
@@ -222,4 +223,68 @@ export async function hasActiveConsultationForUser(
   })
 
   return active.length > 0
+}
+
+const ACTIVE_QUEUE_STATUSES = ["waiting", "called", "ongoing"] as const
+
+/**
+ * True when today's station queue still has patients (waiting / called / ongoing).
+ * Uses the same day filter as the live queue board (service_date or legacy null).
+ * Prefer service-role so RLS cannot hide tickets from the End Duty gate.
+ */
+export async function hasRemainingQueuePatientsForUser(
+  userId: string,
+  client?: SupabaseClient,
+  roleHint?: string | null
+): Promise<boolean> {
+  let supabase: SupabaseClient
+  try {
+    supabase = createAdminClient()
+  } catch {
+    supabase = client ?? (await createClient())
+  }
+
+  let role = roleHint ?? undefined
+  if (!role) {
+    const { data: user } = await supabase
+      .from("users")
+      .select("primary_role")
+      .eq("id", userId)
+      .maybeSingle()
+    role = (user?.primary_role as string | undefined) ?? undefined
+  }
+
+  if (role !== "physician" && role !== "dentist" && role !== "nurse") {
+    return false
+  }
+
+  // Nurse owns clinic intake — block if any station still has live patients.
+  // Physician / dentist only need their own specialty queue clear.
+  const stationFilter: string | null =
+    role === "nurse" ? null : role
+  const { startIso, ymd } = manilaDayBounds()
+
+  const datedQuery = supabase
+    .from("health_queue_tickets")
+    .select("id")
+    .eq("service_date", ymd)
+    .in("status", [...ACTIVE_QUEUE_STATUSES])
+    .limit(1)
+  const legacyQuery = supabase
+    .from("health_queue_tickets")
+    .select("id")
+    .is("service_date", null)
+    .gte("created_at", startIso)
+    .in("status", [...ACTIVE_QUEUE_STATUSES])
+    .limit(1)
+
+  const [dated, legacy] = await Promise.all([
+    stationFilter ? datedQuery.eq("station", stationFilter) : datedQuery,
+    stationFilter ? legacyQuery.eq("station", stationFilter) : legacyQuery,
+  ])
+
+  if (dated.error) throw dated.error
+  if (legacy.error) throw legacy.error
+
+  return (dated.data?.length ?? 0) > 0 || (legacy.data?.length ?? 0) > 0
 }

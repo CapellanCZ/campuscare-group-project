@@ -33,6 +33,13 @@ export async function sendOtpEmail(email: string): Promise<AuthResult> {
         code: "account_not_activated",
       }
     }
+    if (authError.code === "unauthorized_web_access") {
+      return {
+        ok: false,
+        error: authError.message || "Unauthorized web access.",
+        code: "unauthorized_web_access",
+      }
+    }
     return {
       ok: false,
       error: mapAuthError(
@@ -89,9 +96,34 @@ export async function verifyOtpCode(
   }
 }
 
-export async function signOut(): Promise<AuthResult> {
+export async function signOut(options?: {
+  /** Skip duty-active guard (idle / absolute session timeout). */
+  force?: boolean
+}): Promise<AuthResult> {
   try {
     const supabase = await createClient()
+
+    if (!options?.force) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (user) {
+        const { data: duty } = await supabase
+          .from("staff_duty_status")
+          .select("status")
+          .eq("user_id", user.id)
+          .maybeSingle()
+        const status = duty?.status as string | undefined
+        if (status === "available" || status === "on_break") {
+          return {
+            ok: false,
+            error:
+              "Your duty is still active. End Duty before logging out.",
+          }
+        }
+      }
+    }
+
     const { error } = await supabase.auth.signOut()
 
     if (error && !isStaleRefreshTokenError(error)) {

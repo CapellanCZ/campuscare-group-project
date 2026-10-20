@@ -280,4 +280,11 @@ export const dutyToasts = {
       title: "Operation Failed",
       description: message ?? FAILED_DESCRIPTION,
     }),
+  logoutBlocked: (message?: string) =>
+    appToast.error({
+      title: "Duty Still Active",
+      description:
+        message ??
+        "End your duty before logging out.",
+    }),
 }

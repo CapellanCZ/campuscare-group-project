@@ -220,6 +220,61 @@ Deno.serve(async (req) => {
       return json(req, { ok: false, error: "Enter a valid email address." }, 400)
     }
 
+    // Abort before OTP generation when the account has no web privileges.
+    const profileRes = await fetch(
+      `${supabaseUrl}/rest/v1/users?select=is_active,primary_role&email=eq.${encodeURIComponent(email)}&limit=1`,
+      {
+        headers: {
+          apikey: apiKey,
+          Authorization: `Bearer ${apiKey}`,
+          Accept: "application/json",
+        },
+      }
+    )
+    if (!profileRes.ok) {
+      return json(req, { ok: false, error: "Could not verify account access." }, 500)
+    }
+    const profiles = (await profileRes.json()) as Array<{
+      is_active: boolean | null
+      primary_role: string | null
+    }>
+    const profile = profiles[0]
+    if (!profile) {
+      return json(
+        req,
+        {
+          ok: false,
+          error:
+            "This email is not registered with CampusCare. Ask a clinic admin to add your staff account first.",
+        },
+        400
+      )
+    }
+    if (profile.is_active === false) {
+      return json(
+        req,
+        {
+          ok: false,
+          error: "This account is inactive. Ask the clinic to restore access.",
+        },
+        403
+      )
+    }
+    const webRoles = new Set([
+      "admin",
+      "nurse",
+      "physician",
+      "dentist",
+      "queue_display",
+      "doctor",
+    ])
+    const role = String(profile.primary_role ?? "")
+      .toLowerCase()
+      .trim()
+    if (!webRoles.has(role) || role === "patient") {
+      return json(req, { ok: false, error: "Unauthorized web access." }, 403)
+    }
+
     const redirectTo =
       String(body.redirectTo ?? "").trim() ||
       `${Deno.env.get("SITE_URL")?.trim() || "http://localhost:3000"}/auth/callback`

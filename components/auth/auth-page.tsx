@@ -9,6 +9,7 @@ import { AuthActivateStep } from "@/components/auth/auth-activate-step"
 import { AuthEmailStep } from "@/components/auth/auth-email-step"
 import { AuthOtpStep } from "@/components/auth/auth-otp-step"
 import { LoginClinicPreview } from "@/components/auth/login-clinic-preview"
+import { LoginHistoryGuard } from "@/components/auth/login-history-guard"
 import { CampusCareLogoStatic } from "@/components/campuscare-logo-static"
 import { Button } from "@/components/ui/button"
 import {
@@ -155,7 +156,7 @@ export function AuthPage() {
       }
 
       markSessionStarted(window.sessionStorage, Date.now())
-      window.location.assign("/auth/continue")
+      window.location.replace("/auth/continue")
     } catch {
       setOtpError("Could not verify that code.")
       setIsVerifying(false)
@@ -172,6 +173,7 @@ export function AuthPage() {
 
   return (
     <main className="min-h-screen bg-white lg:grid lg:grid-cols-2">
+      <LoginHistoryGuard />
       <div className="relative flex min-h-screen flex-col px-6 py-8 sm:px-10 lg:px-14">
         {step !== "activate" ? (
           <Button
