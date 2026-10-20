@@ -128,7 +128,7 @@ export function RescheduleRequestDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md">
-        <DialogHeader className="gap-1.5 border-b border-border px-6 py-5 pr-12 text-left">
+        <DialogHeader className="shrink-0 gap-1.5 border-b border-border px-6 py-5 pr-12 text-left">
           <DialogTitle>Reschedule consultation request</DialogTitle>
           <DialogDescription>
             Propose a new preferred slot. A reason is required and stays on the
@@ -136,7 +136,7 @@ export function RescheduleRequestDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-5 px-6 py-5">
+        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-6 py-5">
           <div className="space-y-1.5 text-sm">
             <p>
               <span className="text-muted-foreground">Patient:</span>{" "}
@@ -202,7 +202,7 @@ export function RescheduleRequestDialog({
           </Field>
         </div>
 
-        <DialogFooter className="gap-2 border-t border-border bg-muted/10 px-6 py-4 sm:justify-end">
+        <DialogFooter className="shrink-0 gap-2 border-t border-border bg-muted/10 px-6 py-4 sm:justify-end">
           <Button
             type="button"
             variant="outline"

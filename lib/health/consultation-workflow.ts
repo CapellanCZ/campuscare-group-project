@@ -88,14 +88,21 @@ export function resolveProviderTypeFromBookingBody(
   )
   if (specialtyFirst) return specialtyFirst
 
+  const fromService = parseConsultationProviderType(
+    body.serviceType ?? body.consultationType ?? body.service
+  )
   const fromProvider = parseConsultationProviderType(
     body.providerType ?? body.provider_type
   )
-  if (fromProvider) return fromProvider
 
-  return parseConsultationProviderType(
-    body.serviceType ?? body.consultationType ?? body.service
-  )
+  // Mobile often defaults providerType to "physician" even when the chosen
+  // service is dental — prefer an explicit dental service over that default.
+  if (fromService === "dentist" && (!fromProvider || fromProvider === "physician")) {
+    return "dentist"
+  }
+
+  if (fromProvider) return fromProvider
+  return fromService
 }
 
 export function consultationProviderLabel(

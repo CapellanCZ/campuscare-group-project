@@ -234,6 +234,27 @@ const SELECT_WITH_JOINS = `
   doctor:users!doctor_id ( full_name, email )
 `
 
+/** Confirmed requests newest-first by approval time (`updated_at`). */
+export async function getRecentlyApprovedRequests(
+  limit = 8,
+  client?: SupabaseClient
+): Promise<AppointmentRequest[]> {
+  await requireStaffActor()
+  const supabase = await getClient(client)
+  const pageSize = Math.min(50, Math.max(1, limit))
+
+  const { data, error } = await supabase
+    .from("appointments")
+    .select(SELECT_WITH_JOINS)
+    .eq("status", "confirmed")
+    .order("updated_at", { ascending: false })
+    .range(0, pageSize - 1)
+
+  if (error) mapError(error)
+
+  return (data ?? []).map((row) => mapRow(row as unknown as AppointmentRow))
+}
+
 export async function getAppointmentRequests(
   params: AppointmentRequestListParams = {},
   client?: SupabaseClient

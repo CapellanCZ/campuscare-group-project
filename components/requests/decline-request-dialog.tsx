@@ -85,7 +85,7 @@ export function DeclineRequestDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md">
-        <DialogHeader className="gap-1.5 border-b border-border px-6 py-5 pr-12 text-left">
+        <DialogHeader className="shrink-0 gap-1.5 border-b border-border px-6 py-5 pr-12 text-left">
           <DialogTitle>Decline Consultation Request</DialogTitle>
           <DialogDescription>
             Tell the student why their consultation request was declined.
@@ -93,7 +93,7 @@ export function DeclineRequestDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4 px-6 py-5">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-6 py-5">
           {patientName ? (
             <div className="flex items-start gap-3 rounded-xl py-2">
               <span
@@ -139,7 +139,7 @@ export function DeclineRequestDialog({
           </div>
         </div>
 
-        <DialogFooter className="gap-2 border-t border-border bg-muted/10 px-6 py-4 sm:justify-end">
+        <DialogFooter className="shrink-0 gap-2 border-t border-border bg-muted/10 px-6 py-4 sm:justify-end">
           <Button
             type="button"
             variant="outline"

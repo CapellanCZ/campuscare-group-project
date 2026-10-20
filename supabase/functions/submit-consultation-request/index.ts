@@ -73,15 +73,24 @@ function resolveProviderTypeFromBody(
   body: Record<string, unknown>
 ): "physician" | "dentist" | null {
   // Prefer specialty* — mobile may leave providerType as physician default.
-  return (
-    parseProviderType(
-      body.specialty ?? body.specialtyType ?? body.selectedSpecialty
-    ) ??
-    parseProviderType(body.providerType ?? body.provider_type) ??
-    parseProviderType(
-      body.serviceType ?? body.consultationType ?? body.service
-    )
+  const fromSpecialty = parseProviderType(
+    body.specialty ?? body.specialtyType ?? body.selectedSpecialty
   )
+  if (fromSpecialty) return fromSpecialty
+
+  const fromService = parseProviderType(
+    body.serviceType ?? body.consultationType ?? body.service
+  )
+  const fromProvider = parseProviderType(
+    body.providerType ?? body.provider_type
+  )
+
+  // Prefer dental service over a soft physician default from mobile.
+  if (fromService === "dentist" && (!fromProvider || fromProvider === "physician")) {
+    return "dentist"
+  }
+
+  return fromProvider ?? fromService
 }
 
 Deno.serve(async (req) => {
