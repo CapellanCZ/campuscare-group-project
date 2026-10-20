@@ -28,9 +28,7 @@ import {
   approveConsultationRequestAction,
   listAssignableDoctorsAction,
 } from "@/features/requests/actions"
-import {
-  formatRequestDate,
-} from "@/features/requests/lib/format"
+import { formatRequestPreferred } from "@/features/requests/lib/format"
 import { displayConsultationLabel } from "@/lib/health/consultation-display"
 import { consultationProviderLabel } from "@/lib/health/consultation-workflow"
 import {
@@ -38,7 +36,15 @@ import {
   manilaDatetimeLocalToIso,
 } from "@/lib/health/clinic-datetime"
 import { selectItemsRecord } from "@/lib/ui/select-label"
+import { cn } from "@/lib/utils"
 import type { AppointmentRequest } from "@/types/appointmentRequest"
+import { IconUser } from "@tabler/icons-react"
+
+const fieldInputClassName = cn(
+  "h-10 rounded-xl border-input bg-input/30 shadow-none",
+  "[&::-webkit-calendar-picker-indicator]:opacity-60",
+  "[&::-webkit-calendar-picker-indicator]:hover:opacity-100"
+)
 
 export function ApproveRequestDialog({
   open,
@@ -60,7 +66,6 @@ export function ApproveRequestDialog({
   >([])
   const [doctorId, setDoctorId] = useState("")
   const [scheduleAt, setScheduleAt] = useState("")
-  const [room, setRoom] = useState("")
   const [approvalNotes, setApprovalNotes] = useState("")
 
   useEffect(() => {
@@ -75,7 +80,6 @@ export function ApproveRequestDialog({
       fromPreferred ||
         (request.startsAt ? isoToManilaDatetimeLocal(request.startsAt) : "")
     )
-    setRoom(request.location ?? "")
     setApprovalNotes("")
     void listAssignableDoctorsAction().then((result) => {
       if (result.ok) setDoctors(result.data)
@@ -124,6 +128,34 @@ export function ApproveRequestDialog({
   const selectedDoctorLabel =
     request.doctorName?.trim() ||
     (doctorId ? "Assigned doctor" : "Select doctor")
+  const serviceLabel = displayConsultationLabel(
+    request.service,
+    request.reason
+  )
+  const preferredLabel = formatRequestPreferred(
+    request.preferredDate,
+    request.preferredTime
+  )
+  const preferredWithQueue =
+    preferredLabel !== "—"
+      ? [
+          preferredLabel,
+          request.queueNumber != null ? `#${request.queueNumber}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : "—"
+
+  const summaryRows = [
+    {
+      label: "Specialty",
+      value: consultationProviderLabel(request.providerType),
+    },
+    ...(serviceLabel !== "—"
+      ? [{ label: "Service", value: serviceLabel }]
+      : []),
+    { label: "Preferred", value: preferredWithQueue },
+  ]
 
   function executeConfirm() {
     startTransition(async () => {
@@ -145,7 +177,7 @@ export function ApproveRequestDialog({
         doctorId: doctorId || null,
         doctorName: doctor?.fullName ?? request!.doctorName ?? null,
         scheduleAt: scheduleAt ? manilaDatetimeLocalToIso(scheduleAt) : null,
-        location: room,
+        location: request!.location ?? null,
         notes: approvalNotes,
       })
       if (!result.ok) {
@@ -176,115 +208,127 @@ export function ApproveRequestDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md">
+        <DialogHeader className="gap-1.5 border-b border-border px-6 py-5 pr-12 text-left">
           <DialogTitle>
-            {isAdmit ? "Admit from waitlist" : "Approve consultation request"}
+            {isAdmit ? "Admit From Waitlist" : "Approve Consultation Request"}
           </DialogTitle>
           <DialogDescription>
             {isAdmit
-              ? `Admit ${request.patientName} to the queue for their preferred date.`
-              : `Approve ${request.patientName}'s request and move them into Consultations (Waiting).`}
+              ? "Move this student into the queue for their preferred date."
+              : "Confirm the schedule, then move them into Consultations (Waiting)."}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 text-sm">
-          <p>
-            <span className="text-muted-foreground">Patient:</span>{" "}
-            {request.patientName}
-          </p>
-          <p>
-            <span className="text-muted-foreground">Specialty:</span>{" "}
-            {consultationProviderLabel(request.providerType)}
-          </p>
-          <p>
-            <span className="text-muted-foreground">Service:</span>{" "}
-            {displayConsultationLabel(request.service, request.reason)}
-          </p>
-          <p>
-            <span className="text-muted-foreground">Preferred:</span>{" "}
-            {formatRequestDate(request.preferredDate)}{" "}
-            {request.preferredTime || ""}
-            {request.queueNumber != null ? ` · #${request.queueNumber}` : ""}
-          </p>
+        <div className="flex flex-col gap-5 px-6 py-5">
+          <section className="overflow-hidden rounded-2xl border border-border/70 bg-muted/20">
+            <div className="flex items-start gap-3 px-4 py-3.5">
+              <span
+                className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-background text-muted-foreground ring-1 ring-border/60"
+                aria-hidden
+              >
+                <IconUser className="size-4" stroke={1.75} />
+              </span>
+              <div className="min-w-0 pt-0.5">
+                <p className="text-xs font-medium tracking-wide text-muted-foreground">
+                  Patient
+                </p>
+                <p className="mt-0.5 text-sm font-medium leading-snug text-foreground/75">
+                  {request.patientName}
+                </p>
+              </div>
+            </div>
+
+            <dl className="grid gap-2.5 border-t border-border/70 px-4 py-3.5 text-sm">
+              {summaryRows.map((row) => (
+                <div key={row.label} className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-3">
+                  <dt className="text-muted-foreground">{row.label}</dt>
+                  <dd className="min-w-0 font-medium text-foreground/80">
+                    {row.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+
+          {isAdmit ? (
+            <p className="rounded-xl bg-muted/40 px-3.5 py-3 text-sm text-muted-foreground">
+              Creates a queue reservation for this patient&apos;s preferred
+              date (may exceed daily capacity).
+            </p>
+          ) : (
+            <div className="space-y-4">
+              <Field className="gap-2">
+                <FieldLabel>Assign doctor</FieldLabel>
+                <Select
+                  value={doctorId || "__none__"}
+                  items={doctorSelectItems}
+                  onValueChange={(value) =>
+                    setDoctorId(value === "__none__" ? "" : (value ?? ""))
+                  }
+                  disabled={pending}
+                >
+                  <SelectTrigger className="h-10 w-full rounded-xl border-input bg-input/30 shadow-none">
+                    <SelectValue placeholder="Select doctor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Unassigned</SelectItem>
+                    {selectedDoctorMissing ? (
+                      <SelectItem value={doctorId}>
+                        {selectedDoctorLabel}
+                      </SelectItem>
+                    ) : null}
+                    {doctorOptions.map((doctor) => (
+                      <SelectItem key={doctor.id} value={doctor.id}>
+                        {doctor.fullName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field className="gap-2">
+                <FieldLabel>Schedule</FieldLabel>
+                <Input
+                  type="datetime-local"
+                  value={scheduleAt}
+                  onChange={(event) => setScheduleAt(event.target.value)}
+                  disabled={pending}
+                  className={fieldInputClassName}
+                />
+              </Field>
+              <Field className="gap-2">
+                <FieldLabel>Notes</FieldLabel>
+                <Textarea
+                  value={approvalNotes}
+                  onChange={(event) => setApprovalNotes(event.target.value)}
+                  placeholder="Optional note for the care team"
+                  rows={3}
+                  disabled={pending}
+                  className="min-h-24 resize-none shadow-none"
+                />
+              </Field>
+            </div>
+          )}
         </div>
 
-        {isAdmit ? (
-          <p className="text-sm text-muted-foreground">
-            Creates a queue reservation for this patient&apos;s preferred date
-            (may exceed daily capacity).
-          </p>
-        ) : (
-          <div className="space-y-3">
-            <Field>
-              <FieldLabel>Assign doctor</FieldLabel>
-              <Select
-                value={doctorId || "__none__"}
-                items={doctorSelectItems}
-                onValueChange={(value) =>
-                  setDoctorId(value === "__none__" ? "" : (value ?? ""))
-                }
-                disabled={pending}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select doctor" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Unassigned</SelectItem>
-                  {selectedDoctorMissing ? (
-                    <SelectItem value={doctorId}>
-                      {selectedDoctorLabel}
-                    </SelectItem>
-                  ) : null}
-                  {doctorOptions.map((doctor) => (
-                    <SelectItem key={doctor.id} value={doctor.id}>
-                      {doctor.fullName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel>Schedule</FieldLabel>
-              <Input
-                type="datetime-local"
-                value={scheduleAt}
-                onChange={(event) => setScheduleAt(event.target.value)}
-                disabled={pending}
-              />
-            </Field>
-            <Field>
-              <FieldLabel>Consultation room</FieldLabel>
-              <Input
-                value={room}
-                onChange={(event) => setRoom(event.target.value)}
-                placeholder="Room A"
-                disabled={pending}
-              />
-            </Field>
-            <Field>
-              <FieldLabel>Notes</FieldLabel>
-              <Textarea
-                value={approvalNotes}
-                onChange={(event) => setApprovalNotes(event.target.value)}
-                rows={3}
-                disabled={pending}
-              />
-            </Field>
-          </div>
-        )}
-
-        <DialogFooter className="gap-2 sm:gap-2">
+        <DialogFooter className="gap-2 border-t border-border bg-muted/10 px-6 py-4 sm:justify-end">
           <Button
             type="button"
             variant="outline"
             disabled={pending}
+            className="border-border/70"
             onClick={() => onOpenChange(false)}
           >
             Cancel
           </Button>
           <Button type="button" disabled={pending} onClick={handleConfirm}>
-            {isAdmit ? "Admit to queue" : "Confirm approve"}
+            {pending
+              ? isAdmit
+                ? "Admitting…"
+                : "Approving…"
+              : isAdmit
+                ? "Admit to queue"
+                : "Confirm approve"}
           </Button>
         </DialogFooter>
       </DialogContent>
