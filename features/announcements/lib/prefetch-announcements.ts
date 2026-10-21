@@ -1,30 +1,16 @@
 "use client"
 
-import {
-  fetchAnnouncementStatsAction,
-  searchAnnouncementsAction,
-} from "@/features/announcements/actions"
+import { loadAnnouncementsPageAction } from "@/features/announcements/actions"
+import type { AnnouncementsPageBundle } from "@/features/announcements/lib/announcements-page-types"
 import type { ClinicDesignation } from "@/lib/auth/types"
-import { canMutate } from "@/lib/auth/permissions"
 import {
   announcementsCacheKey,
   staffCacheGet,
   staffCacheLoad,
   staffCacheSet,
 } from "@/lib/ui/staff-data-cache"
-import type {
-  AnnouncementListResult,
-  AnnouncementStats,
-} from "@/types/announcement"
 
-export type AnnouncementsPageBundle = {
-  feed: AnnouncementListResult
-  list: AnnouncementListResult
-  stats: AnnouncementStats
-}
-
-const FEED_PAGE_SIZE = 6
-const PAGE_SIZE = 10
+export type { AnnouncementsPageBundle }
 
 export function getCachedAnnouncements(
   role: ClinicDesignation
@@ -46,42 +32,9 @@ export async function loadAnnouncementsBundle(
   return staffCacheLoad(
     announcementsCacheKey(role),
     async () => {
-      const canManage = canMutate(role, "announcements.add")
-      const [feedResult, listResult, statsResult] = await Promise.all([
-        searchAnnouncementsAction("", {
-          page: 1,
-          pageSize: FEED_PAGE_SIZE,
-          sortBy: "updated_at",
-          sortDirection: "desc",
-          feed: true,
-        }),
-        canManage
-          ? searchAnnouncementsAction("", {
-              page: 1,
-              pageSize: PAGE_SIZE,
-              sortBy: "updated_at",
-              sortDirection: "desc",
-            })
-          : Promise.resolve({
-              ok: true as const,
-              data: {
-                items: [],
-                total: 0,
-                page: 1,
-                pageSize: PAGE_SIZE,
-                totalPages: 1,
-              } satisfies AnnouncementListResult,
-            }),
-        fetchAnnouncementStatsAction(),
-      ])
-      if (!feedResult.ok) throw new Error(feedResult.error)
-      if (!listResult.ok) throw new Error(listResult.error)
-      if (!statsResult.ok) throw new Error(statsResult.error)
-      return {
-        feed: feedResult.data,
-        list: listResult.data,
-        stats: statsResult.data,
-      }
+      const result = await loadAnnouncementsPageAction()
+      if (!result.ok) throw new Error(result.error)
+      return result.data
     },
     options
   )

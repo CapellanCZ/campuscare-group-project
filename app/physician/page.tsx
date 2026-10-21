@@ -1,1 +1,1 @@
-export { StaffHomePage as default } from "@/lib/staff/pages/home"
+export { default } from "@/lib/staff/pages/home"

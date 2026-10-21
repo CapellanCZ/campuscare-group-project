@@ -25,7 +25,6 @@ import {
   type AnnouncementAttachment,
   type AnnouncementListParams,
   type AnnouncementListResult,
-  type AnnouncementSortField,
   type AnnouncementStats,
   type AnnouncementStatus,
   type CreateAnnouncementInput,
@@ -178,44 +177,6 @@ async function hydrateAnnouncements(
   )
 }
 
-function matchesQuery(announcement: Announcement, query: string): boolean {
-  const q = query.trim().toLowerCase()
-  if (!q) return true
-
-  const haystack = [
-    announcement.title,
-    announcement.body,
-    announcement.audience,
-    announcement.status,
-    announcement.author.fullName,
-  ]
-    .join(" ")
-    .toLowerCase()
-
-  return haystack.includes(q)
-}
-
-function sortValue(
-  announcement: Announcement,
-  sortBy: AnnouncementSortField
-): string | number {
-  switch (sortBy) {
-    case "published_at":
-      return announcement.publishedAt
-        ? Date.parse(announcement.publishedAt)
-        : 0
-    case "created_at":
-      return Date.parse(announcement.createdAt)
-    case "title":
-      return announcement.title.toLowerCase()
-    case "status":
-      return announcement.status
-    case "updated_at":
-    default:
-      return Date.parse(announcement.updatedAt)
-  }
-}
-
 async function getClient(client?: SupabaseClient) {
   return client ?? (await createClient())
 }
@@ -325,10 +286,13 @@ function validateStatusTimes(
 
 export async function getAnnouncements(
   params: AnnouncementListParams = {},
-  client?: SupabaseClient
+  client?: SupabaseClient,
+  options?: { skipPromote?: boolean }
 ): Promise<AnnouncementListResult> {
   const supabase = await getClient(client)
-  await promoteDueScheduledAnnouncements(supabase)
+  if (!options?.skipPromote) {
+    await promoteDueScheduledAnnouncements(supabase)
+  }
 
   const page = Math.max(1, params.page ?? 1)
   const pageSize = Math.min(50, Math.max(1, params.pageSize ?? DEFAULT_PAGE_SIZE))
@@ -341,7 +305,9 @@ export async function getAnnouncements(
   const access = await getStaffAccess()
   const canPublish = await viewerCanPublish()
 
-  let request = supabase.from("announcements").select(SELECT_WITH_AUTHOR)
+  let request = supabase
+    .from("announcements")
+    .select(SELECT_WITH_AUTHOR, { count: "exact" })
 
   if (feed) {
     // Latest Announcements strip: managers see newest across all statuses/audiences
@@ -363,40 +329,56 @@ export async function getAnnouncements(
     request = request.eq("status", status)
   }
 
-  const { data, error } = await request
+  if (query) {
+    const escaped = query.replace(/[%_,]/g, "")
+    if (escaped) {
+      const pattern = `%${escaped}%`
+      // Author name is joined; filter title/body/audience/status in SQL.
+      request = request.or(
+        [
+          `title.ilike.${pattern}`,
+          `body.ilike.${pattern}`,
+          `audience.ilike.${pattern}`,
+          `status.ilike.${pattern}`,
+        ].join(",")
+      )
+    }
+  }
+
+  const ascending = sortDirection === "asc"
+  const sortColumn =
+    sortBy === "published_at" ||
+    sortBy === "created_at" ||
+    sortBy === "title" ||
+    sortBy === "status" ||
+    sortBy === "updated_at"
+      ? sortBy
+      : "updated_at"
+
+  request = request.order(sortColumn, { ascending, nullsFirst: false })
+  if (sortColumn !== "updated_at") {
+    request = request.order("updated_at", { ascending: false })
+  }
+
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+  const { data, error, count } = await request.range(from, to)
 
   if (error) mapError(error)
 
-  let items = await hydrateAnnouncements(
+  // Hydrate attachments + signed URLs only for the page window (not the full table).
+  const items = await hydrateAnnouncements(
     (data ?? []) as AnnouncementRow[],
     supabase,
     true
   )
 
-  if (query) {
-    items = items.filter((item) => matchesQuery(item, query))
-  }
-
-  items.sort((a, b) => {
-    const left = sortValue(a, sortBy)
-    const right = sortValue(b, sortBy)
-    if (left === right) {
-      return Date.parse(b.updatedAt) - Date.parse(a.updatedAt)
-    }
-    if (typeof left === "number" && typeof right === "number") {
-      return sortDirection === "asc" ? left - right : right - left
-    }
-    const cmp = String(left).localeCompare(String(right))
-    return sortDirection === "asc" ? cmp : -cmp
-  })
-
-  const total = items.length
+  const total = count ?? items.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const safePage = Math.min(page, totalPages)
-  const start = (safePage - 1) * pageSize
 
   return {
-    items: items.slice(start, start + pageSize),
+    items,
     total,
     page: safePage,
     pageSize,
@@ -407,9 +389,10 @@ export async function getAnnouncements(
 export async function searchAnnouncements(
   query: string,
   params: Omit<AnnouncementListParams, "query"> = {},
-  client?: SupabaseClient
+  client?: SupabaseClient,
+  options?: { skipPromote?: boolean }
 ): Promise<AnnouncementListResult> {
-  return getAnnouncements({ ...params, query }, client)
+  return getAnnouncements({ ...params, query }, client, options)
 }
 
 export async function getAnnouncementById(
@@ -460,10 +443,13 @@ export async function getAnnouncementById(
 }
 
 export async function getAnnouncementStats(
-  client?: SupabaseClient
+  client?: SupabaseClient,
+  options?: { skipPromote?: boolean }
 ): Promise<AnnouncementStats> {
   const supabase = await getClient(client)
-  await promoteDueScheduledAnnouncements(supabase)
+  if (!options?.skipPromote) {
+    await promoteDueScheduledAnnouncements(supabase)
+  }
 
   let request = supabase.from("announcements").select("status, audience")
   const canPublish = await viewerCanPublish()
@@ -496,6 +482,67 @@ export async function getAnnouncementStats(
     drafts,
     total: (data ?? []).length,
   }
+}
+
+const EMPTY_ANNOUNCEMENT_LIST = (
+  pageSize: number
+): AnnouncementListResult => ({
+  items: [],
+  total: 0,
+  page: 1,
+  pageSize,
+  totalPages: 1,
+})
+
+/** Promote once, then load feed + manage list + stats in parallel. */
+export async function getAnnouncementsPageBundle(options?: {
+  canManage?: boolean
+  feedPageSize?: number
+  listPageSize?: number
+  client?: SupabaseClient
+}): Promise<{
+  feed: AnnouncementListResult
+  list: AnnouncementListResult
+  stats: AnnouncementStats
+}> {
+  const supabase = await getClient(options?.client)
+  await promoteDueScheduledAnnouncements(supabase)
+
+  const feedPageSize = options?.feedPageSize ?? 6
+  const listPageSize = options?.listPageSize ?? DEFAULT_PAGE_SIZE
+  const access = await getStaffAccess()
+  const canManage =
+    options?.canManage ??
+    Boolean(access && canMutate(access.designation, "announcements.add"))
+
+  const [feed, list, stats] = await Promise.all([
+    getAnnouncements(
+      {
+        page: 1,
+        pageSize: feedPageSize,
+        sortBy: "updated_at",
+        sortDirection: "desc",
+        feed: true,
+      },
+      supabase,
+      { skipPromote: true }
+    ),
+    canManage
+      ? getAnnouncements(
+          {
+            page: 1,
+            pageSize: listPageSize,
+            sortBy: "updated_at",
+            sortDirection: "desc",
+          },
+          supabase,
+          { skipPromote: true }
+        )
+      : Promise.resolve(EMPTY_ANNOUNCEMENT_LIST(listPageSize)),
+    getAnnouncementStats(supabase, { skipPromote: true }),
+  ])
+
+  return { feed, list, stats }
 }
 
 export async function createAnnouncement(

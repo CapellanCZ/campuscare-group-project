@@ -4,6 +4,7 @@ import type { ClinicDesignation } from "@/lib/auth/types"
 import { CAMPUS_CLINIC_ID } from "@/lib/auth/campus-clinic"
 import {
   consultationServiceLabel,
+  parseConsultationProviderType,
   resolveConsultationProviderType,
 } from "@/lib/health/consultation-workflow"
 import { canApproveConsultationRequest } from "@/lib/health/roles"
@@ -37,6 +38,49 @@ type AppointmentTicketSource = {
   reason: string | null
   patient_id: string | null
   starts_at: string
+  doctor_id?: string | null
+}
+
+/**
+ * Specialty for queue routing. Prefer the assigned doctor's primary_role when
+ * it is physician/dentist — mobile bookings historically omitted provider_type
+ * and inherited the DB default 'physician'.
+ */
+async function resolveAppointmentSpecialty(
+  supabase: SupabaseClient,
+  appt: { provider_type: string | null; doctor_id?: string | null }
+): Promise<SpecialtyStationId> {
+  let doctorRole: string | null = null
+  if (appt.doctor_id) {
+    const { data: doctor } = await supabase
+      .from("users")
+      .select("primary_role")
+      .eq("id", appt.doctor_id)
+      .maybeSingle()
+    doctorRole = (doctor?.primary_role as string | null) ?? null
+  }
+
+  const fromDoctor = parseConsultationProviderType(doctorRole)
+  if (fromDoctor) return fromDoctor
+
+  return resolveConsultationProviderType(appt.provider_type)
+}
+
+/** Keep appointments.provider_type aligned with the resolved specialty. */
+async function syncAppointmentProviderType(params: {
+  supabase: SupabaseClient
+  appointmentId: string
+  specialty: SpecialtyStationId
+  current: string | null
+}): Promise<void> {
+  if (params.current === params.specialty) return
+  await params.supabase
+    .from("appointments")
+    .update({
+      provider_type: params.specialty,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", params.appointmentId)
 }
 
 /** Reserve a daily queue ticket and link it to the appointment. */
@@ -50,9 +94,16 @@ async function createAndLinkQueueTicket(params: {
   | { ok: true; ticketId: string; ticketCode: string; queueNumber: number }
   | { ok: false; error: string }
 > {
-  const providerType: SpecialtyStationId = resolveConsultationProviderType(
-    params.appt.provider_type
+  const providerType = await resolveAppointmentSpecialty(
+    params.supabase,
+    params.appt
   )
+  await syncAppointmentProviderType({
+    supabase: params.supabase,
+    appointmentId: params.appt.id,
+    specialty: providerType,
+    current: params.appt.provider_type,
+  })
   const serviceDate = manilaServiceDate(params.appt.starts_at)
 
   const { nextNumber, used, max } = await nextReservedQueueNumber(
@@ -180,7 +231,7 @@ export async function approveAppointmentReservation(params: {
   const { data: appt } = await supabase
     .from("appointments")
     .select(
-      "id, status, queue_ticket_id, queue_number, provider_type, reason, patient_id, starts_at"
+      "id, status, queue_ticket_id, queue_number, provider_type, reason, patient_id, starts_at, doctor_id"
     )
     .eq("id", params.appointmentId)
     .maybeSingle()
@@ -193,9 +244,16 @@ export async function approveAppointmentReservation(params: {
     }
   }
 
-  const specialty: SpecialtyStationId = resolveConsultationProviderType(
-    appt.provider_type
-  )
+  const specialty = await resolveAppointmentSpecialty(supabase, {
+    provider_type: appt.provider_type as string | null,
+    doctor_id: appt.doctor_id as string | null,
+  })
+  await syncAppointmentProviderType({
+    supabase,
+    appointmentId: appt.id as string,
+    specialty,
+    current: appt.provider_type as string | null,
+  })
 
   let ticketId = appt.queue_ticket_id as string | null
   let ticketCode: string | undefined
@@ -203,17 +261,20 @@ export async function approveAppointmentReservation(params: {
     (appt.queue_number as number | null) ?? null
   let createdOnApprove = false
 
+  const ticketApptSource = {
+    id: appt.id as string,
+    provider_type: specialty,
+    reason: appt.reason as string | null,
+    patient_id: appt.patient_id as string | null,
+    starts_at: appt.starts_at as string,
+    doctor_id: appt.doctor_id as string | null,
+  }
+
   // Mobile may insert pending appointments without a ticket — reserve one now.
   if (!ticketId) {
     const created = await createAndLinkQueueTicket({
       supabase,
-      appt: {
-        id: appt.id as string,
-        provider_type: appt.provider_type as string | null,
-        reason: appt.reason as string | null,
-        patient_id: appt.patient_id as string | null,
-        starts_at: appt.starts_at as string,
-      },
+      appt: ticketApptSource,
       staffName: params.staffName,
       intakeNotes: systemIntakeNote({
         action: "Ticket created on nurse approve",
@@ -241,13 +302,7 @@ export async function approveAppointmentReservation(params: {
   if (!ticket) {
     const created = await createAndLinkQueueTicket({
       supabase,
-      appt: {
-        id: appt.id as string,
-        provider_type: appt.provider_type as string | null,
-        reason: appt.reason as string | null,
-        patient_id: appt.patient_id as string | null,
-        starts_at: appt.starts_at as string,
-      },
+      appt: ticketApptSource,
       staffName: params.staffName,
       intakeNotes: systemIntakeNote({
         action: "Ticket recreated on nurse approve",
@@ -269,11 +324,16 @@ export async function approveAppointmentReservation(params: {
     .maybeSingle()
 
   const now = new Date().toISOString()
+  const correctedTicketCode = formatClinicQueueCode(
+    specialty,
+    Number(resolvedTicket?.queue_number ?? queueNumber ?? 1)
+  )
   await supabase
     .from("health_queue_tickets")
     .update({
       assigned_staff_name: params.staffName,
       provider_type: specialty,
+      ticket_code: correctedTicketCode,
       consultation_type: consultationServiceLabel(specialty),
       intake_notes: systemIntakeNote({
         action: "Approved appointment",
@@ -311,7 +371,10 @@ export async function approveAppointmentReservation(params: {
   }
 
   const displayCode =
-    ticketCode ?? (resolvedTicket?.ticket_code as string | undefined) ?? "queue"
+    correctedTicketCode ||
+    ticketCode ||
+    (resolvedTicket?.ticket_code as string | undefined) ||
+    "queue"
 
   return {
     ok: true,
@@ -359,6 +422,7 @@ export async function admitWaitlistedAppointment(params: {
       reason: appt.reason as string | null,
       patient_id: appt.patient_id as string | null,
       starts_at: appt.starts_at as string,
+      doctor_id: appt.doctor_id as string | null,
     },
     staffName: params.staffName,
     intakeNotes: params.force
@@ -428,9 +492,16 @@ export async function rescheduleAppointmentReservation(params: {
     ticketId: appt.queue_ticket_id as string | null,
   })
 
-  const providerType: SpecialtyStationId = resolveConsultationProviderType(
-    appt.provider_type
-  )
+  const providerType = await resolveAppointmentSpecialty(supabase, {
+    provider_type: appt.provider_type as string | null,
+    doctor_id: appt.doctor_id as string | null,
+  })
+  await syncAppointmentProviderType({
+    supabase,
+    appointmentId: appt.id as string,
+    specialty: providerType,
+    current: appt.provider_type as string | null,
+  })
   const startsAt = manilaDateTimeToIso(preferredDate, preferredTime)
   const endsAt = new Date(
     new Date(startsAt).getTime() + 30 * 60 * 1000

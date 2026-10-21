@@ -88,7 +88,7 @@ export function QueueDisplay({
       }, DEBOUNCE_MS)
     }
 
-    const channel = subscribeDisplayChanges(client, scheduleRefresh)
+    const subscription = subscribeDisplayChanges(client, scheduleRefresh)
 
     // Tickets come from sanitized public_queue_display (no base-table realtime PHI).
     // Poll faster so call/serve feels live on the cast screen.
@@ -97,7 +97,7 @@ export function QueueDisplay({
     return () => {
       if (timer) clearTimeout(timer)
       window.clearInterval(poll)
-      void client.removeChannel(channel)
+      subscription.unsubscribe(client)
     }
   }, [router])
 

@@ -1,9 +1,7 @@
 "use client"
 
-import {
-  loadQueuePageAction,
-  type QueuePageBundle,
-} from "@/features/queue/actions"
+import { loadQueuePageAction } from "@/features/queue/actions"
+import type { QueuePageBundle } from "@/features/queue/lib/queue-page-types"
 import type { ClinicDesignation } from "@/lib/auth/types"
 import {
   queueCacheKey,

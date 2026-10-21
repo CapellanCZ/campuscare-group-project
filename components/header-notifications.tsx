@@ -18,8 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useOptionalStaffAccess } from "@/components/staff-access-provider"
 import {
-  fetchNotificationsAction,
-  fetchPreferencesAction,
+  loadHeaderInboxAction,
   markAllNotificationsReadAction,
   markNotificationReadAction,
 } from "@/features/settings/actions"
@@ -90,35 +89,41 @@ function HeaderNotificationsInbox() {
         const needPrefs =
           Boolean(options?.refreshPrefs) || getSessionNotifyPrefs() == null
 
-        const [notificationsResult, preferencesResult] = await Promise.all([
-          fetchNotificationsAction(),
-          needPrefs
-            ? fetchPreferencesAction()
-            : Promise.resolve({ ok: false as const, error: "cached" }),
-        ])
-
-        if (preferencesResult.ok) {
-          saveSessionNotifyPrefs({
-            notifyConsultationRequests:
-              preferencesResult.data.notifyConsultationRequests,
-            notifyQueue: preferencesResult.data.notifyQueue,
-            notifyAnnouncements: preferencesResult.data.notifyAnnouncements,
+        try {
+          const result = await loadHeaderInboxAction({
+            includePrefs: needPrefs,
           })
+
+          if (result.ok && result.data.preferences) {
+            saveSessionNotifyPrefs({
+              notifyConsultationRequests:
+                result.data.preferences.notifyConsultationRequests,
+              notifyQueue: result.data.preferences.notifyQueue,
+              notifyAnnouncements: result.data.preferences.notifyAnnouncements,
+            })
+          }
+
+          const preferences = getSessionNotifyPrefsOrDefault()
+
+          const live =
+            result.ok && result.data.notifications.length > 0
+              ? result.data.notifications
+              : buildFallbackNotifications(designation)
+
+          setUsingFallback(!(result.ok && result.data.notifications.length > 0))
+          const next = filterNotificationsByPrefs(live, preferences)
+          saveSessionNotifications(next)
+          setItems(next)
+        } catch {
+          const preferences = getSessionNotifyPrefsOrDefault()
+          const next = filterNotificationsByPrefs(
+            buildFallbackNotifications(designation),
+            preferences
+          )
+          setUsingFallback(true)
+          saveSessionNotifications(next)
+          setItems(next)
         }
-
-        const preferences = getSessionNotifyPrefsOrDefault()
-
-        const live =
-          notificationsResult.ok && notificationsResult.data.length > 0
-            ? notificationsResult.data
-            : buildFallbackNotifications(designation)
-
-        setUsingFallback(
-          !(notificationsResult.ok && notificationsResult.data.length > 0)
-        )
-        const next = filterNotificationsByPrefs(live, preferences)
-        saveSessionNotifications(next)
-        setItems(next)
       })
     },
     [designation]

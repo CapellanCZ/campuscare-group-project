@@ -2,30 +2,8 @@
 
 import { getStaffAccess } from "@/lib/auth/access"
 import { canViewModule } from "@/lib/auth/permissions"
-import {
-  computeQueueStats,
-  getQueueActivity,
-  getNurseRecentlyServed,
-  getRecentlyServed,
-  getStationBoards,
-  getTodayQueueTickets,
-} from "@/lib/health/queue-queries"
-import { stationForDesignation } from "@/lib/health/roles"
-import type {
-  ActivityItem,
-  QueueStats,
-  QueueTicketRow,
-  RecentlyServedItem,
-  StationBoard,
-} from "@/lib/health/types"
-
-export type QueuePageBundle = {
-  tickets: QueueTicketRow[]
-  stats: QueueStats
-  boards: StationBoard[]
-  recent: RecentlyServedItem[]
-  activity: ActivityItem[]
-}
+import { loadQueuePageData } from "@/features/queue/lib/load-queue-page.server"
+import type { QueuePageBundle } from "@/features/queue/lib/queue-page-types"
 
 export type QueueActionResult<T> =
   | { ok: true; data: T }
@@ -43,33 +21,7 @@ export async function loadQueuePageAction(): Promise<
       return { ok: false, error: "You do not have access to the queue." }
     }
 
-    const station = stationForDesignation(access.designation)
-    const allTickets = await getTodayQueueTickets()
-    const tickets =
-      access.designation === "physician" || access.designation === "dentist"
-        ? allTickets.filter((t) => t.station === station)
-        : allTickets
-    const isPhysician = access.designation === "physician"
-    const isNurse = access.designation === "nurse"
-
-    const [boards, recent, activity] = await Promise.all([
-      isPhysician ? Promise.resolve([]) : getStationBoards(allTickets),
-      isNurse
-        ? getNurseRecentlyServed(8, tickets)
-        : getRecentlyServed(8, tickets),
-      isPhysician ? Promise.resolve([]) : getQueueActivity(8, allTickets),
-    ])
-
-    return {
-      ok: true,
-      data: {
-        tickets,
-        stats: computeQueueStats(tickets),
-        boards,
-        recent,
-        activity,
-      },
-    }
+    return { ok: true, data: await loadQueuePageData(access) }
   } catch (error) {
     return {
       ok: false,

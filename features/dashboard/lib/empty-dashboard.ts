@@ -4,7 +4,7 @@ import type {
   DashboardKpis,
   QueueStats,
 } from "@/lib/health/types"
-import type { DashboardPageBundle } from "@/features/dashboard/actions"
+import type { DashboardPageBundle } from "@/features/dashboard/lib/dashboard-page-types"
 
 const emptyStats: QueueStats = {
   totalWaiting: 0,
