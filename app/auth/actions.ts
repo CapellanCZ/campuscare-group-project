@@ -33,13 +33,6 @@ export async function sendOtpEmail(email: string): Promise<AuthResult> {
         code: "account_not_activated",
       }
     }
-    if (authError.code === "unauthorized_web_access") {
-      return {
-        ok: false,
-        error: authError.message || "Unauthorized web access.",
-        code: "unauthorized_web_access",
-      }
-    }
     return {
       ok: false,
       error: mapAuthError(
