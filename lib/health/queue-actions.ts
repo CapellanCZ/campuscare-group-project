@@ -54,6 +54,7 @@ import {
 } from "@/lib/health/consultation-lifecycle"
 import { syncNurseVitalsToPatientRecord } from "@/lib/health/sync-nurse-vitals-to-record"
 import {
+  parseConsultationProviderType,
   resolveConsultationProviderType,
   type ConsultationProviderType,
 } from "@/lib/health/consultation-workflow"
@@ -764,16 +765,40 @@ export async function completeNurseIntakeAndAssign(params: {
       : null
 
   if (!toStation) {
-    if (ticket.provider_type === "physician" || ticket.provider_type === "dentist") {
-      toStation = ticket.provider_type
-    } else if (ticket.consultation_request_id) {
-      const { data: req } = await supabase
-        .from("consultation_requests")
-        .select("provider_type")
-        .eq("id", ticket.consultation_request_id)
+    // Prefer assigned doctor's role over ticket.provider_type — mobile bookings
+    // historically omitted provider_type and inherited DB default 'physician'.
+    if (ticket.appointment_id) {
+      const { data: appt } = await supabase
+        .from("appointments")
+        .select("provider_type, doctor:users!doctor_id(primary_role)")
+        .eq("id", ticket.appointment_id)
         .maybeSingle()
-      if (req?.provider_type === "physician" || req?.provider_type === "dentist") {
-        toStation = req.provider_type
+      const doctor = Array.isArray(appt?.doctor) ? appt?.doctor[0] : appt?.doctor
+      const doctorRole = (doctor as { primary_role?: string | null } | null)
+        ?.primary_role
+      toStation =
+        parseConsultationProviderType(doctorRole) ??
+        parseConsultationProviderType(appt?.provider_type)
+    }
+
+    if (!toStation) {
+      if (
+        ticket.provider_type === "physician" ||
+        ticket.provider_type === "dentist"
+      ) {
+        toStation = ticket.provider_type
+      } else if (ticket.consultation_request_id) {
+        const { data: req } = await supabase
+          .from("consultation_requests")
+          .select("provider_type")
+          .eq("id", ticket.consultation_request_id)
+          .maybeSingle()
+        if (
+          req?.provider_type === "physician" ||
+          req?.provider_type === "dentist"
+        ) {
+          toStation = req.provider_type
+        }
       }
     }
   }

@@ -53,11 +53,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type { DashboardPageBundle } from "@/features/dashboard/actions"
+import type { DashboardPageBundle } from "@/features/dashboard/lib/dashboard-page-types"
 import { emptyDashboardBundle } from "@/features/dashboard/lib/empty-dashboard"
 import {
   getCachedDashboard,
   loadDashboardBundle,
+  saveDashboardCache,
 } from "@/features/dashboard/lib/prefetch-dashboard"
 import {
   dashboardCacheKey,
@@ -159,6 +160,35 @@ export function RoleDashboard({
   // SSR / cache seed the UI; soft revalidate never blanks the dashboard.
   const [dataLoading, setDataLoading] = useState(false)
   const hydratedRef = useRef(false)
+
+  // Warm session cache from RSC seed so revisits / prefetch share the payload.
+  useEffect(() => {
+    if (hydrateFromCache) return
+    if (!initialKpis || !initialTickets || !initialStats || !initialSummary) {
+      return
+    }
+    saveDashboardCache(access.designation, {
+      kpis: initialKpis,
+      tickets: initialTickets,
+      boards: initialBoards ?? [],
+      activity: initialActivity ?? [],
+      recent: initialRecent ?? [],
+      stats: initialStats,
+      summary: initialSummary,
+      ops: initialOps ?? null,
+    })
+  }, [
+    access.designation,
+    hydrateFromCache,
+    initialKpis,
+    initialTickets,
+    initialBoards,
+    initialActivity,
+    initialRecent,
+    initialStats,
+    initialSummary,
+    initialOps,
+  ])
 
   useEffect(() => {
     if (!hydrateFromCache || hydratedRef.current) return

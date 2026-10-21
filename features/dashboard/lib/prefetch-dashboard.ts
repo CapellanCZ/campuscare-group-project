@@ -1,9 +1,7 @@
 "use client"
 
-import {
-  loadDashboardPageAction,
-  type DashboardPageBundle,
-} from "@/features/dashboard/actions"
+import { loadDashboardPageAction } from "@/features/dashboard/actions"
+import type { DashboardPageBundle } from "@/features/dashboard/lib/dashboard-page-types"
 import type { ClinicDesignation } from "@/lib/auth/types"
 import {
   dashboardCacheKey,

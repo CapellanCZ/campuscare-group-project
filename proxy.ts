@@ -1,6 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server"
 
-import { homePathForDesignation, isStaffAreaPath } from "@/lib/auth/home-path"
+import {
+  homePathForDesignation,
+  isStaffAreaPath,
+  isStaffRouteRole,
+} from "@/lib/auth/home-path"
 import { hasCampusAccess } from "@/lib/auth/campus-access"
 import {
   canUseWebApp,
@@ -10,8 +14,11 @@ import {
 } from "@/lib/auth/resolve-role"
 import {
   clearStaffAccessGateCookie,
+  decodeStaffAccessGate,
   setStaffAccessGateCookie,
+  STAFF_ACCESS_GATE_COOKIE,
 } from "@/lib/auth/staff-access-gate"
+import type { ClinicDesignation } from "@/lib/auth/types"
 import { updateSession } from "@/lib/supabase/middleware"
 
 /** Preserve session + gate cookies when issuing a redirect from proxy. */
@@ -27,6 +34,12 @@ function redirectWithCookies(request: NextRequest, pathname: string, from: NextR
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  // Server Actions POST to the current page URL. A middleware redirect returns
+  // HTML/302 instead of an action flight payload → client
+  // "An unexpected response was received from the server."
+  // Let actions run; they already return { ok: false } when unauthenticated.
+  const isServerAction = request.headers.has("next-action")
 
   const isPublicDisplay =
     pathname === "/queue-management/display" ||
@@ -62,25 +75,51 @@ export async function proxy(request: NextRequest) {
   // Unauthenticated: may use /login and /display-login; staff areas require auth.
   if (!user && (isStaffArea || isPending || isContinue)) {
     clearStaffAccessGateCookie(supabaseResponse)
+    if (isServerAction) return supabaseResponse
     return redirectWithCookies(request, "/login", supabaseResponse)
   }
 
   if (user) {
-    const { data: profile } = await supabase
-      .from("users")
-      .select("primary_role, is_active")
-      .eq("id", user.id)
-      .maybeSingle()
+    // Hot path: trust a fresh signed gate cookie (90s) to skip users + membership
+    // round-trips on every Server Action / navigation. Cookie is never sole auth —
+    // session user must still match, and TTL forces periodic re-check.
+    const cachedGate = await decodeStaffAccessGate(
+      request.cookies.get(STAFF_ACCESS_GATE_COOKIE)?.value
+    )
+    const gateHit =
+      cachedGate &&
+      cachedGate.u === user.id &&
+      (isStaffRouteRole(cachedGate.r) || cachedGate.r === "queue_display")
 
-    const gate = profile as ProfileRoleFields | null
-    const clinicRole = resolveClinicRole(gate)
+    let clinicRole: ClinicDesignation | null = gateHit
+      ? (cachedGate.r as ClinicDesignation)
+      : null
+    let allowed = gateHit ? cachedGate.m === 1 : false
+    let gate: ProfileRoleFields | null = null
+
+    if (!gateHit) {
+      const { data: profile } = await supabase
+        .from("users")
+        .select("primary_role, is_active")
+        .eq("id", user.id)
+        .maybeSingle()
+
+      gate = profile as ProfileRoleFields | null
+      clinicRole = resolveClinicRole(gate)
+    }
+
     const isQueueDisplay = clinicRole === "queue_display"
     const home = clinicRole
       ? homePathForDesignation(clinicRole)
       : "/auth/pending"
 
     // Display accounts may only use the public queue board.
-    if (isQueueDisplay && canUseWebApp(gate) && !isPublicDisplay) {
+    if (
+      isQueueDisplay &&
+      (gateHit || canUseWebApp(gate)) &&
+      !isPublicDisplay
+    ) {
+      if (isServerAction) return supabaseResponse
       return redirectWithCookies(
         request,
         "/queue-management/display",
@@ -89,29 +128,33 @@ export async function proxy(request: NextRequest) {
     }
 
     if (isStaffArea || isPending || isContinue) {
-      if (!canUseWebApp(gate)) {
+      if (!gateHit && !canUseWebApp(gate)) {
         clearStaffAccessGateCookie(supabaseResponse)
+        if (isServerAction) return supabaseResponse
         return redirectWithCookies(request, "/login", supabaseResponse)
       }
 
-      const membershipOk = await hasCampusAccess(
-        supabase,
-        user.id,
-        gate?.primary_role
-      )
+      if (!gateHit) {
+        const membershipOk = await hasCampusAccess(
+          supabase,
+          user.id,
+          gate?.primary_role
+        )
 
-      const allowed =
-        hasApprovedClinicAccess(gate) && (isQueueDisplay || membershipOk)
+        allowed =
+          hasApprovedClinicAccess(gate) && (isQueueDisplay || membershipOk)
 
-      if (clinicRole) {
-        await setStaffAccessGateCookie(supabaseResponse, {
-          u: user.id,
-          r: clinicRole,
-          m: allowed ? 1 : 0,
-        })
+        if (clinicRole) {
+          await setStaffAccessGateCookie(supabaseResponse, {
+            u: user.id,
+            r: clinicRole,
+            m: allowed ? 1 : 0,
+          })
+        }
       }
 
       if (isContinue) {
+        if (isServerAction) return supabaseResponse
         return redirectWithCookies(
           request,
           isQueueDisplay || allowed ? home : "/auth/pending",
@@ -120,6 +163,7 @@ export async function proxy(request: NextRequest) {
       }
 
       if (isStaffArea && !allowed && !isQueueDisplay) {
+        if (isServerAction) return supabaseResponse
         return redirectWithCookies(request, "/auth/pending", supabaseResponse)
       }
 
@@ -133,11 +177,13 @@ export async function proxy(request: NextRequest) {
           pathname.startsWith("/queue-management/")
 
         if (!onOwnTree && !onQueueManagement) {
+          if (isServerAction) return supabaseResponse
           return redirectWithCookies(request, home, supabaseResponse)
         }
       }
 
       if (isPending && (allowed || isQueueDisplay)) {
+        if (isServerAction) return supabaseResponse
         return redirectWithCookies(request, home, supabaseResponse)
       }
     }

@@ -101,6 +101,32 @@ export async function fetchNotificationsAction(): Promise<
   return { ok: true, data: items }
 }
 
+/** One round-trip for header inbox (notifications + optional prefs). */
+export async function loadHeaderInboxAction(options?: {
+  includePrefs?: boolean
+}): Promise<
+  ActionResult<{
+    notifications: StaffNotification[]
+    preferences: UserPreferences | null
+  }>
+> {
+  const access = await requireSignedIn()
+  if (!access) return { ok: false, error: "Not signed in." }
+
+  const includePrefs = Boolean(options?.includePrefs)
+  const [notifications, preferences] = await Promise.all([
+    listStaffNotifications(access.userId, access.designation),
+    includePrefs
+      ? getUserPreferences(access.userId)
+      : Promise.resolve(null),
+  ])
+
+  return {
+    ok: true,
+    data: { notifications, preferences },
+  }
+}
+
 export async function markNotificationReadAction(
   id: string
 ): Promise<ActionResult<true>> {

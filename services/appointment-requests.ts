@@ -9,6 +9,7 @@ import type { ClinicDesignation } from "@/lib/auth/types"
 import { normalizeConsultationReason } from "@/lib/health/consultation-display"
 import {
   consultationServiceLabel,
+  parseConsultationProviderType,
   recommendComeEarly,
   resolveConsultationProviderType,
 } from "@/lib/health/consultation-workflow"
@@ -330,49 +331,36 @@ export async function getAppointmentRequestStats(
   await requireStaffActor()
   const supabase = await getClient(client)
 
-  const countFor = async (status?: AppointmentRequestStatus) => {
-    let q = supabase
-      .from("appointments")
-      .select("id", { count: "exact", head: true })
-    if (status) q = q.eq("status", status)
-    const { count, error } = await q
-    if (error) mapError(error)
-    return count ?? 0
+  // One status scan beats nine head COUNT round-trips for clinic-sized tables.
+  const { data, error } = await supabase.from("appointments").select("status")
+  if (error) mapError(error)
+
+  const stats: AppointmentRequestStats = {
+    pending: 0,
+    confirmed: 0,
+    waitlisted: 0,
+    rescheduled: 0,
+    in_progress: 0,
+    completed: 0,
+    cancelled: 0,
+    no_show: 0,
+    total: 0,
   }
 
-  const [
-    pending,
-    confirmed,
-    waitlisted,
-    rescheduled,
-    in_progress,
-    completed,
-    cancelled,
-    no_show,
-    total,
-  ] = await Promise.all([
-    countFor("pending"),
-    countFor("confirmed"),
-    countFor("waitlisted"),
-    countFor("rescheduled"),
-    countFor("in_progress"),
-    countFor("completed"),
-    countFor("cancelled"),
-    countFor("no_show"),
-    countFor(),
-  ])
-
-  return {
-    pending,
-    confirmed,
-    waitlisted,
-    rescheduled,
-    in_progress,
-    completed,
-    cancelled,
-    no_show,
-    total,
+  for (const row of data ?? []) {
+    stats.total += 1
+    const status = String(row.status)
+    if (status === "pending") stats.pending += 1
+    else if (status === "confirmed") stats.confirmed += 1
+    else if (status === "waitlisted") stats.waitlisted += 1
+    else if (status === "rescheduled") stats.rescheduled += 1
+    else if (status === "in_progress") stats.in_progress += 1
+    else if (status === "completed") stats.completed += 1
+    else if (status === "cancelled") stats.cancelled += 1
+    else if (status === "no_show") stats.no_show += 1
   }
+
+  return stats
 }
 
 export async function getAppointmentRequestById(
@@ -430,7 +418,18 @@ export async function approveAppointmentRequestRecord(
     location: input.location?.trim() || existing.location,
     updated_at: new Date().toISOString(),
   }
-  if (input.doctorId) patch.doctor_id = input.doctorId
+  if (input.doctorId) {
+    patch.doctor_id = input.doctorId
+    const { data: assignedDoctor } = await supabase
+      .from("users")
+      .select("primary_role")
+      .eq("id", input.doctorId)
+      .maybeSingle()
+    const fromDoctor = parseConsultationProviderType(
+      assignedDoctor?.primary_role
+    )
+    if (fromDoctor) patch.provider_type = fromDoctor
+  }
   if (input.scheduleAt) {
     const start = new Date(input.scheduleAt)
     patch.starts_at = start.toISOString()
@@ -444,11 +443,17 @@ export async function approveAppointmentRequestRecord(
 
   if (error) mapError(error)
 
+  const specialtyForDuplicates = resolveConsultationProviderType(
+    typeof patch.provider_type === "string" ? patch.provider_type : null,
+    queueResult.suggestedSpecialty,
+    existing.providerType
+  )
+
   // Web: auto-decline sibling open requests for the same patient + specialty.
   if (existing.patientId) {
     await declineDuplicateOpenBookings(supabase, {
       clinicId: existing.clinicId || CAMPUS_CLINIC_ID,
-      providerType: resolveConsultationProviderType(existing.providerType),
+      providerType: specialtyForDuplicates,
       patientId: existing.patientId,
       keepAppointmentId: existing.id,
       reason: DUPLICATE_DECLINE_REASON,

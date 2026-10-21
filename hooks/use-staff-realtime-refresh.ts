@@ -46,7 +46,7 @@ export function useStaffRealtimeRefresh(
       }, debounceMs)
     }
 
-    const channel = subscribeTables(
+    const subscription = subscribeTables(
       client,
       channelName,
       tablesKey.split(","),
@@ -56,7 +56,7 @@ export function useStaffRealtimeRefresh(
 
     return () => {
       if (timer) clearTimeout(timer)
-      void client.removeChannel(channel)
+      subscription.unsubscribe(client)
     }
   }, [channelName, tablesKey, filtersKey, debounceMs])
 }

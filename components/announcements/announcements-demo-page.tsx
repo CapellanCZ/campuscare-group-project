@@ -44,7 +44,15 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { selectItemsRecord } from "@/lib/ui/select-label"
 import {
   staleListBusy,
   staleListBusyClassName,
@@ -66,6 +74,7 @@ import {
 import {
   getCachedAnnouncements,
   loadAnnouncementsBundle,
+  saveAnnouncementsCache,
 } from "@/features/announcements/lib/prefetch-announcements"
 import {
   announcementsCacheKey,
@@ -211,6 +220,22 @@ export function AnnouncementsPage({
   useEffect(() => {
     if (initialError) announcementToasts.failed(initialError)
   }, [initialError])
+
+  // Warm session cache from RSC seed so revisits / prefetch share the payload.
+  useEffect(() => {
+    if (hydrateFromCache) return
+    saveAnnouncementsCache(access.designation, {
+      feed: initialFeed,
+      list: initialList,
+      stats: initialStats,
+    })
+  }, [
+    access.designation,
+    hydrateFromCache,
+    initialFeed,
+    initialList,
+    initialStats,
+  ])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -585,34 +610,51 @@ export function AnnouncementsPage({
       {canManage && can(d, "announcements.table") ? (
         <Card
           id="announcements-manage"
-          className="min-w-0 scroll-mt-20 shadow-none dark:ring-0"
+          className="min-w-0 scroll-mt-20 gap-0 py-0 shadow-none dark:ring-0"
         >
-          <CardHeader className="flex flex-col gap-3 border-b sm:flex-row sm:items-center sm:justify-between">
+          <CardHeader className="gap-4 border-b px-6 py-5">
             <CardTitle className="text-base">Manage announcements</CardTitle>
-            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-              <div className="flex flex-wrap gap-1">
-                {STATUS_FILTERS.map((value) => (
-                  <Button
-                    key={value}
-                    size="xs"
-                    variant={statusFilter === value ? "default" : "outline"}
-                    onClick={() => {
-                      setStatusFilter(value)
-                      setPage(1)
-                    }}
-                  >
-                    {value === "all"
-                      ? "All"
-                      : announcementStatusLabel(value)}
-                  </Button>
-                ))}
-              </div>
+            <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:gap-3">
               <Input
-                className="sm:w-72"
-                placeholder="Search title, body, audience, author, status"
+                className="h-9 w-full sm:max-w-sm sm:flex-1"
+                placeholder="Search title, body, audience, author"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
+                aria-label="Search announcements"
               />
+              <Select
+                value={statusFilter}
+                items={selectItemsRecord([
+                  { value: "all", label: "All statuses" },
+                  ...STATUS_FILTERS.filter((value) => value !== "all").map(
+                    (value) => ({
+                      value,
+                      label: announcementStatusLabel(value),
+                    })
+                  ),
+                ])}
+                onValueChange={(value) => {
+                  setStatusFilter((value as StatusFilter) ?? "all")
+                  setPage(1)
+                }}
+              >
+                <SelectTrigger
+                  className="w-full shrink-0 sm:w-48"
+                  aria-label="Filter by status"
+                >
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  {STATUS_FILTERS.filter((value) => value !== "all").map(
+                    (value) => (
+                      <SelectItem key={value} value={value}>
+                        {announcementStatusLabel(value)}
+                      </SelectItem>
+                    )
+                  )}
+                </SelectContent>
+              </Select>
             </div>
           </CardHeader>
           <CardContent className="p-0">

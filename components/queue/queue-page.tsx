@@ -206,6 +206,26 @@ export function QueuePage({
       .catch(() => undefined)
   }
 
+  // Warm session cache from RSC seed so revisits / prefetch share the payload.
+  useEffect(() => {
+    if (hydrateFromCache) return
+    saveQueueCache(access.designation, {
+      tickets: initialTickets,
+      stats: initialStats,
+      boards: initialBoards,
+      recent: initialRecent,
+      activity: initialActivity,
+    })
+  }, [
+    access.designation,
+    hydrateFromCache,
+    initialTickets,
+    initialStats,
+    initialBoards,
+    initialRecent,
+    initialActivity,
+  ])
+
   useEffect(() => {
     if (!hydrateFromCache || hydratedRef.current) return
     hydratedRef.current = true

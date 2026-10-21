@@ -1,9 +1,7 @@
 "use client"
 
-import {
-  fetchConsultationRequestsAction,
-  fetchConsultationRequestStatsAction,
-} from "@/features/requests/actions"
+import { loadRequestsPageAction } from "@/features/requests/actions"
+import type { RequestsPageBundle } from "@/features/requests/lib/requests-page-types"
 import type { ClinicDesignation } from "@/lib/auth/types"
 import {
   requestsCacheKey,
@@ -11,16 +9,11 @@ import {
   staffCacheLoad,
   staffCacheSet,
 } from "@/lib/ui/staff-data-cache"
-import { NURSE_REQUEST_TAB_STATUSES } from "@/types/appointmentRequest"
-import type {
-  AppointmentRequestListResult,
-  AppointmentRequestStats,
-} from "@/types/appointmentRequest"
 
-export type RequestsPageBundle = {
-  list: AppointmentRequestListResult
-  stats: AppointmentRequestStats
-}
+export type { RequestsPageBundle }
+
+/** Fired whenever the shared requests cache is written (nav badge listens). */
+export const REQUESTS_STATS_EVENT = "campuscare:requests-stats"
 
 export function getCachedRequests(
   role: ClinicDesignation
@@ -33,6 +26,15 @@ export function saveRequestsCache(
   bundle: RequestsPageBundle
 ) {
   staffCacheSet(requestsCacheKey(role), bundle)
+  if (typeof window === "undefined") return
+  window.dispatchEvent(
+    new CustomEvent(REQUESTS_STATS_EVENT, {
+      detail: {
+        role,
+        pending: bundle.stats.pending ?? 0,
+      },
+    })
+  )
 }
 
 export async function loadRequestsBundle(
@@ -42,19 +44,11 @@ export async function loadRequestsBundle(
   return staffCacheLoad(
     requestsCacheKey(role),
     async () => {
-      const [listResult, statsResult] = await Promise.all([
-        fetchConsultationRequestsAction({
-          query: "",
-          status: "all",
-          statuses: role === "nurse" ? NURSE_REQUEST_TAB_STATUSES : undefined,
-          page: 1,
-          pageSize: 50,
-        }),
-        fetchConsultationRequestStatsAction(),
-      ])
-      if (!listResult.ok) throw new Error(listResult.error)
-      if (!statsResult.ok) throw new Error(statsResult.error)
-      return { list: listResult.data, stats: statsResult.data }
+      const result = await loadRequestsPageAction()
+      if (!result.ok) throw new Error(result.error)
+      // Use saveRequestsCache so the nav badge hears the write.
+      saveRequestsCache(role, result.data)
+      return result.data
     },
     options
   )

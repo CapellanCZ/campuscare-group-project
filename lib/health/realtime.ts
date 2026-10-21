@@ -2,13 +2,19 @@ import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js"
 
 export const QUEUE_REALTIME_CHANNEL = "campuscare-health-queue"
 
-/** Common ops tables for staff silent refresh. */
+/**
+ * Common ops tables for staff silent refresh.
+ * Prefer tables that actually drive each UI. Avoid legacy/optional tables that
+ * may be missing from `supabase_realtime` — a bad table used to kill the whole
+ * multi-table channel (see subscribeTables).
+ */
 export const STAFF_REALTIME_TABLES = {
-  queue: ["health_queue_tickets", "appointments", "health_appointments"] as const,
-  requests: ["appointments", "consultation_requests"] as const,
+  queue: ["health_queue_tickets", "appointments"] as const,
+  // Nurse / staff request queue reads `appointments` (not legacy consultation_requests).
+  requests: ["appointments"] as const,
   announcements: ["announcements", "announcement_attachments"] as const,
   certificates: ["medical_certificates"] as const,
-  consultations: ["consultations", "patient_records"] as const,
+  consultations: ["consultations", "appointments"] as const,
   patients: ["patient_records", "consultations"] as const,
   capacity: ["clinic_consultation_capacity"] as const,
   users: ["users", "clinic_members", "admin_accounts"] as const,
@@ -39,17 +45,27 @@ export const STAFF_REALTIME_TABLES = {
   // certificates, announcements, or directory edits while on dashboard.
   dashboard: [
     "appointments",
-    "consultation_requests",
     "health_queue_tickets",
-    "health_appointments",
     "consultations",
   ] as const,
 } as const
 
+export type RealtimeSubscription = {
+  channels: RealtimeChannel[]
+  unsubscribe: (client: SupabaseClient) => void
+}
+
+function emptySubscription(): RealtimeSubscription {
+  return {
+    channels: [],
+    unsubscribe: () => undefined,
+  }
+}
+
 export function subscribeQueueChanges(
   client: SupabaseClient,
   onChange: () => void
-): RealtimeChannel {
+): RealtimeSubscription {
   return subscribeTables(
     client,
     QUEUE_REALTIME_CHANNEL,
@@ -62,7 +78,7 @@ export function subscribeQueueChanges(
 export function subscribeDisplayChanges(
   client: SupabaseClient,
   onChange: () => void
-): RealtimeChannel {
+): RealtimeSubscription {
   return subscribeTables(
     client,
     "campuscare-queue-display",
@@ -71,16 +87,11 @@ export function subscribeDisplayChanges(
   )
 }
 
-type PostgresChangesFilter = {
-  event: "*"
-  schema: "public"
-  table: string
-  filter?: string
-}
-
 /**
  * Subscribe to postgres_changes on multiple public tables.
- * Caller must removeChannel on cleanup.
+ * Each table gets its own channel so one unpublished/missing table cannot
+ * poison the rest (Supabase fails the whole multi-table channel).
+ * Caller must unsubscribe on cleanup.
  */
 export function subscribeTables(
   client: SupabaseClient,
@@ -90,24 +101,44 @@ export function subscribeTables(
   options?: {
     filters?: Record<string, string>
   }
-): RealtimeChannel {
-  let channel = client.channel(channelName)
+): RealtimeSubscription {
   const unique = [...new Set(tables.filter(Boolean))]
-  for (const table of unique) {
+  if (unique.length === 0) return emptySubscription()
+
+  const channels = unique.map((table) => {
     const filter = options?.filters?.[table]
-    if (filter) {
-      channel = channel.on(
-        "postgres_changes",
-        { event: "*", schema: "public", table, filter },
-        () => onChange()
-      )
-    } else {
-      channel = channel.on(
-        "postgres_changes",
-        { event: "*", schema: "public", table },
-        () => onChange()
-      )
-    }
+    const config = filter
+      ? ({
+          event: "*" as const,
+          schema: "public" as const,
+          table,
+          filter,
+        } as const)
+      : ({
+          event: "*" as const,
+          schema: "public" as const,
+          table,
+        } as const)
+
+    return client
+      .channel(`${channelName}:${table}`)
+      .on("postgres_changes", config, () => onChange())
+      .subscribe((status, err) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.warn(
+            `[realtime] ${channelName}:${table} ${status}`,
+            err ?? ""
+          )
+        }
+      })
+  })
+
+  return {
+    channels,
+    unsubscribe: (supabase) => {
+      for (const channel of channels) {
+        void supabase.removeChannel(channel)
+      }
+    },
   }
-  return channel.subscribe()
 }

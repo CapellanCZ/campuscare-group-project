@@ -1,5 +1,9 @@
 "use server"
 
+import { getStaffAccess } from "@/lib/auth/access"
+import { canViewModule } from "@/lib/auth/permissions"
+import { loadRequestsPageData } from "@/features/requests/lib/load-requests-page.server"
+import type { RequestsPageBundle } from "@/features/requests/lib/requests-page-types"
 import {
   admitAppointmentRequestRecord,
   approveAppointmentRequestRecord,
@@ -74,6 +78,33 @@ export async function fetchConsultationRequestStatsAction(): Promise<
 > {
   try {
     return { ok: true, data: await getAppointmentRequestStats() }
+  } catch (error) {
+    return toErrorResult(error)
+  }
+}
+
+/** One round-trip for the default requests page (list + stats). */
+export async function loadRequestsPageAction(): Promise<
+  AppointmentRequestActionResult<RequestsPageBundle>
+> {
+  try {
+    const access = await getStaffAccess()
+    if (!access?.hasClinicMembership) {
+      return {
+        ok: false,
+        error: "Not signed in.",
+        code: "permission",
+      }
+    }
+    if (!canViewModule(access.designation, "consultation_requests")) {
+      return {
+        ok: false,
+        error: "You do not have access to consultation requests.",
+        code: "permission",
+      }
+    }
+
+    return { ok: true, data: await loadRequestsPageData(access) }
   } catch (error) {
     return toErrorResult(error)
   }

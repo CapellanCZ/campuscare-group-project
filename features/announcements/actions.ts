@@ -4,6 +4,10 @@ import {
   deleteAnnouncementAttachment,
   uploadAnnouncementAttachments,
 } from "@/services/announcement-attachments"
+import { getStaffAccess } from "@/lib/auth/access"
+import { canViewModule } from "@/lib/auth/permissions"
+import { loadAnnouncementsPageData } from "@/features/announcements/lib/load-announcements-page.server"
+import type { AnnouncementsPageBundle } from "@/features/announcements/lib/announcements-page-types"
 import {
   createAnnouncement,
   deleteAnnouncement,
@@ -96,6 +100,33 @@ export async function fetchAnnouncementStatsAction(): Promise<
   try {
     const data = await getAnnouncementStats()
     return { ok: true, data }
+  } catch (error) {
+    return toErrorResult(error)
+  }
+}
+
+/** One round-trip for the announcements page (feed + list + stats). */
+export async function loadAnnouncementsPageAction(): Promise<
+  AnnouncementActionResult<AnnouncementsPageBundle>
+> {
+  try {
+    const access = await getStaffAccess()
+    if (!access?.hasClinicMembership) {
+      return {
+        ok: false,
+        error: "Not signed in.",
+        code: "permission",
+      }
+    }
+    if (!canViewModule(access.designation, "announcements")) {
+      return {
+        ok: false,
+        error: "You do not have access to announcements.",
+        code: "permission",
+      }
+    }
+
+    return { ok: true, data: await loadAnnouncementsPageData(access) }
   } catch (error) {
     return toErrorResult(error)
   }

@@ -1,36 +1,8 @@
 "use server"
 
 import { getStaffAccess } from "@/lib/auth/access"
-import { loadAdminOpsSnapshot } from "@/features/admin/data/ops-snapshot"
-import {
-  enrichDashboardKpis,
-  getDashboardBundle,
-} from "@/lib/health/dashboard-queries"
-import { loadRoleDashboardSummary } from "@/lib/health/load-role-dashboard-summary"
-import {
-  getNurseRecentlyServed,
-} from "@/lib/health/queue-queries"
-import type { RoleDashboardSummary } from "@/lib/health/dashboard-summary-types"
-import type {
-  ActivityItem,
-  DashboardKpis,
-  QueueStats,
-  QueueTicketRow,
-  RecentlyServedItem,
-  StationBoard,
-} from "@/lib/health/types"
-import type { AdminOpsSnapshot } from "@/features/admin/types/ops"
-
-export type DashboardPageBundle = {
-  kpis: DashboardKpis
-  tickets: QueueTicketRow[]
-  boards: StationBoard[]
-  activity: ActivityItem[]
-  recent: RecentlyServedItem[]
-  stats: QueueStats
-  summary: RoleDashboardSummary
-  ops: AdminOpsSnapshot | null
-}
+import { loadDashboardPageData } from "@/features/dashboard/lib/load-dashboard-page.server"
+import type { DashboardPageBundle } from "@/features/dashboard/lib/dashboard-page-types"
 
 export type DashboardActionResult<T> =
   | { ok: true; data: T }
@@ -45,44 +17,7 @@ export async function loadDashboardPageAction(): Promise<
       return { ok: false, error: "Not signed in." }
     }
 
-    const bundle = await getDashboardBundle(access.designation)
-
-    // Summary needs tickets; nurse recent + admin ops are independent of summary.
-    const [summary, recent, ops] = await Promise.all([
-      loadRoleDashboardSummary({
-        designation: access.designation,
-        userId: access.userId,
-        allTickets: bundle.allTickets,
-        checkedIn: bundle.stats.checkedIn,
-      }),
-      access.designation === "nurse"
-        ? getNurseRecentlyServed(6, bundle.allTickets)
-        : Promise.resolve(bundle.recent),
-      access.designation === "admin"
-        ? loadAdminOpsSnapshot()
-        : Promise.resolve(null),
-    ])
-
-    const kpis = enrichDashboardKpis(
-      access.designation,
-      bundle.kpis,
-      summary,
-      bundle.allTickets
-    )
-
-    return {
-      ok: true,
-      data: {
-        kpis,
-        tickets: bundle.tickets,
-        boards: bundle.boards,
-        activity: bundle.activity,
-        recent,
-        stats: bundle.stats,
-        summary,
-        ops,
-      },
-    }
+    return { ok: true, data: await loadDashboardPageData(access) }
   } catch (error) {
     return {
       ok: false,

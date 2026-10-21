@@ -127,6 +127,15 @@ export function RequestsPage({
     if (initialError) requestToasts.failed(initialError)
   }, [initialError])
 
+  // Warm session cache from RSC seed so nav badge / revisits skip a cold POST.
+  useEffect(() => {
+    if (hydrateFromCache) return
+    saveRequestsCache(access.designation, {
+      list: initialList,
+      stats: initialStats,
+    })
+  }, [access.designation, hydrateFromCache, initialList, initialStats])
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const nextQuery = query.trim()
@@ -290,35 +299,38 @@ export function RequestsPage({
   async function handleUpdated(request: AppointmentRequest) {
     setSelected(request)
     // Optimistic: patch the visible queue + KPI strip immediately, then soft-reconcile.
-    setList((prev) => {
-      const existing = prev.items.find((item) => item.id === request.id)
-      if (existing?.status !== request.status) {
-        setStats((current) =>
-          shiftRequestStats(current, existing?.status, request.status)
-        )
-      }
-      const matchesFilter =
-        status === "all" || request.status === status
-      const without = prev.items.filter((item) => item.id !== request.id)
-      const nextItems = matchesFilter ? [request, ...without] : without
-      const items = [...nextItems].sort((a, b) => {
-        const rank = (rowStatus: AppointmentRequest["status"]) =>
-          rowStatus === "pending"
-            ? 0
-            : rowStatus === "waitlisted"
-              ? 1
-              : rowStatus === "rescheduled"
-                ? 2
-                : 3
-        const byStatus = rank(a.status) - rank(b.status)
-        if (byStatus !== 0) return byStatus
-        return new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
-      })
-      return {
-        ...prev,
-        items,
-        total: Math.max(0, prev.total + (matchesFilter ? 0 : -1)),
-      }
+    const existing = list.items.find((item) => item.id === request.id)
+    const nextStats =
+      existing && existing.status !== request.status
+        ? shiftRequestStats(stats, existing.status, request.status)
+        : stats
+    const matchesFilter = status === "all" || request.status === status
+    const without = list.items.filter((item) => item.id !== request.id)
+    const nextItems = matchesFilter ? [request, ...without] : without
+    const items = [...nextItems].sort((a, b) => {
+      const rank = (rowStatus: AppointmentRequest["status"]) =>
+        rowStatus === "pending"
+          ? 0
+          : rowStatus === "waitlisted"
+            ? 1
+            : rowStatus === "rescheduled"
+              ? 2
+              : 3
+      const byStatus = rank(a.status) - rank(b.status)
+      if (byStatus !== 0) return byStatus
+      return new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
+    })
+    const nextList = {
+      ...list,
+      items,
+      total: Math.max(0, list.total + (matchesFilter ? 0 : -1)),
+    }
+    setList(nextList)
+    setStats(nextStats)
+    // Keep sidebar pending badge in sync even when realtime is flaky.
+    saveRequestsCache(access.designation, {
+      list: nextList,
+      stats: nextStats,
     })
     scheduleRefresh()
   }
