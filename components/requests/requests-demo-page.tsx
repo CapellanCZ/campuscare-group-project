@@ -23,9 +23,16 @@ import {
   shiftRequestStats,
 } from "@/components/requests/request-stats-strip"
 import {
+  PanelCell,
   PanelFrame,
+  PanelGrid,
   panelCardClassName,
 } from "@/components/layout/panel-frame"
+import {
+  RECENTLY_APPROVED_LIMIT,
+  RecentlyApprovedPanel,
+  sortRecentlyApproved,
+} from "@/components/requests/recently-approved-panel"
 import {
   Card,
   CardContent,
@@ -54,6 +61,7 @@ import {
   fetchConsultationRequestByIdAction,
   fetchConsultationRequestStatsAction,
   fetchConsultationRequestsAction,
+  fetchRecentlyApprovedRequestsAction,
 } from "@/features/requests/actions"
 import {
   getCachedRequests,
@@ -111,7 +119,16 @@ export function RequestsPage({
   const [page, setPage] = useState(1)
   const [list, setList] = useState(cached?.list ?? initialList)
   const [stats, setStats] = useState(cached?.stats ?? initialStats)
+  const [recentApproved, setRecentApproved] = useState<AppointmentRequest[]>(
+    () =>
+      sortRecentlyApproved(
+        (cached?.list ?? initialList).items.filter(
+          (item) => item.status === "confirmed"
+        )
+      ).slice(0, RECENTLY_APPROVED_LIMIT)
+  )
   const [loading, setLoading] = useState(false)
+  const [recentLoading, setRecentLoading] = useState(false)
   const [selected, setSelected] = useState<AppointmentRequest | null>(null)
   const [dialogMode, setDialogMode] = useState<RequestDialogMode | null>(null)
   const skipNextFetch = useRef(true)
@@ -145,6 +162,21 @@ export function RequestsPage({
     return () => window.clearTimeout(timer)
   }, [query, debouncedQuery])
 
+  const loadRecentlyApproved = useCallback(async (silent = true) => {
+    if (!silent) setRecentLoading(true)
+    try {
+      const result = await fetchRecentlyApprovedRequestsAction(
+        RECENTLY_APPROVED_LIMIT
+      )
+      if (!result.ok) return
+      setRecentApproved(result.data)
+    } catch {
+      // Soft-fail — main queue refresh still owns hard errors.
+    } finally {
+      if (!silent) setRecentLoading(false)
+    }
+  }, [])
+
   const loadPage = useCallback(
     async (
       nextQuery: string,
@@ -158,9 +190,12 @@ export function RequestsPage({
       if (!silent) setLoading(true)
       try {
         if (isDefault) {
-          const bundle = await loadRequestsBundle(access.designation, {
-            force: true,
-          })
+          const [bundle] = await Promise.all([
+            loadRequestsBundle(access.designation, {
+              force: true,
+            }),
+            loadRecentlyApproved(true),
+          ])
           setList(bundle.list)
           setStats(bundle.stats)
           return
@@ -181,6 +216,7 @@ export function RequestsPage({
             pageSize: 100,
           }),
           fetchConsultationRequestStatsAction(),
+          loadRecentlyApproved(true),
         ])
         if (!listResult.ok) {
           requestToasts.failed(listResult.error)
@@ -206,7 +242,7 @@ export function RequestsPage({
         setLoading(false)
       }
     },
-    [access.designation, hydrateFromCache, isNurse]
+    [access.designation, hydrateFromCache, isNurse, loadRecentlyApproved]
   )
 
   const refresh = useCallback(async () => {
@@ -228,8 +264,14 @@ export function RequestsPage({
     if (hit) {
       setList(hit.list)
       setStats(hit.stats)
+      setRecentApproved(
+        sortRecentlyApproved(
+          hit.list.items.filter((item) => item.status === "confirmed")
+        ).slice(0, RECENTLY_APPROVED_LIMIT)
+      )
       setLoading(false)
     }
+    void loadRecentlyApproved(true)
     void loadRequestsBundle(access.designation, {
       force:
         Boolean(hit) && !staffCacheIsFresh(requestsCacheKey(access.designation)),
@@ -243,18 +285,22 @@ export function RequestsPage({
         setLoading(false)
         if (!hit) void loadPage("", "all", { silent: true })
       })
-  }, [access.designation, hydrateFromCache, loadPage])
+  }, [access.designation, hydrateFromCache, loadPage, loadRecentlyApproved])
 
   useEffect(() => {
     if (skipNextFetch.current) {
       skipNextFetch.current = false
+      // Seeded from initialList; soft-reconcile without a loading flash.
+      if (!hydrateFromCache) void loadRecentlyApproved(true)
       return
     }
     setPage(1)
     void loadPage(debouncedQuery, status)
-  }, [debouncedQuery, status, loadPage])
+  }, [debouncedQuery, status, loadPage, hydrateFromCache, loadRecentlyApproved])
 
-  const rows = list.items
+  const rows = isNurse
+    ? list.items.filter((item) => item.status !== "confirmed")
+    : list.items
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
   const pageRows = rows.slice(
@@ -304,7 +350,10 @@ export function RequestsPage({
       existing && existing.status !== request.status
         ? shiftRequestStats(stats, existing.status, request.status)
         : stats
-    const matchesFilter = status === "all" || request.status === status
+    // Nurse queue hides confirmed rows (they move to Recently Approved).
+    const matchesFilter =
+      (status === "all" || request.status === status) &&
+      !(isNurse && request.status === "confirmed")
     const without = list.items.filter((item) => item.id !== request.id)
     const nextItems = matchesFilter ? [request, ...without] : without
     const items = [...nextItems].sort((a, b) => {
@@ -331,6 +380,14 @@ export function RequestsPage({
     saveRequestsCache(access.designation, {
       list: nextList,
       stats: nextStats,
+    })
+    setRecentApproved((prev) => {
+      const withoutRecent = prev.filter((item) => item.id !== request.id)
+      if (request.status !== "confirmed") return withoutRecent
+      return sortRecentlyApproved([request, ...withoutRecent]).slice(
+        0,
+        RECENTLY_APPROVED_LIMIT
+      )
     })
     scheduleRefresh()
   }
@@ -361,128 +418,145 @@ export function RequestsPage({
       ) : null}
 
       <PanelFrame>
-        <Card className={cn(panelCardClassName, "gap-0 py-0")}>
-          <CardHeader className="gap-4 border-b px-6 py-5">
-            <CardTitle className="text-base">Request Queue</CardTitle>
-            {can(access.designation, "requests.search_filters") ? (
-              <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:gap-3">
-                {isNurse ? (
-                  <StudentIdSearchInput
-                    className="w-full sm:max-w-sm sm:flex-1"
-                    value={query}
-                    onChange={setQuery}
-                    placeholder="Search by ID Number"
-                    aria-label="Search by ID Number"
-                  />
-                ) : (
-                  <Input
-                    className="h-9 w-full sm:max-w-sm sm:flex-1"
-                    placeholder="Search patient, ID, email, service, doctor, status"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                  />
-                )}
-                <Select
-                  value={status}
-                  items={statusFilterItems}
-                  onValueChange={(value) => setStatus(value ?? "all")}
-                >
-                  <SelectTrigger
-                    className="w-full shrink-0 sm:w-48"
-                    aria-label="Filter by status"
-                  >
-                    <SelectValue placeholder="All Statuses" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    {filterStatuses.map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {consultationRequestStatusLabel(value)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : null}
-          </CardHeader>
-          <CardContent className="min-w-0 p-0">
-            {listBusy.showInitialSkeleton ? (
-              <div
-                className="space-y-2 p-4"
-                role="status"
-                aria-label="Loading requests"
-              >
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <Skeleton key={index} className="h-12 w-full" />
-                ))}
-              </div>
-            ) : rows.length === 0 ? (
-              <Empty className="border-0 py-12">
-                <EmptyHeader>
-                  <EmptyMedia variant="icon">
-                    <IconClipboardList aria-hidden />
-                  </EmptyMedia>
-                  <EmptyTitle>No consultation requests</EmptyTitle>
-                  <EmptyDescription>
-                    Mobile appointment submissions appear here for nurse triage.
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
-            ) : (
-              <>
-                <div
-                  className={cn(
-                    "divide-y-0",
-                    staleListBusyClassName(listBusy.isRefreshing)
-                  )}
-                  aria-busy={listBusy.isRefreshing || undefined}
-                >
-                  {pageRows.map((row, rowIndex) => (
-                    <ConsultationRequestCard
-                      key={row.id}
-                      request={row}
-                      index={(safePage - 1) * PAGE_SIZE + rowIndex + 1}
-                      canViewDetails={canViewDetails}
-                      canApprove={canApprove}
-                      canDecline={canDecline}
-                      canReschedule={canReschedule}
-                      onAction={(mode) => openRequest(row, mode)}
-                    />
-                  ))}
-                </div>
-                {rows.length > PAGE_SIZE ? (
-                  <div className="flex items-center justify-between gap-3 border-t px-4 py-3 sm:px-6">
-                    <p className="text-sm text-muted-foreground" role="status">
-                      Page {safePage} of {totalPages} · {rows.length} requests
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={safePage <= 1 || loading}
-                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+        <PanelGrid className="lg:grid-cols-3">
+          <PanelCell className="lg:col-span-2">
+            <Card className={cn(panelCardClassName, "gap-0 py-0")}>
+              <CardHeader className="gap-4 border-b px-6 py-5">
+                <CardTitle className="text-base">Request Queue</CardTitle>
+                {can(access.designation, "requests.search_filters") ? (
+                  <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:gap-3">
+                    {isNurse ? (
+                      <StudentIdSearchInput
+                        className="w-full sm:max-w-sm sm:flex-1"
+                        value={query}
+                        onChange={setQuery}
+                        placeholder="Search by ID Number"
+                        aria-label="Search by ID Number"
+                      />
+                    ) : (
+                      <Input
+                        className="h-9 w-full sm:max-w-sm sm:flex-1"
+                        placeholder="Search patient, ID, email, service, doctor, status"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                      />
+                    )}
+                    <Select
+                      value={status}
+                      items={statusFilterItems}
+                      onValueChange={(value) => setStatus(value ?? "all")}
+                    >
+                      <SelectTrigger
+                        className="w-full shrink-0 sm:w-48"
+                        aria-label="Filter by status"
                       >
-                        Previous
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={safePage >= totalPages || loading}
-                        onClick={() =>
-                          setPage((p) => Math.min(totalPages, p + 1))
-                        }
-                      >
-                        Next
-                      </Button>
-                    </div>
+                        <SelectValue placeholder="All Statuses" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Statuses</SelectItem>
+                        {filterStatuses.map((value) => (
+                          <SelectItem key={value} value={value}>
+                            {consultationRequestStatusLabel(value)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 ) : null}
-              </>
-            )}
-          </CardContent>
-        </Card>
+              </CardHeader>
+              <CardContent className="min-w-0 p-0">
+                {listBusy.showInitialSkeleton ? (
+                  <div
+                    className="space-y-2 p-4"
+                    role="status"
+                    aria-label="Loading requests"
+                  >
+                    {Array.from({ length: 3 }).map((_, index) => (
+                      <Skeleton key={index} className="h-12 w-full" />
+                    ))}
+                  </div>
+                ) : rows.length === 0 ? (
+                  <Empty className="border-0 py-12">
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon">
+                        <IconClipboardList aria-hidden />
+                      </EmptyMedia>
+                      <EmptyTitle>No consultation requests</EmptyTitle>
+                      <EmptyDescription>
+                        Mobile appointment submissions appear here for nurse
+                        triage.
+                      </EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
+                ) : (
+                  <>
+                    <div
+                      className={cn(
+                        "divide-y-0",
+                        staleListBusyClassName(listBusy.isRefreshing)
+                      )}
+                      aria-busy={listBusy.isRefreshing || undefined}
+                    >
+                      {pageRows.map((row, rowIndex) => (
+                        <ConsultationRequestCard
+                          key={row.id}
+                          request={row}
+                          index={(safePage - 1) * PAGE_SIZE + rowIndex + 1}
+                          canViewDetails={canViewDetails}
+                          canApprove={canApprove}
+                          canDecline={canDecline}
+                          canReschedule={canReschedule}
+                          onAction={(mode) => openRequest(row, mode)}
+                        />
+                      ))}
+                    </div>
+                    {rows.length > PAGE_SIZE ? (
+                      <div className="flex items-center justify-between gap-3 border-t px-4 py-3 sm:px-6">
+                        <p
+                          className="text-sm text-muted-foreground"
+                          role="status"
+                        >
+                          Page {safePage} of {totalPages} · {rows.length}{" "}
+                          requests
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={safePage <= 1 || loading}
+                            onClick={() => setPage((p) => Math.max(1, p - 1))}
+                          >
+                            Previous
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={safePage >= totalPages || loading}
+                            onClick={() =>
+                              setPage((p) => Math.min(totalPages, p + 1))
+                            }
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </PanelCell>
+          <PanelCell className="lg:col-span-1">
+            <RecentlyApprovedPanel
+              items={recentApproved}
+              loading={recentLoading}
+              canViewDetails={canViewDetails}
+              onView={(request) => openRequest(request, "view")}
+            />
+          </PanelCell>
+        </PanelGrid>
       </PanelFrame>
 
       <ViewRequestDialog

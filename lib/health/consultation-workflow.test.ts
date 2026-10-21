@@ -47,6 +47,14 @@ test("booking body prefers specialty over defaulted providerType", () => {
   assert(resolved === "dentist", `got ${resolved}`)
 })
 
+test("dental service beats soft physician providerType default", () => {
+  const resolved = resolveProviderTypeFromBookingBody({
+    providerType: "physician",
+    service: "Dental consultation",
+  })
+  assert(resolved === "dentist", `got ${resolved}`)
+})
+
 test("booking body accepts provider_type snake_case", () => {
   assert(
     resolveProviderTypeFromBookingBody({ provider_type: "dentist" }) ===

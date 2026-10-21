@@ -9,7 +9,11 @@ import {
   useDeferredValue,
 } from "react"
 import { useConfirm } from "@/components/feedback/confirm-provider"
-import { consultationToasts, queueToasts } from "@/lib/feedback/toast-messages"
+import {
+  consultationToasts,
+  patientToasts,
+  queueToasts,
+} from "@/lib/feedback/toast-messages"
 import { useRouter } from "next/navigation"
 import {
   getCachedQueue,
@@ -34,6 +38,7 @@ import {
   actionVerifyCheckIn,
 } from "@/lib/health/queue-server-actions"
 import { ConsultationSummaryDialog } from "@/components/consultations/consultation-summary-dialog"
+import { PatientProfileSheet } from "@/components/patients/patient-profile-sheet"
 import { NurseIntakeSheet } from "@/components/queue/nurse-intake-sheet"
 import { QueueRescheduleDialog } from "@/components/queue/queue-reschedule-dialog"
 import { NurseLaneSwitcher } from "@/components/queue/nurse-lane-switcher"
@@ -92,6 +97,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { StaffAccess } from "@/lib/auth/types"
+import { searchPatientByStudentIdAction } from "@/features/patients/actions"
 import { ticketLabel, patientTypeLabel } from "@/lib/health/mappers"
 import {
   canOpenNurseIntake,
@@ -123,8 +129,15 @@ import type {
   TicketStatus,
 } from "@/lib/health/types"
 import { studentIdMatchesQuery } from "@/lib/students/student-id-input"
+import type { PatientRecord } from "@/types/patientRecord"
 import { cn } from "@/lib/utils"
-import { IconBell, IconDots, IconRefresh, IconSearch } from "@tabler/icons-react"
+import {
+  IconBell,
+  IconDots,
+  IconEye,
+  IconRefresh,
+  IconSearch,
+} from "@tabler/icons-react"
 
 type QueueSortColumn =
   | "ticket"
@@ -299,7 +312,39 @@ export function QueuePage({
   )
   const [rescheduleTicket, setRescheduleTicket] =
     useState<QueueTicketRow | null>(null)
+  const [profilePatient, setProfilePatient] = useState<PatientRecord | null>(
+    null
+  )
+  const [loadingPatient, setLoadingPatient] = useState(false)
   const pageSize = 8
+
+  async function openPatientRecord(row: QueueTicketRow) {
+    setLoadingPatient(true)
+    try {
+      const campusId = (row.campusId || row.studentId || "").trim()
+      if (!campusId) {
+        patientToasts.failed(
+          "No ID Number on this queue entry — cannot open medical records."
+        )
+        return
+      }
+
+      const result = await searchPatientByStudentIdAction(campusId)
+      if (!result.ok) {
+        patientToasts.failed(
+          result.error ||
+            "No patient medical record found for this queue entry."
+        )
+        return
+      }
+
+      setProfilePatient(result.data)
+    } catch {
+      patientToasts.failed("Could not load patient medical record.")
+    } finally {
+      setLoadingPatient(false)
+    }
+  }
 
   useEffect(() => {
     if (hydrateFromCache) return
@@ -744,9 +789,6 @@ export function QueuePage({
                         </TableHead>
                         {isNurse ? (
                           <>
-                            <TableHead className="hidden h-12 md:table-cell">
-                              <DirectoryColumnLabel title="ID" />
-                            </TableHead>
                             <TableHead className="hidden h-12 lg:table-cell">
                               <DirectoryColumnHeader
                                 title="Consultation"
@@ -1134,14 +1176,31 @@ export function QueuePage({
                             <TableCell className="pl-6 font-semibold tabular-nums">
                               {ticketLabel(row.queueNumber, row.ticketCode)}
                             </TableCell>
-                            <TableCell className="max-w-[14rem] truncate font-medium">
-                              {row.patientName}
+                            <TableCell className="max-w-[16rem]">
+                              <div className="flex min-w-0 items-center gap-1.5">
+                                {!readOnly ? (
+                                  <Button
+                                    type="button"
+                                    size="icon-sm"
+                                    variant="ghost"
+                                    className="size-7 shrink-0 text-muted-foreground"
+                                    disabled={loadingPatient || pending}
+                                    aria-label={`View ${row.patientName}`}
+                                    title="View patient information"
+                                    onClick={() => {
+                                      void openPatientRecord(row)
+                                    }}
+                                  >
+                                    <IconEye className="size-4" aria-hidden />
+                                  </Button>
+                                ) : null}
+                                <span className="min-w-0 flex-1 truncate font-medium">
+                                  {row.patientName}
+                                </span>
+                              </div>
                             </TableCell>
                             {isNurse ? (
                               <>
-                                <TableCell className="hidden max-w-[9rem] truncate text-muted-foreground md:table-cell tabular-nums">
-                                  {row.campusId ?? "—"}
-                                </TableCell>
                                 <TableCell className="hidden max-w-[11rem] truncate lg:table-cell">
                                   {displayConsultationLabel(
                                     row.consultationType,
@@ -1746,6 +1805,13 @@ export function QueuePage({
           if (!open) setRescheduleTicket(null)
         }}
         onRescheduled={() => router.refresh()}
+      />
+      <PatientProfileSheet
+        patient={profilePatient}
+        open={Boolean(profilePatient)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setProfilePatient(null)
+        }}
       />
     </div>
   )

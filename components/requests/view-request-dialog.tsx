@@ -37,14 +37,14 @@ function DetailRow({
   return (
     <div
       className={cn(
-        "grid grid-cols-1 gap-1 px-4 py-3 sm:grid-cols-[8.5rem_minmax(0,1fr)] sm:items-baseline sm:gap-4",
+        "grid grid-cols-1 gap-0.5 px-3 py-2.5 sm:grid-cols-[7.5rem_minmax(0,1fr)] sm:items-baseline sm:gap-3 sm:px-4 sm:py-3 md:grid-cols-[8.5rem_minmax(0,1fr)] md:gap-4",
         className
       )}
     >
-      <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase sm:text-sm sm:normal-case sm:tracking-normal sm:font-normal">
+      <dt className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase sm:text-xs sm:normal-case sm:tracking-normal sm:font-normal md:text-sm">
         {label}
       </dt>
-      <dd className="min-w-0 text-sm font-medium break-words text-foreground">
+      <dd className="min-w-0 text-sm font-medium break-words [overflow-wrap:anywhere] text-foreground">
         {value || "—"}
       </dd>
     </div>
@@ -87,13 +87,13 @@ export function ViewRequestDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-none gap-0 overflow-visible overscroll-auto p-0 sm:max-w-lg">
-        <DialogHeader className="gap-3 border-b border-border px-6 pt-6 pr-14 pb-5 text-left">
-          <div className="min-w-0 space-y-2">
-            <DialogTitle className="text-xl leading-snug text-balance">
+      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
+        <DialogHeader className="shrink-0 gap-2 border-b border-border px-4 pt-5 pr-12 pb-4 text-left sm:gap-3 sm:px-6 sm:pt-6 sm:pr-14 sm:pb-5">
+          <div className="min-w-0 space-y-1.5 sm:space-y-2">
+            <DialogTitle className="text-lg leading-snug text-balance sm:text-xl">
               {request.patientName}
             </DialogTitle>
-            <DialogDescription className="text-sm">
+            <DialogDescription className="text-xs sm:text-sm">
               {serviceLabel}
               {request.providerType === "dentist"
                 ? " · Dentist"
@@ -106,14 +106,14 @@ export function ViewRequestDialog({
             />
           </div>
           {request.status === "cancelled" ? (
-            <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+            <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive sm:text-sm">
               <span className="font-medium">Decline reason:</span>{" "}
               {request.cancellationReason?.trim() || "No reason was provided."}
             </p>
           ) : null}
         </DialogHeader>
 
-        <div className="space-y-5 px-6 py-5">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-4 py-4 sm:gap-5 sm:px-6 sm:py-5">
           <DetailSection title="Patient information">
             <DetailRow label="Student ID" value={request.studentId} />
             <DetailRow label="Email" value={request.email} />

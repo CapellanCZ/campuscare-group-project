@@ -22,7 +22,6 @@ import { PatientExportButton } from "@/components/patients/patient-export-button
 import { PatientHistorySheet } from "@/components/patients/patient-history-sheet"
 import { PatientImportSheet } from "@/components/patients/patient-import-sheet"
 import { SyncPatientAccountsButton } from "@/components/patients/sync-patient-accounts-button"
-import { PatientMedicalSheet } from "@/components/patients/patient-medical-sheet"
 import { PatientProfileSheet } from "@/components/patients/patient-profile-sheet"
 import {
   PatientSelectAllBanner,
@@ -121,7 +120,6 @@ import {
   IconFileText,
   IconHistory,
   IconSearch,
-  IconStethoscope,
   IconUser,
   IconUsers,
 } from "@tabler/icons-react"
@@ -216,9 +214,6 @@ export function PatientsPage({
   const [list, setList] = useState(sessionCached?.list ?? initialList)
   const [stats, setStats] = useState(sessionCached?.stats ?? initialStats)
   const [loading, setLoading] = useState(false)
-  const [medicalPatient, setMedicalPatient] = useState<PatientRecord | null>(
-    null
-  )
   const [profilePatient, setProfilePatient] = useState<PatientRecord | null>(null)
   const [historyPatient, setHistoryPatient] = useState<PatientRecord | null>(null)
   const [documentsPatient, setDocumentsPatient] = useState<PatientRecord | null>(
@@ -243,7 +238,6 @@ export function PatientsPage({
   const router = useRouter()
   const pageCache = useCachedPatientPages()
 
-  const canUpdateMedical = can(access.designation, "patients.update_medical")
   const canViewHistory = can(
     access.designation,
     "patients.view_consultation_history"
@@ -507,24 +501,6 @@ export function PatientsPage({
     return sortColumn === column ? sortDirection : false
   }
 
-  function handleSaved(patient: PatientRecord) {
-    // Local-first: patch the visible row immediately; sync stats in background.
-    setList((prev) => {
-      const next = {
-        ...prev,
-        items: prev.items.map((item) =>
-          item.id === patient.id ||
-          (patient.studentId != null && item.studentId === patient.studentId)
-            ? patient
-            : item
-        ),
-      }
-      pageCache.put(next)
-      return next
-    })
-    void refreshStats()
-  }
-
   function openEnsuredPatient(
     patient: PatientRecord,
     setPatient: Dispatch<SetStateAction<PatientRecord | null>>
@@ -696,7 +672,7 @@ export function PatientsPage({
           access.designation === "physician" ||
           access.designation === "dentist"
             ? ""
-            : "Import a roster into Patient Records, then search and update medical history here."
+            : "Import a roster into Patient Records, then search and manage patient files here."
         }
         designation={access.designation}
         showDemoBanner={false}
@@ -1027,22 +1003,6 @@ export function PatientsPage({
                               <IconFileText className="size-4" aria-hidden />
                             </Button>
                           ) : null}
-                          {canUpdateMedical ? (
-                            <Button
-                              size="icon-sm"
-                              className="size-7"
-                              aria-label={`Update medical ${patientFullName(row)}`}
-                              title="Update medical"
-                              onClick={() =>
-                                openEnsuredPatient(row, setMedicalPatient)
-                              }
-                            >
-                              <IconStethoscope
-                                className="size-3.5"
-                                aria-hidden
-                              />
-                            </Button>
-                          ) : null}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -1091,14 +1051,6 @@ export function PatientsPage({
       </Card>
       </PanelFrame>
 
-      <PatientMedicalSheet
-        patient={medicalPatient}
-        open={Boolean(medicalPatient)}
-        onOpenChange={(open) => {
-          if (!open) setMedicalPatient(null)
-        }}
-        onSaved={handleSaved}
-      />
       <PatientProfileSheet
         patient={profilePatient}
         open={Boolean(profilePatient)}

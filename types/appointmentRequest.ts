@@ -57,14 +57,13 @@ export type AppointmentRequestStats = {
 
 /**
  * Statuses shown on the nurse Consultation Requests tab.
- * Includes confirmed + in_progress so approved visits don’t “disappear”
- * after they leave triage — staff can still find them in All / filters.
+ * Excludes confirmed — those live in the Recently Approved panel.
+ * Keeps in_progress / cancelled so triage history stays findable.
  */
 export const NURSE_REQUEST_TAB_STATUSES: AppointmentRequestStatus[] = [
   "pending",
   "waitlisted",
   "rescheduled",
-  "confirmed",
   "in_progress",
   "cancelled",
 ]

@@ -19,6 +19,7 @@ import {
   getActiveDutyByRole,
   getStaffDutyStatus,
   hasActiveConsultationForUser,
+  hasRemainingQueuePatientsForUser,
 } from "@/lib/availability/duty-queries"
 import { normalizeTimeHm } from "@/lib/availability/rules"
 import type {
@@ -208,6 +209,29 @@ export async function endDutyAction(): Promise<AvailabilityActionResult> {
       ok: false,
       error:
         "You still have an ongoing consultation. Please complete or properly manage the current consultation before ending your duty.",
+    }
+  }
+
+  let hasQueuePatients = false
+  try {
+    hasQueuePatients = await hasRemainingQueuePatientsForUser(
+      access.userId,
+      supabase,
+      access.primaryRole
+    )
+  } catch {
+    // Fail closed — never end duty when queue status cannot be verified.
+    return {
+      ok: false,
+      error:
+        "Could not verify the queue. Clear remaining patients, then try End Duty again.",
+    }
+  }
+  if (hasQueuePatients) {
+    return {
+      ok: false,
+      error:
+        "Patients are still remaining in the queue. Clear or finish the queue before ending your duty.",
     }
   }
 

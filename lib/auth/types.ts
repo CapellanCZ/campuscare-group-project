@@ -18,7 +18,9 @@ export type PatientRole = "patient"
 /** Alias used by permission matrix / queue stations (same values as WebRole). */
 export type ClinicDesignation = WebRole
 
-export type AuthErrorCode = "account_not_activated"
+export type AuthErrorCode =
+  | "account_not_activated"
+  | "unauthorized_web_access"
 
 export type AuthResult =
   | { ok: true }

@@ -1,8 +1,8 @@
 import "server-only"
 
+import { canUseWebApp } from "@/lib/auth/resolve-role"
 import { OTP_LENGTH } from "@/lib/auth/types"
 import { buildOtpEmail } from "@/lib/auth/email-templates"
-import { ensurePatientSignInByEmail } from "@/lib/patients/provision-patient-auth"
 import { sendResendEmail } from "@/lib/auth/resend-client"
 import { createAdminClient } from "@/lib/supabase/admin"
 
@@ -35,16 +35,11 @@ export async function sendLoginOtpEmail(email: string): Promise<void> {
   const admin = createAdminClient()
   const normalizedEmail = email.trim().toLowerCase()
 
-  let userRow = await loadSignInUserRow(admin, normalizedEmail)
-
-  if (!userRow) {
-    await ensurePatientSignInByEmail(normalizedEmail, admin)
-    userRow = await loadSignInUserRow(admin, normalizedEmail)
-  }
+  const userRow = await loadSignInUserRow(admin, normalizedEmail)
 
   if (!userRow) {
     const notRegistered = new Error(
-      "This email is not registered with CampusCare. Ask the clinic to import your patient record first."
+      "This email is not registered with CampusCare. Ask a clinic admin to add your staff account first."
     )
     ;(notRegistered as Error & { status?: number }).status = 400
     throw notRegistered
@@ -58,9 +53,24 @@ export async function sendLoginOtpEmail(email: string): Promise<void> {
     throw inactive
   }
 
+  // Web OTP is only for clinic web roles — never generate/send for patients
+  // or other non-web roles.
+  if (
+    !canUseWebApp({
+      primary_role: userRow.primary_role,
+      is_active: userRow.is_active,
+    })
+  ) {
+    const unauthorized = new Error("Unauthorized web access.")
+    ;(unauthorized as Error & { status?: number; code?: string }).status = 403
+    ;(unauthorized as Error & { status?: number; code?: string }).code =
+      "unauthorized_web_access"
+    throw unauthorized
+  }
+
   const role = String(userRow.primary_role ?? "").toLowerCase()
 
-  if (role !== "patient" && userRow.invite_pending === true) {
+  if (userRow.invite_pending === true) {
     const notActivated = new Error(
       "Activate your account using the invite email link before signing in with a one-time code."
     )
@@ -85,7 +95,7 @@ export async function sendLoginOtpEmail(email: string): Promise<void> {
       ;(pending as Error & { status?: number }).status = 403
       throw pending
     }
-  } else if (role !== "patient") {
+  } else if (role !== "queue_display") {
     const { data: membership } = await admin
       .from("clinic_members")
       .select("user_id")

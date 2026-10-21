@@ -10,6 +10,7 @@ import {
   getAppointmentRequestById,
   getAppointmentRequests,
   getAppointmentRequestStats,
+  getRecentlyApprovedRequests,
   listAssignableDoctorsForAppointments,
   declineAppointmentRequestRecord,
   rescheduleAppointmentRequestRecord,
@@ -68,6 +69,16 @@ export async function fetchConsultationRequestsAction(
 ): Promise<AppointmentRequestActionResult<AppointmentRequestListResult>> {
   try {
     return { ok: true, data: await getAppointmentRequests(params) }
+  } catch (error) {
+    return toErrorResult(error)
+  }
+}
+
+export async function fetchRecentlyApprovedRequestsAction(
+  limit = 8
+): Promise<AppointmentRequestActionResult<AppointmentRequest[]>> {
+  try {
+    return { ok: true, data: await getRecentlyApprovedRequests(limit) }
   } catch (error) {
     return toErrorResult(error)
   }

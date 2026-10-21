@@ -45,6 +45,16 @@ const nextConfig: NextConfig = {
       static: 900,
     },
   },
+  async redirects() {
+    return [
+      // Edge redirect — bypasses proxy compile so `/` never hangs on cold start.
+      {
+        source: "/",
+        destination: "/landing",
+        permanent: true,
+      },
+    ]
+  },
   async headers() {
     return [
       {

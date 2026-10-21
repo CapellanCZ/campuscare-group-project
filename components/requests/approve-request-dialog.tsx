@@ -134,9 +134,14 @@ export function ApproveRequestDialog({
   const selectedDoctorLabel =
     request.doctorName?.trim() ||
     (doctorId ? "Assigned doctor" : "Select doctor")
-  const serviceLabel = displayConsultationLabel(
-    request.service,
-    request.reason
+  const specialtyLabel = consultationProviderLabel(request.providerType)
+  const serviceForSpecialty =
+    request.providerType === "dentist"
+      ? "Dental consultation"
+      : "General consultation"
+  const chiefComplaint = displayConsultationLabel(
+    request.reason,
+    request.service
   )
   const preferredLabel = formatRequestPreferred(
     request.preferredDate,
@@ -155,10 +160,12 @@ export function ApproveRequestDialog({
   const summaryRows = [
     {
       label: "Specialty",
-      value: consultationProviderLabel(request.providerType),
+      value: specialtyLabel,
     },
-    ...(serviceLabel !== "—"
-      ? [{ label: "Service", value: serviceLabel }]
+    { label: "Service", value: serviceForSpecialty },
+    ...(chiefComplaint !== "—" &&
+    chiefComplaint.toLowerCase() !== serviceForSpecialty.toLowerCase()
+      ? [{ label: "Chief complaint", value: chiefComplaint }]
       : []),
     { label: "Preferred", value: preferredWithQueue },
   ]
@@ -226,7 +233,7 @@ export function ApproveRequestDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md">
-        <DialogHeader className="gap-1.5 border-b border-border px-6 py-5 pr-12 text-left">
+        <DialogHeader className="shrink-0 gap-1.5 border-b border-border px-6 py-5 pr-12 text-left">
           <DialogTitle>
             {isAdmit ? "Admit From Waitlist" : "Approve Consultation Request"}
           </DialogTitle>
@@ -237,7 +244,7 @@ export function ApproveRequestDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-5 px-6 py-5">
+        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-6 py-5">
           <section className="overflow-hidden rounded-2xl border border-border/70 bg-muted/20">
             <div className="flex items-start gap-3 px-4 py-3.5">
               <span
@@ -342,7 +349,7 @@ export function ApproveRequestDialog({
           )}
         </div>
 
-        <DialogFooter className="gap-2 border-t border-border bg-muted/10 px-6 py-4 sm:justify-end">
+        <DialogFooter className="shrink-0 gap-2 border-t border-border bg-muted/10 px-6 py-4 sm:justify-end">
           <Button
             type="button"
             variant="outline"
