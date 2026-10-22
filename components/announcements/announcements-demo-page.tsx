@@ -12,18 +12,17 @@ import { announcementToasts } from "@/lib/feedback/toast-messages"
 import { useConfirm } from "@/components/feedback/confirm-provider"
 import type { ComponentType } from "react"
 import {
-  IconCalendarEvent,
+  IconClockHour4,
+  IconFileText,
   IconLayoutCards,
   IconLayoutGrid,
   IconLayoutList,
-  IconNews,
   IconPencil,
   IconPlus,
   IconSearch,
   IconSend,
   IconSpeakerphone,
   IconTrash,
-  IconUsers,
 } from "@tabler/icons-react"
 
 import { AnnouncementArticleDialog } from "@/components/announcements/announcement-article-dialog"
@@ -34,8 +33,12 @@ import {
   AnnouncementNewsCard,
   type AnnouncementCardDensity,
 } from "@/components/announcements/announcement-news-card"
-import { cn } from "@/lib/utils"
 import { DemoPageHeader, DemoStatGrid } from "@/components/demo/demo-page"
+import {
+  PanelFrame,
+  panelCardClassName,
+} from "@/components/layout/panel-frame"
+import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -48,6 +51,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { cn } from "@/lib/utils"
 import {
   Empty,
   EmptyContent,
@@ -151,21 +155,6 @@ function announcementStatusToneKey(
   return "draft"
 }
 
-function MetaChip({
-  icon: Icon,
-  label,
-}: {
-  icon: ComponentType<{ className?: string; stroke?: number }>
-  label: string
-}) {
-  return (
-    <span className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted/55 px-1.5 py-0.5 text-[11px] text-muted-foreground">
-      <Icon className="size-3.5 shrink-0 opacity-70" stroke={1.75} aria-hidden />
-      <span className="truncate">{label}</span>
-    </span>
-  )
-}
-
 function toStatCards(stats: AnnouncementStats): DemoStat[] {
   return [
     {
@@ -173,24 +162,28 @@ function toStatCards(stats: AnnouncementStats): DemoStat[] {
       label: "Published",
       value: String(stats.published),
       description: "Visible now",
+      icon: <IconSpeakerphone aria-hidden />,
     },
     {
       key: "scheduled",
       label: "Scheduled",
       value: String(stats.scheduled),
       description: "Upcoming",
+      icon: <IconClockHour4 aria-hidden />,
     },
     {
       key: "draft",
       label: "Drafts",
       value: String(stats.drafts),
       description: "Unpublished",
+      icon: <IconFileText aria-hidden />,
     },
     {
       key: "total",
       label: "Total",
       value: String(stats.total),
       description: "All notices",
+      icon: <IconLayoutCards aria-hidden />,
     },
   ]
 }
@@ -625,8 +618,14 @@ export function AnnouncementsPage({
     scheduleRefresh()
   }
 
+  const visibleFeed = showAllFeed
+    ? feed.items
+    : feed.items.slice(0, feedPreviewLimit)
+  const canExpandFeed =
+    feed.items.length > feedPreviewLimit || feed.total > feedPreviewLimit
+
   return (
-    <div className="flex flex-col gap-6">
+    <main className="flex flex-col gap-6">
       <DemoPageHeader
         title="Announcements"
         description=""
@@ -647,346 +646,106 @@ export function AnnouncementsPage({
         <DemoStatGrid stats={statCards} />
       ) : null}
 
-      <section className="flex flex-col gap-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <IconNews className="size-4" stroke={1.75} aria-hidden />
-            </span>
-            <div>
-              <h2 className="text-base font-semibold tracking-tight">
-                News feed
-              </h2>
+      <PanelFrame>
+        <Card className={cn(panelCardClassName, "gap-0 py-0")}>
+          <CardHeader className="flex flex-col gap-3 border-b px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <CardTitle className="text-base">News feed</CardTitle>
               <p className="text-xs text-muted-foreground">
                 Published notices for your audience
               </p>
             </div>
-          </div>
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-            {!canManage ? (
-              <div className="relative w-full sm:w-64">
-                <IconSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  className="pl-9"
-                  placeholder="Search announcements"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  aria-label="Search announcements"
-                />
-              </div>
-            ) : null}
-            <div
-              className="inline-flex h-9 shrink-0 items-center rounded-lg border border-border/70 bg-muted/40 p-0.5"
-              role="group"
-              aria-label="Feed layout"
-            >
-              {FEED_LAYOUTS.map(({ value, label, icon: Icon }) => {
-                const active = feedLayout === value
-                return (
-                  <Button
-                    key={value}
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className={cn(
-                      "h-8 gap-1.5 rounded-md px-2.5 text-xs",
-                      active
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                    aria-pressed={active}
-                    aria-label={`${label} layout`}
-                    title={label}
-                    onClick={() => setFeedLayout(value)}
-                  >
-                    <Icon className="size-3.5" stroke={1.75} aria-hidden />
-                    <span className="hidden sm:inline">{label}</span>
-                  </Button>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-
-        {feedBusy.showInitialSkeleton ? (
-          <NewsFeedSkeleton density={feedLayout} />
-        ) : hasFeed ? (
-          <div
-            className={staleListBusyClassName(feedBusy.isRefreshing)}
-            aria-busy={feedBusy.isRefreshing || undefined}
-          >
-            <div
-              className={cn(
-                feedLayout === "list"
-                  ? "flex flex-col gap-2"
-                  : feedLayout === "dense"
-                    ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-                    : "grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
-              )}
-            >
-              {(showAllFeed
-                ? feed.items
-                : feed.items.slice(0, feedPreviewLimit)
-              ).map((item) => (
-                <AnnouncementNewsCard
-                  key={item.id}
-                  announcement={item}
-                  density={feedLayout}
-                  onClick={() => openAnnouncement(item)}
-                />
-              ))}
-            </div>
-            {feed.items.length > feedPreviewLimit ||
-            feed.total > feedPreviewLimit ? (
-              <div className="flex flex-col items-center gap-1.5 pt-2">
-                {!showAllFeed ? (
-                  <p className="text-xs text-muted-foreground">
-                    Showing {Math.min(feedPreviewLimit, feed.items.length)} of{" "}
-                    {feed.total || feed.items.length}
-                  </p>
-                ) : null}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowAllFeed((current) => !current)}
-                >
-                  {showAllFeed ? "Show less" : "Show more"}
-                </Button>
-              </div>
-            ) : null}
-          </div>
-        ) : (
-          <Empty className="border border-dashed py-12">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <IconSpeakerphone />
-              </EmptyMedia>
-              <EmptyTitle>No published announcements</EmptyTitle>
-              <EmptyDescription>
-                {canManage
-                  ? "Publish a notice to show it in the news feed."
-                  : "Published notices will appear here when available."}
-              </EmptyDescription>
-            </EmptyHeader>
-            {canManage ? (
-              <EmptyContent>
-                <Button onClick={openCreate}>
-                  <IconPlus data-icon="inline-start" aria-hidden />
-                  Add announcement
-                </Button>
-              </EmptyContent>
-            ) : null}
-          </Empty>
-        )}
-      </section>
-
-      {canManage && can(d, "announcements.table") ? (
-        <Card
-          id="announcements-manage"
-          className="min-w-0 scroll-mt-20 gap-0 py-0 shadow-none dark:ring-0"
-        >
-          <CardHeader className="gap-4 border-b px-6 py-5">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <IconSpeakerphone
-                  className="size-4"
-                  stroke={1.75}
-                  aria-hidden
-                />
-              </span>
-              Manage announcements
-            </CardTitle>
-            <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:gap-3">
-              <div className="relative w-full sm:max-w-sm sm:flex-1">
-                <IconSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  className="h-9 pl-9"
-                  placeholder="Search title, body, audience, author"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  aria-label="Search announcements"
-                />
-              </div>
-              <Select
-                value={statusFilter}
-                items={selectItemsRecord([
-                  { value: "all", label: "All statuses" },
-                  ...STATUS_FILTERS.filter((value) => value !== "all").map(
-                    (value) => ({
-                      value,
-                      label: announcementStatusLabel(value),
-                    })
-                  ),
-                ])}
-                onValueChange={(value) => {
-                  setStatusFilter((value as StatusFilter) ?? "all")
-                  setPage(1)
-                }}
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+              {!canManage ? (
+                <div className="relative w-full sm:w-64">
+                  <IconSearch
+                    className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden
+                  />
+                  <Input
+                    className="pl-8"
+                    placeholder="Search announcements"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    aria-label="Search announcements"
+                  />
+                </div>
+              ) : null}
+              <div
+                className="inline-flex h-9 shrink-0 items-center rounded-lg border bg-muted/30 p-0.5"
+                role="group"
+                aria-label="Feed layout"
               >
-                <SelectTrigger
-                  className="w-full shrink-0 sm:w-48"
-                  aria-label="Filter by status"
-                >
-                  <SelectValue placeholder="All statuses" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All statuses</SelectItem>
-                  {STATUS_FILTERS.filter((value) => value !== "all").map(
-                    (value) => (
-                      <SelectItem key={value} value={value}>
-                        {announcementStatusLabel(value)}
-                      </SelectItem>
-                    )
-                  )}
-                </SelectContent>
-              </Select>
+                {FEED_LAYOUTS.map(({ value, label, icon: Icon }) => {
+                  const active = feedLayout === value
+                  return (
+                    <Button
+                      key={value}
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className={cn(
+                        "h-8 gap-1.5 rounded-md px-2.5 text-xs transition-[background-color,color,box-shadow] duration-150",
+                        active
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                      aria-pressed={active}
+                      aria-label={`${label} layout`}
+                      title={label}
+                      onClick={() => setFeedLayout(value)}
+                    >
+                      <Icon className="size-3.5" stroke={1.75} aria-hidden />
+                      <span className="hidden sm:inline">{label}</span>
+                    </Button>
+                  )
+                })}
+              </div>
             </div>
           </CardHeader>
-          <CardContent className="p-0">
-            {showInitialSkeleton ? (
-              <AnnouncementsTableSkeleton />
-            ) : hasRows ? (
+          <CardContent className="p-4 sm:p-5">
+            {feedBusy.showInitialSkeleton ? (
+              <NewsFeedSkeleton density={feedLayout} />
+            ) : hasFeed ? (
               <div
-                className={staleListBusyClassName(isRefreshing)}
-                aria-busy={isRefreshing || undefined}
+                className={staleListBusyClassName(feedBusy.isRefreshing)}
+                aria-busy={feedBusy.isRefreshing || undefined}
               >
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Audience</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Updated</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rows.map((row) => (
-                      <TableRow key={row.id}>
-                        <TableCell>
-                          <button
-                            type="button"
-                            className="text-left"
-                            onClick={() => openAnnouncement(row)}
-                          >
-                            <p className="font-medium">{row.title}</p>
-                            <p className="text-xs text-muted-foreground">
-                              by {row.author.fullName}
-                            </p>
-                          </button>
-                        </TableCell>
-                        <TableCell>
-                          <MetaChip icon={IconUsers} label={row.audience} />
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge
-                            label={announcementStatusLabel(row.status)}
-                            toneClassName={
-                              STATUS_BADGE_TONE[
-                                announcementStatusToneKey(row.status)
-                              ]
-                            }
-                            dotClassName={
-                              STATUS_BADGE_DOT[
-                                announcementStatusToneKey(row.status)
-                              ]
-                            }
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <MetaChip
-                            icon={IconCalendarEvent}
-                            label={formatAnnouncementDateTime(
-                              row.publishedAt ?? row.updatedAt
-                            )}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap justify-end gap-1">
-                            {canEdit ? (
-                              <Button
-                                size="icon-sm"
-                                variant="outline"
-                                className="size-7"
-                                aria-label="Edit announcement"
-                                title="Edit"
-                                onClick={() => openEdit(row)}
-                              >
-                                <IconPencil className="size-3.5" aria-hidden />
-                              </Button>
-                            ) : null}
-                            {canPublish ? (
-                              row.status !== "published" ? (
-                                <Button
-                                  size="icon-sm"
-                                  className="size-7"
-                                  aria-label="Publish announcement"
-                                  title="Publish"
-                                  onClick={() => handlePublish(row)}
-                                >
-                                  <IconSend className="size-3.5" aria-hidden />
-                                </Button>
-                              ) : (
-                                <Button
-                                  size="icon-sm"
-                                  className="size-7"
-                                  disabled
-                                  aria-label="Already published"
-                                  title="Published"
-                                >
-                                  <IconSend className="size-3.5" aria-hidden />
-                                </Button>
-                              )
-                            ) : null}
-                            {canDelete ? (
-                              <Button
-                                size="icon-sm"
-                                variant="destructive"
-                                className="size-7"
-                                aria-label="Delete announcement"
-                                title="Delete"
-                                onClick={() => openDelete(row)}
-                              >
-                                <IconTrash className="size-3.5" aria-hidden />
-                              </Button>
-                            ) : null}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-
-                {list.totalPages > 1 ? (
-                  <div className="flex items-center justify-between gap-3 border-t px-4 py-3">
-                    <p className="text-sm text-muted-foreground">
-                      Page {list.page} of {list.totalPages}
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={list.page <= 1 || isRefreshing}
-                        onClick={() =>
-                          setPage((current) => Math.max(1, current - 1))
-                        }
-                      >
-                        Previous
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={list.page >= list.totalPages || isRefreshing}
-                        onClick={() =>
-                          setPage((current) =>
-                            Math.min(list.totalPages, current + 1)
-                          )
-                        }
-                      >
-                        Next
-                      </Button>
-                    </div>
+                <div
+                  className={cn(
+                    feedLayout === "list"
+                      ? "flex flex-col gap-2"
+                      : feedLayout === "dense"
+                        ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                        : "grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+                  )}
+                >
+                  {visibleFeed.map((item, index) => (
+                    <AnnouncementNewsCard
+                      key={item.id}
+                      announcement={item}
+                      density={feedLayout}
+                      entranceIndex={index}
+                      onClick={() => openAnnouncement(item)}
+                    />
+                  ))}
+                </div>
+                {canExpandFeed ? (
+                  <div className="flex flex-col items-center gap-1.5 border-t pt-4 mt-4">
+                    {!showAllFeed ? (
+                      <p className="text-xs text-muted-foreground">
+                        Showing {Math.min(feedPreviewLimit, feed.items.length)}{" "}
+                        of {feed.total || feed.items.length}
+                      </p>
+                    ) : null}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowAllFeed((current) => !current)}
+                    >
+                      {showAllFeed ? "Show less" : "Show more"}
+                    </Button>
                   </div>
                 ) : null}
               </div>
@@ -996,21 +755,266 @@ export function AnnouncementsPage({
                   <EmptyMedia variant="icon">
                     <IconSpeakerphone />
                   </EmptyMedia>
-                  <EmptyTitle>No announcements yet</EmptyTitle>
+                  <EmptyTitle>No published announcements</EmptyTitle>
                   <EmptyDescription>
-                    Create the first clinic notice for students and staff.
+                    {canManage
+                      ? "Publish a notice to show it in the news feed."
+                      : "Published notices will appear here when available."}
                   </EmptyDescription>
                 </EmptyHeader>
-                <EmptyContent>
-                  <Button onClick={openCreate}>
-                    <IconPlus data-icon="inline-start" aria-hidden />
-                    Add announcement
-                  </Button>
-                </EmptyContent>
+                {canManage ? (
+                  <EmptyContent>
+                    <Button onClick={openCreate}>
+                      <IconPlus data-icon="inline-start" aria-hidden />
+                      Add announcement
+                    </Button>
+                  </EmptyContent>
+                ) : null}
               </Empty>
             )}
           </CardContent>
         </Card>
+      </PanelFrame>
+
+      {canManage && can(d, "announcements.table") ? (
+        <PanelFrame className="scroll-mt-20">
+          <Card
+            id="announcements-manage"
+            className={cn(panelCardClassName, "gap-0 py-0")}
+          >
+            <CardHeader className="flex flex-col gap-3 border-b px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="text-base">Manage announcements</CardTitle>
+              <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                <Select
+                  value={statusFilter}
+                  items={selectItemsRecord([
+                    { value: "all", label: "All statuses" },
+                    ...STATUS_FILTERS.filter((value) => value !== "all").map(
+                      (value) => ({
+                        value,
+                        label: announcementStatusLabel(value),
+                      })
+                    ),
+                  ])}
+                  onValueChange={(value) => {
+                    setStatusFilter((value as StatusFilter) ?? "all")
+                    setPage(1)
+                  }}
+                >
+                  <SelectTrigger
+                    className="w-full shrink-0 sm:w-40"
+                    aria-label="Filter by status"
+                  >
+                    <SelectValue placeholder="All statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All statuses</SelectItem>
+                    {STATUS_FILTERS.filter((value) => value !== "all").map(
+                      (value) => (
+                        <SelectItem key={value} value={value}>
+                          {announcementStatusLabel(value)}
+                        </SelectItem>
+                      )
+                    )}
+                  </SelectContent>
+                </Select>
+                <div className="relative w-full sm:w-72">
+                  <IconSearch
+                    className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden
+                  />
+                  <Input
+                    className="pl-8"
+                    placeholder="Search title, body, audience, author"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    aria-label="Search announcements"
+                  />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="min-w-0 p-0">
+              {showInitialSkeleton ? (
+                <AnnouncementsTableSkeleton />
+              ) : hasRows ? (
+                <div
+                  className={cn(
+                    "min-w-0 overflow-x-auto",
+                    staleListBusyClassName(isRefreshing)
+                  )}
+                  aria-busy={isRefreshing || undefined}
+                >
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="h-12 px-4">Title</TableHead>
+                        <TableHead className="h-12 px-4">Audience</TableHead>
+                        <TableHead className="h-12 px-4">Status</TableHead>
+                        <TableHead className="hidden h-12 px-4 sm:table-cell">
+                          Updated
+                        </TableHead>
+                        <TableHead className="h-12 px-4 text-right">
+                          Actions
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rows.map((row) => (
+                        <TableRow key={row.id}>
+                          <TableCell className="px-4">
+                            <button
+                              type="button"
+                              className="text-left transition-colors hover:text-primary"
+                              onClick={() => openAnnouncement(row)}
+                            >
+                              <p className="font-medium text-balance">
+                                {row.title}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                by {row.author.fullName}
+                              </p>
+                            </button>
+                          </TableCell>
+                          <TableCell className="px-4">
+                            <Badge variant="outline">{row.audience}</Badge>
+                          </TableCell>
+                          <TableCell className="px-4">
+                            <StatusBadge
+                              label={announcementStatusLabel(row.status)}
+                              toneClassName={
+                                STATUS_BADGE_TONE[
+                                  announcementStatusToneKey(row.status)
+                                ]
+                              }
+                              dotClassName={
+                                STATUS_BADGE_DOT[
+                                  announcementStatusToneKey(row.status)
+                                ]
+                              }
+                            />
+                          </TableCell>
+                          <TableCell className="hidden px-4 sm:table-cell">
+                            <p className="tabular-nums">
+                              {formatAnnouncementDateTime(
+                                row.publishedAt ?? row.updatedAt
+                              )}
+                            </p>
+                          </TableCell>
+                          <TableCell className="px-4">
+                            <div className="flex flex-wrap justify-end gap-1">
+                              {canEdit ? (
+                                <Button
+                                  size="icon-sm"
+                                  variant="ghost"
+                                  className="size-7 text-muted-foreground"
+                                  aria-label="Edit announcement"
+                                  title="Edit"
+                                  onClick={() => openEdit(row)}
+                                >
+                                  <IconPencil className="size-4" aria-hidden />
+                                </Button>
+                              ) : null}
+                              {canPublish ? (
+                                <Button
+                                  size="icon-sm"
+                                  variant="ghost"
+                                  className={cn(
+                                    "size-7",
+                                    row.status === "published"
+                                      ? "text-muted-foreground/50"
+                                      : "text-muted-foreground hover:text-primary"
+                                  )}
+                                  disabled={row.status === "published"}
+                                  aria-label={
+                                    row.status === "published"
+                                      ? "Already published"
+                                      : "Publish announcement"
+                                  }
+                                  title={
+                                    row.status === "published"
+                                      ? "Published"
+                                      : "Publish"
+                                  }
+                                  onClick={() => handlePublish(row)}
+                                >
+                                  <IconSend className="size-4" aria-hidden />
+                                </Button>
+                              ) : null}
+                              {canDelete ? (
+                                <Button
+                                  size="icon-sm"
+                                  variant="ghost"
+                                  className="size-7 text-muted-foreground hover:text-destructive"
+                                  aria-label="Delete announcement"
+                                  title="Delete"
+                                  onClick={() => openDelete(row)}
+                                >
+                                  <IconTrash className="size-4" aria-hidden />
+                                </Button>
+                              ) : null}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+
+                  {list.totalPages > 1 ? (
+                    <div className="flex items-center justify-between gap-3 border-t px-4 py-3">
+                      <p className="text-sm text-muted-foreground">
+                        Page {list.page} of {list.totalPages}
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={list.page <= 1 || isRefreshing}
+                          onClick={() =>
+                            setPage((current) => Math.max(1, current - 1))
+                          }
+                        >
+                          Previous
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={
+                            list.page >= list.totalPages || isRefreshing
+                          }
+                          onClick={() =>
+                            setPage((current) =>
+                              Math.min(list.totalPages, current + 1)
+                            )
+                          }
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <Empty className="border-0 py-12">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <IconSpeakerphone />
+                    </EmptyMedia>
+                    <EmptyTitle>No announcements yet</EmptyTitle>
+                    <EmptyDescription>
+                      Create the first clinic notice for students and staff.
+                    </EmptyDescription>
+                  </EmptyHeader>
+                  <EmptyContent>
+                    <Button onClick={openCreate}>
+                      <IconPlus data-icon="inline-start" aria-hidden />
+                      Add announcement
+                    </Button>
+                  </EmptyContent>
+                </Empty>
+              )}
+            </CardContent>
+          </Card>
+        </PanelFrame>
       ) : null}
 
       <AnnouncementArticleDialog
@@ -1049,7 +1053,7 @@ export function AnnouncementsPage({
         onOpenChange={setDeleteOpen}
         onDeleted={handleDeleted}
       />
-    </div>
+    </main>
   )
 }
 

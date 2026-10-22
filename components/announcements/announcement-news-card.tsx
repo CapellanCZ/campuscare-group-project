@@ -27,7 +27,7 @@ function MetaChip({
   label: string
 }) {
   return (
-    <span className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted/55 px-1.5 py-0.5 text-[11px] text-muted-foreground">
+    <span className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted/50 px-1.5 py-0.5 text-[11px] text-muted-foreground">
       <Icon className="size-3.5 shrink-0 opacity-70" stroke={1.75} aria-hidden />
       <span className="truncate">{label}</span>
     </span>
@@ -39,6 +39,7 @@ export function AnnouncementNewsCard({
   onClick,
   className,
   density = "card",
+  entranceIndex = 0,
   /** @deprecated Use density="list" */
   compact = false,
 }: {
@@ -46,6 +47,8 @@ export function AnnouncementNewsCard({
   onClick?: () => void
   className?: string
   density?: AnnouncementCardDensity
+  /** Stagger entrance delay index (capped). */
+  entranceIndex?: number
   compact?: boolean
 }) {
   const layout: AnnouncementCardDensity = compact ? "list" : density
@@ -60,13 +63,19 @@ export function AnnouncementNewsCard({
   )
   const isList = layout === "list"
   const isDense = layout === "dense"
+  const staggerMs = Math.min(entranceIndex, 8) * 45
 
   return (
     <button
       type="button"
       onClick={onClick}
+      style={{ animationDelay: `${staggerMs}ms` }}
       className={cn(
-        "group flex w-full overflow-hidden rounded-xl border border-border/70 bg-card text-left shadow-none transition-[border-color,box-shadow,transform] hover:border-border hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "group flex w-full overflow-hidden rounded-xl border border-border bg-card text-left shadow-none",
+        "transition-[border-color,box-shadow,transform,opacity] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]",
+        "hover:border-foreground/15 hover:shadow-sm active:scale-[0.985]",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:fill-mode-both",
         isList ? "flex-row items-stretch" : "flex-col",
         className
       )}
@@ -84,18 +93,18 @@ export function AnnouncementNewsCard({
           <img
             src={cover}
             alt=""
-            className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            className="size-full object-cover transition-transform duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:scale-[1.03]"
           />
         ) : (
           <div
             className={cn(
-              "flex size-full flex-col items-center justify-center bg-gradient-to-br from-primary/12 via-muted to-muted",
+              "flex size-full flex-col items-center justify-center bg-gradient-to-br from-muted via-muted to-muted/70",
               isList ? "gap-1" : "gap-2"
             )}
           >
             <span
               className={cn(
-                "flex items-center justify-center rounded-full bg-background/80 text-primary shadow-sm ring-1 ring-border/60",
+                "flex items-center justify-center rounded-full bg-background text-muted-foreground shadow-sm ring-1 ring-border",
                 isList ? "size-8" : "size-10"
               )}
             >
@@ -136,10 +145,10 @@ export function AnnouncementNewsCard({
         </div>
         <h3
           className={cn(
-            "font-semibold tracking-tight text-foreground transition-colors group-hover:text-primary",
+            "font-semibold tracking-tight text-foreground transition-colors duration-150 group-hover:text-primary",
             isList || isDense
               ? "line-clamp-1 text-sm"
-              : "line-clamp-2 text-base"
+              : "line-clamp-2 text-base text-balance"
           )}
         >
           {announcement.title}
@@ -147,7 +156,7 @@ export function AnnouncementNewsCard({
         {excerpt && !isList ? (
           <p
             className={cn(
-              "text-muted-foreground",
+              "text-pretty text-muted-foreground",
               isDense
                 ? "line-clamp-2 text-xs leading-relaxed"
                 : "line-clamp-3 text-sm leading-relaxed"

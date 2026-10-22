@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -64,12 +63,16 @@ export function RecentlyApprovedPanel({
   className?: string
 }) {
   return (
-    <Card className={cn(panelCardClassName, "gap-0 py-0", className)}>
-      <CardHeader className="gap-1 border-b px-5 py-4">
-        <CardTitle className="text-base">Recently Approved</CardTitle>
-        <CardDescription>
-          Confirmed bookings, newest first.
-        </CardDescription>
+    <Card className={cn(panelCardClassName, "h-full gap-0 py-0", className)}>
+      <CardHeader className="border-b px-6 py-5 [.border-b]:pb-5">
+        {/* Match Request Queue header height without using CardDescription
+            (that slot changes the card-header grid and breaks column align). */}
+        <div className="flex min-h-[5.75rem] flex-col justify-center gap-1">
+          <CardTitle className="text-base">Recently Approved</CardTitle>
+          <p className="text-sm text-pretty text-muted-foreground">
+            Confirmed bookings, newest first.
+          </p>
+        </div>
       </CardHeader>
       <CardContent className="min-w-0 p-0">
         {loading && items.length === 0 ? (
@@ -111,7 +114,7 @@ export function RecentlyApprovedPanel({
               return (
                 <li
                   key={request.id}
-                  className="flex items-start gap-2 px-4 py-3.5"
+                  className="flex items-start gap-2 px-6 py-5"
                 >
                   <div className="min-w-0 flex-1 space-y-1.5">
                     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -176,7 +179,7 @@ export function RecentlyApprovedPanel({
           </ul>
         )}
         {items.length > 0 ? (
-          <p className="border-t px-4 py-2.5 text-xs text-muted-foreground">
+          <p className="border-t px-6 py-2.5 text-xs text-muted-foreground">
             Showing {items.length} most recent
           </p>
         ) : null}

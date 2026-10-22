@@ -750,7 +750,7 @@ export function ConsultationsPage({
                         <p className="text-xs text-muted-foreground">
                           {section.description}
                         </p>
-                      </div>
+            </div>
                       <Badge variant="secondary" className="tabular-nums">
                         {section.rows.length}
                       </Badge>
@@ -770,16 +770,16 @@ export function ConsultationsPage({
                         onView={setViewing}
                         onComplete={(row) => void completeConsultation(row)}
                         onEdit={(row) => {
-                          setFormMode("edit")
-                          setEditing(row)
-                          setFormOpen(true)
-                        }}
+                                setFormMode("edit")
+                                setEditing(row)
+                                setFormOpen(true)
+                              }}
                         onDelete={setDeleting}
                       />
                     )}
                   </section>
                 ))}
-              </div>
+            </div>
             </div>
           )}
         </CardContent>

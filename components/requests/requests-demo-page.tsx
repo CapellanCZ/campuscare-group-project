@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react"
@@ -96,6 +97,67 @@ import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 const SEARCH_DEBOUNCE_MS = 300
 const PAGE_SIZE = 10
 
+const REQUEST_SORTS = [
+  { value: "priority", label: "Triage priority" },
+  { value: "newest", label: "Newest updated" },
+  { value: "oldest", label: "Oldest updated" },
+  { value: "preferred_asc", label: "Preferred date ↑" },
+  { value: "preferred_desc", label: "Preferred date ↓" },
+  { value: "name_asc", label: "Patient A–Z" },
+] as const
+
+type RequestSort = (typeof REQUEST_SORTS)[number]["value"]
+
+function triageRank(status: AppointmentRequest["status"]) {
+  if (status === "pending") return 0
+  if (status === "waitlisted") return 1
+  if (status === "rescheduled") return 2
+  return 3
+}
+
+function preferredStamp(request: AppointmentRequest) {
+  const date = request.preferredDate ?? request.startsAt.slice(0, 10)
+  const time = (request.preferredTime ?? "00:00").slice(0, 5)
+  const parsed = Date.parse(`${date}T${time}:00`)
+  return Number.isNaN(parsed)
+    ? new Date(request.startsAt).getTime()
+    : parsed
+}
+
+function sortRequests(
+  items: AppointmentRequest[],
+  sort: RequestSort
+): AppointmentRequest[] {
+  const next = [...items]
+  next.sort((a, b) => {
+    switch (sort) {
+      case "newest":
+        return (
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        )
+      case "oldest":
+        return (
+          new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
+        )
+      case "preferred_asc":
+        return preferredStamp(a) - preferredStamp(b)
+      case "preferred_desc":
+        return preferredStamp(b) - preferredStamp(a)
+      case "name_asc":
+        return a.patientName.localeCompare(b.patientName, undefined, {
+          sensitivity: "base",
+        })
+      case "priority":
+      default: {
+        const byStatus = triageRank(a.status) - triageRank(b.status)
+        if (byStatus !== 0) return byStatus
+        return preferredStamp(a) - preferredStamp(b)
+      }
+    }
+  })
+  return next
+}
+
 export function RequestsPage({
   access,
   initialList,
@@ -116,6 +178,7 @@ export function RequestsPage({
   const [query, setQuery] = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const [status, setStatus] = useState<string>("all")
+  const [sort, setSort] = useState<RequestSort>("priority")
   const [page, setPage] = useState(1)
   const [list, setList] = useState(cached?.list ?? initialList)
   const [stats, setStats] = useState(cached?.stats ?? initialStats)
@@ -303,9 +366,12 @@ export function RequestsPage({
     void loadPage(debouncedQuery, status)
   }, [debouncedQuery, status, loadPage, hydrateFromCache, loadRecentlyApproved])
 
-  const rows = isNurse
-    ? list.items.filter((item) => item.status !== "confirmed")
-    : list.items
+  const rows = useMemo(() => {
+    const filtered = isNurse
+      ? list.items.filter((item) => item.status !== "confirmed")
+      : list.items
+    return sortRequests(filtered, sort)
+  }, [isNurse, list.items, sort])
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
   const pageRows = rows.slice(
@@ -323,6 +389,12 @@ export function RequestsPage({
       label: consultationRequestStatusLabel(value),
     })),
   ])
+  const sortFilterItems = selectItemsRecord(
+    REQUEST_SORTS.map((option) => ({
+      value: option.value,
+      label: option.label,
+    }))
+  )
 
   function openRequest(row: AppointmentRequest, mode: RequestDialogMode) {
     // Open immediately with list row data — do not blank/reload the queue.
@@ -361,22 +433,9 @@ export function RequestsPage({
       !(isNurse && request.status === "confirmed")
     const without = list.items.filter((item) => item.id !== request.id)
     const nextItems = matchesFilter ? [request, ...without] : without
-    const items = [...nextItems].sort((a, b) => {
-      const rank = (rowStatus: AppointmentRequest["status"]) =>
-        rowStatus === "pending"
-          ? 0
-          : rowStatus === "waitlisted"
-            ? 1
-            : rowStatus === "rescheduled"
-              ? 2
-              : 3
-      const byStatus = rank(a.status) - rank(b.status)
-      if (byStatus !== 0) return byStatus
-      return new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
-    })
     const nextList = {
       ...list,
-      items,
+      items: nextItems,
       total: Math.max(0, list.total + (matchesFilter ? 0 : -1)),
     }
     setList(nextList)
@@ -425,49 +484,78 @@ export function RequestsPage({
       <PanelFrame>
         <PanelGrid className="lg:grid-cols-3">
           <PanelCell className="lg:col-span-2">
-            <Card className={cn(panelCardClassName, "gap-0 py-0")}>
-              <CardHeader className="gap-4 border-b px-6 py-5">
-                <CardTitle className="text-base">Request Queue</CardTitle>
-                {can(access.designation, "requests.search_filters") ? (
-                  <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:gap-3">
-                    {isNurse ? (
-                      <StudentIdSearchInput
-                        className="w-full sm:max-w-sm sm:flex-1"
-                        value={query}
-                        onChange={setQuery}
-                        placeholder="Search by ID Number"
-                        aria-label="Search by ID Number"
-                      />
-                    ) : (
-                      <Input
-                        className="h-9 w-full sm:max-w-sm sm:flex-1"
-                        placeholder="Search patient, ID, email, service, doctor, status"
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                      />
-                    )}
-                    <Select
-                      value={status}
-                      items={statusFilterItems}
-                      onValueChange={(value) => setStatus(value ?? "all")}
-                    >
-                      <SelectTrigger
-                        className="w-full shrink-0 sm:w-48"
-                        aria-label="Filter by status"
+            <Card className={cn(panelCardClassName, "h-full gap-0 py-0")}>
+              <CardHeader className="border-b px-6 py-5 [.border-b]:pb-5">
+                <div className="flex min-h-[5.75rem] flex-col justify-center gap-3">
+                  <CardTitle className="text-base">Request Queue</CardTitle>
+                  {can(access.designation, "requests.search_filters") ? (
+                    <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+                      {isNurse ? (
+                        <StudentIdSearchInput
+                          className="w-full sm:min-w-[12rem] sm:flex-1"
+                          value={query}
+                          onChange={setQuery}
+                          placeholder="Search by ID Number"
+                          aria-label="Search by ID Number"
+                        />
+                      ) : (
+                        <Input
+                          className="h-9 w-full sm:min-w-[12rem] sm:flex-1"
+                          placeholder="Search patient, ID, email, service, doctor, status"
+                          value={query}
+                          onChange={(e) => setQuery(e.target.value)}
+                        />
+                      )}
+                      <Select
+                        value={status}
+                        items={statusFilterItems}
+                        onValueChange={(value) => {
+                          setStatus(value ?? "all")
+                          setPage(1)
+                        }}
                       >
-                        <SelectValue placeholder="All Statuses" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Statuses</SelectItem>
-                        {filterStatuses.map((value) => (
-                          <SelectItem key={value} value={value}>
-                            {consultationRequestStatusLabel(value)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ) : null}
+                        <SelectTrigger
+                          className="h-9 w-full shrink-0 sm:w-40"
+                          aria-label="Filter by status"
+                        >
+                          <SelectValue placeholder="All Statuses" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Statuses</SelectItem>
+                          {filterStatuses.map((value) => (
+                            <SelectItem key={value} value={value}>
+                              {consultationRequestStatusLabel(value)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={sort}
+                        items={sortFilterItems}
+                        onValueChange={(value) => {
+                          setSort((value as RequestSort) ?? "priority")
+                          setPage(1)
+                        }}
+                      >
+                        <SelectTrigger
+                          className="h-9 w-full shrink-0 sm:w-44"
+                          aria-label="Sort requests"
+                        >
+                          <SelectValue placeholder="Sort" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {REQUEST_SORTS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : (
+                    <div className="min-h-9" aria-hidden />
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="min-w-0 p-0">
                 {listBusy.showInitialSkeleton ? (
@@ -497,7 +585,7 @@ export function RequestsPage({
                   <>
                     <div
                       className={cn(
-                        "divide-y-0",
+                        "divide-y divide-border",
                         staleListBusyClassName(listBusy.isRefreshing)
                       )}
                       aria-busy={listBusy.isRefreshing || undefined}
