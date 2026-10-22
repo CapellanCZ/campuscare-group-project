@@ -2,9 +2,11 @@
  * Run: npx --yes tsx lib/health/appointment-queue-eligibility.test.ts
  */
 import {
+  QUEUE_EARLY_ENTRY_MINUTES,
   filterActiveQueueTickets,
   isAppointmentEligibleForQueue,
   isTicketEligibleForActiveQueue,
+  isUpcomingScheduledAppointment,
   manilaPreferredStartsAtIso,
 } from "./appointment-queue-eligibility"
 
@@ -32,20 +34,28 @@ function test(name: string, fn: () => void) {
 
 const today = "2026-10-15"
 const tomorrow = "2026-10-16"
+// 20:00 Manila → early window opens at 19:45
+const at1944 = new Date(manilaIso(today, "19:44"))
+const at1945 = new Date(manilaIso(today, "19:45"))
 const at1900 = new Date(manilaIso(today, "19:00"))
-const at1959 = new Date(manilaIso(today, "19:59"))
 const at2000 = new Date(manilaIso(today, "20:00"))
 const at2015 = new Date(manilaIso(today, "20:15"))
 const appt2000 = manilaIso(today, "20:00")
 const apptTomorrow2000 = manilaIso(tomorrow, "20:00")
 const appt0800 = manilaIso(today, "08:00")
 
-test("1. 8:00 PM appointment not eligible at 7:00 PM", () => {
-  assert(!isAppointmentEligibleForQueue(appt2000, at1900), "expected ineligible at 19:00")
+test(`1. still ineligible at 19:44 for 20:00 (${QUEUE_EARLY_ENTRY_MINUTES}m window)`, () => {
+  assert(
+    !isAppointmentEligibleForQueue(appt2000, at1944),
+    "expected ineligible at 19:44"
+  )
 })
 
-test("2. still ineligible at 7:59 PM", () => {
-  assert(!isAppointmentEligibleForQueue(appt2000, at1959), "expected ineligible at 19:59")
+test(`2. eligible at 19:45 (exactly ${QUEUE_EARLY_ENTRY_MINUTES} min before 20:00)`, () => {
+  assert(
+    isAppointmentEligibleForQueue(appt2000, at1945),
+    "expected eligible at 19:45"
+  )
 })
 
 test("3. eligible at 8:00 PM", () => {
@@ -63,7 +73,7 @@ test("5. tomorrow's appointment not eligible today at same clock time", () => {
   )
 })
 
-test("6. past morning appointment remains eligible in the evening (not treated as future)", () => {
+test("6. past morning appointment remains eligible in the evening", () => {
   assert(
     isAppointmentEligibleForQueue(appt0800, at2000),
     "8:00 AM today must stay eligible at 8:00 PM"
@@ -75,23 +85,31 @@ test("7. walk-in / null startsAt always eligible", () => {
   assert(isAppointmentEligibleForQueue(undefined, at1900), "undefined should be eligible")
 })
 
-test("8. filterActiveQueueTickets drops future scheduled waiting tickets only", () => {
+test("8. upcoming preview true before early window", () => {
+  assert(
+    isUpcomingScheduledAppointment(appt2000, at1944),
+    "19:44 should still be upcoming for 20:00"
+  )
+  assert(
+    !isUpcomingScheduledAppointment(appt2000, at1945),
+    "19:45 should leave upcoming (now Waiting-eligible)"
+  )
+})
+
+test("9. filter keeps upcoming waiting tickets before T−15", () => {
   const tickets = [
     { appointmentStartsAt: appt2000, status: "waiting" as const },
     { appointmentStartsAt: null, status: "waiting" as const },
     { appointmentStartsAt: appt0800, status: "waiting" as const },
   ]
-  const atSeven = filterActiveQueueTickets(tickets, at1900)
-  assert(atSeven.length === 2, `expected 2 tickets at 19:00, got ${atSeven.length}`)
-  assert(
-    atSeven.every((t) => t.appointmentStartsAt !== appt2000),
-    "8pm appointment must be filtered at 7pm"
-  )
-  const atEight = filterActiveQueueTickets(tickets, at2000)
-  assert(atEight.length === 3, `expected 3 tickets at 20:00, got ${atEight.length}`)
+  const atBefore = filterActiveQueueTickets(tickets, at1944)
+  assert(atBefore.length === 3, `expected 3 tickets at 19:44, got ${atBefore.length}`)
+
+  const atWindow = filterActiveQueueTickets(tickets, at1945)
+  assert(atWindow.length === 3, `expected 3 tickets at 19:45, got ${atWindow.length}`)
 })
 
-test("9. called/ongoing stay visible even if startsAt were in the future", () => {
+test("10. called/ongoing stay visible even if startsAt were in the future", () => {
   assert(
     isTicketEligibleForActiveQueue(
       { appointmentStartsAt: apptTomorrow2000, status: "ongoing" },
@@ -101,27 +119,27 @@ test("9. called/ongoing stay visible even if startsAt were in the future", () =>
   )
 })
 
-test("10. manilaPreferredStartsAtIso builds Asia/Manila instant", () => {
+test("11. manilaPreferredStartsAtIso builds Asia/Manila instant", () => {
   const iso = manilaPreferredStartsAtIso(today, "20:00")
   assert(iso != null, "iso required")
   assert(iso === appt2000, `expected ${appt2000}, got ${iso}`)
 })
 
-test("11. timezone: UTC evening before Manila 20:00 must stay ineligible", () => {
-  // 20:00 Manila = 12:00 UTC. 11:59 UTC is still before.
-  const beforeUtc = new Date("2026-10-15T11:59:00.000Z")
+test("12. timezone: UTC before Manila early window stays ineligible", () => {
+  // 20:00 Manila = 12:00 UTC; early window opens 11:45 UTC.
+  const beforeUtc = new Date("2026-10-15T11:44:00.000Z")
   assert(
     !isAppointmentEligibleForQueue(appt2000, beforeUtc),
     "must not become eligible early due to UTC clock"
   )
-  const atUtc = new Date("2026-10-15T12:00:00.000Z")
+  const atEarlyUtc = new Date("2026-10-15T11:45:00.000Z")
   assert(
-    isAppointmentEligibleForQueue(appt2000, atUtc),
-    "eligible exactly at Manila 20:00 / UTC 12:00"
+    isAppointmentEligibleForQueue(appt2000, atEarlyUtc),
+    "eligible at Manila 19:45 / UTC 11:45"
   )
 })
 
-test("12. re-filter is idempotent (no duplicate side effects)", () => {
+test("13. re-filter is idempotent", () => {
   const tickets = [
     { appointmentStartsAt: appt2000, status: "waiting" as const, id: "a" },
     { appointmentStartsAt: null, status: "waiting" as const, id: "b" },

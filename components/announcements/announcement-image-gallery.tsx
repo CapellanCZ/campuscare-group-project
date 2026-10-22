@@ -84,7 +84,7 @@ export function AnnouncementImageGallery({
   return (
     <figure
       className={cn(
-        "relative mx-auto w-full max-w-3xl overflow-hidden rounded-sm border border-border/60 bg-muted shadow-sm",
+        "relative mx-auto w-full max-w-3xl overflow-hidden rounded-xl border border-border/60 bg-muted",
         className
       )}
       aria-roledescription="carousel"

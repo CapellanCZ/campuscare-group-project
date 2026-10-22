@@ -1,11 +1,17 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
-import { appToast } from "@/lib/feedback/app-toast"
 import { queueToasts } from "@/lib/feedback/toast-messages"
 import { useRouter } from "next/navigation"
+import {
+  IconAlertTriangle,
+  IconDental,
+  IconHistory,
+  IconStethoscope,
+} from "@tabler/icons-react"
 
 import { SelectWithOtherField } from "@/components/shared/select-with-other-field"
+import { VitalNumberInput } from "@/components/queue/vital-number-input"
 import { VitalsHistoryDialog } from "@/components/queue/vitals-history-dialog"
 import {
   formatVitalsLine,
@@ -38,25 +44,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Field, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
-
-const THIS_VISIT_PLACEHOLDERS = {
-  bpSystolic: "Enter systolic BP",
-  bpDiastolic: "Enter diastolic BP",
-  heartRate: "Enter heart rate",
-  temperature: "Enter temperature",
-  spo2: "Enter SpO₂",
-  height: "Enter height",
-  weight: "Enter weight",
-} as const
 
 type NurseIntakeSheetProps = {
   ticket: QueueTicketRow | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onAssigned?: (ticketId: string, toStation: SpecialtyStationId) => void
+  /** Roll back local SoT when Supabase intake save fails. */
+  onAssignFailed?: (ticketId: string) => void
+  /** Reconcile from Supabase after a successful intake write. */
+  onAssignSynced?: () => void
 }
 
 function toNumber(value: string): number | null {
@@ -66,10 +65,12 @@ function toNumber(value: string): number | null {
   return Number.isFinite(n) ? n : null
 }
 
+function numStr(value: number | null | undefined): string {
+  return value == null || !Number.isFinite(value) ? "" : String(value)
+}
+
 /** Patient-requested specialty from the ticket; nurse can still change it. */
 function defaultIntakeStation(ticket: QueueTicketRow): SpecialtyStationId {
-  // Prefer dentist if either providerType or service label says so (mobile
-  // bookings sometimes default provider_type to physician incorrectly).
   const service = (
     ticket.consultationType ??
     ticket.service ??
@@ -97,11 +98,13 @@ function defaultIntakeStation(ticket: QueueTicketRow): SpecialtyStationId {
 function VitalField({
   label,
   htmlFor,
+  required,
   className,
   children,
 }: {
   label: string
   htmlFor: string
+  required?: boolean
   className?: string
   children: React.ReactNode
 }) {
@@ -112,6 +115,12 @@ function VitalField({
         className="text-[11px] font-medium text-muted-foreground"
       >
         {label}
+        {required ? (
+          <span className="text-destructive" aria-hidden>
+            {" "}
+            *
+          </span>
+        ) : null}
       </label>
       {children}
     </div>
@@ -123,6 +132,8 @@ export function NurseIntakeSheet({
   open,
   onOpenChange,
   onAssigned,
+  onAssignFailed,
+  onAssignSynced,
 }: NurseIntakeSheetProps) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -155,7 +166,7 @@ export function NurseIntakeSheet({
     setChiefComplaint(
       !complaint || complaint === OTHER_SELECT_VALUE ? "" : complaint
     )
-    // This Visit vitals start empty — latest values are reference-only below.
+    // Local source of truth: this visit starts empty; prior vitals stay reference-only.
     setBpSystolic("")
     setBpDiastolic("")
     setHeartRate("")
@@ -213,6 +224,21 @@ export function NurseIntakeSheet({
     setHistoryOpen(false)
   }
 
+  function applyLatestAsDraft() {
+    const source =
+      latestVitals?.vitals ??
+      (ticket && hasRecordedVitals(ticket.vitals) ? ticket.vitals : null)
+    if (!source) return
+    setBpSystolic(numStr(source.bpSystolic))
+    setBpDiastolic(numStr(source.bpDiastolic))
+    setHeartRate(numStr(source.heartRate))
+    setTemperatureC(numStr(source.temperatureC))
+    setSpo2(numStr(source.spo2))
+    setHeightCm(numStr(source.heightCm))
+    setWeightKg(numStr(source.weightKg))
+    setRespiratoryRate(numStr(source.respiratoryRate))
+  }
+
   function openHistory() {
     setHistoryOpen(true)
     if (!ticket?.patientId || historyRecords.length > 0) return
@@ -251,6 +277,7 @@ export function NurseIntakeSheet({
 
     setError(null)
     setStatusMessage("Saving vitals…")
+    // Local-first: update queue immediately, then sync.
     onAssigned?.(ticket.ticketId, toStation)
 
     startTransition(async () => {
@@ -272,19 +299,15 @@ export function NurseIntakeSheet({
         setError(result.error)
         setStatusMessage(null)
         queueToasts.failed(result.error)
+        onAssignFailed?.(ticket.ticketId)
         router.refresh()
         return
       }
 
-      const destination =
-        toStation === "dentist" ? "Dentist queue" : "Physician queue"
-      appToast.success({
-        title: result.message ?? `Sent to ${destination}`,
-        description: "Patient vitals have been recorded and the queue updated.",
-      })
+      queueToasts.intakeDone(ticket.patientName, toStation)
       reset()
       onOpenChange(false)
-      // Parent already applied optimistic assign; soft-reconcile boards/stats.
+      onAssignSynced?.()
       router.refresh()
     })
   }
@@ -292,18 +315,23 @@ export function NurseIntakeSheet({
   const latestLine =
     latestVitals && hasRecordedVitals(latestVitals.vitals)
       ? formatVitalsLine(latestVitals.vitals)
-      : hasRecordedVitals(ticket?.vitals ?? {
-          bpSystolic: null,
-          bpDiastolic: null,
-          heartRate: null,
-          temperatureC: null,
-          spo2: null,
-          heightCm: null,
-          weightKg: null,
-          respiratoryRate: null,
-        })
+      : hasRecordedVitals(
+            ticket?.vitals ?? {
+              bpSystolic: null,
+              bpDiastolic: null,
+              heartRate: null,
+              temperatureC: null,
+              spo2: null,
+              heightCm: null,
+              weightKg: null,
+              respiratoryRate: null,
+            }
+          )
         ? formatVitalsLine(ticket!.vitals)
         : null
+
+  const isEmergency = ticket?.priority === "urgent"
+  const hasLatest = Boolean(latestLine)
 
   return (
     <>
@@ -314,18 +342,34 @@ export function NurseIntakeSheet({
           if (!next) reset()
         }}
       >
-        <DialogContent className="flex max-h-[min(90vh,760px)] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
-          <DialogHeader className="gap-1 border-b px-6 py-4 text-left">
+        <DialogContent className="flex max-h-[min(92vh,720px)] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+          <DialogHeader className="gap-1.5 border-b px-5 py-4 text-left sm:px-6">
             <div className="flex flex-wrap items-center gap-2 pr-8">
-              <DialogTitle className="leading-none">Intake</DialogTitle>
+              <DialogTitle className="leading-none">
+                {isEmergency ? "Emergency intake" : "Intake"}
+              </DialogTitle>
               {ticket ? (
                 <>
                   <span className="font-semibold tabular-nums text-foreground">
                     {ticketLabel(ticket.queueNumber, ticket.ticketCode)}
                   </span>
-                  <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
-                    {ticket.status}
-                  </Badge>
+                  {isEmergency ? (
+                    <Badge
+                      variant="outline"
+                      className="h-5 gap-1 border-destructive/40 bg-destructive/5 px-1.5 text-[10px] text-destructive"
+                    >
+                      <IconAlertTriangle
+                        className="size-3"
+                        stroke={1.75}
+                        aria-hidden
+                      />
+                      Emergency
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                      {ticket.status}
+                    </Badge>
+                  )}
                 </>
               ) : null}
             </div>
@@ -342,7 +386,7 @@ export function NurseIntakeSheet({
             onSubmit={onSubmit}
             autoComplete="off"
           >
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-4">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4 sm:px-6">
               <SelectWithOtherField
                 key={ticket?.ticketId ?? "intake-closed"}
                 id="intake-complaint"
@@ -357,134 +401,144 @@ export function NurseIntakeSheet({
                 disabled={pending}
               />
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-                    Latest vital signs
-                  </p>
-                  <Button
-                    type="button"
-                    size="xs"
-                    variant="ghost"
-                    disabled={!ticket?.patientId}
-                    onClick={openHistory}
-                  >
-                    View All Records
-                  </Button>
+              <div className="rounded-xl border bg-muted/20 px-3 py-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
+                      Prior vitals
+                    </p>
+                    <p className="mt-0.5 text-xs leading-relaxed text-foreground">
+                      {latestLine ?? "None on file for this patient."}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    {hasLatest ? (
+                      <Button
+                        type="button"
+                        size="xs"
+                        variant="ghost"
+                        disabled={pending}
+                        onClick={applyLatestAsDraft}
+                      >
+                        Use as draft
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
+                      className="size-7"
+                      disabled={!ticket?.patientId}
+                      aria-label="View all vital records"
+                      title="View all records"
+                      onClick={openHistory}
+                    >
+                      <IconHistory
+                        className="size-3.5"
+                        stroke={1.75}
+                        aria-hidden
+                      />
+                    </Button>
+                  </div>
                 </div>
-                <p className="text-sm text-foreground">
-                  {latestLine ?? "No prior vitals on record."}
-                </p>
               </div>
 
-              <div className="space-y-2" key={`this-visit-${ticket?.ticketId ?? "closed"}`}>
-                <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-                  This visit
-                </p>
-                <div className="grid grid-cols-2 gap-2">
+              <div
+                className="space-y-2"
+                key={`this-visit-${ticket?.ticketId ?? "closed"}`}
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="text-[11px] font-semibold text-foreground">
+                    This visit
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    * required
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-x-2.5 gap-y-2.5 sm:grid-cols-4">
                   <VitalField
-                    label="BP *"
+                    label="BP"
                     htmlFor="intake-sys"
+                    required
                     className="col-span-2"
                   >
                     <div className="flex items-center gap-1.5">
-                      <Input
+                      <VitalNumberInput
                         id="intake-sys"
-                        inputMode="numeric"
                         aria-label="BP systolic"
-                        placeholder={THIS_VISIT_PLACEHOLDERS.bpSystolic}
-                        autoComplete="off"
+                        placeholder="Sys"
                         value={bpSystolic}
-                        onChange={(e) => setBpSystolic(e.target.value)}
+                        onValueChange={setBpSystolic}
                         disabled={pending}
-                        className="h-9"
                       />
                       <span className="text-muted-foreground" aria-hidden>
                         /
                       </span>
-                      <Input
+                      <VitalNumberInput
                         id="intake-dia"
-                        inputMode="numeric"
                         aria-label="BP diastolic"
-                        placeholder={THIS_VISIT_PLACEHOLDERS.bpDiastolic}
-                        autoComplete="off"
+                        placeholder="Dia"
                         value={bpDiastolic}
-                        onChange={(e) => setBpDiastolic(e.target.value)}
+                        onValueChange={setBpDiastolic}
                         disabled={pending}
-                        className="h-9"
                       />
                     </div>
                   </VitalField>
-                  <VitalField label="HR *" htmlFor="intake-hr">
-                    <Input
+                  <VitalField label="HR" htmlFor="intake-hr" required>
+                    <VitalNumberInput
                       id="intake-hr"
-                      inputMode="numeric"
-                      placeholder={THIS_VISIT_PLACEHOLDERS.heartRate}
-                      autoComplete="off"
+                      placeholder="bpm"
                       value={heartRate}
-                      onChange={(e) => setHeartRate(e.target.value)}
+                      onValueChange={setHeartRate}
                       disabled={pending}
-                      className="h-9"
                     />
                   </VitalField>
-                  <VitalField label="Temp °C *" htmlFor="intake-temp">
-                    <Input
+                  <VitalField label="Temp °C" htmlFor="intake-temp" required>
+                    <VitalNumberInput
                       id="intake-temp"
-                      inputMode="decimal"
-                      placeholder={THIS_VISIT_PLACEHOLDERS.temperature}
-                      autoComplete="off"
+                      mode="decimal"
+                      placeholder="°C"
                       value={temperatureC}
-                      onChange={(e) => setTemperatureC(e.target.value)}
+                      onValueChange={setTemperatureC}
                       disabled={pending}
-                      className="h-9"
                     />
                   </VitalField>
-                  <VitalField label="Weight kg" htmlFor="intake-weight">
-                    <Input
-                      id="intake-weight"
-                      inputMode="decimal"
-                      placeholder={THIS_VISIT_PLACEHOLDERS.weight}
-                      autoComplete="off"
-                      value={weightKg}
-                      onChange={(e) => setWeightKg(e.target.value)}
+                  <VitalField label="SpO₂ %" htmlFor="intake-spo2" required>
+                    <VitalNumberInput
+                      id="intake-spo2"
+                      placeholder="%"
+                      value={spo2}
+                      onValueChange={setSpo2}
                       disabled={pending}
-                      className="h-9"
-                    />
-                  </VitalField>
-                  <VitalField label="Height cm" htmlFor="intake-height">
-                    <Input
-                      id="intake-height"
-                      inputMode="decimal"
-                      placeholder={THIS_VISIT_PLACEHOLDERS.height}
-                      autoComplete="off"
-                      value={heightCm}
-                      onChange={(e) => setHeightCm(e.target.value)}
-                      disabled={pending}
-                      className="h-9"
                     />
                   </VitalField>
                   <VitalField label="RR" htmlFor="intake-rr">
-                    <Input
+                    <VitalNumberInput
                       id="intake-rr"
-                      inputMode="numeric"
-                      placeholder="Enter respiratory rate"
-                      autoComplete="off"
+                      placeholder="rpm"
                       value={respiratoryRate}
-                      onChange={(e) => setRespiratoryRate(e.target.value)}
+                      onValueChange={setRespiratoryRate}
                       disabled={pending}
-                      className="h-9"
                     />
                   </VitalField>
-                  <VitalField label="SpO₂ % *" htmlFor="intake-spo2">
-                    <Input
-                      id="intake-spo2"
-                      inputMode="numeric"
-                      placeholder={THIS_VISIT_PLACEHOLDERS.spo2}
-                      autoComplete="off"
-                      value={spo2}
-                      onChange={(e) => setSpo2(e.target.value)}
+                  <VitalField label="Weight kg" htmlFor="intake-weight">
+                    <VitalNumberInput
+                      id="intake-weight"
+                      mode="decimal"
+                      placeholder="kg"
+                      value={weightKg}
+                      onValueChange={setWeightKg}
                       disabled={pending}
-                      className="h-9"
+                    />
+                  </VitalField>
+                  <VitalField label="Height cm" htmlFor="intake-height">
+                    <VitalNumberInput
+                      id="intake-height"
+                      mode="decimal"
+                      placeholder="cm"
+                      value={heightCm}
+                      onValueChange={setHeightCm}
+                      disabled={pending}
                     />
                   </VitalField>
                 </div>
@@ -500,40 +554,89 @@ export function NurseIntakeSheet({
                   onChange={(e) => setIntakeNotes(e.target.value)}
                   disabled={pending}
                   placeholder="Optional for clinician"
-                  className="min-h-16"
+                  className="min-h-14 resize-none"
                 />
               </Field>
 
               <div className="space-y-1.5">
-                <p className="text-[11px] font-medium text-muted-foreground">
-                  Send to
-                </p>
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="text-[11px] font-semibold text-foreground">
+                    Route after intake
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Choose specialty
+                  </p>
+                </div>
                 <div
                   key={`send-to-${ticket?.ticketId ?? "closed"}`}
                   role="radiogroup"
                   aria-label="Specialty station"
-                  className="grid grid-cols-2 gap-1.5"
+                  className="grid grid-cols-2 gap-1 rounded-xl border bg-muted/20 p-1"
                 >
                   {(
                     [
-                      ["physician", "Physician"],
-                      ["dentist", "Dentist"],
+                      {
+                        value: "physician" as const,
+                        label: "Physician",
+                        hint: "Medical",
+                        Icon: IconStethoscope,
+                      },
+                      {
+                        value: "dentist" as const,
+                        label: "Dentist",
+                        hint: "Dental",
+                        Icon: IconDental,
+                      },
                     ] as const
-                  ).map(([value, label]) => {
+                  ).map(({ value, label, hint, Icon }) => {
                     const selected = toStation === value
                     return (
-                      <Button
+                      <button
                         key={value}
                         type="button"
-                        size="sm"
-                        variant={selected ? "default" : "outline"}
-                        aria-checked={selected}
                         role="radio"
+                        aria-checked={selected}
                         disabled={pending}
                         onClick={() => setToStation(value)}
+                        className={cn(
+                          "flex min-h-11 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
+                          "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                          "disabled:pointer-events-none disabled:opacity-50",
+                          selected
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "text-foreground hover:bg-background/80"
+                        )}
                       >
-                        {label}
-                      </Button>
+                        <span
+                          className={cn(
+                            "flex size-7 shrink-0 items-center justify-center rounded-md border",
+                            selected
+                              ? "border-primary-foreground/25 bg-primary-foreground/10"
+                              : "border-border/80 bg-background"
+                          )}
+                        >
+                          <Icon
+                            className="size-3.5"
+                            stroke={1.75}
+                            aria-hidden
+                          />
+                        </span>
+                        <span className="min-w-0 leading-tight">
+                          <span className="block text-sm font-medium">
+                            {label}
+                          </span>
+                          <span
+                            className={cn(
+                              "block text-[10px]",
+                              selected
+                                ? "text-primary-foreground/75"
+                                : "text-muted-foreground"
+                            )}
+                          >
+                            {hint}
+                          </span>
+                        </span>
+                      </button>
                     )
                   })}
                 </div>
@@ -551,7 +654,7 @@ export function NurseIntakeSheet({
               ) : null}
             </div>
 
-            <DialogFooter className="mt-auto gap-2 border-t px-6 py-3 sm:flex-row">
+            <DialogFooter className="mt-auto gap-2 border-t px-5 py-3 sm:flex-row sm:px-6">
               <DialogClose
                 render={<Button type="button" size="sm" variant="outline" />}
               >

@@ -6,6 +6,14 @@ export type AppToastPayload = {
   description?: string
 }
 
+/** Action feedback (queue buttons, saves) → center. Inbox-style alerts → right. */
+export type AppToastPlacement = "action" | "notification"
+
+export const APP_TOASTER_IDS = {
+  action: "campuscare-action",
+  notification: "campuscare-notification",
+} as const
+
 const DURATION = {
   success: 4000,
   info: 4000,
@@ -15,10 +23,15 @@ const DURATION = {
 
 type ToastKind = keyof typeof DURATION
 
-function baseOptions(kind: ToastKind, payload: AppToastPayload): ExternalToast {
+function baseOptions(
+  kind: ToastKind,
+  payload: AppToastPayload,
+  placement: AppToastPlacement = "action"
+): ExternalToast {
   return {
     description: payload.description,
     duration: DURATION[kind],
+    toasterId: APP_TOASTER_IDS[placement],
     classNames: {
       toast: `cn-toast cn-toast--${kind}`,
       title: "cn-toast__title",
@@ -69,34 +82,66 @@ function ProgressToastContent({
 }
 
 export const appToast = {
-  success(payload: AppToastPayload, id?: string | number) {
+  success(
+    payload: AppToastPayload,
+    id?: string | number,
+    placement: AppToastPlacement = "action"
+  ) {
     return toast.success(payload.title, {
-      ...baseOptions("success", payload),
+      ...baseOptions("success", payload, placement),
       id,
     })
   },
-  error(payload: AppToastPayload, id?: string | number) {
+  error(
+    payload: AppToastPayload,
+    id?: string | number,
+    placement: AppToastPlacement = "action"
+  ) {
     return toast.error(payload.title, {
-      ...baseOptions("error", payload),
+      ...baseOptions("error", payload, placement),
       id,
     })
   },
-  warning(payload: AppToastPayload, id?: string | number) {
+  warning(
+    payload: AppToastPayload,
+    id?: string | number,
+    placement: AppToastPlacement = "action"
+  ) {
     return toast.warning(payload.title, {
-      ...baseOptions("warning", payload),
+      ...baseOptions("warning", payload, placement),
       id,
     })
   },
-  info(payload: AppToastPayload, id?: string | number) {
+  info(
+    payload: AppToastPayload,
+    id?: string | number,
+    placement: AppToastPlacement = "action"
+  ) {
     return toast.info(payload.title, {
-      ...baseOptions("info", payload),
+      ...baseOptions("info", payload, placement),
       id,
     })
+  },
+  /** Inbox / live notification alerts — always top-right. */
+  notify(
+    payload: AppToastPayload,
+    kind: Exclude<ToastKind, "loading"> = "info",
+    id?: string | number
+  ) {
+    const options = {
+      ...baseOptions(kind, payload, "notification"),
+      id,
+    }
+    if (kind === "success") return toast.success(payload.title, options)
+    if (kind === "warning") return toast.warning(payload.title, options)
+    if (kind === "error") return toast.error(payload.title, options)
+    return toast.info(payload.title, options)
   },
   loading(payload: AppToastPayload, id?: string | number) {
     return toast.loading(payload.title, {
       id,
       description: payload.description,
+      toasterId: APP_TOASTER_IDS.action,
       classNames: {
         toast: "cn-toast cn-toast--loading",
         title: "cn-toast__title",
@@ -120,6 +165,7 @@ export const appToast = {
       {
         id,
         duration: Infinity,
+        toasterId: APP_TOASTER_IDS.action,
         classNames: {
           toast: "cn-toast cn-toast--loading",
           closeButton: "cn-toast__close",
@@ -158,6 +204,7 @@ export const appToast = {
           ? `${payload.title}\n${payload.description}`
           : payload.title
       },
+      toasterId: APP_TOASTER_IDS.action,
       classNames: {
         toast: "cn-toast",
         title: "cn-toast__title",

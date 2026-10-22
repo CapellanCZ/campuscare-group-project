@@ -34,6 +34,7 @@ import {
   type PatientRecordListParams,
   type PatientRecordListResult,
   type PatientRecordStats,
+  type PatientSurnameMatch,
   type PatientType,
   type UpdatePatientMedicalRecordInput,
   type UpdatePatientRecordInput,
@@ -298,6 +299,57 @@ export async function searchPatientRecords(
   client?: SupabaseClient
 ): Promise<PatientRecordListResult> {
   return getPatientRecords({ ...params, query }, client)
+}
+
+const SURNAME_MATCH_COLUMNS = `
+  id,
+  patient_type,
+  student_id,
+  employee_id,
+  first_name,
+  middle_name,
+  last_name
+`
+
+/** Surname-first lookup against live `patient_records` (Supabase). */
+export async function searchPatientRecordsBySurname(
+  surname: string,
+  options: { limit?: number } = {},
+  client?: SupabaseClient
+): Promise<PatientSurnameMatch[]> {
+  const supabase = await getClient(client)
+  const escaped = surname.trim().replace(/[%_,]/g, "")
+  // Allow single-letter surname prefixes (e.g. "C" → Capellan…).
+  if (escaped.length < 1) return []
+
+  const limit = Math.min(Math.max(options.limit ?? 12, 1), 25)
+  // Prefix match as the user types; still case-insensitive via ilike.
+  const pattern = `${escaped}%`
+
+  const { data, error } = await supabase
+    .from("patient_records")
+    .select(SURNAME_MATCH_COLUMNS)
+    .is("archived_at", null)
+    .ilike("last_name", pattern)
+    .order("last_name", { ascending: true })
+    .order("first_name", { ascending: true })
+    .limit(limit)
+
+  if (error) mapError(error)
+
+  return (data ?? []).map((row) => {
+    const patientType =
+      normalizePatientType(row.patient_type as string | null) ?? "student"
+    return {
+      id: String(row.id),
+      patientType,
+      studentId: (row.student_id as string | null) ?? null,
+      employeeId: (row.employee_id as string | null) ?? null,
+      firstName: String(row.first_name ?? ""),
+      middleName: (row.middle_name as string | null) ?? null,
+      lastName: String(row.last_name ?? ""),
+    }
+  })
 }
 
 export async function getPatientRecordById(

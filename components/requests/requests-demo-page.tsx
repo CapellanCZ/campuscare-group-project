@@ -486,7 +486,7 @@ export function RequestsPage({
           <PanelCell className="lg:col-span-2">
             <Card className={cn(panelCardClassName, "h-full gap-0 py-0")}>
               <CardHeader className="border-b px-6 py-5 [.border-b]:pb-5">
-                <div className="flex min-h-[5.75rem] flex-col justify-center gap-3">
+                <div className="flex flex-col gap-3">
                   <CardTitle className="text-base">Request Queue</CardTitle>
                   {can(access.designation, "requests.search_filters") ? (
                     <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
@@ -552,9 +552,7 @@ export function RequestsPage({
                         </SelectContent>
                       </Select>
                     </div>
-                  ) : (
-                    <div className="min-h-9" aria-hidden />
-                  )}
+                  ) : null}
                 </div>
               </CardHeader>
               <CardContent className="min-w-0 p-0">

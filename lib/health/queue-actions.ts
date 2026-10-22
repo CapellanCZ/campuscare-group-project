@@ -19,6 +19,7 @@ import {
   transferTargetsForDesignation,
 } from "@/lib/health/roles"
 import { systemIntakeNote } from "@/lib/health/intake-notes"
+import { withQueueReadyMarker } from "@/lib/health/queue-ready"
 import {
   assertAppointmentEligibleForQueueEntry,
   assertTicketEligibleForQueueEntry,
@@ -79,10 +80,20 @@ async function requireMutable(designation: ClinicDesignation) {
   return null
 }
 
+/** Rough ETA: ~10 minutes per ticket ahead (not including this ticket). */
+const MINUTES_PER_QUEUE_SLOT = 10
+
+function estimateWaitMinutes(queuePosition: number) {
+  return Math.max(0, queuePosition - 1) * MINUTES_PER_QUEUE_SLOT
+}
+
 async function nextQueueSlot(supabase: Awaited<ReturnType<typeof createClient>>) {
+  // Match the live board: only today's active tickets affect position / ETA.
+  const { ymd } = manilaDayBounds()
   const { data: posRows } = await supabase
     .from("health_queue_tickets")
     .select("queue_position, queue_number")
+    .eq("service_date", ymd)
     .in("status", ["waiting", "called"])
 
   const nextPos =
@@ -119,7 +130,7 @@ export async function callNextTicket(params: {
   const { data: waiting } = await supabase
     .from("health_queue_tickets")
     .select(
-      "id, call_count, queue_position, appointment_id, health_appointment_id, consultation_request_id, intake_notes, consultation_type"
+      "id, call_count, queue_position, appointment_id, health_appointment_id, consultation_request_id, intake_notes, consultation_type, patient_name, ticket_code, queue_number"
     )
     .eq("status", "waiting")
     .eq("station", station)
@@ -149,6 +160,9 @@ export async function callNextTicket(params: {
   let chosen: {
     id: string
     call_count: number | null
+    patient_name: string | null
+    ticket_code: string | null
+    queue_number: number | null
   } | null = null
   for (const candidate of rankedWaiting) {
     const eligibility = await assertTicketEligibleForQueueEntry(
@@ -179,12 +193,18 @@ export async function callNextTicket(params: {
 
   if (error) return { ok: false, error: error.message }
 
+  const patientName = (chosen.patient_name ?? "").trim() || "Patient"
+  const code = chosen.ticket_code?.trim() || null
+  const label = code
+    ? `${patientName} (${code})`
+    : patientName
+
   return {
     ok: true,
     message:
       nextCount >= 2
-        ? `Patient called (call ${nextCount}). Eligible for no-show if still absent.`
-        : `Patient called (call ${nextCount} of 2).`,
+        ? `Called ${label} — call ${nextCount}. Eligible for no-show if still absent.`
+        : `Called ${label} — call ${nextCount} of 2.`,
   }
 }
 
@@ -200,7 +220,7 @@ export async function recallTicket(params: {
   const { data: ticket } = await supabase
     .from("health_queue_tickets")
     .select(
-      "id, status, call_count, station, appointment_id, health_appointment_id, consultation_request_id"
+      "id, status, call_count, station, appointment_id, health_appointment_id, consultation_request_id, intake_notes"
     )
     .eq("id", params.ticketId)
     .maybeSingle()
@@ -636,7 +656,7 @@ export async function rejoinQueue(params: {
       call_count: 0,
       rejoin_count: (ticket.rejoin_count ?? 0) + 1,
       last_rejoined_at: now,
-      estimated_wait_minutes: nextPos * 10,
+      estimated_wait_minutes: estimateWaitMinutes(nextPos),
       updated_at: now,
     })
     .eq("id", ticket.id)
@@ -662,7 +682,7 @@ export async function verifyCheckIn(params: {
   const { data: ticket } = await supabase
     .from("health_queue_tickets")
     .select(
-      "id, appointment_id, health_appointment_id, consultation_request_id"
+      "id, appointment_id, health_appointment_id, consultation_request_id, intake_notes"
     )
     .eq("id", params.ticketId)
     .maybeSingle()
@@ -711,6 +731,58 @@ export async function verifyCheckIn(params: {
   return { ok: true, message: "Check-in verified — patient is in the nurse queue." }
 }
 
+/**
+ * Nurse places a scheduled appointment into Waiting before the T−15 window.
+ * Persists [[queue_ready]] in intake_notes (Supabase source of truth).
+ */
+export async function placeScheduledInWaiting(params: {
+  designation: ClinicDesignation
+  ticketId: string
+}): Promise<HealthActionResult> {
+  const sessionDenied = await requireSessionRole(params.designation)
+  if (sessionDenied) return { ok: false, error: sessionDenied }
+  if (params.designation !== "nurse") {
+    return { ok: false, error: "Only nurses can place scheduled patients in Waiting." }
+  }
+
+  const supabase = await createClient()
+  const { data: ticket } = await supabase
+    .from("health_queue_tickets")
+    .select("id, status, station, intake_notes, intake_completed_at")
+    .eq("id", params.ticketId)
+    .maybeSingle()
+
+  if (!ticket) {
+    return { ok: false, error: "Ticket not found." }
+  }
+  if (ticket.intake_completed_at) {
+    return { ok: false, error: "Intake is already complete for this patient." }
+  }
+
+  const now = new Date().toISOString()
+  const { data: updated, error } = await supabase
+    .from("health_queue_tickets")
+    .update({
+      intake_notes: withQueueReadyMarker(ticket.intake_notes as string | null),
+      status: "waiting",
+      station: "nurse",
+      updated_at: now,
+    })
+    .eq("id", params.ticketId)
+    .select("id")
+    .maybeSingle()
+
+  if (error) return { ok: false, error: error.message }
+  if (!updated) {
+    return { ok: false, error: "Could not place this patient in Waiting." }
+  }
+
+  return {
+    ok: true,
+    message: "Patient moved to Waiting — ready for check-in verify.",
+  }
+}
+
 export async function completeNurseIntakeAndAssign(params: {
   designation: ClinicDesignation
   ticketId: string
@@ -746,7 +818,7 @@ export async function completeNurseIntakeAndAssign(params: {
   const { data: ticket } = await supabase
     .from("health_queue_tickets")
     .select(
-      "id, station, status, provider_type, consultation_request_id, consultation_id, appointment_id, patient_id, patient_name, patient_type, campus_id, chief_complaint"
+      "id, station, status, provider_type, consultation_request_id, consultation_id, appointment_id, health_appointment_id, patient_id, patient_name, patient_type, campus_id, chief_complaint, intake_notes"
     )
     .eq("id", params.ticketId)
     .maybeSingle()
@@ -887,7 +959,7 @@ export async function completeNurseIntakeAndAssign(params: {
       vitals_respiratory_rate: params.intake.respiratoryRate ?? null,
       intake_notes: params.intake.intakeNotes?.trim() || null,
       intake_completed_at: now,
-      estimated_wait_minutes: nextPos * 10,
+      estimated_wait_minutes: estimateWaitMinutes(nextPos),
       consultation_id: consultationId,
       updated_at: now,
     })
@@ -977,7 +1049,7 @@ export async function transferTicket(params: {
       status: "waiting",
       queue_position: nextPos,
       call_count: 0,
-      estimated_wait_minutes: nextPos * 10,
+      estimated_wait_minutes: estimateWaitMinutes(nextPos),
       updated_at: new Date().toISOString(),
     })
     .eq("id", ticket.id)
@@ -1263,6 +1335,44 @@ export async function registerWalkIn(params: {
     resolvedCampusId = null
   }
 
+  // Block a second active nurse ticket for the same person (Supabase SoT).
+  {
+    const orParts: string[] = []
+    if (patientId) orParts.push(`patient_id.eq.${patientId}`)
+    if (resolvedCampusId) {
+      for (const variant of campusIdLookupVariants(resolvedCampusId)) {
+        orParts.push(`campus_id.eq.${variant}`)
+      }
+    }
+    if (orParts.length === 0 && resolvedName) {
+      const safeName = resolvedName.replace(/"/g, "").trim()
+      if (safeName) orParts.push(`patient_name.ilike."${safeName}"`)
+    }
+
+    if (orParts.length > 0) {
+      const { data: existingActive } = await supabase
+        .from("health_queue_tickets")
+        .select("id, ticket_code")
+        .eq("service_date", ymd)
+        .eq("station", "nurse")
+        .in("status", ["waiting", "called", "ongoing"])
+        .is("intake_completed_at", null)
+        .or(orParts.join(","))
+        .limit(1)
+        .maybeSingle()
+
+      if (existingActive) {
+        const code = (existingActive.ticket_code as string | null)?.trim()
+        return {
+          ok: false,
+          error: code
+            ? `${resolvedName} is already in the nurse queue as ${code}. Open that ticket instead of registering again.`
+            : `${resolvedName} is already in the nurse queue. Open that ticket instead of registering again.`,
+        }
+      }
+    }
+  }
+
   const consultationTypeLower = (
     params.consultationType || "Walk-in consultation"
   ).toLowerCase()
@@ -1297,7 +1407,9 @@ export async function registerWalkIn(params: {
   const { nextPos, nextNum } = await nextQueueSlot(supabase)
   // Emergency jumps the line — stay ahead of every waiting/called ticket.
   const queuePosition = isEmergency ? 0 : nextPos
-  const estimatedWaitMinutes = isEmergency ? 0 : nextPos * 10
+  const estimatedWaitMinutes = isEmergency
+    ? 0
+    : estimateWaitMinutes(nextPos)
   const ticketCode = formatClinicQueueCode(providerType, nextNum)
   const now = new Date().toISOString()
   const intakeNotes = isEmergency

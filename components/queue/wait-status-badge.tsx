@@ -85,8 +85,8 @@ export function WaitStatusBadge({
   const blink = blinkClassForStatus(status, waitMinutes)
 
   const statusText = ticketStatusLabel(status)
-  // Timer stays in the pill for active queue states. Call / start / complete
-  // actions reset estimated_wait_minutes to 0 so the pill shows · 0m.
+  // estimated_wait_minutes is ETA from queue position (~10m per ticket ahead),
+  // not elapsed wait. Call / start / complete reset it to 0.
   const label =
     waitMinutes != null &&
     (status === "waiting" || status === "called" || status === "ongoing")

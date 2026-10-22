@@ -22,6 +22,7 @@ type CampusIdInputProps = {
   className?: string
   placeholder?: string
   "aria-label"?: string
+  "aria-describedby"?: string
   disabled?: boolean
   patientType?: CampusIdKind | null
   /** When true, show inline validation for non-digits / over-length. */
@@ -36,6 +37,7 @@ export function CampusIdInput({
   className,
   placeholder,
   "aria-label": ariaLabel = "Campus ID",
+  "aria-describedby": ariaDescribedBy,
   disabled,
   patientType,
   showValidation = false,
@@ -70,6 +72,7 @@ export function CampusIdInput({
         maxLength={campusIdInputMaxLength(kind)}
         placeholder={resolvedPlaceholder}
         aria-label={ariaLabel}
+        aria-describedby={ariaDescribedBy}
         aria-invalid={charError || overLength || undefined}
         disabled={disabled}
         onChange={(event) => applyRaw(event.target.value)}

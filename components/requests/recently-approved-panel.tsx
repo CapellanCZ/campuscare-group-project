@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo, useState } from "react"
 import {
   IconCalendarEvent,
   IconCheck,
@@ -8,6 +9,7 @@ import {
 } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import {
   Card,
   CardContent,
@@ -21,6 +23,13 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StatusBadge } from "@/components/ui/status-badge"
 import {
@@ -29,8 +38,9 @@ import {
 } from "@/features/requests/lib/format"
 import { displayConsultationLabel } from "@/lib/health/consultation-display"
 import { consultationProviderLabel } from "@/lib/health/consultation-workflow"
-import { relativeTimeFrom } from "@/lib/health/time"
+import { manilaDayBounds, relativeTimeFrom } from "@/lib/health/time"
 import { panelCardClassName } from "@/components/layout/panel-frame"
+import { selectItemsRecord } from "@/lib/ui/select-label"
 import {
   appointmentRequestStatusDot,
   appointmentRequestStatusTone,
@@ -40,13 +50,33 @@ import { cn } from "@/lib/utils"
 
 export const RECENTLY_APPROVED_LIMIT = 8
 
+const RECENT_SORTS = [
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+] as const
+
+type RecentSort = (typeof RECENT_SORTS)[number]["value"]
+
 export function sortRecentlyApproved(
-  items: AppointmentRequest[]
+  items: AppointmentRequest[],
+  direction: RecentSort = "newest"
 ): AppointmentRequest[] {
+  const factor = direction === "newest" ? -1 : 1
   return [...items].sort(
     (a, b) =>
-      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      factor *
+      (new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime())
   )
+}
+
+function countApprovedToday(items: AppointmentRequest[]) {
+  const { startIso, endIso } = manilaDayBounds()
+  const startMs = new Date(startIso).getTime()
+  const endMs = new Date(endIso).getTime()
+  return items.filter((item) => {
+    const ms = new Date(item.updatedAt).getTime()
+    return ms >= startMs && ms <= endMs
+  }).length
 }
 
 export function RecentlyApprovedPanel({
@@ -62,16 +92,56 @@ export function RecentlyApprovedPanel({
   onView: (request: AppointmentRequest) => void
   className?: string
 }) {
+  const [sort, setSort] = useState<RecentSort>("newest")
+  const sortItems = selectItemsRecord(
+    RECENT_SORTS.map((option) => ({
+      value: option.value,
+      label: option.label,
+    }))
+  )
+  const sortedItems = useMemo(
+    () => sortRecentlyApproved(items, sort),
+    [items, sort]
+  )
+  const todayCount = useMemo(() => countApprovedToday(items), [items])
+
   return (
     <Card className={cn(panelCardClassName, "h-full gap-0 py-0", className)}>
       <CardHeader className="border-b px-6 py-5 [.border-b]:pb-5">
-        {/* Match Request Queue header height without using CardDescription
-            (that slot changes the card-header grid and breaks column align). */}
-        <div className="flex min-h-[5.75rem] flex-col justify-center gap-1">
-          <CardTitle className="text-base">Recently Approved</CardTitle>
-          <p className="text-sm text-pretty text-muted-foreground">
-            Confirmed bookings, newest first.
-          </p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="min-w-0 space-y-1">
+            <CardTitle className="text-base">Recently Approved</CardTitle>
+            <p className="text-sm text-pretty text-muted-foreground">
+              Confirmed bookings
+              {sort === "newest" ? ", newest first." : ", oldest first."}
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <Badge variant="secondary" className="tabular-nums">
+              {todayCount} today
+            </Badge>
+            <Select
+              value={sort}
+              items={sortItems}
+              onValueChange={(value) =>
+                setSort((value as RecentSort) ?? "newest")
+              }
+            >
+              <SelectTrigger
+                className="h-8 w-[9.5rem]"
+                aria-label="Sort recently approved"
+              >
+                <SelectValue placeholder="Sort" />
+              </SelectTrigger>
+              <SelectContent>
+                {RECENT_SORTS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="min-w-0 p-0">
@@ -85,7 +155,7 @@ export function RecentlyApprovedPanel({
               <Skeleton key={index} className="h-14 w-full" />
             ))}
           </div>
-        ) : items.length === 0 ? (
+        ) : sortedItems.length === 0 ? (
           <Empty className="border-0 py-10">
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -99,7 +169,7 @@ export function RecentlyApprovedPanel({
           </Empty>
         ) : (
           <ul className="divide-y divide-border" aria-label="Recently approved">
-            {items.map((request) => {
+            {sortedItems.map((request) => {
               const preferred = formatRequestPreferred(
                 request.preferredDate,
                 request.preferredTime
@@ -114,7 +184,7 @@ export function RecentlyApprovedPanel({
               return (
                 <li
                   key={request.id}
-                  className="flex items-start gap-2 px-6 py-5"
+                  className="flex items-start gap-2 px-6 py-4"
                 >
                   <div className="min-w-0 flex-1 space-y-1.5">
                     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -139,7 +209,10 @@ export function RecentlyApprovedPanel({
                       ) : null}
                     </div>
                     <p className="truncate text-xs text-muted-foreground">
-                      {[specialtyLabel, serviceLabel !== "—" ? serviceLabel : null]
+                      {[
+                        specialtyLabel,
+                        serviceLabel !== "—" ? serviceLabel : null,
+                      ]
                         .filter(Boolean)
                         .join(" · ")}
                     </p>
@@ -178,9 +251,9 @@ export function RecentlyApprovedPanel({
             })}
           </ul>
         )}
-        {items.length > 0 ? (
+        {sortedItems.length > 0 ? (
           <p className="border-t px-6 py-2.5 text-xs text-muted-foreground">
-            Showing {items.length} most recent
+            Showing {sortedItems.length} most recent
           </p>
         ) : null}
       </CardContent>

@@ -1,8 +1,9 @@
 "use client"
 
-import { useCallback, useEffect, useState, useTransition } from "react"
+import { useCallback, useEffect, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { IconBell } from "@tabler/icons-react"
+import { motion } from "motion/react"
 
 import { Badge } from "@/components/reui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -24,6 +25,7 @@ import {
 } from "@/features/settings/actions"
 import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
 import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
+import { appToast } from "@/lib/feedback/app-toast"
 import {
   buildFallbackNotifications,
   filterNotificationsByPrefs,
@@ -40,6 +42,10 @@ import {
   saveSessionNotifyPrefs,
 } from "@/lib/notifications/session-prefs-cache"
 import { cn } from "@/lib/utils"
+
+const CLEAR_DOT_MS = 280
+const CLEAR_STAGGER_MS = 55
+const CLEAR_EASE = [0.23, 1, 0.32, 1] as const
 
 function relativeTime(iso: string) {
   const date = new Date(iso)
@@ -82,6 +88,38 @@ function HeaderNotificationsInbox() {
   )
   const [usingFallback, setUsingFallback] = useState(false)
   const [pending, startTransition] = useTransition()
+  const [clearing, setClearing] = useState(false)
+  const [clearingIds, setClearingIds] = useState<Set<string>>(() => new Set())
+  const clearingRef = useRef(false)
+  const clearTimerRef = useRef<number | null>(null)
+  const knownIdsRef = useRef<Set<string> | null>(null)
+
+  const applyInbox = useCallback((next: HeaderStaffNotification[]) => {
+    // Keep the cleanup animation stable if realtime refreshes mid-clear.
+    const incoming = clearingRef.current
+      ? next.map((item) => (item.unread ? { ...item, unread: false } : item))
+      : next
+
+    const known = knownIdsRef.current
+    if (known && !clearingRef.current) {
+      const fresh = incoming.filter(
+        (item) => item.unread && !known.has(item.id) && !isFallbackId(item.id)
+      )
+      for (const item of fresh.slice(0, 3)) {
+        appToast.notify(
+          {
+            title: item.title,
+            description: item.body,
+          },
+          "info",
+          `notify-${item.id}`
+        )
+      }
+    }
+    knownIdsRef.current = new Set(incoming.map((item) => item.id))
+    saveSessionNotifications(incoming)
+    setItems(incoming)
+  }, [])
 
   const load = useCallback(
     (options?: { refreshPrefs?: boolean }) => {
@@ -105,28 +143,35 @@ function HeaderNotificationsInbox() {
 
           const preferences = getSessionNotifyPrefsOrDefault()
 
-          const live =
-            result.ok && result.data.notifications.length > 0
-              ? result.data.notifications
-              : buildFallbackNotifications(designation)
+          if (result.ok) {
+            // Supabase is source of truth — empty inbox stays empty.
+            setUsingFallback(false)
+            applyInbox(
+              filterNotificationsByPrefs(result.data.notifications, preferences)
+            )
+            return
+          }
 
-          setUsingFallback(!(result.ok && result.data.notifications.length > 0))
-          const next = filterNotificationsByPrefs(live, preferences)
-          saveSessionNotifications(next)
-          setItems(next)
+          setUsingFallback(true)
+          applyInbox(
+            filterNotificationsByPrefs(
+              buildFallbackNotifications(designation),
+              preferences
+            )
+          )
         } catch {
           const preferences = getSessionNotifyPrefsOrDefault()
-          const next = filterNotificationsByPrefs(
-            buildFallbackNotifications(designation),
-            preferences
-          )
           setUsingFallback(true)
-          saveSessionNotifications(next)
-          setItems(next)
+          applyInbox(
+            filterNotificationsByPrefs(
+              buildFallbackNotifications(designation),
+              preferences
+            )
+          )
         }
       })
     },
-    [designation]
+    [applyInbox, designation]
   )
 
   useStaffRealtimeRefresh(
@@ -148,17 +193,21 @@ function HeaderNotificationsInbox() {
     return () => {
       window.clearInterval(id)
       window.removeEventListener("campuscare:notification-prefs", onPrefs)
+      if (clearTimerRef.current != null) {
+        window.clearTimeout(clearTimerRef.current)
+      }
     }
   }, [load])
 
   const unreadCount = items.filter((item) => item.unread).length
+  const badgeCount = clearing ? 0 : unreadCount
 
-  function markAllRead() {
-    startTransition(async () => {
-      if (!usingFallback) {
-        const result = await markAllNotificationsReadAction()
-        if (!result.ok) return
-      }
+  function finishClearAnimation(snapshot: HeaderStaffNotification[]) {
+    const unreadIds = snapshot.filter((item) => item.unread).map((item) => item.id)
+    const totalMs =
+      CLEAR_DOT_MS + Math.max(0, unreadIds.length - 1) * CLEAR_STAGGER_MS + 60
+
+    clearTimerRef.current = window.setTimeout(() => {
       setItems((current) => {
         const next = current.map((item) =>
           item.unread ? { ...item, unread: false } : item
@@ -166,23 +215,79 @@ function HeaderNotificationsInbox() {
         saveSessionNotifications(next)
         return next
       })
+      clearingRef.current = false
+      setClearingIds(new Set())
+      setClearing(false)
+      clearTimerRef.current = null
+    }, totalMs)
+  }
+
+  function markAllRead() {
+    if (unreadCount === 0 || pending || clearing) return
+
+    const snapshot = items
+    const unreadIds = snapshot
+      .filter((item) => item.unread)
+      .map((item) => item.id)
+    if (unreadIds.length === 0) return
+
+    clearingRef.current = true
+    setClearing(true)
+    setClearingIds(new Set(unreadIds))
+
+    // Persist while the staggered cleanup plays.
+    startTransition(async () => {
+      if (!usingFallback) {
+        const result = await markAllNotificationsReadAction()
+        if (!result.ok) {
+          if (clearTimerRef.current != null) {
+            window.clearTimeout(clearTimerRef.current)
+            clearTimerRef.current = null
+          }
+          clearingRef.current = false
+          setClearingIds(new Set())
+          setClearing(false)
+          setItems(snapshot)
+          saveSessionNotifications(snapshot)
+          appToast.notify(
+            {
+              title: "Couldn't mark all as read",
+              description: result.error,
+            },
+            "error"
+          )
+          return
+        }
+      }
     })
+
+    finishClearAnimation(snapshot)
   }
 
   function openItem(notification: HeaderStaffNotification) {
     startTransition(async () => {
       if (notification.unread) {
-        if (!isFallbackId(notification.id) && !usingFallback) {
-          await markNotificationReadAction(notification.id)
-        }
         setItems((current) => {
           const next = current.map((item) =>
             item.id === notification.id ? { ...item, unread: false } : item
           )
           saveSessionNotifications(next)
           return next
+        })
+
+        if (!isFallbackId(notification.id) && !usingFallback) {
+          const result = await markNotificationReadAction(notification.id)
+          if (!result.ok) {
+            load()
+            appToast.notify(
+              {
+                title: "Couldn't mark as read",
+                description: result.error,
+              },
+              "error"
+            )
+          }
         }
-        )
       }
       if (notification.href) router.push(notification.href)
     })
@@ -206,85 +311,145 @@ function HeaderNotificationsInbox() {
         }
       >
         <IconBell aria-hidden="true" />
-        {unreadCount > 0 ? (
-          <Badge
-            variant="destructive"
-            size="xs"
-            className="absolute -top-1.5 -right-1.5 min-w-4 justify-center rounded-full px-1"
-            aria-hidden="true"
-          >
-            {unreadCount > 9 ? "9+" : unreadCount}
-          </Badge>
-        ) : null}
+        <span
+          className={cn(
+            "absolute -top-1.5 -right-1.5 transition-[opacity,transform] duration-300 ease-out",
+            badgeCount > 0
+              ? "scale-100 opacity-100"
+              : "pointer-events-none scale-75 opacity-0"
+          )}
+        >
+          {badgeCount > 0 ? (
+            <Badge
+              variant="destructive"
+              size="xs"
+              className="min-w-4 justify-center rounded-full px-1"
+              aria-hidden="true"
+            >
+              {badgeCount > 9 ? "9+" : badgeCount}
+            </Badge>
+          ) : null}
+        </span>
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        className="w-80 max-h-[min(50dvh,22rem)] overflow-hidden p-0"
+        className="w-[min(100vw-1.5rem,22rem)] overflow-hidden p-0 sm:w-96"
         align="end"
         sideOffset={8}
       >
         <DropdownMenuGroup>
-          <DropdownMenuLabel className="flex items-center justify-between gap-2 px-3 py-2.5">
-            <span>Notifications</span>
-            {unreadCount > 0 ? (
+          <DropdownMenuLabel className="flex items-center justify-between gap-3 px-3.5 py-3">
+            <span className="text-sm font-semibold">Notifications</span>
+            {unreadCount > 0 && !clearing ? (
               <button
                 type="button"
-                className="text-xs font-normal text-foreground underline-offset-2 hover:underline disabled:opacity-50"
-                disabled={pending}
+                className="shrink-0 text-xs font-medium text-primary underline-offset-2 transition-opacity hover:underline disabled:opacity-50"
+                disabled={pending || clearing}
                 onClick={(event) => {
                   event.preventDefault()
+                  event.stopPropagation()
                   markAllRead()
                 }}
               >
                 Mark all as read
               </button>
             ) : (
-              <span className="text-xs font-normal text-muted-foreground">
-                All caught up
-              </span>
+              <motion.span
+                key={clearing ? "clearing" : "caught-up"}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.22, ease: CLEAR_EASE }}
+                className="text-xs font-normal text-muted-foreground"
+              >
+                {clearing ? "Clearing…" : "All caught up"}
+              </motion.span>
             )}
           </DropdownMenuLabel>
           <DropdownMenuSeparator className="mx-0" />
           {items.length === 0 ? (
             <div
-              className="px-3 py-8 text-center text-sm text-muted-foreground"
+              className="px-4 py-10 text-center text-sm text-muted-foreground"
               role="status"
             >
               No notifications yet. Turn notification types on in Profile and
               Settings.
             </div>
           ) : (
-            <DropdownMenuGroup className="max-h-[min(42dvh,18rem)] overflow-y-auto overscroll-contain p-1">
-              {items.map((notification) => (
-                <DropdownMenuItem
-                  key={notification.id}
-                  className="flex items-start gap-2 py-2"
-                  onClick={() => openItem(notification)}
-                >
-                  <Avatar className="mt-2 size-6 shrink-0">
-                    <AvatarFallback className="text-[10px]">
-                      {initialsFor(notification.type)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex min-w-0 flex-1 flex-col gap-px">
-                    <p className="leading-snug">
-                      <span className="font-medium">{notification.title}</span>
-                    </p>
-                    <p className="truncate text-muted-foreground">
-                      {notification.body}
-                    </p>
-                    <span className="text-muted-foreground">
-                      {relativeTime(notification.createdAt)}
-                    </span>
-                  </div>
-                  <span
+            <DropdownMenuGroup className="max-h-[min(50dvh,22rem)] overflow-y-auto overscroll-contain p-1.5">
+              {items.map((notification) => {
+                const isClearing = clearingIds.has(notification.id)
+                const showUnreadChrome = notification.unread && !isClearing
+                const clearOrder = isClearing
+                  ? [...clearingIds].indexOf(notification.id)
+                  : -1
+                const clearDelay =
+                  clearOrder >= 0 ? clearOrder * (CLEAR_STAGGER_MS / 1000) : 0
+
+                return (
+                  <DropdownMenuItem
+                    key={notification.id}
                     className={cn(
-                      "mt-2 size-1.5 shrink-0 rounded-full",
-                      notification.unread ? "bg-primary" : "bg-transparent"
+                      "items-start gap-3 rounded-lg px-2.5 py-2.5 transition-colors duration-300 ease-out",
+                      showUnreadChrome ? "bg-muted/40" : "bg-transparent"
                     )}
-                    aria-hidden="true"
-                  />
-                </DropdownMenuItem>
-              ))}
+                    style={
+                      isClearing
+                        ? {
+                            transitionDelay: `${clearOrder * CLEAR_STAGGER_MS}ms`,
+                          }
+                        : undefined
+                    }
+                    onClick={() => openItem(notification)}
+                  >
+                    <motion.div
+                      animate={
+                        isClearing
+                          ? { opacity: 0.75 }
+                          : { opacity: 1 }
+                      }
+                      transition={{
+                        duration: CLEAR_DOT_MS / 1000,
+                        delay: clearDelay,
+                        ease: CLEAR_EASE,
+                      }}
+                      className="flex min-w-0 flex-1 items-start gap-3"
+                    >
+                      <Avatar className="mt-0.5 size-8 shrink-0">
+                        <AvatarFallback className="text-[10px] font-medium">
+                          {initialsFor(notification.type)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm leading-snug font-medium text-foreground">
+                            {notification.title}
+                          </p>
+                          <motion.span
+                            aria-hidden="true"
+                            initial={false}
+                            animate={
+                              showUnreadChrome
+                                ? { scale: 1, opacity: 1 }
+                                : { scale: 0, opacity: 0 }
+                            }
+                            transition={{
+                              duration: CLEAR_DOT_MS / 1000,
+                              delay: isClearing ? clearDelay : 0,
+                              ease: CLEAR_EASE,
+                            }}
+                            className="mt-1.5 size-2 shrink-0 origin-center rounded-full bg-primary"
+                          />
+                        </div>
+                        <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                          {notification.body}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground/80">
+                          {relativeTime(notification.createdAt)}
+                        </p>
+                      </div>
+                    </motion.div>
+                  </DropdownMenuItem>
+                )
+              })}
             </DropdownMenuGroup>
           )}
         </DropdownMenuGroup>

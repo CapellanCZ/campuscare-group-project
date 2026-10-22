@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation"
 
 import { Toaster } from "@/components/ui/sonner"
+import { APP_TOASTER_IDS } from "@/lib/feedback/app-toast"
 
 function isPublicMarketingPath(pathname: string) {
   return (
@@ -25,5 +26,13 @@ function isPublicMarketingPath(pathname: string) {
 export function AppToaster() {
   const pathname = usePathname()
   if (isPublicMarketingPath(pathname)) return null
-  return <Toaster />
+
+  return (
+    <>
+      {/* Queue / form action feedback */}
+      <Toaster id={APP_TOASTER_IDS.action} position="top-center" />
+      {/* Inbox-style notification alerts */}
+      <Toaster id={APP_TOASTER_IDS.notification} position="top-right" />
+    </>
+  )
 }

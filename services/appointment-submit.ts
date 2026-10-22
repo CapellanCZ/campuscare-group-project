@@ -17,6 +17,8 @@ import {
 import { normalizeConsultationReason } from "@/lib/health/consultation-display"
 import { nextReservedQueueNumber } from "@/services/consultation-capacity"
 import { manilaDateTimeToIso } from "@/services/appointment-requests"
+import { createAdminClient } from "@/lib/supabase/admin"
+import { notifyNursesOfScheduledAppointment } from "@/services/staff-appointment-notifications"
 
 export type SubmitAppointmentRequestInput = {
   patientId?: string | null
@@ -174,8 +176,23 @@ export async function submitAppointmentRequestWithCapacity(
 
     if (error) throw error
 
+    const appointmentId = appt.id as string
+    try {
+      void notifyNursesOfScheduledAppointment(createAdminClient(), {
+        clinicId,
+        patientName,
+        preferredDate,
+        preferredTime,
+        providerType,
+        status: "waitlisted",
+        appointmentId,
+      })
+    } catch {
+      /* missing service role in some envs — booking still succeeds */
+    }
+
     return {
-      appointmentId: appt.id as string,
+      appointmentId,
       status: "waitlisted",
       providerType,
       preferredDate,
@@ -246,6 +263,20 @@ export async function submitAppointmentRequestWithCapacity(
       updated_at: now,
     })
     .eq("id", appointmentId)
+
+  try {
+    void notifyNursesOfScheduledAppointment(createAdminClient(), {
+      clinicId,
+      patientName,
+      preferredDate,
+      preferredTime,
+      providerType,
+      status: "pending",
+      appointmentId,
+    })
+  } catch {
+    /* missing service role in some envs — booking still succeeds */
+  }
 
   return {
     appointmentId,

@@ -5,6 +5,7 @@ import {
   isAppointmentEligibleForQueue,
   manilaPreferredStartsAtIso,
 } from "@/lib/health/appointment-queue-eligibility"
+import { isTicketReleasedToQueue } from "@/lib/health/queue-ready"
 
 export async function resolveTicketScheduledStartsAt(
   supabase: SupabaseClient,
@@ -43,7 +44,8 @@ export async function resolveTicketScheduledStartsAt(
 
 /**
  * Trusted gate: reject queue entry / verify / call when scheduled start is in the future.
- * Walk-ins (no schedule) pass. Uses server clock, never a client-provided "now".
+ * Walk-ins (no schedule) and nurse-released tickets ([[queue_ready]]) pass.
+ * Uses server clock, never a client-provided "now".
  */
 export async function assertTicketEligibleForQueueEntry(
   supabase: SupabaseClient,
@@ -51,14 +53,18 @@ export async function assertTicketEligibleForQueueEntry(
     appointment_id?: string | null
     health_appointment_id?: string | null
     consultation_request_id?: string | null
+    intake_notes?: string | null
   },
   now: Date = new Date()
 ): Promise<{ ok: true; startsAt: string | null } | { ok: false; error: string }> {
   const startsAt = await resolveTicketScheduledStartsAt(supabase, ticket)
-  if (!isAppointmentEligibleForQueue(startsAt, now)) {
-    return { ok: false, error: appointmentNotYetEligibleMessage(startsAt) }
+  if (
+    isTicketReleasedToQueue(ticket.intake_notes) ||
+    isAppointmentEligibleForQueue(startsAt, now)
+  ) {
+    return { ok: true, startsAt }
   }
-  return { ok: true, startsAt }
+  return { ok: false, error: appointmentNotYetEligibleMessage(startsAt) }
 }
 
 export async function assertAppointmentEligibleForQueueEntry(

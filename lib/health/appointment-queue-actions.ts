@@ -132,6 +132,29 @@ async function createAndLinkQueueTicket(params: {
   const patientName = patient?.full_name || "Patient"
   const campusId = patient?.student_id ?? patient?.employee_id ?? null
 
+  // Avoid a second active nurse ticket for the same patient today.
+  if (params.appt.patient_id) {
+    const { data: existingActive } = await params.supabase
+      .from("health_queue_tickets")
+      .select("id, ticket_code")
+      .eq("service_date", serviceDate)
+      .eq("station", "nurse")
+      .eq("patient_id", params.appt.patient_id)
+      .in("status", ["waiting", "called", "ongoing"])
+      .is("intake_completed_at", null)
+      .limit(1)
+      .maybeSingle()
+    if (existingActive) {
+      const code = (existingActive.ticket_code as string | null)?.trim()
+      return {
+        ok: false,
+        error: code
+          ? `${patientName} already has active ticket ${code} today.`
+          : `${patientName} already has an active nurse ticket today.`,
+      }
+    }
+  }
+
   const { data: ticket, error } = await params.supabase
     .from("health_queue_tickets")
     .insert({

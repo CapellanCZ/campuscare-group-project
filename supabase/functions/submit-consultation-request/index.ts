@@ -40,6 +40,57 @@ function manilaDateTimeToIso(date: string, time: string): string {
   return new Date(`${date}T${t}+08:00`).toISOString()
 }
 
+/** Best-effort fan-out so nurses get realtime inbox rows on new bookings. */
+async function notifyNursesOfScheduledAppointment(params: {
+  supabaseUrl: string
+  headers: Record<string, string>
+  authHeaders: Record<string, string>
+  clinicId: string
+  patientName: string
+  preferredDate: string
+  preferredTime: string
+  providerType: string
+  status: "pending" | "waitlisted"
+}): Promise<void> {
+  try {
+    const membersRes = await fetch(
+      `${params.supabaseUrl}/rest/v1/clinic_members?clinic_id=eq.${params.clinicId}&member_role=eq.nurse&is_active=eq.true&select=user_id`,
+      { headers: params.authHeaders }
+    )
+    if (!membersRes.ok) return
+    const members = (await membersRes.json()) as { user_id: string }[]
+    const nurseIds = [
+      ...new Set(
+        (members ?? [])
+          .map((row) => row.user_id)
+          .filter((id): id is string => Boolean(id))
+      ),
+    ]
+    if (nurseIds.length === 0) return
+
+    const specialty = params.providerType === "dentist" ? "Dental" : "Medical"
+    const waitlisted = params.status === "waitlisted" ? " · waitlisted" : ""
+    const now = new Date().toISOString()
+    const rows = nurseIds.map((userId) => ({
+      user_id: userId,
+      type: "consultation_request",
+      title: "Appointment scheduled",
+      body: `${params.patientName} · ${specialty} · ${params.preferredDate} ${params.preferredTime}${waitlisted}`,
+      href: "/nurse/requests",
+      read_at: null,
+      created_at: now,
+    }))
+
+    await fetch(`${params.supabaseUrl}/rest/v1/notifications`, {
+      method: "POST",
+      headers: params.headers,
+      body: JSON.stringify(rows),
+    })
+  } catch {
+    /* booking must succeed even if notify fails */
+  }
+}
+
 /** Normalize specialty aliases from mobile (Dentist, dental, provider_type, …). */
 function parseProviderType(value: unknown): "physician" | "dentist" | null {
   if (value == null) return null
@@ -275,6 +326,17 @@ Deno.serve(async (req) => {
     })
     if (!insertRes.ok) return json({ error: await insertRes.text() }, 400)
     const rows = (await insertRes.json()) as { id: string }[]
+    await notifyNursesOfScheduledAppointment({
+      supabaseUrl,
+      headers,
+      authHeaders,
+      clinicId,
+      patientName,
+      preferredDate,
+      preferredTime,
+      providerType,
+      status: "waitlisted",
+    })
     return json({
       appointmentId: rows[0]?.id,
       requestId: rows[0]?.id,
@@ -355,6 +417,18 @@ Deno.serve(async (req) => {
       queue_number: nextNumber,
       updated_at: now,
     }),
+  })
+
+  await notifyNursesOfScheduledAppointment({
+    supabaseUrl,
+    headers,
+    authHeaders,
+    clinicId,
+    patientName,
+    preferredDate,
+    preferredTime,
+    providerType,
+    status: "pending",
   })
 
   const early = nextNumber <= EARLY_QUEUE_THRESHOLD

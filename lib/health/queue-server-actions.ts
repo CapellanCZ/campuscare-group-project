@@ -15,6 +15,7 @@ import {
   skipOrNoShow,
   startConsultation,
   transferTicket,
+  placeScheduledInWaiting,
   verifyCheckIn,
 } from "@/lib/health/queue-actions"
 import type {
@@ -121,6 +122,12 @@ export async function actionRejoinQueue(ticketId: string) {
 export async function actionVerifyCheckIn(ticketId: string) {
   return withStaff((access) =>
     verifyCheckIn({ designation: access.designation, ticketId })
+  )
+}
+
+export async function actionPlaceScheduledInWaiting(ticketId: string) {
+  return withStaff((access) =>
+    placeScheduledInWaiting({ designation: access.designation, ticketId })
   )
 }
 

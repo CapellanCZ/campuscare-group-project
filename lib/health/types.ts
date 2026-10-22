@@ -47,6 +47,8 @@ export type QueueTicketRow = {
   createdAt: string | null
   patientId: string | null
   patientName: string
+  /** Profile photo from linked `users.avatar_url` when available. */
+  patientAvatarUrl: string | null
   patientType: PatientType | null
   studentId: string | null
   campusId: string | null

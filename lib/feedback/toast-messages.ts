@@ -32,10 +32,12 @@ export const requestToasts = {
 }
 
 export const consultationToasts = {
-  started: () =>
+  started: (patientName?: string) =>
     appToast.success({
       title: "Consultation Started",
-      description: "The consultation is now in progress.",
+      description: patientName
+        ? `${patientName}'s consultation is now in progress.`
+        : "The consultation is now in progress.",
     }),
   saved: () =>
     appToast.success({
@@ -60,31 +62,86 @@ export const consultationToasts = {
 }
 
 export const queueToasts = {
-  called: () =>
+  called: (patientName?: string) =>
     appToast.success({
       title: "Patient Called",
-      description: "The patient has been notified.",
+      description: patientName
+        ? `${patientName} has been notified to come in.`
+        : "The patient has been notified.",
     }),
-  skipped: () =>
+  skipped: (patientName?: string) =>
     appToast.success({
       title: "Patient Skipped",
-      description:
-        "Moved to Exceptions. Use Rejoin end of queue when they are ready.",
+      description: patientName
+        ? `${patientName} moved to Exceptions. Use Rejoin when they are ready.`
+        : "Moved to Exceptions. Use Rejoin end of queue when they are ready.",
     }),
-  recalled: () =>
+  recalled: (patientName?: string) =>
     appToast.success({
       title: "Patient Recalled",
-      description: "The patient has been recalled to the queue.",
+      description: patientName
+        ? `${patientName} has been recalled.`
+        : "The patient has been recalled to the queue.",
     }),
-  removed: () =>
+  removed: (patientName?: string) =>
     appToast.success({
-      title: "Patient Removed",
-      description: "The patient has been removed from the queue.",
+      title: "Marked No-Show",
+      description: patientName
+        ? `${patientName} was marked as no-show.`
+        : "The patient has been removed from the queue.",
     }),
-  updated: () =>
+  verified: (patientName?: string) =>
+    appToast.success({
+      title: "Check-in Verified",
+      description: patientName
+        ? `${patientName} is ready for intake.`
+        : "Check-in verified — patient is in the nurse queue.",
+    }),
+  placedInWaiting: (patientName?: string) =>
+    appToast.success({
+      title: "Moved to Waiting",
+      description: patientName
+        ? `${patientName} is in Waiting for check-in.`
+        : "Scheduled patient placed in Waiting.",
+    }),
+  intakeOpened: (patientName?: string) =>
+    appToast.success({
+      title: "Intake Opened",
+      description: patientName
+        ? `Starting intake for ${patientName}.`
+        : "Opening nurse intake.",
+    }),
+  intakeDone: (
+    patientName: string,
+    specialty: "physician" | "dentist"
+  ) =>
+    appToast.success({
+      title: "Patient Intake Done",
+      description: `${patientName} sent to ${
+        specialty === "dentist" ? "Dentist" : "Physician"
+      }.`,
+    }),
+  rejoined: (patientName?: string) =>
+    appToast.success({
+      title: "Rejoined Queue",
+      description: patientName
+        ? `${patientName} was added back to the end of the queue.`
+        : "Patient rejoined at the end of the queue.",
+    }),
+  transferred: (patientName: string, stationLabel: string) =>
+    appToast.success({
+      title: "Patient Transferred",
+      description: `${patientName} sent to ${stationLabel}.`,
+    }),
+  refreshed: () =>
+    appToast.success({
+      title: "Queue Refreshed",
+      description: "Latest queue data has been loaded.",
+    }),
+  updated: (message?: string) =>
     appToast.success({
       title: "Queue Updated",
-      description: "The queue has been updated.",
+      description: message ?? "The queue has been updated.",
     }),
   failed: (message?: string) =>
     appToast.error({

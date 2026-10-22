@@ -37,6 +37,7 @@ import {
   getPatientRecordById,
   importPatientRecordsFromExcel,
   restorePatientRecords,
+  searchPatientRecordsBySurname,
   updatePatientMedicalRecord,
   updatePatientRecord,
 } from "@/services/patientRecords"
@@ -48,6 +49,7 @@ import {
   type PatientRecordListParams,
   type PatientRecordListResult,
   type PatientRecordStats,
+  type PatientSurnameMatch,
   type UpdatePatientMedicalRecordInput,
   type UpdatePatientRecordInput,
 } from "@/types/patientRecord"
@@ -152,6 +154,20 @@ export async function searchPatientRecordsAction(
   if (!auth.ok) return auth
   try {
     const data = await listDirectoryPatientRecords({ ...params, query })
+    return { ok: true, data }
+  } catch (error) {
+    return toErrorResult(error)
+  }
+}
+
+/** Walk-in / clinical surname lookup — Supabase `patient_records.last_name`. */
+export async function searchPatientsBySurnameAction(
+  surname: string
+): Promise<PatientRecordActionResult<PatientSurnameMatch[]>> {
+  const auth = await requirePatientAccess("patients.search")
+  if (!auth.ok) return auth
+  try {
+    const data = await searchPatientRecordsBySurname(surname)
     return { ok: true, data }
   } catch (error) {
     return toErrorResult(error)

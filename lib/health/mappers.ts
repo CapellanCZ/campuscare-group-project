@@ -253,6 +253,7 @@ export function mapTicketRow(
     createdAt: raw.created_at,
     patientId: raw.patient_id ?? patient?.id ?? null,
     patientName,
+    patientAvatarUrl: null,
     patientType:
       asPatientType(patient?.patient_type) ??
       asPatientType(raw.patient_type),

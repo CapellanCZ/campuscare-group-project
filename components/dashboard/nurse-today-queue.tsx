@@ -16,6 +16,11 @@ import {
 } from "@tabler/icons-react"
 
 import { NurseWorkbench } from "@/components/queue/nurse-workbench"
+import {
+  dedupeNursePatientsByPerson,
+  dedupeTicketsById,
+} from "@/lib/health/nurse-queue"
+import { mergeSampleScheduledAppointments } from "@/lib/health/sample-scheduled-appointments"
 import { WaitStatusBadge } from "@/components/queue/wait-status-badge"
 import { WalkInSheet } from "@/components/queue/walk-in-sheet"
 import { PatientProfileSheet } from "@/components/patients/patient-profile-sheet"
@@ -130,14 +135,18 @@ export function NurseTodayQueue({
   const [status, setStatus] = useState<TicketStatus | "all" | "intake">("all")
   const [page, setPage] = useState(1)
   const [pending, startTransition] = useTransition()
-  const [localTickets, setLocalTickets] = useState(tickets)
+  const [localTickets, setLocalTickets] = useState(() =>
+    dedupeTicketsById(mergeSampleScheduledAppointments(tickets))
+  )
   const [profilePatient, setProfilePatient] = useState<PatientRecord | null>(
     null
   )
   const [loadingPatient, setLoadingPatient] = useState(false)
 
   useEffect(() => {
-    setLocalTickets(tickets)
+    setLocalTickets(
+      dedupeTicketsById(mergeSampleScheduledAppointments(tickets))
+    )
   }, [tickets])
 
   const canCall = can(access.designation, "queue.call_next")
@@ -149,8 +158,8 @@ export function NurseTodayQueue({
 
   const filtered = useMemo(() => {
     const q = studentIdDigits(query)
-    return localTickets
-      .filter((row) => {
+    const rows = dedupeNursePatientsByPerson(
+      localTickets.filter((row) => {
         if (status === "intake") return needsNurseIntake(row)
         if (status !== "all" && row.status !== status) return false
         if (!q) return true
@@ -159,15 +168,16 @@ export function NurseTodayQueue({
           studentIdMatchesQuery(row.studentId, query)
         )
       })
-      .sort((a, b) => {
-        if (a.priority === "urgent" && b.priority !== "urgent") return -1
-        if (b.priority === "urgent" && a.priority !== "urgent") return 1
-        const aWait = a.estimatedWaitMinutes ?? 0
-        const bWait = b.estimatedWaitMinutes ?? 0
-        if (a.status === "called" && b.status !== "called") return -1
-        if (b.status === "called" && a.status !== "called") return 1
-        return bWait - aWait
-      })
+    )
+    return rows.sort((a, b) => {
+      if (a.priority === "urgent" && b.priority !== "urgent") return -1
+      if (b.priority === "urgent" && a.priority !== "urgent") return 1
+      const aWait = a.estimatedWaitMinutes ?? 0
+      const bWait = b.estimatedWaitMinutes ?? 0
+      if (a.status === "called" && b.status !== "called") return -1
+      if (b.status === "called" && a.status !== "called") return 1
+      return bWait - aWait
+    })
   }, [localTickets, query, status])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
@@ -233,12 +243,7 @@ export function NurseTodayQueue({
 
   return (
     <Card className={cn(panelCardClassName, "gap-0 py-0", className)}>
-      <NurseWorkbench
-        tickets={localTickets}
-        pending={pending}
-        onStartIntake={onStartIntake}
-        variant="embedded"
-      />
+      <NurseWorkbench tickets={localTickets} variant="embedded" />
       <CardHeader className="gap-4 border-b px-4 py-4 sm:px-6 sm:py-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-base sm:text-lg">
@@ -258,7 +263,13 @@ export function NurseTodayQueue({
                 Call next
               </Button>
             ) : null}
-            {showWalkIn ? <WalkInSheet /> : null}
+            {showWalkIn ? (
+              <WalkInSheet
+                onRegistered={() => {
+                  router.refresh()
+                }}
+              />
+            ) : null}
             <Button
               size="sm"
               variant="outline"

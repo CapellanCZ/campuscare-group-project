@@ -103,6 +103,7 @@ function demoTicket(
     updatedAt: DEMO_NOW,
     createdAt: DEMO_NOW,
     patientId: null,
+    patientAvatarUrl: null,
     patientType: "student",
     studentId: "2023-171853",
     campusId: null,

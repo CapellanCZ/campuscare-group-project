@@ -444,6 +444,17 @@ export function patientTypeIsStudent(type: PatientType | null | undefined): bool
   return type === "student"
 }
 
+/** Lean surname picker row (walk-in / clinical lookup). */
+export type PatientSurnameMatch = {
+  id: string
+  patientType: PatientType
+  studentId: string | null
+  employeeId: string | null
+  firstName: string
+  middleName: string | null
+  lastName: string
+}
+
 export function patientFullName(patient: {
   firstName: string
   middleName?: string | null

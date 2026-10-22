@@ -139,6 +139,21 @@ async function fetchJoinedTickets(): Promise<QueueTicketRow[]> {
   }
 
   const rawTickets = [...byId.values()].sort((a, b) => {
+    const aEmergency =
+      String(a.intake_notes ?? "")
+        .toLowerCase()
+        .includes("emergency walk-in") ||
+      String(a.consultation_type ?? "")
+        .toLowerCase()
+        .startsWith("emergency")
+    const bEmergency =
+      String(b.intake_notes ?? "")
+        .toLowerCase()
+        .includes("emergency walk-in") ||
+      String(b.consultation_type ?? "")
+        .toLowerCase()
+        .startsWith("emergency")
+    if (aEmergency !== bEmergency) return aEmergency ? -1 : 1
     const ap = Number(a.queue_position ?? 0)
     const bp = Number(b.queue_position ?? 0)
     return ap - bp
@@ -151,9 +166,71 @@ async function fetchJoinedTickets(): Promise<QueueTicketRow[]> {
   )
 
   const mapped = withStarts.map((t) => mapTicketRow(t, { accountLabels }))
-  // Scheduled appointments only appear in the active queue at/after starts_at.
+  const withAvatars = await attachPatientAvatars(supabase, mapped)
+  // Waiting at T−15; Upcoming (pre-window) stays loaded for nurse ops.
   // Re-evaluated on every fetch (realtime refresh, display poll, soft reload).
-  return filterActiveQueueTickets(mapped)
+  const active = filterActiveQueueTickets(withAvatars)
+  // Exact id clones must never reach local SoT.
+  const uniqueByTicketId = new Map(
+    active.map((row) => [row.ticketId, row] as const)
+  )
+  return [...uniqueByTicketId.values()]
+}
+
+/** Resolve profile photos via patients.auth_user_id → users.avatar_url. */
+async function attachPatientAvatars(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  tickets: QueueTicketRow[]
+): Promise<QueueTicketRow[]> {
+  const patientIds = [
+    ...new Set(
+      tickets
+        .map((ticket) => ticket.patientId)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ]
+  if (patientIds.length === 0) return tickets
+
+  const { data: patientRows } = await supabase
+    .from("patients")
+    .select("id, auth_user_id")
+    .in("id", patientIds)
+
+  const authIds = [
+    ...new Set(
+      (patientRows ?? [])
+        .map((row) => row.auth_user_id as string | null)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ]
+
+  const avatarByUserId = new Map<string, string>()
+  if (authIds.length > 0) {
+    const { data: userRows } = await supabase
+      .from("users")
+      .select("id, avatar_url")
+      .in("id", authIds)
+    for (const row of userRows ?? []) {
+      const url = (row.avatar_url as string | null)?.trim()
+      if (url) avatarByUserId.set(String(row.id), url)
+    }
+  }
+
+  const avatarByPatientId = new Map<string, string | null>()
+  for (const row of patientRows ?? []) {
+    const authId = row.auth_user_id as string | null
+    avatarByPatientId.set(
+      String(row.id),
+      authId ? (avatarByUserId.get(authId) ?? null) : null
+    )
+  }
+
+  return tickets.map((ticket) => ({
+    ...ticket,
+    patientAvatarUrl: ticket.patientId
+      ? (avatarByPatientId.get(ticket.patientId) ?? null)
+      : null,
+  }))
 }
 
 async function attachAppointmentStartsAt(
