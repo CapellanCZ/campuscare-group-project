@@ -188,8 +188,10 @@ export function QueuePage({
   const [activity, setActivity] = useState(
     () => cached?.activity ?? initialActivity
   )
-  // SSR seeds the page; never treat a real empty queue as "still loading".
-  const [dataLoading, setDataLoading] = useState(false)
+  // Cache hit paints instantly; cold visit shows skeleton until soft load finishes.
+  const [dataLoading, setDataLoading] = useState(
+    () => hydrateFromCache && !cached
+  )
   const hydratedRef = useRef(false)
   /** Bumped on local mutations so in-flight soft loads cannot wipe optimistic UI. */
   const ticketsEpochRef = useRef(0)
@@ -243,22 +245,28 @@ export function QueuePage({
     if (!hydrateFromCache || hydratedRef.current) return
     hydratedRef.current = true
     const hit = getCachedQueue(access.designation)
+    const fresh =
+      Boolean(hit) && staffCacheIsFresh(queueCacheKey(access.designation))
     if (hit) {
       setLocalTickets(hit.tickets)
       setStats(hit.stats)
       setBoards(hit.boards)
       setRecent(hit.recent)
       setActivity(hit.activity)
+      setDataLoading(false)
     }
-    // Soft revalidate in the background — keep SSR / cache rows visible.
+    if (fresh) return
+    // Soft revalidate in the background — keep cache rows visible.
     const epoch = ticketsEpochRef.current
     void loadQueueBundle(access.designation, {
-      force:
-        Boolean(hit) &&
-        !staffCacheIsFresh(queueCacheKey(access.designation)),
+      force: Boolean(hit),
     })
-      .then((bundle) => applyQueueBundle(bundle, epoch))
+      .then((bundle) => {
+        applyQueueBundle(bundle, epoch)
+        setDataLoading(false)
+      })
       .catch(() => {
+        setDataLoading(false)
         if (!hit && initialTickets.length === 0) {
           queueToasts.failed("Could not load the queue.")
         }

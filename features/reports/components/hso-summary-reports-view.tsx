@@ -225,7 +225,6 @@ export function HsoSummaryReportsView({
       pending={pending}
       error={aggregates.error}
       empty={empty}
-      filterSummary={buildFilterSummary(applied)}
       kpis={kpis}
       charts={charts}
       tables={tables}

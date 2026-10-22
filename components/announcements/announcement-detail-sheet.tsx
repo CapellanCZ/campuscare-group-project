@@ -1,5 +1,13 @@
 "use client"
 
+import {
+  IconPencil,
+  IconSend,
+  IconSpeakerphone,
+  IconTrash,
+  IconUsers,
+} from "@tabler/icons-react"
+
 import { AnnouncementAttachmentsView } from "@/components/announcements/announcement-attachments-view"
 import {
   AnnouncementImageGallery,
@@ -75,8 +83,14 @@ export function AnnouncementDetailSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="flex w-full flex-col sm:max-w-2xl">
         <SheetHeader className="gap-2">
-          <SheetTitle className="pr-8">{announcement.title}</SheetTitle>
-          <SheetDescription>
+          <SheetTitle className="flex items-start gap-2 pr-8">
+            <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <IconSpeakerphone className="size-4" stroke={1.75} aria-hidden />
+            </span>
+            <span className="min-w-0">{announcement.title}</span>
+          </SheetTitle>
+          <SheetDescription className="inline-flex items-center gap-1.5">
+            <IconUsers className="size-3.5 opacity-70" aria-hidden />
             Posted for {announcement.audience}
           </SheetDescription>
         </SheetHeader>
@@ -149,16 +163,19 @@ export function AnnouncementDetailSheet({
               variant="outline"
               onClick={() => onEdit(announcement)}
             >
+              <IconPencil data-icon="inline-start" aria-hidden />
               Edit
             </Button>
           ) : null}
           {canPublish ? (
             announcement.status !== "published" ? (
               <Button type="button" onClick={() => onPublish(announcement)}>
+                <IconSend data-icon="inline-start" aria-hidden />
                 Publish
               </Button>
             ) : (
               <Button type="button" disabled>
+                <IconSend data-icon="inline-start" aria-hidden />
                 Published
               </Button>
             )
@@ -169,6 +186,7 @@ export function AnnouncementDetailSheet({
               variant="destructive"
               onClick={() => onDelete(announcement)}
             >
+              <IconTrash data-icon="inline-start" aria-hidden />
               Delete
             </Button>
           ) : null}

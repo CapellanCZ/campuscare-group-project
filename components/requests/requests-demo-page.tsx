@@ -127,7 +127,9 @@ export function RequestsPage({
         )
       ).slice(0, RECENTLY_APPROVED_LIMIT)
   )
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(
+    () => hydrateFromCache && !cached
+  )
   const [recentLoading, setRecentLoading] = useState(false)
   const [selected, setSelected] = useState<AppointmentRequest | null>(null)
   const [dialogMode, setDialogMode] = useState<RequestDialogMode | null>(null)
@@ -261,6 +263,8 @@ export function RequestsPage({
     if (!hydrateFromCache || hydratedRef.current) return
     hydratedRef.current = true
     const hit = getCachedRequests(access.designation)
+    const fresh =
+      Boolean(hit) && staffCacheIsFresh(requestsCacheKey(access.designation))
     if (hit) {
       setList(hit.list)
       setStats(hit.stats)
@@ -272,9 +276,10 @@ export function RequestsPage({
       setLoading(false)
     }
     void loadRecentlyApproved(true)
+    // Fresh cache: skip network on revisit. Stale/missing: soft-revalidate.
+    if (fresh) return
     void loadRequestsBundle(access.designation, {
-      force:
-        Boolean(hit) && !staffCacheIsFresh(requestsCacheKey(access.designation)),
+      force: Boolean(hit),
     })
       .then((bundle) => {
         setList(bundle.list)

@@ -157,8 +157,10 @@ export function RoleDashboard({
       : emptyDashboardBundle(access.designation))
 
   const [bundle, setBundle] = useState<DashboardPageBundle>(seed)
-  // SSR / cache seed the UI; soft revalidate never blanks the dashboard.
-  const [dataLoading, setDataLoading] = useState(false)
+  // Cache hit paints instantly; cold visit shows skeleton until soft load finishes.
+  const [dataLoading, setDataLoading] = useState(
+    () => hydrateFromCache && !cached
+  )
   const hydratedRef = useRef(false)
 
   // Warm session cache from RSC seed so revisits / prefetch share the payload.
@@ -194,13 +196,15 @@ export function RoleDashboard({
     if (!hydrateFromCache || hydratedRef.current) return
     hydratedRef.current = true
     const hit = getCachedDashboard(access.designation)
+    const fresh =
+      Boolean(hit) && staffCacheIsFresh(dashboardCacheKey(access.designation))
     if (hit) {
       applyBundle(setBundle, hit)
+      setDataLoading(false)
     }
-    // Soft revalidate only when cache is stale — avoids duplicate server actions.
+    if (fresh) return
     void loadDashboardBundle(access.designation, {
-      force:
-        Boolean(hit) && !staffCacheIsFresh(dashboardCacheKey(access.designation)),
+      force: Boolean(hit),
     })
       .then((next) => {
         applyBundle(setBundle, next)

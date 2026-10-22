@@ -1,8 +1,9 @@
+import { StaffContentSkeleton } from "@/components/dashboard/staff-content-skeleton"
+
 /**
- * App Router `loading.tsx` fallback.
- * Intentionally empty — previous page stays visible until the RSC resolves,
- * so first visits with little data do not flash skeleton chrome.
+ * App Router `loading.tsx` fallback — show immediately on nav click so the
+ * previous page does not look frozen while the auth-only RSC resolves.
  */
 export function StaffRouteLoading() {
-  return null
+  return <StaffContentSkeleton />
 }

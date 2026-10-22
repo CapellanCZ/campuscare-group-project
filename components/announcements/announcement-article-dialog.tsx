@@ -1,6 +1,14 @@
 "use client"
 
-import { IconArrowUp, IconX } from "@tabler/icons-react"
+import type { ComponentType } from "react"
+import {
+  IconArrowUp,
+  IconCalendarEvent,
+  IconPencil,
+  IconTrash,
+  IconUsers,
+  IconX,
+} from "@tabler/icons-react"
 import { useEffect, useRef } from "react"
 
 import { AnnouncementAttachmentsView } from "@/components/announcements/announcement-attachments-view"
@@ -17,7 +25,23 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { announcementCoverUrl } from "@/features/announcements/lib/display"
+import { formatAnnouncementDate } from "@/features/announcements/lib/format"
 import type { Announcement } from "@/types/announcement"
+
+function MetaChip({
+  icon: Icon,
+  label,
+}: {
+  icon: ComponentType<{ className?: string; stroke?: number }>
+  label: string
+}) {
+  return (
+    <span className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-white/15 px-2 py-1 text-[11px] text-white/90 ring-1 ring-white/20 backdrop-blur">
+      <Icon className="size-3.5 shrink-0 opacity-80" stroke={1.75} aria-hidden />
+      <span className="truncate">{label}</span>
+    </span>
+  )
+}
 
 function bodyParagraphs(body: string): string[] {
   const trimmed = body.trim()
@@ -77,6 +101,7 @@ export function AnnouncementArticleDialog({
               variant="secondary"
               onClick={() => onEdit(announcement)}
             >
+              <IconPencil data-icon="inline-start" aria-hidden />
               Edit
             </Button>
           ) : null}
@@ -87,6 +112,7 @@ export function AnnouncementArticleDialog({
               variant="destructive"
               onClick={() => onDelete(announcement)}
             >
+              <IconTrash data-icon="inline-start" aria-hidden />
               Delete
             </Button>
           ) : null}
@@ -119,6 +145,15 @@ export function AnnouncementArticleDialog({
             )}
 
             <div className="relative z-10 flex h-full min-h-[220px] flex-col justify-end gap-3 px-6 py-8 sm:min-h-[280px] sm:px-10 sm:py-10">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <MetaChip icon={IconUsers} label={announcement.audience} />
+                <MetaChip
+                  icon={IconCalendarEvent}
+                  label={formatAnnouncementDate(
+                    announcement.publishedAt ?? announcement.updatedAt
+                  )}
+                />
+              </div>
               <h2 className="max-w-3xl text-2xl leading-tight font-semibold text-balance text-white sm:text-3xl">
                 {announcement.title}
               </h2>

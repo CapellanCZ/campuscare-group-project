@@ -1,31 +1,22 @@
-import { Suspense } from "react"
-
 import { QueuePage } from "@/components/queue/queue-page"
-import { StaffContentSkeleton } from "@/components/dashboard/staff-content-skeleton"
 import { requireStaffModule } from "@/lib/auth/require-module"
-import { loadQueuePageData } from "@/features/queue/lib/load-queue-page.server"
+import { computeQueueStats } from "@/lib/health/queue-queries"
 
-async function QueuePageData() {
+/**
+ * Auth-only RSC — paint instantly from session cache; soft-revalidate on client.
+ */
+export default async function StaffQueuePage() {
   const access = await requireStaffModule("queue_management")
-  const bundle = await loadQueuePageData(access)
 
   return (
     <QueuePage
       access={access}
-      tickets={bundle.tickets}
-      stats={bundle.stats}
-      boards={bundle.boards}
-      recent={bundle.recent}
-      activity={bundle.activity}
-      hydrateFromCache={false}
+      tickets={[]}
+      stats={computeQueueStats([])}
+      boards={[]}
+      recent={[]}
+      activity={[]}
+      hydrateFromCache
     />
-  )
-}
-
-export default function StaffQueuePage() {
-  return (
-    <Suspense fallback={<StaffContentSkeleton />}>
-      <QueuePageData />
-    </Suspense>
   )
 }

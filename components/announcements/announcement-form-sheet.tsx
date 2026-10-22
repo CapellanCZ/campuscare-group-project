@@ -1,6 +1,14 @@
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
+import {
+  IconAlignLeft,
+  IconCalendarEvent,
+  IconHeading,
+  IconSpeakerphone,
+  IconStatusChange,
+  IconUsers,
+} from "@tabler/icons-react"
 import { useConfirm } from "@/components/feedback/confirm-provider"
 import { announcementToasts } from "@/lib/feedback/toast-messages"
 
@@ -181,7 +189,10 @@ export function AnnouncementFormSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="flex w-full flex-col sm:max-w-2xl">
         <SheetHeader className="gap-2">
-          <SheetTitle>
+          <SheetTitle className="flex items-center gap-2">
+            <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <IconSpeakerphone className="size-4" stroke={1.75} aria-hidden />
+            </span>
             {mode === "edit" ? "Edit announcement" : "Add announcement"}
           </SheetTitle>
           <SheetDescription>
@@ -196,7 +207,13 @@ export function AnnouncementFormSheet({
         >
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="announcement-title">Title</FieldLabel>
+              <FieldLabel
+                htmlFor="announcement-title"
+                className="inline-flex items-center gap-1.5"
+              >
+                <IconHeading className="size-3.5 opacity-70" aria-hidden />
+                Title
+              </FieldLabel>
               <Input
                 id="announcement-title"
                 value={form.title}
@@ -208,7 +225,13 @@ export function AnnouncementFormSheet({
             </Field>
 
             <Field>
-              <FieldLabel htmlFor="announcement-body">Body</FieldLabel>
+              <FieldLabel
+                htmlFor="announcement-body"
+                className="inline-flex items-center gap-1.5"
+              >
+                <IconAlignLeft className="size-3.5 opacity-70" aria-hidden />
+                Body
+              </FieldLabel>
               <Textarea
                 id="announcement-body"
                 value={form.body}
@@ -219,80 +242,97 @@ export function AnnouncementFormSheet({
               />
             </Field>
 
-            <Field>
-              <FieldLabel>Audience</FieldLabel>
-              <Select
-                value={form.audience}
-                items={selectItemsRecord([
-                  ...ANNOUNCEMENT_AUDIENCES.map((audience) => ({
-                    value: audience,
-                    label: audience,
-                  })),
-                  ...(form.audience &&
-                  !(ANNOUNCEMENT_AUDIENCES as readonly string[]).includes(
-                    form.audience
-                  )
-                    ? [{ value: form.audience, label: form.audience }]
-                    : []),
-                ])}
-                onValueChange={(value) =>
-                  updateField("audience", value ?? "All")
-                }
-                disabled={pending}
-              >
-                <SelectTrigger className="w-full" aria-label="Audience">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ANNOUNCEMENT_AUDIENCES.map((audience) => (
-                    <SelectItem key={audience} value={audience}>
-                      {audience}
-                    </SelectItem>
-                  ))}
-                  {form.audience &&
-                  !(ANNOUNCEMENT_AUDIENCES as readonly string[]).includes(
-                    form.audience
-                  ) ? (
-                    <SelectItem value={form.audience}>{form.audience}</SelectItem>
-                  ) : null}
-                </SelectContent>
-              </Select>
-            </Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field>
+                <FieldLabel className="inline-flex items-center gap-1.5">
+                  <IconUsers className="size-3.5 opacity-70" aria-hidden />
+                  Audience
+                </FieldLabel>
+                <Select
+                  value={form.audience}
+                  items={selectItemsRecord([
+                    ...ANNOUNCEMENT_AUDIENCES.map((audience) => ({
+                      value: audience,
+                      label: audience,
+                    })),
+                    ...(form.audience &&
+                    !(ANNOUNCEMENT_AUDIENCES as readonly string[]).includes(
+                      form.audience
+                    )
+                      ? [{ value: form.audience, label: form.audience }]
+                      : []),
+                  ])}
+                  onValueChange={(value) =>
+                    updateField("audience", value ?? "All")
+                  }
+                  disabled={pending}
+                >
+                  <SelectTrigger className="w-full" aria-label="Audience">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ANNOUNCEMENT_AUDIENCES.map((audience) => (
+                      <SelectItem key={audience} value={audience}>
+                        {audience}
+                      </SelectItem>
+                    ))}
+                    {form.audience &&
+                    !(ANNOUNCEMENT_AUDIENCES as readonly string[]).includes(
+                      form.audience
+                    ) ? (
+                      <SelectItem value={form.audience}>
+                        {form.audience}
+                      </SelectItem>
+                    ) : null}
+                  </SelectContent>
+                </Select>
+              </Field>
 
-            <Field>
-              <FieldLabel>Status</FieldLabel>
-              <Select
-                value={form.status}
-                items={selectItemsRecord(
-                  ANNOUNCEMENT_STATUSES.map((status) => ({
-                    value: status,
-                    label: announcementStatusLabel(status),
-                  }))
-                )}
-                onValueChange={(value) =>
-                  updateField(
-                    "status",
-                    (value as AnnouncementStatus) ?? "draft"
-                  )
-                }
-                disabled={pending}
-              >
-                <SelectTrigger className="w-full" aria-label="Status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ANNOUNCEMENT_STATUSES.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {announcementStatusLabel(status)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
+              <Field>
+                <FieldLabel className="inline-flex items-center gap-1.5">
+                  <IconStatusChange className="size-3.5 opacity-70" aria-hidden />
+                  Status
+                </FieldLabel>
+                <Select
+                  value={form.status}
+                  items={selectItemsRecord(
+                    ANNOUNCEMENT_STATUSES.map((status) => ({
+                      value: status,
+                      label: announcementStatusLabel(status),
+                    }))
+                  )}
+                  onValueChange={(value) =>
+                    updateField(
+                      "status",
+                      (value as AnnouncementStatus) ?? "draft"
+                    )
+                  }
+                  disabled={pending}
+                >
+                  <SelectTrigger className="w-full" aria-label="Status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ANNOUNCEMENT_STATUSES.map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {announcementStatusLabel(status)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
 
             {form.status === "scheduled" ? (
               <Field>
-                <FieldLabel htmlFor="announcement-scheduled-at">
+                <FieldLabel
+                  htmlFor="announcement-scheduled-at"
+                  className="inline-flex items-center gap-1.5"
+                >
+                  <IconCalendarEvent
+                    className="size-3.5 opacity-70"
+                    aria-hidden
+                  />
                   Schedule for
                 </FieldLabel>
                 <Input

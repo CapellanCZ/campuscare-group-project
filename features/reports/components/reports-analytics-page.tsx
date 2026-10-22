@@ -211,7 +211,6 @@ function ClinicalReportsAnalyticsPage({
       pending={pending}
       error={error}
       empty={empty}
-      filterSummary={buildFilterSummary(filters)}
       kpis={bundle.kpis}
       charts={bundle.charts}
       tables={bundle.tables}

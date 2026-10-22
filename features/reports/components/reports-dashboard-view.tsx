@@ -90,7 +90,6 @@ export function ReportsDashboardView({
   pending,
   error,
   empty,
-  filterSummary,
   kpis,
   charts,
   tables,
@@ -111,7 +110,6 @@ export function ReportsDashboardView({
   pending: boolean
   error: string | null
   empty: boolean
-  filterSummary: string
   kpis: ReportKpi[]
   charts: ReportChartSeries[]
   tables: ReportTableBundle[]
@@ -305,23 +303,19 @@ export function ReportsDashboardView({
                 </select>
               </label>
             </div>
-            <div className="flex flex-col gap-2 rounded-lg bg-muted/40 px-3 py-2.5 dark:bg-muted/20 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                {filterSummary}
-              </p>
-              {filters.reportPeriod === "custom" ? null : (
+            {filters.reportPeriod === "custom" ? null : (
+              <div className="flex justify-end">
                 <Button
                   type="button"
                   size="sm"
                   variant="ghost"
-                  className="shrink-0 self-start sm:self-auto"
                   disabled={pending}
                   onClick={onClearFilters}
                 >
                   Reset filters
                 </Button>
-              )}
-            </div>
+              </div>
+            )}
             {pending ? (
               <p className="text-xs text-muted-foreground">Updating report…</p>
             ) : null}
