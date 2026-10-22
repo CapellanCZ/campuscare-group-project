@@ -21,6 +21,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -81,13 +82,13 @@ function AppointmentRow({
   ticket,
   isNew,
   now,
-  pending,
+  rowPending,
   onPlaceInWaiting,
 }: {
   ticket: QueueTicketRow
   isNew: boolean
   now: Date
-  pending?: boolean
+  rowPending?: boolean
   onPlaceInWaiting?: (ticket: QueueTicketRow) => void
 }) {
   const appointmentTime = formatAppointmentTime(ticket.appointmentStartsAt)
@@ -95,7 +96,7 @@ function AppointmentRow({
 
   return (
     <div
-      draggable={Boolean(onPlaceInWaiting) && !pending}
+      draggable={Boolean(onPlaceInWaiting) && !rowPending}
       onDragStart={(event) => {
         if (!onPlaceInWaiting) return
         event.dataTransfer.setData(
@@ -108,7 +109,7 @@ function AppointmentRow({
       className={cn(
         "flex items-center gap-3 px-4 py-3.5 transition-colors duration-500 sm:px-6",
         isNew && "bg-primary/[0.04]",
-        onPlaceInWaiting && !pending && "cursor-grab active:cursor-grabbing"
+        onPlaceInWaiting && !rowPending && "cursor-grab active:cursor-grabbing"
       )}
     >
       <Avatar className="size-9 shrink-0 rounded-lg after:rounded-lg">
@@ -147,7 +148,7 @@ function AppointmentRow({
           size="xs"
           variant="outline"
           className="shrink-0"
-          disabled={pending}
+          disabled={rowPending}
           title="Place in Waiting"
           aria-label={`Place ${ticket.patientName} in Waiting`}
           onClick={(event) => {
@@ -167,14 +168,14 @@ function UpcomingBody({
   pageRows,
   freshIds,
   now,
-  pending,
+  isTicketPending,
   earlyEntryMinutes,
   onPlaceInWaiting,
 }: {
   pageRows: QueueTicketRow[]
   freshIds: Set<string>
   now: Date
-  pending?: boolean
+  isTicketPending?: (ticketId: string) => boolean
   earlyEntryMinutes: QueueEarlyEntryMinutes
   onPlaceInWaiting?: (ticket: QueueTicketRow) => void
 }) {
@@ -215,7 +216,7 @@ function UpcomingBody({
               ticket={ticket}
               isNew={freshIds.has(ticket.ticketId)}
               now={now}
-              pending={pending}
+              rowPending={isTicketPending?.(ticket.ticketId)}
               onPlaceInWaiting={onPlaceInWaiting}
             />
           </motion.div>
@@ -283,7 +284,7 @@ function WorkbenchPagination({
 
 export function NurseWorkbench({
   tickets,
-  pending,
+  isTicketPending,
   earlyEntryMinutes = DEFAULT_QUEUE_EARLY_ENTRY_MINUTES,
   onEarlyEntryMinutesChange,
   onPlaceInWaiting,
@@ -291,7 +292,7 @@ export function NurseWorkbench({
   variant = "embedded",
 }: {
   tickets: QueueTicketRow[]
-  pending?: boolean
+  isTicketPending?: (ticketId: string) => boolean
   earlyEntryMinutes?: QueueEarlyEntryMinutes
   onEarlyEntryMinutesChange?: (minutes: QueueEarlyEntryMinutes) => void
   onPlaceInWaiting?: (ticket: QueueTicketRow) => void
@@ -394,9 +395,11 @@ export function NurseWorkbench({
               <IconSettings className="size-4" stroke={1.75} aria-hidden />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                Auto-move before start
-              </DropdownMenuLabel>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                  Auto-move before start
+                </DropdownMenuLabel>
+              </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuRadioGroup
                 value={String(earlyEntryMinutes)}
@@ -437,7 +440,7 @@ export function NurseWorkbench({
         pageRows={pageRows}
         freshIds={freshIds}
         now={now}
-        pending={pending}
+        isTicketPending={isTicketPending}
         earlyEntryMinutes={earlyEntryMinutes}
         onPlaceInWaiting={onPlaceInWaiting}
       />

@@ -38,7 +38,6 @@ import { displayConsultationLabel } from "@/lib/health/consultation-display"
 import { patientTypeLabel, ticketLabel } from "@/lib/health/mappers"
 import {
   canOpenNurseIntake,
-  needsCheckInVerify,
   needsNurseIntake,
 } from "@/lib/health/nurse-queue"
 import type { QueueTicketRow } from "@/lib/health/types"
@@ -74,18 +73,16 @@ function MetaRow({
 function CalledPatientRow({
   index,
   row,
-  pending,
+  rowPending,
   onCall,
   onIntake,
-  onVerify,
   onViewDetails,
 }: {
   index: number
   row: QueueTicketRow
-  pending?: boolean
+  rowPending?: boolean
   onCall: (row: QueueTicketRow) => void
   onIntake: (row: QueueTicketRow) => void
-  onVerify: (row: QueueTicketRow) => void
   onViewDetails: (row: QueueTicketRow) => void
 }) {
   const number = ticketLabel(row.queueNumber, row.ticketCode)
@@ -97,9 +94,6 @@ function CalledPatientRow({
   const isEmergency = row.priority === "urgent"
   const showIntake = needsNurseIntake(row)
   const intakeEnabled = canOpenNurseIntake(row)
-  const showVerify = needsCheckInVerify(row)
-  const showVerified =
-    Boolean(row.checkedInAt) && !row.intakeCompletedAt
 
   return (
     <article className="space-y-3 px-4 py-3.5 sm:px-5">
@@ -140,31 +134,16 @@ function CalledPatientRow({
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-1 pl-6">
-        {showVerify ? (
-          <Button
-            type="button"
-            size="icon-sm"
-            className="size-7"
-            disabled={pending}
-            aria-label="Verify check-in"
-            title="Verify check-in"
-            onClick={() => onVerify(row)}
-          >
-            <IconCheck className="size-3.5" stroke={1.75} aria-hidden />
-          </Button>
-        ) : null}
-        {showVerified ? (
-          <span className="inline-flex h-7 items-center gap-1 rounded-md border border-border/70 bg-background px-2 text-[11px] text-muted-foreground">
-            <IconCheck className="size-3" stroke={1.75} aria-hidden />
-            Verified
-          </span>
-        ) : null}
+        <span className="inline-flex h-7 items-center gap-1 rounded-md border border-border/70 bg-background px-2 text-[11px] text-muted-foreground">
+          <IconCheck className="size-3" stroke={1.75} aria-hidden />
+          Checked-in
+        </span>
         <Button
           type="button"
           size="icon-sm"
           variant="outline"
           className="size-7"
-          disabled={pending}
+          disabled={rowPending}
           aria-label="Call / recall"
           title="Call / recall"
           onClick={() => onCall(row)}
@@ -176,12 +155,12 @@ function CalledPatientRow({
             type="button"
             size="sm"
             className="h-7 gap-1 px-2.5"
-            disabled={pending || !intakeEnabled}
+            disabled={rowPending || !intakeEnabled}
             aria-label="Start intake"
             title={
               intakeEnabled
                 ? "Intake & assign specialty"
-                : "Verify check-in first"
+                : "Complete check-in verify first"
             }
             onClick={() => {
               if (!intakeEnabled) return
@@ -199,7 +178,7 @@ function CalledPatientRow({
                 size="icon-sm"
                 variant="ghost"
                 aria-label="More actions"
-                disabled={pending}
+                disabled={rowPending}
               />
             }
           >
@@ -223,18 +202,16 @@ function CalledPatientRow({
 
 export function NursePatientsPanel({
   rows,
-  pending,
+  isTicketPending,
   onCall,
   onIntake,
-  onVerify,
   onViewDetails,
   className,
 }: {
   rows: QueueTicketRow[]
-  pending?: boolean
+  isTicketPending?: (ticketId: string) => boolean
   onCall: (row: QueueTicketRow) => void
   onIntake: (row: QueueTicketRow) => void
-  onVerify: (row: QueueTicketRow) => void
   onViewDetails: (row: QueueTicketRow) => void
   className?: string
 }) {
@@ -261,7 +238,7 @@ export function NursePatientsPanel({
           <div className="min-w-0">
             <CardTitle className="text-base">Patients</CardTitle>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Verified — ready for call & intake
+              Ready for intake
             </p>
           </div>
           <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-muted/50 px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
@@ -277,10 +254,10 @@ export function NursePatientsPanel({
               <EmptyMedia variant="icon">
                 <IconUsers stroke={1.75} aria-hidden />
               </EmptyMedia>
-              <EmptyTitle>No verified patients</EmptyTitle>
+              <EmptyTitle>No checked-in patients</EmptyTitle>
               <EmptyDescription>
-                After check-in verify (or walk-in register), patients appear
-                here for call and intake.
+                After you call and verify check-in from Waiting, patients
+                appear here for intake.
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
@@ -292,10 +269,9 @@ export function NursePatientsPanel({
                   key={row.ticketId}
                   index={safePage * PATIENTS_PAGE_SIZE + index + 1}
                   row={row}
-                  pending={pending}
+                  rowPending={isTicketPending?.(row.ticketId)}
                   onCall={onCall}
                   onIntake={onIntake}
-                  onVerify={onVerify}
                   onViewDetails={onViewDetails}
                 />
               ))}

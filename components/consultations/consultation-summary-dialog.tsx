@@ -31,6 +31,7 @@ type CompletedProps = {
   consultationId: string | null
   onDone?: () => void
   doneLabel?: string
+  showCloseButton?: boolean
 }
 
 type ConsultationSummaryDialogProps = {
@@ -89,6 +90,20 @@ export function ConsultationSummaryDialog(
   }, [consultationId, isPreview, open, previewTicketVitals, previewVisit])
 
   const pending = isPreview ? (props.pending ?? false) : false
+  const isVisitComplete = visit?.status === "completed"
+  const isIntakeRecord = !isPreview && Boolean(visit) && !isVisitComplete
+
+  const title = isPreview
+    ? "Review consultation summary"
+    : isIntakeRecord
+      ? "Intake summary"
+      : "Consultation completed"
+
+  const description = isPreview
+    ? "Review the summary below. Confirm to complete and save to the patient record, or cancel to continue editing."
+    : isIntakeRecord
+      ? "Nurse intake is saved. The patient is waiting for the provider — this is not a completed consultation."
+      : "Summary saved to the patient record. This copy is also available in patient history."
 
   return (
     <Dialog
@@ -98,16 +113,13 @@ export function ConsultationSummaryDialog(
         onOpenChange(next)
       }}
     >
-      <DialogContent className="flex max-h-[min(90vh,760px)] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+      <DialogContent
+        showCloseButton={isPreview ? true : (props.showCloseButton ?? true)}
+        className="flex max-h-[min(90vh,760px)] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
+      >
         <DialogHeader className="border-b px-6 py-5 text-left">
-          <DialogTitle>
-            {isPreview ? "Review consultation summary" : "Consultation completed"}
-          </DialogTitle>
-          <DialogDescription>
-            {isPreview
-              ? "Review the summary below. Confirm to complete and save to the patient record, or cancel to continue editing."
-              : "Summary saved to the patient record. This copy is also available in patient history."}
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
@@ -119,6 +131,7 @@ export function ConsultationSummaryDialog(
               ticketVitals={ticketVitals}
               patientName={patientName}
               hideStatusBadge={isPreview}
+              variant={isIntakeRecord ? "intake" : "full"}
             />
           ) : (
             <p className="text-sm text-muted-foreground">

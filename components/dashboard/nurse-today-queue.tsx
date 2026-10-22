@@ -20,7 +20,6 @@ import {
   dedupeNursePatientsByPerson,
   dedupeTicketsById,
 } from "@/lib/health/nurse-queue"
-import { mergeSampleScheduledAppointments } from "@/lib/health/sample-scheduled-appointments"
 import { WaitStatusBadge } from "@/components/queue/wait-status-badge"
 import { WalkInSheet } from "@/components/queue/walk-in-sheet"
 import { PatientProfileSheet } from "@/components/patients/patient-profile-sheet"
@@ -76,6 +75,7 @@ import {
 } from "@/lib/health/queue-server-actions"
 import {
   canOpenNurseIntake,
+  hasNurseCalledPatient,
   needsCheckInVerify,
   needsNurseIntake,
 } from "@/lib/health/nurse-queue"
@@ -136,7 +136,7 @@ export function NurseTodayQueue({
   const [page, setPage] = useState(1)
   const [pending, startTransition] = useTransition()
   const [localTickets, setLocalTickets] = useState(() =>
-    dedupeTicketsById(mergeSampleScheduledAppointments(tickets))
+    dedupeTicketsById(tickets)
   )
   const [profilePatient, setProfilePatient] = useState<PatientRecord | null>(
     null
@@ -144,9 +144,7 @@ export function NurseTodayQueue({
   const [loadingPatient, setLoadingPatient] = useState(false)
 
   useEffect(() => {
-    setLocalTickets(
-      dedupeTicketsById(mergeSampleScheduledAppointments(tickets))
-    )
+    setLocalTickets(dedupeTicketsById(tickets))
   }, [tickets])
 
   const canCall = can(access.designation, "queue.call_next")
@@ -464,10 +462,17 @@ export function NurseTodayQueue({
                               type="button"
                               size="icon-sm"
                               className="size-7"
-                              disabled={pending}
+                              disabled={
+                                pending || !hasNurseCalledPatient(row)
+                              }
                               aria-label="Verify check-in"
-                              title="Verify"
-                              onClick={() =>
+                              title={
+                                hasNurseCalledPatient(row)
+                                  ? "Verify"
+                                  : "Call the patient first"
+                              }
+                              onClick={() => {
+                                if (!hasNurseCalledPatient(row)) return
                                 runAction(
                                   "Check-in verified",
                                   () => actionVerifyCheckIn(row.ticketId),
@@ -480,14 +485,14 @@ export function NurseTodayQueue({
                                     },
                                   }
                                 )
-                              }
+                              }}
                             >
                               <IconCheck className="size-3.5" aria-hidden />
                             </Button>
                           ) : null}
                           {row.checkedInAt && !row.intakeCompletedAt ? (
                             <StatusBadge
-                              label="Verified"
+                              label="Checked-in"
                               toneClassName={STATUS_BADGE_TONE.completed}
                               dotClassName={STATUS_BADGE_DOT.completed}
                               className="h-6 px-1.5 text-[10px] normal-case"

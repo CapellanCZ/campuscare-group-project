@@ -6,16 +6,18 @@ import {
   hasRecordedVitals,
 } from "@/components/queue/vitals-strip"
 import { Badge } from "@/components/ui/badge"
-import { formatManilaDateTime } from "@/lib/health/clinic-datetime"
+import { formatRequestDateTime } from "@/features/requests/lib/format"
 import { consultationStatusLabel } from "@/types/consultation"
 import type { Consultation } from "@/types/consultation"
 import type { QueueVitals } from "@/lib/health/types"
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
+  const display =
+    value == null || value === "" ? "—" : value
   return (
-    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 border-b border-border/60 py-2 last:border-b-0">
-      <dt className="w-36 shrink-0 text-sm text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 flex-1 text-sm text-foreground">{value || "—"}</dd>
+    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-baseline gap-x-3 border-b border-border/50 py-2.5 last:border-b-0 sm:grid-cols-[8.5rem_minmax(0,1fr)]">
+      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-sm text-foreground break-words">{display}</dd>
     </div>
   )
 }
@@ -72,8 +74,56 @@ export function vitalsFromRecord(
     result.temperatureC != null ||
     result.spo2 != null ||
     result.heightCm != null ||
-    result.weightKg != null
+    result.weightKg != null ||
+    result.respiratoryRate != null
   return hasAny ? result : null
+}
+
+function VitalsRows({
+  vitals,
+  showSummary,
+}: {
+  vitals: QueueVitals
+  showSummary?: boolean
+}) {
+  return (
+    <dl>
+      <Row label="Blood pressure" value={formatBloodPressure(vitals)} />
+      <Row
+        label="Heart rate"
+        value={vitals.heartRate != null ? `${vitals.heartRate} bpm` : null}
+      />
+      <Row
+        label="Temperature"
+        value={
+          vitals.temperatureC != null ? `${vitals.temperatureC}°C` : null
+        }
+      />
+      <Row
+        label="SpO₂"
+        value={vitals.spo2 != null ? `${vitals.spo2}%` : null}
+      />
+      <Row
+        label="Respiratory rate"
+        value={
+          vitals.respiratoryRate != null
+            ? `${vitals.respiratoryRate} /min`
+            : null
+        }
+      />
+      <Row
+        label="Height"
+        value={vitals.heightCm != null ? `${vitals.heightCm} cm` : null}
+      />
+      <Row
+        label="Weight"
+        value={vitals.weightKg != null ? `${vitals.weightKg} kg` : null}
+      />
+      {showSummary ? (
+        <Row label="Summary" value={formatVitalsLine(vitals)} />
+      ) : null}
+    </dl>
+  )
 }
 
 export function ConsultationSummaryContent({
@@ -81,79 +131,121 @@ export function ConsultationSummaryContent({
   ticketVitals,
   patientName,
   hideStatusBadge = false,
+  /** Nurse handoff view — vitals + complaint, not a completed consult chart. */
+  variant = "full",
 }: {
   visit: Consultation
   ticketVitals?: QueueVitals | null
   patientName?: string | null
   hideStatusBadge?: boolean
+  variant?: "full" | "intake"
 }) {
   const vitals = ticketVitals ?? vitalsFromRecord(visit.vitals)
   const providerLabel = visit.providerName
     ? `${visit.providerName}${visit.providerRole ? ` (${visit.providerRole})` : ""}`
     : visit.station
+  const isIntake = variant === "intake"
 
   const displayNotes =
     visit.notes?.replace(/dental_appointment_id=[0-9a-f-]{36}/i, "").trim() ||
     null
 
+  const stationLabel =
+    visit.station === "dentist"
+      ? "Dentist"
+      : visit.station === "physician"
+        ? "Physician"
+        : visit.station
+
+  const when = formatRequestDateTime(visit.consultationDate)
+
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center gap-2">
-        {!hideStatusBadge ? (
-          <Badge variant="outline">{consultationStatusLabel(visit.status)}</Badge>
-        ) : null}
-        <p className="text-sm text-muted-foreground">
-          {visit.consultationDate.slice(0, 16).replace("T", " ")}
-        </p>
+    <div className="space-y-6">
+      <header className="space-y-3 border-b border-border/60 pb-4">
         {patientName ? (
-          <p className="text-sm font-medium text-foreground">{patientName}</p>
+          <h3 className="text-base font-semibold tracking-tight text-foreground text-pretty">
+            {patientName}
+          </h3>
         ) : null}
-      </div>
-
-      <section>
-        <p className="mb-2 text-sm font-semibold">Consultation summary</p>
-        <dl>
-          <Row label="Chief complaint" value={visit.chiefComplaint} />
-          <Row label="Symptoms" value={visit.symptoms} />
-          <Row label="Assessment / Diagnosis" value={visit.diagnosis} />
-          <Row label="Clinical notes" value={visit.assessment} />
-          <Row label="Treatment" value={visit.treatment} />
-          <Row label="Prescription" value={visit.prescription} />
-          {visit.followUpDate ? (
-            <Row label="Follow-up" value={visit.followUpDate.slice(0, 10)} />
+        <div className="flex flex-wrap items-center gap-2">
+          {!hideStatusBadge ? (
+            <Badge variant="outline" className="w-fit font-medium">
+              {isIntake
+                ? `Sent to ${stationLabel}`
+                : consultationStatusLabel(visit.status)}
+            </Badge>
           ) : null}
-          <Row label="Provider" value={providerLabel} />
-          {displayNotes ? <Row label="Notes" value={displayNotes} /> : null}
-        </dl>
-      </section>
+          <span
+            className="text-xs text-muted-foreground tabular-nums"
+            title={visit.consultationDate}
+          >
+            {when}
+          </span>
+        </div>
+      </header>
 
-      <section>
-        <p className="mb-2 text-sm font-semibold">Vital records</p>
-        {vitals && hasRecordedVitals(vitals) ? (
-          <dl>
-            <Row label="Blood pressure" value={formatBloodPressure(vitals)} />
-            <Row
-              label="Heart rate"
-              value={vitals.heartRate != null ? String(vitals.heartRate) : null}
-            />
-            <Row
-              label="Temperature"
-              value={
-                vitals.temperatureC != null ? `${vitals.temperatureC}°C` : null
-              }
-            />
-            <Row
-              label="SpO₂"
-              value={vitals.spo2 != null ? `${vitals.spo2}%` : null}
-            />
-            <Row label="Summary" value={formatVitalsLine(vitals)} />
-          </dl>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            No vitals recorded for this visit.
-          </p>
-        )}
-      </section>
+      {isIntake ? (
+        <>
+          <section>
+            <p className="mb-1 text-sm font-semibold text-foreground">
+              Intake
+            </p>
+            <dl>
+              <Row label="Chief complaint" value={visit.chiefComplaint} />
+              <Row label="Sent to" value={stationLabel} />
+              <Row label="Recorded by" value={providerLabel} />
+              <Row label="Notes" value={displayNotes} />
+            </dl>
+          </section>
+
+          <section>
+            <p className="mb-1 text-sm font-semibold text-foreground">
+              Vitals
+            </p>
+            {vitals && hasRecordedVitals(vitals) ? (
+              <VitalsRows vitals={vitals} />
+            ) : (
+              <p className="py-2 text-sm text-muted-foreground">
+                No vitals recorded for this intake.
+              </p>
+            )}
+          </section>
+        </>
+      ) : (
+        <>
+          <section>
+            <p className="mb-1 text-sm font-semibold text-foreground">
+              Consultation summary
+            </p>
+            <dl>
+              <Row label="Chief complaint" value={visit.chiefComplaint} />
+              <Row label="Symptoms" value={visit.symptoms} />
+              <Row label="Assessment / Diagnosis" value={visit.diagnosis} />
+              <Row label="Clinical notes" value={visit.assessment} />
+              <Row label="Treatment" value={visit.treatment} />
+              <Row label="Prescription" value={visit.prescription} />
+              {visit.followUpDate ? (
+                <Row label="Follow-up" value={visit.followUpDate.slice(0, 10)} />
+              ) : null}
+              <Row label="Provider" value={providerLabel} />
+              <Row label="Notes" value={displayNotes} />
+            </dl>
+          </section>
+
+          <section>
+            <p className="mb-1 text-sm font-semibold text-foreground">
+              Vital records
+            </p>
+            {vitals && hasRecordedVitals(vitals) ? (
+              <VitalsRows vitals={vitals} showSummary />
+            ) : (
+              <p className="py-2 text-sm text-muted-foreground">
+                No vitals recorded for this visit.
+              </p>
+            )}
+          </section>
+        </>
+      )}
     </div>
   )
 }
@@ -163,7 +255,10 @@ export function consultationHistoryPreview(visit: Consultation): string[] {
   if (visit.chiefComplaint?.trim()) {
     lines.push(`Chief complaint: ${visit.chiefComplaint.trim()}`)
   }
-  if (visit.symptoms?.trim() && visit.symptoms.trim() !== visit.chiefComplaint?.trim()) {
+  if (
+    visit.symptoms?.trim() &&
+    visit.symptoms.trim() !== visit.chiefComplaint?.trim()
+  ) {
     lines.push(`Symptoms: ${visit.symptoms.trim()}`)
   }
   if (visit.diagnosis?.trim()) {

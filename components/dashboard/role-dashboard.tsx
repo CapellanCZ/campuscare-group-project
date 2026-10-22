@@ -60,6 +60,7 @@ import {
   loadDashboardBundle,
   saveDashboardCache,
 } from "@/features/dashboard/lib/prefetch-dashboard"
+import { loadQueueBundle } from "@/features/queue/lib/prefetch-queue"
 import {
   dashboardCacheKey,
   staffCacheIsFresh,
@@ -203,9 +204,19 @@ export function RoleDashboard({
       setDataLoading(false)
     }
     if (fresh) return
-    void loadDashboardBundle(access.designation, {
-      force: Boolean(hit),
-    })
+
+    const isNurse = access.designation === "nurse"
+    const load = isNurse
+      ? Promise.all([
+          loadDashboardBundle(access.designation, { force: Boolean(hit) }),
+          // Warm queue SoT so the nurse queue opens from cache.
+          loadQueueBundle(access.designation, { force: Boolean(hit) }).catch(
+            () => null
+          ),
+        ]).then(([next]) => next)
+      : loadDashboardBundle(access.designation, { force: Boolean(hit) })
+
+    void load
       .then((next) => {
         applyBundle(setBundle, next)
         setDataLoading(false)

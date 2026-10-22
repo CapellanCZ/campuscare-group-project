@@ -5,7 +5,6 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useEffectEvent,
   useMemo,
   useState,
 } from "react"
@@ -22,6 +21,9 @@ type NavPendingContextValue = {
 }
 
 const NavPendingContext = createContext<NavPendingContextValue | null>(null)
+
+/** Drop stale optimistic highlights if Soft Nav never lands. */
+const PENDING_TIMEOUT_MS = 3500
 
 function hrefPath(href: string): string {
   return href.split("?")[0] || href
@@ -41,20 +43,28 @@ export function NavPendingProvider({
   const router = useRouter()
   const [pendingHref, setPendingHref] = useState<string | null>(null)
 
-  const onPathnameChange = useEffectEvent((next: string) => {
-    setPendingHref((current) => {
-      if (!current) return null
-      const pendingPath = hrefPath(current)
-      if (next === pendingPath || next.startsWith(`${pendingPath}/`)) {
-        return null
-      }
-      return current
-    })
-  })
-
+  // Clear optimistic active on route settle, tab focus, or bfcache restore.
+  // Keep a single effect with a stable 1-length deps array (HMR-safe).
   useEffect(() => {
-    onPathnameChange(pathname)
+    setPendingHref(null)
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") setPendingHref(null)
+    }
+    document.addEventListener("visibilitychange", onVisible)
+    window.addEventListener("pageshow", onVisible)
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible)
+      window.removeEventListener("pageshow", onVisible)
+    }
   }, [pathname])
+
+  // Safety net if Soft Nav never updates the URL.
+  useEffect(() => {
+    if (!pendingHref) return
+    const id = window.setTimeout(() => setPendingHref(null), PENDING_TIMEOUT_MS)
+    return () => window.clearTimeout(id)
+  }, [pendingHref])
 
   const markPending = useCallback(
     (href: string) => {

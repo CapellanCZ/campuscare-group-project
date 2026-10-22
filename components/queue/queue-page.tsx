@@ -38,6 +38,8 @@ import {
   actionVerifyCheckIn,
 } from "@/lib/health/queue-server-actions"
 import { ConsultationSummaryDialog } from "@/components/consultations/consultation-summary-dialog"
+import { NurseWelcomeLoader } from "@/components/dashboard/nurse-welcome-loader"
+import { QueueTicketDetailDialog } from "@/components/queue/queue-ticket-detail-dialog"
 import { PatientProfileSheet } from "@/components/patients/patient-profile-sheet"
 import { NurseIntakeSheet } from "@/components/queue/nurse-intake-sheet"
 import { QueueRescheduleDialog } from "@/components/queue/queue-reschedule-dialog"
@@ -98,6 +100,7 @@ import {
   dedupeTicketsById,
   isNurseIntakeCompleted,
   isVerifiedNursePatient,
+  hasNurseCalledPatient,
   needsCheckInVerify,
   needsNurseIntake,
   pickNowServingTicket,
@@ -114,10 +117,6 @@ import {
   writeQueueEarlyEntryMinutes,
   type QueueEarlyEntryMinutes,
 } from "@/lib/health/queue-early-entry-preference"
-import {
-  isSampleScheduledTicketId,
-  mergeSampleScheduledAppointments,
-} from "@/lib/health/sample-scheduled-appointments"
 import {
   canMutateQueue,
   canRegisterWalkIn,
@@ -152,6 +151,7 @@ import {
   IconRefresh,
   IconSearch,
   IconUser,
+  IconUserOff,
 } from "@tabler/icons-react"
 
 type QueueSortColumn =
@@ -181,16 +181,21 @@ export function QueuePage({
 }) {
   const router = useRouter()
   const { confirmPreset } = useConfirm()
-  const [pending, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
+  /** Only the ticket being mutated is disabled — not the whole queue. */
+  const [pendingTicketIds, setPendingTicketIds] = useState(
+    () => new Set<string>()
+  )
+  const [pageActionPending, setPageActionPending] = useState(false)
+  const isTicketPending = (ticketId: string) => pendingTicketIds.has(ticketId)
   const cached = hydrateFromCache
     ? getCachedQueue(access.designation)
     : null
-  const mergeOpsTickets = (tickets: QueueTicketRow[]) => {
-    const unique = dedupeTicketsById(tickets)
-    return access.designation === "nurse"
-      ? dedupeTicketsById(mergeSampleScheduledAppointments(unique))
-      : unique
-  }
+  const mergeOpsTickets = (tickets: QueueTicketRow[]) =>
+    dedupeTicketsById(
+      // Drop legacy session demo tickets if still present in cache.
+      tickets.filter((row) => !row.ticketId.startsWith("sample-upcoming-"))
+    )
 
   const [localTickets, setLocalTickets] = useState(() =>
     mergeOpsTickets(cached?.tickets ?? initialTickets)
@@ -334,6 +339,18 @@ export function QueuePage({
   const [viewConsultationId, setViewConsultationId] = useState<string | null>(
     null
   )
+  const [viewPatientName, setViewPatientName] = useState<string | null>(null)
+  const [viewTicket, setViewTicket] = useState<QueueTicketRow | null>(null)
+
+  function openTicketDetails(row: QueueTicketRow) {
+    // After intake: intake summary. Before intake: booking / consultation view.
+    if (isNurseIntakeCompleted(row) && row.consultationId) {
+      setViewConsultationId(row.consultationId)
+      setViewPatientName(row.patientName)
+      return
+    }
+    setViewTicket(row)
+  }
   const [rescheduleTicket, setRescheduleTicket] =
     useState<QueueTicketRow | null>(null)
   const [profilePatient, setProfilePatient] = useState<PatientRecord | null>(
@@ -564,64 +581,85 @@ export function QueuePage({
       errorToast?: (message?: string) => void
       /** Local-first status/field flip before the server round-trip. */
       optimistic?: { ticketId: string; patch: Partial<QueueTicketRow> }
+      /** Scope row busy-state when there is no optimistic patch. */
+      ticketId?: string
     }
   ) {
+    const busyTicketId =
+      options?.ticketId ?? options?.optimistic?.ticketId ?? null
     startTransition(async () => {
-      const snapshot = localTickets
-      if (options?.optimistic) {
-        patchTicket(options.optimistic.ticketId, options.optimistic.patch)
-      }
-      const result = await action()
-      if (!result.ok) {
-        if (options?.optimistic) {
-          ticketsEpochRef.current += 1
-          setLocalTickets(snapshot)
-          const cached = getCachedQueue(access.designation)
-          if (cached) {
-            saveQueueCache(access.designation, {
-              ...cached,
-              tickets: snapshot,
-            })
-          }
-        }
-        ;(options?.errorToast ?? queueToasts.failed)(result.error)
-        return
-      }
-      if (options?.successToast) {
-        options.successToast()
-      } else if (result.message) {
-        queueToasts.updated(result.message)
+      if (busyTicketId) {
+        setPendingTicketIds((prev) => new Set(prev).add(busyTicketId))
       } else {
-        queueToasts.updated()
+        setPageActionPending(true)
       }
-      // Drop stale session cache, then reconcile without clobbering newer patches.
-      staffCacheInvalidate(queueCacheKey(access.designation))
-      const epoch = ticketsEpochRef.current
-      void loadQueueBundle(access.designation, { force: true })
-        .then((bundle) => {
-          if (epoch !== ticketsEpochRef.current) return
-          // Keep optimistic check-in if the round-trip still lags.
+      try {
+        const snapshot = localTickets
+        if (options?.optimistic) {
+          patchTicket(options.optimistic.ticketId, options.optimistic.patch)
+        }
+        const result = await action()
+        if (!result.ok) {
           if (options?.optimistic) {
-            const { ticketId, patch } = options.optimistic
-            const merged = bundle.tickets.map((row) =>
-              row.ticketId === ticketId &&
-              patch.checkedInAt &&
-              !row.checkedInAt
-                ? { ...row, ...patch }
-                : row
-            )
-            applyQueueBundle({ ...bundle, tickets: merged }, epoch)
-            saveQueueCache(access.designation, {
-              ...bundle,
-              tickets: merged,
-            })
-            return
+            ticketsEpochRef.current += 1
+            setLocalTickets(snapshot)
+            const cached = getCachedQueue(access.designation)
+            if (cached) {
+              saveQueueCache(access.designation, {
+                ...cached,
+                tickets: snapshot,
+              })
+            }
           }
-          applyQueueBundle(bundle, epoch)
-        })
-        .catch(() => undefined)
-      // Soft reconcile for peer boards / stats — UI already updated.
-      router.refresh()
+          ;(options?.errorToast ?? queueToasts.failed)(result.error)
+          return
+        }
+        if (options?.successToast) {
+          options.successToast()
+        } else if (result.message) {
+          queueToasts.updated(result.message)
+        } else {
+          queueToasts.updated()
+        }
+        // Drop stale session cache, then reconcile without clobbering newer patches.
+        staffCacheInvalidate(queueCacheKey(access.designation))
+        const epoch = ticketsEpochRef.current
+        void loadQueueBundle(access.designation, { force: true })
+          .then((bundle) => {
+            if (epoch !== ticketsEpochRef.current) return
+            // Keep optimistic check-in if the round-trip still lags.
+            if (options?.optimistic) {
+              const { ticketId, patch } = options.optimistic
+              const merged = bundle.tickets.map((row) =>
+                row.ticketId === ticketId &&
+                patch.checkedInAt &&
+                !row.checkedInAt
+                  ? { ...row, ...patch }
+                  : row
+              )
+              applyQueueBundle({ ...bundle, tickets: merged }, epoch)
+              saveQueueCache(access.designation, {
+                ...bundle,
+                tickets: merged,
+              })
+              return
+            }
+            applyQueueBundle(bundle, epoch)
+          })
+          .catch(() => undefined)
+        // Soft reconcile for peer boards / stats — UI already updated.
+        router.refresh()
+      } finally {
+        if (busyTicketId) {
+          setPendingTicketIds((prev) => {
+            const next = new Set(prev)
+            next.delete(busyTicketId)
+            return next
+          })
+        } else {
+          setPageActionPending(false)
+        }
+      }
     })
   }
 
@@ -665,12 +703,6 @@ export function QueuePage({
       status: "waiting" as const,
       station: "nurse" as const,
     }
-    if (isSampleScheduledTicketId(ticket.ticketId)) {
-      patchTicket(ticket.ticketId, patch)
-      queueToasts.placedInWaiting(ticket.patientName)
-      setScheduleTick((n) => n + 1)
-      return
-    }
     run(() => actionPlaceScheduledInWaiting(ticket.ticketId), {
       successToast: () => queueToasts.placedInWaiting(ticket.patientName),
       optimistic: { ticketId: ticket.ticketId, patch },
@@ -684,13 +716,13 @@ export function QueuePage({
     placeScheduledInWaiting(ticket)
   }
 
-  /** Verified / walk-in checked-in — one card per person (no doubles). */
+  /** Check-in verified — oldest first (one card per person). */
   const notifiedPatients = useMemo(
     () =>
       dedupeNursePatientsByPerson(
-        filtered.filter((row) => isVerifiedNursePatient(row))
+        searchScopedTickets.filter((row) => isVerifiedNursePatient(row))
       ),
-    [filtered]
+    [searchScopedTickets]
   )
 
   const cards =
@@ -819,22 +851,24 @@ export function QueuePage({
                                       type="button"
                                       size="icon-sm"
                                       className="size-7"
-                                      disabled={pending}
+                                      disabled={
+                                        isTicketPending(row.ticketId) ||
+                                        !hasNurseCalledPatient(row)
+                                      }
                                       aria-label="Verify check-in"
-                                      title="Verify check-in"
+                                      title={
+                                        hasNurseCalledPatient(row)
+                                          ? "Verify check-in"
+                                          : "Call the patient first"
+                                      }
                                       onClick={() => {
+                                        if (!hasNurseCalledPatient(row)) return
+                                        const now = new Date().toISOString()
                                         const patch = {
-                                          checkedInAt: new Date().toISOString(),
+                                          checkedInAt: now,
+                                          updatedAt: now,
                                           status: "waiting" as const,
                                           station: "nurse" as const,
-                                        }
-                                        // Sample rows stay local — no server verify.
-                                        if (
-                                          isSampleScheduledTicketId(row.ticketId)
-                                        ) {
-                                          patchTicket(row.ticketId, patch)
-                                          queueToasts.verified(row.patientName)
-                                          return
                                         }
                                         run(
                                           () =>
@@ -866,7 +900,7 @@ export function QueuePage({
                                         stroke={1.75}
                                         aria-hidden
                                       />
-                                      Verified
+                                      Checked-in
                                     </span>
                                   ) : null}
                                   {actions.has("call") ? (
@@ -875,7 +909,7 @@ export function QueuePage({
                                       size="icon-sm"
                                       variant="outline"
                                       className="size-7"
-                                      disabled={pending}
+                                      disabled={isTicketPending(row.ticketId)}
                                       aria-label="Call / recall"
                                       title="Call / recall"
                                       onClick={() =>
@@ -916,7 +950,10 @@ export function QueuePage({
                                         type="button"
                                         size="sm"
                                         className="h-7 gap-1 px-2.5"
-                                        disabled={pending || !intakeEnabled}
+                                        disabled={
+                                          isTicketPending(row.ticketId) ||
+                                          !intakeEnabled
+                                        }
                                         aria-label="Start emergency intake"
                                         title="Intake & assign specialty"
                                         onClick={() => {
@@ -940,7 +977,10 @@ export function QueuePage({
                                         size="icon-sm"
                                         variant="outline"
                                         className="size-7"
-                                        disabled={pending || !intakeEnabled}
+                                        disabled={
+                                          isTicketPending(row.ticketId) ||
+                                          !intakeEnabled
+                                        }
                                         aria-label="Intake"
                                         title={
                                           intakeEnabled
@@ -963,6 +1003,56 @@ export function QueuePage({
                                       </Button>
                                     )
                                   ) : null}
+                                  {actions.has("no_show") ? (
+                                    <Button
+                                      type="button"
+                                      size="icon-sm"
+                                      variant="outline"
+                                      className="size-7"
+                                      disabled={
+                                        isTicketPending(row.ticketId) ||
+                                        row.callCount < 2
+                                      }
+                                      aria-label="Mark as no-show"
+                                      title={
+                                        row.callCount < 2
+                                          ? "Call twice before marking no-show"
+                                          : "Mark as no-show"
+                                      }
+                                      onClick={() => {
+                                        if (row.callCount < 2) return
+                                        void confirmPreset("removeFromQueue", {
+                                          onConfirm: async () => {
+                                            run(
+                                              () =>
+                                                actionNoShowTicket(
+                                                  row.ticketId
+                                                ),
+                                              {
+                                                successToast: () =>
+                                                  queueToasts.removed(
+                                                    row.patientName
+                                                  ),
+                                                optimistic: {
+                                                  ticketId: row.ticketId,
+                                                  patch: {
+                                                    status: "no_show",
+                                                    estimatedWaitMinutes: 0,
+                                                  },
+                                                },
+                                              }
+                                            )
+                                          },
+                                        })
+                                      }}
+                                    >
+                                      <IconUserOff
+                                        className="size-3.5"
+                                        stroke={1.75}
+                                        aria-hidden
+                                      />
+                                    </Button>
+                                  ) : null}
                                   <DropdownMenu>
                                     <DropdownMenuTrigger
                                       render={
@@ -970,7 +1060,9 @@ export function QueuePage({
                                           size="icon-sm"
                                           variant="ghost"
                                           aria-label="Queue actions"
-                                          disabled={pending}
+                                          disabled={isTicketPending(
+                                            row.ticketId
+                                          )}
                                         />
                                       }
                                     >
@@ -979,17 +1071,7 @@ export function QueuePage({
                                     <DropdownMenuContent align="end">
                                       {actions.has("view_details") ? (
                                         <DropdownMenuItem
-                                          onClick={() => {
-                                            if (!row.consultationId) {
-                                              queueToasts.failed(
-                                                "No consultation record is linked to this ticket."
-                                              )
-                                              return
-                                            }
-                                            setViewConsultationId(
-                                              row.consultationId
-                                            )
-                                          }}
+                                          onClick={() => openTicketDetails(row)}
                                         >
                                           View details
                                         </DropdownMenuItem>
@@ -998,9 +1080,8 @@ export function QueuePage({
                                       (actions.has("verify") ||
                                         actions.has("intake")) ? (
                                         <>
-                                          {showVerify ? null : actions.has(
-                                            "verify"
-                                          ) && !row.checkedInAt ? (
+                                          {showVerify &&
+                                          hasNurseCalledPatient(row) ? (
                                             <DropdownMenuItem
                                               onClick={() => {
                                                 const patch = {
@@ -1008,20 +1089,6 @@ export function QueuePage({
                                                     new Date().toISOString(),
                                                   status: "waiting" as const,
                                                   station: "nurse" as const,
-                                                }
-                                                if (
-                                                  isSampleScheduledTicketId(
-                                                    row.ticketId
-                                                  )
-                                                ) {
-                                                  patchTicket(
-                                                    row.ticketId,
-                                                    patch
-                                                  )
-                                                  queueToasts.verified(
-                                                    row.patientName
-                                                  )
-                                                  return
                                                 }
                                                 run(
                                                   () =>
@@ -1319,6 +1386,12 @@ export function QueuePage({
           : "flex flex-1 flex-col gap-8 pt-2"
       }
     >
+      {isNurse ? (
+        <NurseWelcomeLoader
+          open={dataLoading}
+          nurseName={access.fullName}
+        />
+      ) : null}
       <PageIntro
         title={
           isNurse
@@ -1442,7 +1515,7 @@ export function QueuePage({
                         <Button
                           size="sm"
                           className="h-9"
-                          disabled={pending}
+                          disabled={pageActionPending}
                           onClick={() => {
                             const station =
                               access.designation === "admin"
@@ -1487,7 +1560,7 @@ export function QueuePage({
                         size="icon-sm"
                         className="size-9"
                         aria-label="Refresh queue"
-                        disabled={pending || dataLoading}
+                        disabled={pageActionPending || dataLoading}
                         onClick={() => {
                           if (hydrateFromCache) {
                             staffCacheInvalidate(
@@ -1548,7 +1621,7 @@ export function QueuePage({
               <div className="flex flex-col gap-3">
                 <NursePatientsPanel
                   rows={notifiedPatients}
-                  pending={pending}
+                  isTicketPending={isTicketPending}
                   onCall={(row) =>
                     run(() => actionRecallTicket(row.ticketId), {
                       successToast: () =>
@@ -1569,36 +1642,11 @@ export function QueuePage({
                     queueToasts.intakeOpened(row.patientName)
                     setIntakeTicket(row)
                   }}
-                  onVerify={(row) => {
-                    const patch = {
-                      checkedInAt: new Date().toISOString(),
-                      status: "waiting" as const,
-                      station: "nurse" as const,
-                    }
-                    if (isSampleScheduledTicketId(row.ticketId)) {
-                      patchTicket(row.ticketId, patch)
-                      queueToasts.verified(row.patientName)
-                      return
-                    }
-                    run(() => actionVerifyCheckIn(row.ticketId), {
-                      successToast: () =>
-                        queueToasts.verified(row.patientName),
-                      optimistic: { ticketId: row.ticketId, patch },
-                    })
-                  }}
-                  onViewDetails={(row) => {
-                    if (!row.consultationId) {
-                      queueToasts.failed(
-                        "No consultation record is linked to this ticket."
-                      )
-                      return
-                    }
-                    setViewConsultationId(row.consultationId)
-                  }}
+                  onViewDetails={openTicketDetails}
                 />
                 <NurseWorkbench
                   tickets={localTickets}
-                  pending={pending}
+                  isTicketPending={isTicketPending}
                   earlyEntryMinutes={earlyEntryMinutes}
                   onEarlyEntryMinutesChange={(minutes) => {
                     writeQueueEarlyEntryMinutes(minutes)
@@ -1629,13 +1677,25 @@ export function QueuePage({
           softReloadQueue(true)
         }}
       />
+      <QueueTicketDetailDialog
+        ticket={viewTicket}
+        open={Boolean(viewTicket)}
+        onOpenChange={(open) => {
+          if (!open) setViewTicket(null)
+        }}
+      />
       <ConsultationSummaryDialog
         consultationId={viewConsultationId}
         open={Boolean(viewConsultationId)}
         onOpenChange={(open) => {
-          if (!open) setViewConsultationId(null)
+          if (!open) {
+            setViewConsultationId(null)
+            setViewPatientName(null)
+          }
         }}
-        patientName={null}
+        patientName={viewPatientName}
+        doneLabel="Closed"
+        showCloseButton={false}
       />
       <QueueRescheduleDialog
         ticket={rescheduleTicket}

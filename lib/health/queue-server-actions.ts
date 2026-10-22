@@ -22,9 +22,12 @@ import type {
   HealthActionResult,
   NurseIntakeInput,
   PatientVitalsRecord,
+  QueueTicketRow,
   StationId,
 } from "@/lib/health/types"
 import { getPatientVitalsHistory } from "@/lib/health/queue-queries"
+import { fetchQueueTicketBookingDetail } from "@/lib/health/queue-ticket-detail"
+import type { QueueTicketBookingDetail } from "@/lib/health/queue-ticket-detail-types"
 
 function revalidateQueueSurfaces() {
   for (const role of STAFF_ROUTE_ROLES) {
@@ -186,6 +189,44 @@ export async function actionFetchPatientVitalsHistory(
         error instanceof Error
           ? error.message
           : "Unable to load vitals history.",
+    }
+  }
+}
+
+export async function actionFetchQueueTicketBookingDetail(
+  ticket: Pick<
+    QueueTicketRow,
+    | "ticketId"
+    | "appointmentId"
+    | "consultationRequestId"
+    | "consultationId"
+    | "appointmentStartsAt"
+    | "chiefComplaint"
+    | "consultationType"
+    | "service"
+    | "providerType"
+    | "patientId"
+    | "campusId"
+    | "studentId"
+  >
+): Promise<
+  | { ok: true; data: QueueTicketBookingDetail }
+  | { ok: false; error: string }
+> {
+  const access = await getStaffAccess()
+  if (!access?.hasClinicMembership) {
+    return { ok: false, error: "Sign in with an approved clinic account." }
+  }
+  try {
+    const data = await fetchQueueTicketBookingDetail(ticket)
+    return { ok: true, data }
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to load booking details.",
     }
   }
 }

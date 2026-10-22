@@ -109,11 +109,10 @@ export function canOpenNurseIntake(
   row: QueueTicketRow,
   now: Date = new Date()
 ): boolean {
-  // Emergencies skip the scheduled check-in gate — intake must stay one tap away.
+  // Emergencies skip check-in — intake must stay one tap away.
+  // Walk-ins and scheduled visits need verify first (Patients panel).
   const checkInOk =
-    row.priority === "urgent" ||
-    !isScheduledTicket(row) ||
-    Boolean(row.checkedInAt)
+    row.priority === "urgent" || Boolean(row.checkedInAt)
   return (
     needsNurseIntake(row) &&
     isQueueTimeEligible(row, now) &&
@@ -121,22 +120,26 @@ export function canOpenNurseIntake(
   )
 }
 
+/** Nurse has called / recalled this ticket at least once. */
+export function hasNurseCalledPatient(row: QueueTicketRow): boolean {
+  return row.callCount >= 1 || row.status === "called"
+}
+
 /** Patient still needs check-in verification before intake. */
 export function needsCheckInVerify(
   row: QueueTicketRow,
   now: Date = new Date()
 ): boolean {
-  if (row.status === "completed" || row.status === "no_show" || row.status === "expired") {
-    return false
-  }
+  if (row.checkedInAt) return false
+  if (!needsNurseIntake(row)) return false
   if (!isQueueTimeEligible(row, now)) return false
-  if (isScheduledTicket(row) && !row.checkedInAt) return true
-  return row.status === "called" && !row.checkedInAt
+  // Button shows in Waiting; stays disabled until the nurse has called.
+  return true
 }
 
 /**
  * Verified patients live in the Patients panel (not Waiting / Emergencies).
- * Walk-ins are registered already checked-in and land here immediately.
+ * Walk-ins start in Waiting until check-in is verified.
  */
 export function isVerifiedNursePatient(row: QueueTicketRow): boolean {
   return Boolean(row.checkedInAt) && needsNurseIntake(row)
@@ -168,6 +171,25 @@ export function dedupeTicketsById(rows: QueueTicketRow[]): QueueTicketRow[] {
  * One row per person — keep the newest ticket if they were registered twice.
  * Use on Patients / Waiting / Emergencies so doubles never surface in the UI.
  */
+export function nursePatientRecencyIso(row: QueueTicketRow): string {
+  return row.checkedInAt ?? row.updatedAt ?? row.createdAt ?? ""
+}
+
+/** Emergencies first, then oldest verified/check-in first (FIFO). */
+export function compareNursePatientsOldestFirst(
+  a: QueueTicketRow,
+  b: QueueTicketRow
+): number {
+  if (a.priority !== b.priority) {
+    return a.priority === "urgent" ? -1 : 1
+  }
+  const byRecency = nursePatientRecencyIso(a).localeCompare(
+    nursePatientRecencyIso(b)
+  )
+  if (byRecency !== 0) return byRecency
+  return (a.queueNumber ?? 0) - (b.queueNumber ?? 0)
+}
+
 export function dedupeNursePatientsByPerson(
   rows: QueueTicketRow[]
 ): QueueTicketRow[] {
@@ -183,16 +205,11 @@ export function dedupeNursePatientsByPerson(
       byKey.set(key, row)
       continue
     }
-    const existingTs = existing.updatedAt ?? existing.createdAt ?? ""
-    const nextTs = row.updatedAt ?? row.createdAt ?? ""
+    const existingTs = nursePatientRecencyIso(existing)
+    const nextTs = nursePatientRecencyIso(row)
     if (nextTs >= existingTs) byKey.set(key, row)
   }
-  return [...byKey.values()].sort((a, b) => {
-    if (a.priority !== b.priority) {
-      return a.priority === "urgent" ? -1 : 1
-    }
-    return (b.updatedAt ?? "").localeCompare(a.updatedAt ?? "")
-  })
+  return [...byKey.values()].sort(compareNursePatientsOldestFirst)
 }
 
 export type QueueActionKey =
@@ -219,7 +236,12 @@ export function queueActionsForTicket(row: QueueTicketRow): Set<QueueActionKey> 
   // Pre-intake nurse tickets: Intake & assign specialty is the workflow —
   // do not offer Start/Complete (conflicts with incomplete intake).
   const awaitingIntake = needsNurseIntake(row)
-  const actions = new Set<QueueActionKey>(["call", "skip", "no_show"])
+  const actions = new Set<QueueActionKey>([
+    "view_details",
+    "call",
+    "skip",
+    "no_show",
+  ])
   if (!awaitingIntake) {
     actions.add("start")
     actions.add("complete")

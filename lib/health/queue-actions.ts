@@ -682,13 +682,26 @@ export async function verifyCheckIn(params: {
   const { data: ticket } = await supabase
     .from("health_queue_tickets")
     .select(
-      "id, appointment_id, health_appointment_id, consultation_request_id, intake_notes"
+      "id, appointment_id, health_appointment_id, consultation_request_id, intake_notes, call_count, status, checked_in_at"
     )
     .eq("id", params.ticketId)
     .maybeSingle()
 
   if (!ticket) {
     return { ok: false, error: "Ticket not found or check-in could not be saved." }
+  }
+
+  if (ticket.checked_in_at) {
+    return { ok: false, error: "Check-in is already verified." }
+  }
+
+  const callCount = Number(ticket.call_count ?? 0)
+  const called = callCount >= 1 || ticket.status === "called"
+  if (!called) {
+    return {
+      ok: false,
+      error: "Call the patient before verifying check-in.",
+    }
   }
 
   const eligibility = await assertTicketEligibleForQueueEntry(supabase, ticket)
@@ -1429,7 +1442,8 @@ export async function registerWalkIn(params: {
       estimated_wait_minutes: estimatedWaitMinutes,
       status: "waiting",
       station: "nurse",
-      checked_in_at: now,
+      // Land in Waiting first — nurse calls, then verifies check-in → Patients.
+      checked_in_at: null,
       expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
       service_date: ymd,
       patient_id: patientId,
@@ -1459,7 +1473,7 @@ export async function registerWalkIn(params: {
     ok: true,
     message: isEmergency
       ? `Emergency walk-in registered as ${ticketCode} — moved to front of nurse queue.`
-      : `Walk-in registered as ${ticketCode} in the nurse queue.`,
+      : `Walk-in registered as ${ticketCode} — Waiting for call & check-in verify.`,
   }
 }
 
