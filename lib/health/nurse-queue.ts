@@ -278,7 +278,8 @@ export function compareNurseIntakeCompletedOrder(
 }
 
 /**
- * Keep local intake handoffs when a soft reload races ahead of Supabase.
+ * Keep local SoT ahead of lagging soft reloads (intake handoff, check-in, call).
+ * Without this, Call next unlocks verify briefly then a refresh disables it again.
  */
 export function preserveNurseIntakeHandoffs(
   serverRows: QueueTicketRow[],
@@ -288,12 +289,40 @@ export function preserveNurseIntakeHandoffs(
   const localById = new Map(localRows.map((row) => [row.ticketId, row]))
   return serverRows.map((row) => {
     const local = localById.get(row.ticketId)
-    if (!local?.intakeCompletedAt || row.intakeCompletedAt) return row
-    return {
-      ...row,
-      intakeCompletedAt: local.intakeCompletedAt,
-      station: local.station,
+    if (!local) return row
+
+    let next = row
+    if (local.intakeCompletedAt && !row.intakeCompletedAt) {
+      next = {
+        ...next,
+        intakeCompletedAt: local.intakeCompletedAt,
+        station: local.station,
+      }
     }
+    if (local.checkedInAt && !row.checkedInAt) {
+      next = { ...next, checkedInAt: local.checkedInAt }
+    }
+    // Call next / recall: keep local call ahead of a lagging read.
+    const localCallAhead =
+      local.callCount > row.callCount ||
+      (local.status === "called" &&
+        row.status === "waiting" &&
+        local.callCount >= 1)
+    if (localCallAhead) {
+      next = {
+        ...next,
+        status:
+          local.status === "called" &&
+          (row.status === "waiting" || row.status === "called")
+            ? "called"
+            : next.status,
+        callCount: Math.max(local.callCount, row.callCount),
+        estimatedWaitMinutes:
+          local.estimatedWaitMinutes ?? next.estimatedWaitMinutes,
+        updatedAt: local.updatedAt ?? next.updatedAt,
+      }
+    }
+    return next
   })
 }
 

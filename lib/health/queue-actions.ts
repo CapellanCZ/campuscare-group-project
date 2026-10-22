@@ -138,24 +138,23 @@ export async function callNextTicket(params: {
     .order("queue_position", { ascending: true })
     .limit(40)
 
-  const rankedWaiting = [...(waiting ?? [])].sort((a, b) => {
-    const aEmergency =
-      String(a.intake_notes ?? "")
-        .toLowerCase()
-        .includes("emergency walk-in") ||
-      String(a.consultation_type ?? "")
-        .toLowerCase()
-        .startsWith("emergency")
-    const bEmergency =
-      String(b.intake_notes ?? "")
-        .toLowerCase()
-        .includes("emergency walk-in") ||
-      String(b.consultation_type ?? "")
-        .toLowerCase()
-        .startsWith("emergency")
-    if (aEmergency !== bEmergency) return aEmergency ? -1 : 1
-    return (a.queue_position ?? 0) - (b.queue_position ?? 0)
-  })
+  // Match Waiting list: emergencies use Intake only — Call next skips them.
+  const isEmergencyWaiting = (row: {
+    intake_notes?: string | null
+    consultation_type?: string | null
+  }) =>
+    String(row.intake_notes ?? "")
+      .toLowerCase()
+      .includes("emergency walk-in") ||
+    String(row.consultation_type ?? "")
+      .toLowerCase()
+      .startsWith("emergency")
+
+  const rankedWaiting = [...(waiting ?? [])]
+    .filter((row) => !isEmergencyWaiting(row))
+    .sort(
+      (a, b) => (a.queue_position ?? 0) - (b.queue_position ?? 0)
+    )
 
   let chosen: {
     id: string
@@ -201,6 +200,8 @@ export async function callNextTicket(params: {
 
   return {
     ok: true,
+    ticketId: chosen.id,
+    callCount: nextCount,
     message:
       nextCount >= 2
         ? `Called ${label} — call ${nextCount}. Eligible for no-show if still absent.`
@@ -257,6 +258,8 @@ export async function recallTicket(params: {
 
   return {
     ok: true,
+    ticketId: ticket.id,
+    callCount: nextCount,
     message:
       nextCount >= 2
         ? `Second call placed. You can mark no-show if the patient is absent.`

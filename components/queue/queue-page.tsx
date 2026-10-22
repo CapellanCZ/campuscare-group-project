@@ -605,8 +605,8 @@ export function QueuePage({
         if (options?.optimistic) {
           patchTicket(options.optimistic.ticketId, options.optimistic.patch)
         }
-        const result = await action()
-        if (!result.ok) {
+      const result = await action()
+      if (!result.ok) {
           if (options?.optimistic) {
             ticketsEpochRef.current += 1
             setLocalTickets(snapshot)
@@ -618,32 +618,97 @@ export function QueuePage({
               })
             }
           }
-          ;(options?.errorToast ?? queueToasts.failed)(result.error)
-          return
+        ;(options?.errorToast ?? queueToasts.failed)(result.error)
+        return
+      }
+      // Call next may pick a different ticket than the client preview — sync SoT.
+      if (
+        result.ok &&
+        result.ticketId &&
+        typeof result.callCount === "number"
+      ) {
+        const serverTicketId = result.ticketId
+        const serverCallCount = result.callCount
+        if (
+          options?.optimistic &&
+          options.optimistic.ticketId !== serverTicketId
+        ) {
+          const prior = snapshot.find(
+            (row) => row.ticketId === options.optimistic!.ticketId
+          )
+          if (prior) {
+            patchTicket(prior.ticketId, {
+              status: prior.status,
+              callCount: prior.callCount,
+              estimatedWaitMinutes: prior.estimatedWaitMinutes,
+              updatedAt: prior.updatedAt,
+            })
+          }
         }
-        if (options?.successToast) {
-          options.successToast()
-        } else if (result.message) {
+        patchTicket(serverTicketId, {
+          status: "called",
+          callCount: serverCallCount,
+          estimatedWaitMinutes: 0,
+          updatedAt: new Date().toISOString(),
+        })
+      }
+      if (options?.successToast) {
+        options.successToast()
+      } else if (result.message) {
           queueToasts.updated(result.message)
         } else {
-          queueToasts.updated()
-        }
+        queueToasts.updated()
+      }
         // Drop stale session cache, then reconcile without clobbering newer patches.
         staffCacheInvalidate(queueCacheKey(access.designation))
         const epoch = ticketsEpochRef.current
         void loadQueueBundle(access.designation, { force: true })
           .then((bundle) => {
             if (epoch !== ticketsEpochRef.current) return
-            // Keep optimistic check-in if the round-trip still lags.
+            // Keep optimistic check-in / call if the round-trip still lags.
             if (options?.optimistic) {
               const { ticketId, patch } = options.optimistic
-              const merged = bundle.tickets.map((row) =>
-                row.ticketId === ticketId &&
-                patch.checkedInAt &&
-                !row.checkedInAt
-                  ? { ...row, ...patch }
-                  : row
-              )
+              const mergeTicketId = result.ticketId ?? ticketId
+              const merged = bundle.tickets.map((row) => {
+                if (row.ticketId !== mergeTicketId && row.ticketId !== ticketId) {
+                  return row
+                }
+                if (row.ticketId === ticketId && ticketId !== mergeTicketId) {
+                  // Drop mistaken client preview call on the wrong row.
+                  const prior = snapshot.find((s) => s.ticketId === ticketId)
+                  return prior ?? row
+                }
+                if (row.ticketId !== mergeTicketId) return row
+                const callAhead =
+                  (patch.callCount != null &&
+                    row.callCount < patch.callCount) ||
+                  (patch.status === "called" && row.status === "waiting") ||
+                  (typeof result.callCount === "number" &&
+                    row.callCount < result.callCount)
+                const checkInAhead = Boolean(
+                  patch.checkedInAt && !row.checkedInAt
+                )
+                if (!callAhead && !checkInAhead) return row
+                return {
+                  ...row,
+                  ...(checkInAhead ? { checkedInAt: patch.checkedInAt } : {}),
+                  ...(callAhead
+                    ? {
+                        status: "called" as const,
+                        callCount: Math.max(
+                          row.callCount,
+                          patch.callCount ?? 0,
+                          result.callCount ?? 0
+                        ),
+                        estimatedWaitMinutes: 0,
+                        updatedAt:
+                          patch.updatedAt ??
+                          row.updatedAt ??
+                          new Date().toISOString(),
+                      }
+                    : {}),
+                }
+              })
               applyQueueBundle({ ...bundle, tickets: merged }, epoch)
               saveQueueCache(access.designation, {
                 ...bundle,
@@ -655,7 +720,7 @@ export function QueuePage({
           })
           .catch(() => undefined)
         // Soft reconcile for peer boards / stats — UI already updated.
-        router.refresh()
+      router.refresh()
       } finally {
         if (busyTicketId) {
           setPendingTicketIds((prev) => {
@@ -689,8 +754,8 @@ export function QueuePage({
     // Local SoT handoff: leave Patients / Waiting, land in Completed immediately.
     // Supabase remains source of truth; soft reload reconciles intake_completed_at.
     patchTicket(ticketId, {
-      station: toStation,
-      intakeCompletedAt: new Date().toISOString(),
+              station: toStation,
+              intakeCompletedAt: new Date().toISOString(),
       status: "waiting",
     })
     setScheduleTick((n) => n + 1)
@@ -707,7 +772,7 @@ export function QueuePage({
   function placeScheduledInWaiting(ticket: QueueTicketRow) {
     const patch = {
       intakeNotes: withQueueReadyMarker(ticket.intakeNotes),
-      status: "waiting" as const,
+              status: "waiting" as const,
       station: "nurse" as const,
     }
     run(() => actionPlaceScheduledInWaiting(ticket.ticketId), {
@@ -735,7 +800,7 @@ export function QueuePage({
   const callNextStation =
     access.designation === "admin" ? "nurse" : (myStation ?? "nurse")
 
-  /** First waiting patient Call next can pick (mirrors server ranking). */
+  /** First Waiting-list patient Call next can pick (skips emergencies). */
   const nextCallableTicket = useMemo(() => {
     void scheduleTick
     const now = new Date()
@@ -743,15 +808,11 @@ export function QueuePage({
       .filter(
         (ticket) =>
           ticket.status === "waiting" &&
+          ticket.priority !== "urgent" &&
           ticket.station === callNextStation &&
           isQueueTimeEligible(ticket, now, earlyEntryMinutes)
       )
-      .sort((a, b) => {
-        if (a.priority !== b.priority) {
-          return a.priority === "urgent" ? -1 : 1
-        }
-        return a.queuePosition - b.queuePosition
-      })[0]
+      .sort((a, b) => a.queuePosition - b.queuePosition)[0]
   }, [
     localTickets,
     callNextStation,
@@ -859,7 +920,7 @@ export function QueuePage({
                                   },
                                 ]),
                         ].filter((c) => c.label && c.label !== "—")
-                        return (
+  return (
                           <QueueTicketListItem
                             key={row.ticketId}
                             index={index + 1}
@@ -879,6 +940,35 @@ export function QueuePage({
                             chips={chips}
                             actions={
                               !readOnly ? (
+                                row.priority === "urgent" ? (
+                                  showIntake ? (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      className="h-7 gap-1 px-2.5"
+                                      disabled={
+                                        isTicketPending(row.ticketId) ||
+                                        !intakeEnabled
+                                      }
+                                      aria-label="Start emergency intake"
+                                      title="Intake & assign specialty"
+                                      onClick={() => {
+                                        if (!intakeEnabled) return
+                                        queueToasts.intakeOpened(
+                                          row.patientName
+                                        )
+                                        setIntakeTicket(row)
+                                      }}
+                                    >
+                                      <IconHeartbeat
+                                        className="size-3.5"
+                                        stroke={1.75}
+                                        aria-hidden
+                                      />
+                                      Intake
+                                    </Button>
+                                  ) : undefined
+                                ) : (
                                 <div className="inline-flex items-center gap-1.5">
                                   <div className="inline-flex items-center gap-1">
                                   {showVerify ? (
@@ -982,33 +1072,6 @@ export function QueuePage({
                                     </Button>
                                   ) : null}
                                   {showIntake ? (
-                                    row.priority === "urgent" ? (
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        className="h-7 gap-1 px-2.5"
-                                        disabled={
-                                          isTicketPending(row.ticketId) ||
-                                          !intakeEnabled
-                                        }
-                                        aria-label="Start emergency intake"
-                                        title="Intake & assign specialty"
-                                        onClick={() => {
-                                          if (!intakeEnabled) return
-                                          queueToasts.intakeOpened(
-                                            row.patientName
-                                          )
-                                          setIntakeTicket(row)
-                                        }}
-                                      >
-                                        <IconHeartbeat
-                                          className="size-3.5"
-                                          stroke={1.75}
-                                          aria-hidden
-                                        />
-                                        Intake
-                                      </Button>
-                                    ) : (
                                       <Button
                                         type="button"
                                         size="icon-sm"
@@ -1038,7 +1101,6 @@ export function QueuePage({
                                           aria-hidden
                                         />
                                       </Button>
-                                    )
                                   ) : null}
                                   </div>
                                   {actions.has("no_show") ||
@@ -1135,16 +1197,16 @@ export function QueuePage({
                                       ) : null}
                                       {isNurse && actions.has("intake") ? (
                                         <>
-                                          <DropdownMenuItem
+                                            <DropdownMenuItem
                                             onClick={() => {
                                               queueToasts.intakeOpened(
                                                 row.patientName
                                               )
-                                              setIntakeTicket(row)
+                                                setIntakeTicket(row)
                                             }}
-                                          >
-                                            Intake & assign specialty
-                                          </DropdownMenuItem>
+                                            >
+                                              Intake & assign specialty
+                                            </DropdownMenuItem>
                                           {actions.has("start") ? (
                                             <DropdownMenuSeparator />
                                           ) : null}
@@ -1213,9 +1275,9 @@ export function QueuePage({
                                               }
                                               run(
                                                 () =>
-                                                  actionStartConsultation(
-                                                    row.ticketId
-                                                  ),
+                                                actionStartConsultation(
+                                                  row.ticketId
+                                                ),
                                                 {
                                                   successToast: () =>
                                                     consultationToasts.started(
@@ -1362,9 +1424,9 @@ export function QueuePage({
                                               onClick={() =>
                                                 run(
                                                   () =>
-                                                    actionTransferTicket(
-                                                      row.ticketId,
-                                                      target
+                                                  actionTransferTicket(
+                                                    row.ticketId,
+                                                    target
                                                     ),
                                                   {
                                                     successToast: () =>
@@ -1395,6 +1457,7 @@ export function QueuePage({
                                     </>
                                   ) : null}
                                 </div>
+                                )
                               ) : undefined
                             }
                           />
@@ -1416,7 +1479,7 @@ export function QueuePage({
           open={dataLoading}
           nurseName={access.fullName}
         />
-      ) : null}
+          ) : null}
       <PageIntro
         title={
           isNurse
@@ -1535,7 +1598,7 @@ export function QueuePage({
                             softReloadQueue(true)
                           }}
                         />
-                      ) : null}
+                ) : null}
                       {canMutate ? (
                         <Button
                           size="sm"

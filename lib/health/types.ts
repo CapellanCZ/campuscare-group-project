@@ -133,6 +133,9 @@ export type HealthActionResult =
       message?: string
       consultationId?: string
       appointmentId?: string
+      /** Ticket mutated by Call next / recall (for local SoT sync). */
+      ticketId?: string
+      callCount?: number
     }
   | { ok: false; error: string }
 

@@ -189,7 +189,9 @@ export function NurseTodayQueue({
   )
   const hasCallableWaiting = localTickets.some(
     (ticket) =>
-      ticket.status === "waiting" && ticket.station === "nurse"
+      ticket.status === "waiting" &&
+      ticket.priority !== "urgent" &&
+      ticket.station === "nurse"
   )
 
   function runAction(
