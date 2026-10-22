@@ -20,7 +20,10 @@ import {
   dedupeNursePatientsByPerson,
   dedupeTicketsById,
 } from "@/lib/health/nurse-queue"
-import { WaitStatusBadge } from "@/components/queue/wait-status-badge"
+import {
+  WaitStatusBadge,
+  waitTimerSince,
+} from "@/components/queue/wait-status-badge"
 import { WalkInSheet } from "@/components/queue/walk-in-sheet"
 import { PatientProfileSheet } from "@/components/patients/patient-profile-sheet"
 import { StudentIdSearchInput } from "@/components/shared/student-id-search-input"
@@ -184,6 +187,10 @@ export function NurseTodayQueue({
     (safePage - 1) * PAGE_SIZE,
     safePage * PAGE_SIZE
   )
+  const hasCallableWaiting = localTickets.some(
+    (ticket) =>
+      ticket.status === "waiting" && ticket.station === "nurse"
+  )
 
   function runAction(
     label: string,
@@ -252,10 +259,18 @@ export function NurseTodayQueue({
               <Button
                 type="button"
                 size="sm"
-                disabled={pending}
-                onClick={() =>
-                  runAction("Called next patient", () => actionCallNext("nurse"))
+                disabled={pending || !hasCallableWaiting}
+                title={
+                  hasCallableWaiting
+                    ? "Call next waiting patient"
+                    : "No waiting patients to call"
                 }
+                onClick={() => {
+                  if (!hasCallableWaiting) return
+                  runAction("Called next patient", () =>
+                    actionCallNext("nurse")
+                  )
+                }}
               >
                 <IconBell data-icon="inline-start" className="size-4" aria-hidden />
                 Call next
@@ -449,7 +464,7 @@ export function NurseTodayQueue({
                       <TableCell>
                         <WaitStatusBadge
                           status={row.status}
-                          waitMinutes={row.estimatedWaitMinutes}
+                          since={waitTimerSince(row)}
                         />
                       </TableCell>
                       <TableCell className="hidden max-w-[8rem] truncate text-muted-foreground xl:table-cell">

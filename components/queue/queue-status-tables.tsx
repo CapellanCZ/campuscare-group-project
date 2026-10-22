@@ -411,11 +411,13 @@ function SortableStatusSection({
           />
         </button>
 
-        <PageSizeMenu
-          pageSize={pageSize}
-          label={section.title}
-          onChange={onPageSizeChange}
-        />
+        {editing ? (
+          <PageSizeMenu
+            pageSize={pageSize}
+            label={section.title}
+            onChange={onPageSizeChange}
+          />
+        ) : null}
       </div>
 
       {open ? (

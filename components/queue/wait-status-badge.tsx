@@ -1,3 +1,7 @@
+"use client"
+
+import { useEffect, useState } from "react"
+
 import { StatusBadge } from "@/components/ui/status-badge"
 import { ticketStatusLabel } from "@/lib/health/mappers"
 import type { TicketStatus } from "@/lib/health/types"
@@ -15,6 +19,17 @@ export function waitUrgencyFromMinutes(
   if (minutes == null || minutes < 10) return "ok"
   if (minutes < 20) return "warn"
   return "urgent"
+}
+
+/** Elapsed whole minutes since an ISO timestamp (live timers). */
+export function elapsedMinutesSince(
+  iso: string | null | undefined,
+  now: Date = new Date()
+): number | null {
+  if (!iso) return null
+  const start = new Date(iso).getTime()
+  if (Number.isNaN(start)) return null
+  return Math.max(0, Math.floor((now.getTime() - start) / 60_000))
 }
 
 const urgencyTone: Record<WaitUrgency, string> = {
@@ -71,31 +86,50 @@ function blinkClassForStatus(
   return null
 }
 
+function formatElapsedLabel(status: string, minutes: number | null): string {
+  const statusText = ticketStatusLabel(status)
+  if (minutes == null) return statusText
+  if (status === "waiting") return `Waiting · ${minutes}m`
+  if (status === "called") return `Called · ${minutes}m`
+  if (status === "ongoing") return `Ongoing · ${minutes}m`
+  return statusText
+}
+
+/**
+ * Live status badge. Pass `since` (ISO) for elapsed minutes:
+ * waiting → time in queue; called → time since last call.
+ */
 export function WaitStatusBadge({
   status,
+  since,
+  /** @deprecated Prefer `since` — ETA minutes are not elapsed wait. */
   waitMinutes,
   className,
 }: {
   status: TicketStatus | string
+  since?: string | null
   waitMinutes?: number | null
   className?: string
 }) {
-  const urgency =
-    status === "waiting" ? waitUrgencyFromMinutes(waitMinutes) : null
-  const blink = blinkClassForStatus(status, waitMinutes)
+  const [now, setNow] = useState(() => new Date())
 
-  const statusText = ticketStatusLabel(status)
-  // estimated_wait_minutes is ETA from queue position (~10m per ticket ahead),
-  // not elapsed wait. Call / start / complete reset it to 0.
-  const label =
-    waitMinutes != null &&
-    (status === "waiting" || status === "called" || status === "ongoing")
-      ? `${statusText} · ${waitMinutes}m`
-      : statusText
+  useEffect(() => {
+    if (!since) return
+    const id = window.setInterval(() => setNow(new Date()), 15_000)
+    return () => window.clearInterval(id)
+  }, [since])
+
+  const elapsed = since
+    ? elapsedMinutesSince(since, now)
+    : (waitMinutes ?? null)
+
+  const urgency =
+    status === "waiting" ? waitUrgencyFromMinutes(elapsed) : null
+  const blink = blinkClassForStatus(status, elapsed)
 
   return (
     <StatusBadge
-      label={label}
+      label={formatElapsedLabel(status, elapsed)}
       toneClassName={
         urgency
           ? urgencyTone[urgency]
@@ -110,4 +144,19 @@ export function WaitStatusBadge({
       className={cn("tabular-nums normal-case", className)}
     />
   )
+}
+
+/** Timestamp to drive the live badge for a ticket row. */
+export function waitTimerSince(row: {
+  status: string
+  createdAt: string | null
+  updatedAt: string | null
+}): string | null {
+  if (row.status === "called" || row.status === "ongoing") {
+    return row.updatedAt ?? row.createdAt
+  }
+  if (row.status === "waiting") {
+    return row.createdAt ?? row.updatedAt
+  }
+  return null
 }

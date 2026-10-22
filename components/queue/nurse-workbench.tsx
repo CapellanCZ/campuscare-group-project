@@ -71,28 +71,39 @@ function formatAppointmentTime(iso: string | null) {
   }).format(date)
 }
 
-function minutesUntilStart(iso: string | null, now: Date) {
+function minutesUntilWaitingEntry(
+  iso: string | null,
+  now: Date,
+  earlyEntryMinutes: number
+) {
   if (!iso) return null
   const start = new Date(iso)
   if (Number.isNaN(start.getTime())) return null
-  return Math.max(0, Math.ceil((start.getTime() - now.getTime()) / 60_000))
+  const eligibleAt = start.getTime() - earlyEntryMinutes * 60_000
+  return Math.max(0, Math.ceil((eligibleAt - now.getTime()) / 60_000))
 }
 
 function AppointmentRow({
   ticket,
   isNew,
   now,
+  earlyEntryMinutes,
   rowPending,
   onPlaceInWaiting,
 }: {
   ticket: QueueTicketRow
   isNew: boolean
   now: Date
+  earlyEntryMinutes: QueueEarlyEntryMinutes
   rowPending?: boolean
   onPlaceInWaiting?: (ticket: QueueTicketRow) => void
 }) {
   const appointmentTime = formatAppointmentTime(ticket.appointmentStartsAt)
-  const mins = minutesUntilStart(ticket.appointmentStartsAt, now)
+  const minsToWaiting = minutesUntilWaitingEntry(
+    ticket.appointmentStartsAt,
+    now,
+    earlyEntryMinutes
+  )
 
   return (
     <div
@@ -135,7 +146,16 @@ function AppointmentRow({
               {appointmentTime}
             </span>
           ) : null}
-          {mins != null ? <span>Starts in {mins} min</span> : null}
+          {minsToWaiting != null ? (
+            <span
+              className="tabular-nums"
+              title={`Auto-moves to Waiting ${earlyEntryMinutes} min before the appointment`}
+            >
+              {minsToWaiting === 0
+                ? "Moving to Waiting…"
+                : `Waiting in ${minsToWaiting} min`}
+            </span>
+          ) : null}
           <span className="inline-flex items-center gap-0.5 font-medium text-foreground">
             <IconHash className="size-3" stroke={1.75} aria-hidden />
             {ticketLabel(ticket.queueNumber, ticket.ticketCode)}
@@ -216,6 +236,7 @@ function UpcomingBody({
               ticket={ticket}
               isNew={freshIds.has(ticket.ticketId)}
               now={now}
+              earlyEntryMinutes={earlyEntryMinutes}
               rowPending={isTicketPending?.(ticket.ticketId)}
               onPlaceInWaiting={onPlaceInWaiting}
             />
@@ -358,6 +379,7 @@ export function NurseWorkbench({
         knownIdsRef.current = new Set(next.map((row) => row.ticketId))
         return next
       })
+    // Minute-resolution timers; avoid 1s ticks (heavy on the queue tab).
     }, 15_000)
     return () => window.clearInterval(id)
   }, [])

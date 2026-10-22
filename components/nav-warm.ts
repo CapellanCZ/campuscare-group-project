@@ -1,10 +1,23 @@
 type ClinicRole = "nurse" | "physician" | "dentist" | "admin"
 
+const warmed = new Map<string, number>()
+const WARM_TTL_MS = 45_000
+
+function warmKey(href: string, role: ClinicRole) {
+  return `${role}:${href.split("?")[0]}`
+}
+
 /**
  * Warm feature data for the destination being opened.
  * Dynamic imports keep unused prefetch→action graphs out of the sidebar chunk.
+ * Deduped so hover + click (or rapid tab hopping) does not stack fetches.
  */
 export async function warmStaffRouteData(href: string, role: ClinicRole) {
+  const key = warmKey(href, role)
+  const last = warmed.get(key) ?? 0
+  if (Date.now() - last < WARM_TTL_MS) return
+  warmed.set(key, Date.now())
+
   if (href.includes("/consultations")) {
     const { prefetchConsultationsPage } = await import(
       "@/features/consultations/lib/prefetch-consultations"

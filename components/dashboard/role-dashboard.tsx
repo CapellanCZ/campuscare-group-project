@@ -21,7 +21,10 @@ import { PhysicianDashboardView } from "@/components/dashboard/physician-dashboa
 import { RoleDashboardSummaries } from "@/components/dashboard/role-dashboard-summaries"
 import { ActivityFeed } from "@/components/shared/activity-feed"
 import { StatCard } from "@/components/shared/stat-card"
-import { WaitStatusBadge } from "@/components/queue/wait-status-badge"
+import {
+  WaitStatusBadge,
+  waitTimerSince,
+} from "@/components/queue/wait-status-badge"
 import {
   PanelCell,
   PanelFrame,
@@ -464,7 +467,7 @@ export function RoleDashboard({
                               <TableCell>
                                 <WaitStatusBadge
                                   status={row.status}
-                                  waitMinutes={row.estimatedWaitMinutes}
+                                  since={waitTimerSince(row)}
                                 />
                               </TableCell>
                               <TableCell className="pr-6" />

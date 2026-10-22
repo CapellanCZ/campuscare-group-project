@@ -5,7 +5,10 @@ import { useEffect, useState } from "react"
 import { QueueTicketBookedDetail } from "@/components/queue/queue-ticket-booked-detail"
 import { sourceKindLabel } from "@/components/queue/queue-ticket-detail-shared"
 import { QueueTicketWalkInDetail } from "@/components/queue/queue-ticket-walk-in-detail"
-import { WaitStatusBadge } from "@/components/queue/wait-status-badge"
+import {
+  WaitStatusBadge,
+  waitTimerSince,
+} from "@/components/queue/wait-status-badge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -91,7 +94,7 @@ export function QueueTicketDetailDialog({
             </p>
             <WaitStatusBadge
               status={ticket.status}
-              waitMinutes={ticket.estimatedWaitMinutes}
+              since={waitTimerSince(ticket)}
             />
           </div>
 

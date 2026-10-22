@@ -52,7 +52,10 @@ import {
   type QueueStatusTableSection,
 } from "@/components/queue/queue-status-tables"
 import { matchesQueueStatusSegment } from "@/components/queue/queue-status-toolbar"
-import { WaitStatusBadge } from "@/components/queue/wait-status-badge"
+import {
+  WaitStatusBadge,
+  waitTimerSince,
+} from "@/components/queue/wait-status-badge"
 import { WalkInSheet } from "@/components/queue/walk-in-sheet"
 import { StudentIdSearchInput } from "@/components/shared/student-id-search-input"
 import { DENTIST_PATIENT_SEARCH_PLACEHOLDER } from "@/lib/students/patient-search-copy"
@@ -516,10 +519,11 @@ export function QueuePage({
         rows: dedupeNursePatientsByPerson(
           filtered.filter(
             (row) =>
-              matchesQueueStatusSegment(row, "waiting") &&
+              // Keep called patients here until check-in (Call next must not hide them).
+              (row.status === "waiting" || row.status === "called") &&
               row.priority !== "urgent" &&
               isQueueTimeEligible(row, new Date(), earlyEntryMinutes) &&
-              // After verify → Patients panel only (no double-list).
+              // After check-in → Patients panel only (no double-list).
               !isVerifiedNursePatient(row) &&
               // Intake handoff lives under Completed.
               !isNurseIntakeCompleted(row)
@@ -534,7 +538,10 @@ export function QueuePage({
           filtered.filter(
             (row) =>
               matchesQueueStatusSegment(row, "emergency") &&
-              // Verified emergencies move to Patients — do not list twice.
+              (row.status === "waiting" ||
+                row.status === "called" ||
+                row.status === "ongoing") &&
+              // Checked-in emergencies move to Patients — do not list twice.
               !isVerifiedNursePatient(row) &&
               !isNurseIntakeCompleted(row)
           )
@@ -725,6 +732,33 @@ export function QueuePage({
     [searchScopedTickets]
   )
 
+  const callNextStation =
+    access.designation === "admin" ? "nurse" : (myStation ?? "nurse")
+
+  /** First waiting patient Call next can pick (mirrors server ranking). */
+  const nextCallableTicket = useMemo(() => {
+    void scheduleTick
+    const now = new Date()
+    return [...localTickets]
+      .filter(
+        (ticket) =>
+          ticket.status === "waiting" &&
+          ticket.station === callNextStation &&
+          isQueueTimeEligible(ticket, now, earlyEntryMinutes)
+      )
+      .sort((a, b) => {
+        if (a.priority !== b.priority) {
+          return a.priority === "urgent" ? -1 : 1
+        }
+        return a.queuePosition - b.queuePosition
+      })[0]
+  }, [
+    localTickets,
+    callNextStation,
+    earlyEntryMinutes,
+    scheduleTick,
+  ])
+
   const cards =
     access.designation === "admin"
       ? [
@@ -838,14 +872,15 @@ export function QueuePage({
                               nurseIntakeDone || row.priority === "urgent" ? null : (
                                 <WaitStatusBadge
                                   status={row.status}
-                                  waitMinutes={row.estimatedWaitMinutes}
+                                  since={waitTimerSince(row)}
                                 />
                               )
                             }
                             chips={chips}
                             actions={
                               !readOnly ? (
-                                <div className="flex flex-wrap items-center justify-end gap-1">
+                                <div className="inline-flex items-center gap-1.5">
+                                  <div className="inline-flex items-center gap-1">
                                   {showVerify ? (
                                     <Button
                                       type="button"
@@ -931,6 +966,8 @@ export function QueuePage({
                                                 status: "called",
                                                 callCount: row.callCount + 1,
                                                 estimatedWaitMinutes: 0,
+                                                updatedAt:
+                                                  new Date().toISOString(),
                                               },
                                             },
                                           }
@@ -1003,6 +1040,20 @@ export function QueuePage({
                                       </Button>
                                     )
                                   ) : null}
+                                  </div>
+                                  {actions.has("no_show") ||
+                                  actions.has("view_details") ||
+                                  actions.has("intake") ||
+                                  actions.has("start") ||
+                                  actions.has("skip") ||
+                                  actions.has("rejoin") ||
+                                  actions.has("reschedule") ? (
+                                    <>
+                                      <span
+                                        className="mx-0.5 hidden h-4 w-px bg-border sm:block"
+                                        aria-hidden
+                                      />
+                                      <div className="inline-flex items-center gap-1">
                                   {actions.has("no_show") ? (
                                     <Button
                                       type="button"
@@ -1047,7 +1098,12 @@ export function QueuePage({
                                       }}
                                     >
                                       <IconUserOff
-                                        className="size-3.5"
+                                        className={cn(
+                                          "size-3.5",
+                                          row.callCount >= 2 &&
+                                            !isTicketPending(row.ticketId) &&
+                                            "text-destructive"
+                                        )}
                                         stroke={1.75}
                                         aria-hidden
                                       />
@@ -1058,7 +1114,8 @@ export function QueuePage({
                                       render={
                                         <Button
                                           size="icon-sm"
-                                          variant="ghost"
+                                          variant="outline"
+                                          className="size-7"
                                           aria-label="Queue actions"
                                           disabled={isTicketPending(
                                             row.ticketId
@@ -1066,7 +1123,7 @@ export function QueuePage({
                                         />
                                       }
                                     >
-                                      <IconDots />
+                                      <IconDots className="size-3.5" stroke={1.75} />
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
                                       {actions.has("view_details") ? (
@@ -1076,53 +1133,18 @@ export function QueuePage({
                                           View details
                                         </DropdownMenuItem>
                                       ) : null}
-                                      {isNurse &&
-                                      (actions.has("verify") ||
-                                        actions.has("intake")) ? (
+                                      {isNurse && actions.has("intake") ? (
                                         <>
-                                          {showVerify &&
-                                          hasNurseCalledPatient(row) ? (
-                                            <DropdownMenuItem
-                                              onClick={() => {
-                                                const patch = {
-                                                  checkedInAt:
-                                                    new Date().toISOString(),
-                                                  status: "waiting" as const,
-                                                  station: "nurse" as const,
-                                                }
-                                                run(
-                                                  () =>
-                                                    actionVerifyCheckIn(
-                                                      row.ticketId
-                                                    ),
-                                                  {
-                                                    successToast: () =>
-                                                      queueToasts.verified(
-                                                        row.patientName
-                                                      ),
-                                                    optimistic: {
-                                                      ticketId: row.ticketId,
-                                                      patch,
-                                                    },
-                                                  }
-                                                )
-                                              }}
-                                            >
-                                              Verify check-in
-                                            </DropdownMenuItem>
-                                          ) : null}
-                                          {actions.has("intake") ? (
-                                            <DropdownMenuItem
-                                              onClick={() => {
-                                                queueToasts.intakeOpened(
-                                                  row.patientName
-                                                )
-                                                setIntakeTicket(row)
-                                              }}
-                                            >
-                                              Intake & assign specialty
-                                            </DropdownMenuItem>
-                                          ) : null}
+                                          <DropdownMenuItem
+                                            onClick={() => {
+                                              queueToasts.intakeOpened(
+                                                row.patientName
+                                              )
+                                              setIntakeTicket(row)
+                                            }}
+                                          >
+                                            Intake & assign specialty
+                                          </DropdownMenuItem>
                                           {actions.has("start") ? (
                                             <DropdownMenuSeparator />
                                           ) : null}
@@ -1369,6 +1391,9 @@ export function QueuePage({
                                       ) : null}
                                     </DropdownMenuContent>
                                   </DropdownMenu>
+                                      </div>
+                                    </>
+                                  ) : null}
                                 </div>
                               ) : undefined
                             }
@@ -1515,24 +1540,17 @@ export function QueuePage({
                         <Button
                           size="sm"
                           className="h-9"
-                          disabled={pageActionPending}
+                          disabled={
+                            pageActionPending || !nextCallableTicket
+                          }
+                          title={
+                            nextCallableTicket
+                              ? `Call ${nextCallableTicket.patientName}`
+                              : "No waiting patients to call"
+                          }
                           onClick={() => {
-                            const station =
-                              access.designation === "admin"
-                                ? "nurse"
-                                : (myStation ?? "nurse")
-                            const nextUp = [...localTickets]
-                              .filter(
-                                (ticket) =>
-                                  ticket.status === "waiting" &&
-                                  ticket.station === station
-                              )
-                              .sort((a, b) => {
-                                if (a.priority !== b.priority) {
-                                  return a.priority === "urgent" ? -1 : 1
-                                }
-                                return a.queuePosition - b.queuePosition
-                              })[0]
+                            const nextUp = nextCallableTicket
+                            if (!nextUp) return
                             run(
                               () =>
                                 actionCallNext(
@@ -1542,7 +1560,17 @@ export function QueuePage({
                                 ),
                               {
                                 successToast: () =>
-                                  queueToasts.called(nextUp?.patientName),
+                                  queueToasts.called(nextUp.patientName),
+                                ticketId: nextUp.ticketId,
+                                optimistic: {
+                                  ticketId: nextUp.ticketId,
+                                  patch: {
+                                    status: "called",
+                                    callCount: nextUp.callCount + 1,
+                                    estimatedWaitMinutes: 0,
+                                    updatedAt: new Date().toISOString(),
+                                  },
+                                },
                               }
                             )
                           }}
@@ -1634,6 +1662,7 @@ export function QueuePage({
                           status: "called",
                           callCount: row.callCount + 1,
                           estimatedWaitMinutes: 0,
+                          updatedAt: new Date().toISOString(),
                         },
                       },
                     })

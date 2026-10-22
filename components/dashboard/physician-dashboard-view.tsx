@@ -14,7 +14,10 @@ import {
 
 import { StatCard } from "@/components/shared/stat-card"
 import { VitalsStrip } from "@/components/queue/vitals-strip"
-import { WaitStatusBadge } from "@/components/queue/wait-status-badge"
+import {
+  WaitStatusBadge,
+  waitTimerSince,
+} from "@/components/queue/wait-status-badge"
 import {
   PanelCell,
   PanelFrame,
@@ -356,7 +359,7 @@ export function PhysicianDashboardView({
                               <TableCell className="pr-6">
                                 <WaitStatusBadge
                                   status={row.status}
-                                  waitMinutes={row.estimatedWaitMinutes}
+                                  since={waitTimerSince(row)}
                                 />
                               </TableCell>
                             </TableRow>
