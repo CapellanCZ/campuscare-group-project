@@ -131,6 +131,7 @@ import {
 } from "@/lib/health/roles"
 import type {
   ActivityItem,
+  HealthActionResult,
   PatientType,
   QueueStats,
   QueueTicketRow,
@@ -582,7 +583,7 @@ export function QueuePage({
   }
 
   function run(
-    action: () => Promise<{ ok: boolean; error?: string; message?: string }>,
+    action: () => Promise<HealthActionResult>,
     options?: {
       successToast?: () => void
       errorToast?: (message?: string) => void
