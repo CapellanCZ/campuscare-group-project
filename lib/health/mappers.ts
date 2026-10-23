@@ -184,11 +184,18 @@ export function patientTypeLabel(type: PatientType | null | undefined) {
 }
 
 export function ticketLabel(queueNumber: number | null, ticketCode: string) {
-  if (/^[MDN]-\d+$/i.test(ticketCode)) return ticketCode
+  const code = ticketCode?.trim() ?? ""
+  // Prefer stored clinic codes (M-001 / D-001) — never invent a different prefix.
+  if (/^[MD]-\d+$/i.test(code)) {
+    const match = code.match(/^([MD])-(\d+)$/i)
+    if (match) {
+      return `${match[1]!.toUpperCase()}-${match[2]!.padStart(3, "0")}`
+    }
+  }
   if (queueNumber != null) {
     return String(queueNumber).padStart(3, "0")
   }
-  return ticketCode
+  return code || "—"
 }
 
 export function mapTicketRow(

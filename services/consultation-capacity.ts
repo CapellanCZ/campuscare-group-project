@@ -126,10 +126,10 @@ export async function nextReservedQueueNumber(
       .gte("starts_at", startIso)
       .lte("starts_at", endIso)
       .not("queue_number", "is", null),
-    // Walk-ins share M-/D- ticket codes — never collide with those either.
+    // Same specialty only — M and D sequences stay independent (M-001 + D-001 OK).
     supabase
       .from("health_queue_tickets")
-      .select("queue_number")
+      .select("queue_number, ticket_code, provider_type")
       .eq("service_date", serviceDate)
       .not("queue_number", "is", null),
   ])
@@ -137,10 +137,20 @@ export async function nextReservedQueueNumber(
   if (apptResult.error) throw apptResult.error
   if (ticketResult.error) throw ticketResult.error
 
+  const prefix = providerType === "dentist" ? "D" : "M"
+  const ticketNums = (ticketResult.data ?? [])
+    .filter((row) => {
+      const rowProvider = row.provider_type as string | null
+      if (rowProvider === providerType) return true
+      const code = (row.ticket_code as string | null)?.trim() ?? ""
+      return code.toUpperCase().startsWith(`${prefix}-`)
+    })
+    .map((row) => Number(row.queue_number) || 0)
+
   const maxAssigned = Math.max(
     0,
     ...(apptResult.data ?? []).map((row) => Number(row.queue_number) || 0),
-    ...(ticketResult.data ?? []).map((row) => Number(row.queue_number) || 0)
+    ...ticketNums
   )
 
   return { nextNumber: maxAssigned + 1, used, max }

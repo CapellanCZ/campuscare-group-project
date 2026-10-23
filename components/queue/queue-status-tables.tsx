@@ -39,6 +39,7 @@ import {
   IconEdit,
   IconGripVertical,
   IconLayoutList,
+  IconPlayerPlay,
   IconPlus,
   IconUserOff,
 } from "@tabler/icons-react"
@@ -72,8 +73,12 @@ export const SCHEDULED_TO_WAITING_MIME =
 export type QueueStatusTableId =
   | "waiting"
   | "emergency"
+  | "in_progress"
   | "skipped"
   | "completed"
+
+/** Nurse triage vs specialty station — different tables to avoid mix-ups. */
+export type QueueStatusTablesVariant = "nurse" | "specialty"
 
 export type QueueStatusTableSection = {
   id: QueueStatusTableId
@@ -84,7 +89,7 @@ export type QueueStatusTableSection = {
 
 type StatusIcon = ComponentType<{ className?: string; stroke?: number }>
 
-const CATALOG: Array<{
+const NURSE_CATALOG: Array<{
   id: QueueStatusTableId
   title: string
   icon: StatusIcon
@@ -95,63 +100,102 @@ const CATALOG: Array<{
   { id: "completed", title: "Completed", icon: IconCheck },
 ]
 
-const STATUS_ICON: Record<QueueStatusTableId, StatusIcon> = Object.fromEntries(
-  CATALOG.map((item) => [item.id, item.icon])
-) as Record<QueueStatusTableId, StatusIcon>
+const SPECIALTY_CATALOG: Array<{
+  id: QueueStatusTableId
+  title: string
+  icon: StatusIcon
+}> = [
+  // Waiting lives in the right-rail panel (like nurse Patients), not here.
+  { id: "in_progress", title: "In progress", icon: IconPlayerPlay },
+  { id: "skipped", title: "Skipped / No Show", icon: IconUserOff },
+  { id: "completed", title: "Completed visits", icon: IconCheck },
+]
+
+const STATUS_ICON: Record<QueueStatusTableId, StatusIcon> = {
+  waiting: IconClockHour4,
+  emergency: IconAlertTriangle,
+  in_progress: IconPlayerPlay,
+  skipped: IconUserOff,
+  completed: IconCheck,
+}
 
 /** Icon-only accent — titles stay neutral to match the rest of the queue UI. */
 const STATUS_HEADER_ICON: Record<QueueStatusTableId, string> = {
   emergency: "text-destructive",
   waiting: "text-muted-foreground",
+  in_progress: "text-primary",
   skipped: "text-muted-foreground",
   completed: "text-muted-foreground",
 }
 
-const DEFAULT_VISIBLE: QueueStatusTableId[] = [
-  "waiting",
-  "emergency",
-  "skipped",
-  "completed",
-]
+const DEFAULT_VISIBLE: Record<QueueStatusTablesVariant, QueueStatusTableId[]> = {
+  nurse: ["waiting", "emergency", "skipped", "completed"],
+  specialty: ["in_progress", "skipped", "completed"],
+}
 
-const VISIBLE_STORAGE_KEY = "campuscare:queue-status-tables-visible:v2"
-const PAGE_SIZES_STORAGE_KEY = "campuscare:queue-status-table-page-sizes"
+function catalogFor(variant: QueueStatusTablesVariant) {
+  return variant === "specialty" ? SPECIALTY_CATALOG : NURSE_CATALOG
+}
 
-function readStoredVisible(): QueueStatusTableId[] {
-  if (typeof window === "undefined") return DEFAULT_VISIBLE
+function visibleStorageKey(variant: QueueStatusTablesVariant) {
+  return variant === "specialty"
+    ? "campuscare:queue-status-tables-visible:specialty:v1"
+    : "campuscare:queue-status-tables-visible:v2"
+}
+
+function pageSizesStorageKey(variant: QueueStatusTablesVariant) {
+  return variant === "specialty"
+    ? "campuscare:queue-status-table-page-sizes:specialty:v1"
+    : "campuscare:queue-status-table-page-sizes"
+}
+
+function readStoredVisible(
+  variant: QueueStatusTablesVariant
+): QueueStatusTableId[] {
+  const fallback = DEFAULT_VISIBLE[variant]
+  const catalog = catalogFor(variant)
+  if (typeof window === "undefined") return fallback
   try {
-    const raw = window.sessionStorage.getItem(VISIBLE_STORAGE_KEY)
-    if (!raw) return DEFAULT_VISIBLE
+    const raw = window.sessionStorage.getItem(visibleStorageKey(variant))
+    if (!raw) return fallback
     const parsed = JSON.parse(raw) as unknown
-    if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_VISIBLE
+    if (!Array.isArray(parsed) || parsed.length === 0) return fallback
     const ids = parsed.filter((id): id is QueueStatusTableId =>
-      CATALOG.some((item) => item.id === id)
+      catalog.some((item) => item.id === id)
     )
-    // Drop legacy tables removed from the catalog (called / verify / ongoing).
-    return ids.length > 0 ? ids : DEFAULT_VISIBLE
+    return ids.length > 0 ? ids : fallback
   } catch {
-    return DEFAULT_VISIBLE
+    return fallback
   }
 }
 
-function writeStoredVisible(ids: QueueStatusTableId[]) {
+function writeStoredVisible(
+  variant: QueueStatusTablesVariant,
+  ids: QueueStatusTableId[]
+) {
   try {
-    window.sessionStorage.setItem(VISIBLE_STORAGE_KEY, JSON.stringify(ids))
+    window.sessionStorage.setItem(
+      visibleStorageKey(variant),
+      JSON.stringify(ids)
+    )
   } catch {
     /* ignore */
   }
 }
 
-function readStoredPageSizes(): Partial<Record<QueueStatusTableId, QueuePageSize>> {
+function readStoredPageSizes(
+  variant: QueueStatusTablesVariant
+): Partial<Record<QueueStatusTableId, QueuePageSize>> {
+  const catalog = catalogFor(variant)
   if (typeof window === "undefined") return {}
   try {
-    const raw = window.sessionStorage.getItem(PAGE_SIZES_STORAGE_KEY)
+    const raw = window.sessionStorage.getItem(pageSizesStorageKey(variant))
     if (!raw) return {}
     const parsed = JSON.parse(raw) as Record<string, number>
     const next: Partial<Record<QueueStatusTableId, QueuePageSize>> = {}
     for (const [key, value] of Object.entries(parsed)) {
       if (
-        CATALOG.some((item) => item.id === key) &&
+        catalog.some((item) => item.id === key) &&
         QUEUE_PAGE_SIZE_OPTIONS.includes(value as QueuePageSize)
       ) {
         next[key as QueueStatusTableId] = value as QueuePageSize
@@ -164,10 +208,14 @@ function readStoredPageSizes(): Partial<Record<QueueStatusTableId, QueuePageSize
 }
 
 function writeStoredPageSizes(
+  variant: QueueStatusTablesVariant,
   sizes: Partial<Record<QueueStatusTableId, QueuePageSize>>
 ) {
   try {
-    window.sessionStorage.setItem(PAGE_SIZES_STORAGE_KEY, JSON.stringify(sizes))
+    window.sessionStorage.setItem(
+      pageSizesStorageKey(variant),
+      JSON.stringify(sizes)
+    )
   } catch {
     /* ignore */
   }
@@ -513,15 +561,20 @@ export function QueueStatusTables({
   renderRow,
   className,
   onAcceptScheduledDrop,
+  variant = "nurse",
 }: {
   sections: QueueStatusTableSection[]
   renderRow: (row: QueueTicketRow, index: number) => ReactNode
   className?: string
   /** Drop Upcoming scheduled rows onto Waiting. */
   onAcceptScheduledDrop?: (ticketId: string) => void
+  /** Nurse triage vs dentist/physician station tables. */
+  variant?: QueueStatusTablesVariant
 }) {
+  const catalog = catalogFor(variant)
+  const defaultVisible = DEFAULT_VISIBLE[variant]
   const [editing, setEditing] = useState(false)
-  const [visible, setVisible] = useState<QueueStatusTableId[]>(DEFAULT_VISIBLE)
+  const [visible, setVisible] = useState<QueueStatusTableId[]>(defaultVisible)
   const [pageSizes, setPageSizes] = useState<
     Partial<Record<QueueStatusTableId, QueuePageSize>>
   >({})
@@ -530,9 +583,9 @@ export function QueueStatusTables({
   )
 
   useEffect(() => {
-    setVisible(readStoredVisible())
-    setPageSizes(readStoredPageSizes())
-  }, [])
+    setVisible(readStoredVisible(variant))
+    setPageSizes(readStoredPageSizes(variant))
+  }, [variant])
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
@@ -561,9 +614,9 @@ export function QueueStatusTables({
   )
 
   function setVisibleAndStore(next: QueueStatusTableId[]) {
-    const safe = next.length > 0 ? next : DEFAULT_VISIBLE.slice(0, 1)
+    const safe = next.length > 0 ? next : defaultVisible.slice(0, 1)
     setVisible(safe)
-    writeStoredVisible(safe)
+    writeStoredVisible(variant, safe)
   }
 
   function onDragEnd(event: DragEndEvent) {
@@ -592,7 +645,7 @@ export function QueueStatusTables({
   function setPageSizeFor(id: QueueStatusTableId, size: QueuePageSize) {
     setPageSizes((prev) => {
       const next = { ...prev, [id]: size }
-      writeStoredPageSizes(next)
+      writeStoredPageSizes(variant, next)
       return next
     })
     setPages((prev) => ({ ...prev, [id]: 0 }))
@@ -606,7 +659,11 @@ export function QueueStatusTables({
             Drag to reorder · toggle tables in Add table
           </p>
         ) : (
-          <span className="text-xs text-muted-foreground">Status tables</span>
+          <span className="text-xs text-muted-foreground">
+            {variant === "specialty"
+              ? "Station status tables"
+              : "Status tables"}
+          </span>
         )}
         <div className="flex flex-wrap items-center gap-2">
           {editing ? (
@@ -625,7 +682,7 @@ export function QueueStatusTables({
                 Add table
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="min-w-48">
-                {CATALOG.map((item) => {
+                {catalog.map((item) => {
                   const count = sectionById.get(item.id)?.rows.length ?? 0
                   const active = visible.includes(item.id)
                   const Icon = item.icon

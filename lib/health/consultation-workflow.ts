@@ -13,6 +13,37 @@ export function isConsultationProviderType(
   return (CONSULTATION_PROVIDER_TYPES as readonly string[]).includes(value)
 }
 
+/** Clinic display codes: M-001 (physician) / D-001 (dentist). */
+export function formatClinicQueueCode(
+  providerType: ConsultationProviderType,
+  n: number
+): string {
+  const prefix = providerType === "dentist" ? "D" : "M"
+  return `${prefix}-${String(Math.max(1, Math.floor(n))).padStart(3, "0")}`
+}
+
+export function isClinicQueueCode(code: string | null | undefined): boolean {
+  return Boolean(code && /^[MD]-\d+$/i.test(code.trim()))
+}
+
+/**
+ * Keep an existing M-/D- code stable (never flip M↔D on approve/intake).
+ * Upgrade legacy CR-/bare numbers to the clinic format once.
+ */
+export function resolveStableTicketCode(
+  existing: string | null | undefined,
+  providerType: ConsultationProviderType,
+  queueNumber: number
+): string {
+  const trimmed = existing?.trim() ?? ""
+  if (isClinicQueueCode(trimmed)) {
+    const match = trimmed.match(/^([MD])-(\d+)$/i)
+    if (!match) return formatClinicQueueCode(providerType, queueNumber)
+    return `${match[1]!.toUpperCase()}-${match[2]!.padStart(3, "0")}`
+  }
+  return formatClinicQueueCode(providerType, queueNumber)
+}
+
 /**
  * Normalize specialty from mobile/web payloads.
  * Accepts case variants and common aliases (dental, doctor, …).

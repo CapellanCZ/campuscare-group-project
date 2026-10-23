@@ -1,7 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 import { DisplayHeader } from "@/components/display/display-header"
 import { StationCard } from "@/components/display/station-card"
@@ -12,6 +11,7 @@ import {
 } from "@/components/display/use-queue-announcements"
 import { RecentlyServedCard } from "@/components/shared/recently-served-card"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { fetchPublicQueueSnapshotAction } from "@/features/display/actions"
 import { createClient } from "@/lib/supabase/client"
 import { subscribeDisplayChanges } from "@/lib/health/realtime"
 import type { BreakStatus } from "@/lib/availability/types"
@@ -29,23 +29,54 @@ export function QueueDisplay({
   initialTotalWaiting: number
   initialClinicBreak: BreakStatus
 }) {
-  const router = useRouter()
+  // Local source of truth — soft-reconcile from public_queue_display, never blank.
   const [boards, setBoards] = useState(initialBoards)
   const [recent, setRecent] = useState(initialRecentlyServed)
   const [totalWaiting, setTotalWaiting] = useState(initialTotalWaiting)
   const [clinicBreak, setClinicBreak] = useState(initialClinicBreak)
   const [speakerOn, setSpeakerOn] = useState(true)
+  const refreshingRef = useRef(false)
+
+  const applySnapshot = useCallback(
+    (next: {
+      boards: StationBoard[]
+      recentlyServed: RecentlyServedItem[]
+      totalWaiting: number
+      clinicBreak: BreakStatus
+    }) => {
+      setBoards(next.boards)
+      setRecent(next.recentlyServed)
+      setTotalWaiting(next.totalWaiting)
+      setClinicBreak(next.clinicBreak)
+    },
+    []
+  )
+
+  const softRefresh = useCallback(async () => {
+    if (refreshingRef.current) return
+    refreshingRef.current = true
+    try {
+      const result = await fetchPublicQueueSnapshotAction()
+      if (result.ok) applySnapshot(result.data)
+    } finally {
+      refreshingRef.current = false
+    }
+  }, [applySnapshot])
 
   useEffect(() => {
     setSpeakerOn(readSpeakerPreference())
   }, [])
 
+  // Seed from RSC once; after that local soft-refresh owns updates.
   useEffect(() => {
-    setBoards(initialBoards)
-    setRecent(initialRecentlyServed)
-    setTotalWaiting(initialTotalWaiting)
-    setClinicBreak(initialClinicBreak)
+    applySnapshot({
+      boards: initialBoards,
+      recentlyServed: initialRecentlyServed,
+      totalWaiting: initialTotalWaiting,
+      clinicBreak: initialClinicBreak,
+    })
   }, [
+    applySnapshot,
     initialBoards,
     initialRecentlyServed,
     initialTotalWaiting,
@@ -61,45 +92,26 @@ export function QueueDisplay({
   useEffect(() => {
     const client = createClient()
     let timer: ReturnType<typeof setTimeout> | null = null
-    let lastRefreshAt = 0
-    const DEBOUNCE_MS = 2500
-    const MIN_INTERVAL_MS = 4000
-
-    const runRefresh = () => {
-      const now = Date.now()
-      const wait = Math.max(0, MIN_INTERVAL_MS - (now - lastRefreshAt))
-      if (wait > 0) {
-        timer = setTimeout(() => {
-          timer = null
-          lastRefreshAt = Date.now()
-          router.refresh()
-        }, wait)
-        return
-      }
-      lastRefreshAt = now
-      router.refresh()
-    }
+    const DEBOUNCE_MS = 400
 
     const scheduleRefresh = () => {
       if (timer) clearTimeout(timer)
       timer = setTimeout(() => {
         timer = null
-        runRefresh()
+        void softRefresh()
       }, DEBOUNCE_MS)
     }
 
+    // Duty/break realtime + ticket poll from sanitized public view (no PHI).
     const subscription = subscribeDisplayChanges(client, scheduleRefresh)
-
-    // Tickets come from sanitized public_queue_display (no base-table realtime PHI).
-    // Poll faster so call/serve feels live on the cast screen.
-    const poll = window.setInterval(() => router.refresh(), 5_000)
+    const poll = window.setInterval(() => void softRefresh(), 2_500)
 
     return () => {
       if (timer) clearTimeout(timer)
       window.clearInterval(poll)
       subscription.unsubscribe(client)
     }
-  }, [router])
+  }, [softRefresh])
 
   function handleToggleSpeaker() {
     setSpeakerOn((current) => {
@@ -130,7 +142,7 @@ export function QueueDisplay({
           <Card className="h-full shadow-none dark:ring-0">
             <CardHeader className="border-b">
               <CardTitle className="flex items-center gap-2 text-lg">
-                <IconClock className="size-5" />
+                <IconClock className="size-5" aria-hidden />
                 Recently served
               </CardTitle>
             </CardHeader>

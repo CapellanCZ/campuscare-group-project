@@ -45,6 +45,7 @@ import { NurseIntakeSheet } from "@/components/queue/nurse-intake-sheet"
 import { QueueRescheduleDialog } from "@/components/queue/queue-reschedule-dialog"
 import { NurseLaneTab } from "@/components/queue/nurse-lane-switcher"
 import { NursePatientsPanel } from "@/components/queue/nurse-patients-panel"
+import { SpecialtyWaitingPanel } from "@/components/queue/specialty-waiting-panel"
 import { NurseWorkbench } from "@/components/queue/nurse-workbench"
 import { QueueTicketListItem } from "@/components/queue/queue-ticket-list-item"
 import {
@@ -506,35 +507,66 @@ export function QueuePage({
   const statusSections = useMemo((): QueueStatusTableSection[] => {
     // scheduleTick forces early-window promotion into Waiting without a server write.
     void scheduleTick
-    const completedRows = isNurse
-      ? dedupeNursePatientsByPerson(
-          searchScopedTickets
-            .filter((row) => isNurseIntakeCompleted(row))
-            .sort(compareNurseIntakeCompletedOrder)
-        )
-      : searchScopedTickets.filter((row) =>
-          matchesQueueStatusSegment(row, "completed")
-        )
     const skippedRows = dedupeNursePatientsByPerson(
       searchScopedTickets.filter((row) => isNurseQueueException(row))
     )
+
+    // Dentist / physician: Waiting is the right-rail panel (like nurse Patients).
+    if (isSpecialtyStation) {
+      return [
+        {
+          id: "in_progress",
+          title: "In progress",
+          emptyTitle: "No patients being seen",
+          rows: dedupeNursePatientsByPerson(
+            filtered.filter(
+              (row) => row.status === "called" || row.status === "ongoing"
+            )
+          ),
+        },
+        {
+          id: "skipped",
+          title: "Skipped / No Show",
+          emptyTitle: "No skipped or no-show patients",
+          rows: skippedRows,
+        },
+        {
+          id: "completed",
+          title: "Completed visits",
+          emptyTitle: "No completed visits yet",
+          rows: searchScopedTickets.filter((row) =>
+            matchesQueueStatusSegment(row, "completed")
+          ),
+        },
+      ]
+    }
+
+    const completedRows = dedupeNursePatientsByPerson(
+      searchScopedTickets
+        .filter((row) => isNurseIntakeCompleted(row))
+        .sort(compareNurseIntakeCompletedOrder)
+    )
+
     return [
       {
         id: "waiting",
         title: "Waiting",
         emptyTitle: "No waiting patients",
         rows: dedupeNursePatientsByPerson(
-          filtered.filter(
-            (row) =>
-              // Keep called patients here until check-in (Call next must not hide them).
-              (row.status === "waiting" || row.status === "called") &&
-              row.priority !== "urgent" &&
-              isQueueTimeEligible(row, new Date(), earlyEntryMinutes) &&
-              // After check-in → Patients panel only (no double-list).
-              !isVerifiedNursePatient(row) &&
-              // Intake handoff lives under Completed.
-              !isNurseIntakeCompleted(row)
-          )
+          filtered.filter((row) => {
+            if (
+              !(row.status === "waiting" || row.status === "called") ||
+              row.priority === "urgent"
+            ) {
+              return false
+            }
+            if (!isQueueTimeEligible(row, new Date(), earlyEntryMinutes)) {
+              return false
+            }
+            if (isVerifiedNursePatient(row)) return false
+            if (isNurseIntakeCompleted(row)) return false
+            return true
+          })
         ),
       },
       {
@@ -542,16 +574,21 @@ export function QueuePage({
         title: "Emergencies",
         emptyTitle: "No emergencies",
         rows: dedupeNursePatientsByPerson(
-          filtered.filter(
-            (row) =>
-              matchesQueueStatusSegment(row, "emergency") &&
-              (row.status === "waiting" ||
+          filtered.filter((row) => {
+            if (
+              !matchesQueueStatusSegment(row, "emergency") ||
+              !(
+                row.status === "waiting" ||
                 row.status === "called" ||
-                row.status === "ongoing") &&
-              // Checked-in emergencies move to Patients — do not list twice.
-              !isVerifiedNursePatient(row) &&
-              !isNurseIntakeCompleted(row)
-          )
+                row.status === "ongoing"
+              )
+            ) {
+              return false
+            }
+            if (isVerifiedNursePatient(row)) return false
+            if (isNurseIntakeCompleted(row)) return false
+            return true
+          })
         ),
       },
       {
@@ -563,9 +600,7 @@ export function QueuePage({
       {
         id: "completed",
         title: "Completed",
-        emptyTitle: isNurse
-          ? "No completed intakes"
-          : "No completed patients",
+        emptyTitle: "No completed intakes",
         rows: completedRows,
       },
     ]
@@ -574,7 +609,7 @@ export function QueuePage({
     searchScopedTickets,
     scheduleTick,
     earlyEntryMinutes,
-    isNurse,
+    isSpecialtyStation,
   ])
 
   function patchTicket(
@@ -810,6 +845,15 @@ export function QueuePage({
     [searchScopedTickets]
   )
 
+  /** Specialty right rail — waiting at this station (mirrors nurse Patients). */
+  const specialtyWaitingRows = useMemo(
+    () =>
+      dedupeNursePatientsByPerson(
+        filtered.filter((row) => row.status === "waiting")
+      ),
+    [filtered]
+  )
+
   const callNextStation =
     access.designation === "admin" ? "nurse" : (myStation ?? "nurse")
 
@@ -818,19 +862,25 @@ export function QueuePage({
     void scheduleTick
     const now = new Date()
     return [...localTickets]
-      .filter(
-        (ticket) =>
-          ticket.status === "waiting" &&
-          ticket.priority !== "urgent" &&
-          ticket.station === callNextStation &&
-          isQueueTimeEligible(ticket, now, earlyEntryMinutes)
-      )
+      .filter((ticket) => {
+        if (
+          ticket.status !== "waiting" ||
+          ticket.priority === "urgent" ||
+          ticket.station !== callNextStation
+        ) {
+          return false
+        }
+        // Specialty: nurse handoff already admitted them — skip appointment window.
+        if (isSpecialtyStation && isNurseIntakeCompleted(ticket)) return true
+        return isQueueTimeEligible(ticket, now, earlyEntryMinutes)
+      })
       .sort((a, b) => a.queuePosition - b.queuePosition)[0]
   }, [
     localTickets,
     callNextStation,
     earlyEntryMinutes,
     scheduleTick,
+    isSpecialtyStation,
   ])
 
   const cards =
@@ -1566,7 +1616,7 @@ export function QueuePage({
 
           <PanelCell
             className={
-              isNurse && nurseLane === "needs_intake"
+              (isNurse && nurseLane === "needs_intake") || isSpecialtyStation
                 ? "lg:col-span-2"
                 : "lg:col-span-3"
             }
@@ -1730,6 +1780,7 @@ export function QueuePage({
                   <QueueStatusTables
                     sections={statusSections}
                     renderRow={renderQueueRow}
+                    variant={isSpecialtyStation ? "specialty" : "nurse"}
                     onAcceptScheduledDrop={
                       isNurse ? placeScheduledInWaitingById : undefined
                     }
@@ -1780,6 +1831,68 @@ export function QueuePage({
                   variant="panel"
                 />
               </div>
+            </PanelCell>
+          ) : null}
+
+          {isSpecialtyStation ? (
+            <PanelCell className="lg:col-span-1">
+              <SpecialtyWaitingPanel
+                rows={specialtyWaitingRows}
+                isTicketPending={isTicketPending}
+                onCall={(row) =>
+                  run(() => actionRecallTicket(row.ticketId), {
+                    successToast: () =>
+                      row.callCount >= 1
+                        ? queueToasts.recalled(row.patientName)
+                        : queueToasts.called(row.patientName),
+                    optimistic: {
+                      ticketId: row.ticketId,
+                      patch: {
+                        status: "called",
+                        callCount: row.callCount + 1,
+                        estimatedWaitMinutes: 0,
+                        updatedAt: new Date().toISOString(),
+                      },
+                    },
+                  })
+                }
+                onStart={(row) => {
+                  patchTicket(row.ticketId, {
+                    status: "ongoing",
+                    estimatedWaitMinutes: 0,
+                    assignedPersonnel: access.fullName,
+                  })
+                  startTransition(async () => {
+                    const result = await actionStartConsultation(row.ticketId)
+                    if (!result.ok) {
+                      queueToasts.failed(result.error)
+                      softReloadQueue(true)
+                      return
+                    }
+                    consultationToasts.started(row.patientName)
+                    const visitId = isDentist
+                      ? (result.appointmentId ??
+                          row.appointmentId ??
+                          result.consultationId ??
+                          row.consultationId)
+                      : (result.consultationId ??
+                          result.appointmentId ??
+                          row.consultationId ??
+                          row.appointmentId)
+                    if (!visitId) {
+                      queueToasts.failed(
+                        "Consultation started, but no visit record was linked."
+                      )
+                      softReloadQueue(true)
+                      return
+                    }
+                    router.push(
+                      `/${isDentist ? "dentist" : "physician"}/consultation/${visitId}`
+                    )
+                  })
+                }}
+                onViewDetails={openTicketDetails}
+              />
             </PanelCell>
           ) : null}
         </PanelGrid>

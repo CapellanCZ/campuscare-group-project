@@ -7,6 +7,11 @@ import {
   resolveConsultationProviderType,
   type ConsultationProviderType,
 } from "@/lib/health/consultation-workflow"
+
+export {
+  formatClinicQueueCode,
+  resolveStableTicketCode,
+} from "@/lib/health/consultation-workflow"
 import type { NurseIntakeInput } from "@/lib/health/types"
 import { createClient } from "@/lib/supabase/server"
 

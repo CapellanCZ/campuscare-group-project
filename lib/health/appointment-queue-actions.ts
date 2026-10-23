@@ -16,6 +16,7 @@ import { nextReservedQueueNumber } from "@/services/consultation-capacity"
 import {
   ensureConsultationFromAppointment,
   formatClinicQueueCode,
+  resolveStableTicketCode,
 } from "@/lib/health/consultation-lifecycle"
 
 function manilaDateTimeToIso(date: string, time: string): string {

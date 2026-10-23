@@ -248,7 +248,7 @@ Deno.serve(async (req) => {
       { headers: authHeaders }
     ),
     fetch(
-      `${supabaseUrl}/rest/v1/health_queue_tickets?service_date=eq.${preferredDate}&queue_number=not.is.null&select=queue_number&order=queue_number.desc&limit=1`,
+      `${supabaseUrl}/rest/v1/health_queue_tickets?service_date=eq.${preferredDate}&provider_type=eq.${providerType}&queue_number=not.is.null&select=queue_number&order=queue_number.desc&limit=1`,
       { headers: authHeaders }
     ),
   ])
@@ -392,7 +392,9 @@ Deno.serve(async (req) => {
   if (!insertAppt.ok) return json({ error: await insertAppt.text() }, 400)
   const apptRows = (await insertAppt.json()) as { id: string }[]
   const appointmentId = apptRows[0]?.id
-  const ticketCode = `CR-${String(nextNumber).padStart(4, "0")}`
+  // Same M-/D- format as nurse walk-ins so display + nurse never disagree.
+  const ticketPrefix = providerType === "dentist" ? "D" : "M"
+  const ticketCode = `${ticketPrefix}-${String(nextNumber).padStart(3, "0")}`
 
   const insertTicket = await fetch(
     `${supabaseUrl}/rest/v1/health_queue_tickets`,

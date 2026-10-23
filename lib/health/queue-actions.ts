@@ -87,29 +87,38 @@ function estimateWaitMinutes(queuePosition: number) {
   return Math.max(0, queuePosition - 1) * MINUTES_PER_QUEUE_SLOT
 }
 
-async function nextQueueSlot(supabase: Awaited<ReturnType<typeof createClient>>) {
-  // Position: only live line (waiting / called).
-  // Number / ticket code: any ticket today — never reuse a skipped no-show's M-001.
+async function nextQueuePosition(
+  supabase: Awaited<ReturnType<typeof createClient>>
+) {
+  // Position: only live line (waiting / called) across all stations.
   const { ymd } = manilaDayBounds()
-  const [posResult, numResult] = await Promise.all([
-    supabase
-      .from("health_queue_tickets")
-      .select("queue_position")
-      .eq("service_date", ymd)
-      .in("status", ["waiting", "called"]),
-    supabase
-      .from("health_queue_tickets")
-      .select("queue_number")
-      .eq("service_date", ymd),
+  const { data } = await supabase
+    .from("health_queue_tickets")
+    .select("queue_position")
+    .eq("service_date", ymd)
+    .in("status", ["waiting", "called"])
+
+  return Math.max(0, ...(data ?? []).map((r) => r.queue_position ?? 0)) + 1
+}
+
+/**
+ * Next line position + specialty-scoped ticket number.
+ * M and D sequences are independent so nurse/display stay consistent
+ * (first physician = M-001, first dentist = D-001).
+ */
+async function nextQueueSlot(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  providerType: ConsultationProviderType = "physician"
+) {
+  const { ymd } = manilaDayBounds()
+  const { nextReservedQueueNumber } = await import(
+    "@/services/consultation-capacity"
+  )
+  const [nextPos, reserved] = await Promise.all([
+    nextQueuePosition(supabase),
+    nextReservedQueueNumber(providerType, ymd, supabase),
   ])
-
-  const nextPos =
-    Math.max(0, ...(posResult.data ?? []).map((r) => r.queue_position ?? 0)) +
-    1
-  const nextNum =
-    Math.max(0, ...(numResult.data ?? []).map((r) => r.queue_number ?? 0)) + 1
-
-  return { nextPos, nextNum }
+  return { nextPos, nextNum: reserved.nextNumber }
 }
 
 export async function callNextTicket(params: {
@@ -138,7 +147,7 @@ export async function callNextTicket(params: {
   const { data: waiting } = await supabase
     .from("health_queue_tickets")
     .select(
-      "id, call_count, queue_position, appointment_id, health_appointment_id, consultation_request_id, intake_notes, consultation_type, patient_name, ticket_code, queue_number"
+      "id, call_count, queue_position, appointment_id, health_appointment_id, consultation_request_id, intake_notes, consultation_type, patient_name, ticket_code, queue_number, intake_completed_at"
     )
     .eq("status", "waiting")
     .eq("station", station)
@@ -164,6 +173,8 @@ export async function callNextTicket(params: {
       (a, b) => (a.queue_position ?? 0) - (b.queue_position ?? 0)
     )
 
+  const isSpecialtyStation = station === "physician" || station === "dentist"
+
   let chosen: {
     id: string
     call_count: number | null
@@ -172,6 +183,11 @@ export async function callNextTicket(params: {
     queue_number: number | null
   } | null = null
   for (const candidate of rankedWaiting) {
+    // Specialty: nurse handoff already admitted them — skip appointment window.
+    if (isSpecialtyStation && candidate.intake_completed_at) {
+      chosen = candidate
+      break
+    }
     const eligibility = await assertTicketEligibleForQueueEntry(
       supabase,
       candidate
@@ -656,9 +672,9 @@ export async function rejoinQueue(params: {
     }
   }
 
-  const { nextPos, nextNum } = await nextQueueSlot(supabase)
-  const providerType =
+  const providerType: ConsultationProviderType =
     ticket.provider_type === "dentist" ? "dentist" : "physician"
+  const { nextPos, nextNum } = await nextQueueSlot(supabase, providerType)
   const ticketCode = formatClinicQueueCode(providerType, nextNum)
   const now = new Date().toISOString()
 
@@ -969,7 +985,7 @@ export async function completeNurseIntakeAndAssign(params: {
       : true
 
   const now = new Date().toISOString()
-  const { nextPos } = await nextQueueSlot(supabase)
+  const nextPos = await nextQueuePosition(supabase)
 
   const { error } = await supabase
     .from("health_queue_tickets")
@@ -977,6 +993,8 @@ export async function completeNurseIntakeAndAssign(params: {
       station: toStation,
       status: "waiting",
       queue_position: nextPos,
+      // Keep original M-/D- ticket_code — never flip prefix on specialty assign.
+      provider_type: toStation,
       call_count: 0,
       assigned_staff_name: params.staffName,
       chief_complaint: params.intake.chiefComplaint?.trim() || null,
@@ -1072,17 +1090,22 @@ export async function transferTicket(params: {
       ? isRoleOnDuty(dutyByRole, params.toStation)
       : true
 
-  const { nextPos } = await nextQueueSlot(supabase)
+  const nextPos = await nextQueuePosition(supabase)
+  const transferPatch: Record<string, unknown> = {
+    station: params.toStation,
+    status: "waiting",
+    queue_position: nextPos,
+    call_count: 0,
+    estimated_wait_minutes: estimateWaitMinutes(nextPos),
+    updated_at: new Date().toISOString(),
+  }
+  // Preserve ticket_code; only refresh specialty metadata when moving to a clinic.
+  if (params.toStation === "dentist" || params.toStation === "physician") {
+    transferPatch.provider_type = params.toStation
+  }
   const { error } = await supabase
     .from("health_queue_tickets")
-    .update({
-      station: params.toStation,
-      status: "waiting",
-      queue_position: nextPos,
-      call_count: 0,
-      estimated_wait_minutes: estimateWaitMinutes(nextPos),
-      updated_at: new Date().toISOString(),
-    })
+    .update(transferPatch)
     .eq("id", ticket.id)
 
   if (error) return { ok: false, error: error.message }
@@ -1435,7 +1458,7 @@ export async function registerWalkIn(params: {
     return { ok: false, error: ensured.error }
   }
 
-  const { nextPos, nextNum } = await nextQueueSlot(supabase)
+  const { nextPos, nextNum } = await nextQueueSlot(supabase, providerType)
   // Emergency jumps the line — stay ahead of every waiting/called ticket.
   const queuePosition = isEmergency ? 0 : nextPos
   const estimatedWaitMinutes = isEmergency
@@ -1751,7 +1774,7 @@ export async function admitWaitlistedConsultationRequest(params: {
   }
 
   const queueNumber = nextNumber
-  const ticketCode = `CR-${String(queueNumber).padStart(4, "0")}`
+  const ticketCode = formatClinicQueueCode(providerType, queueNumber)
   const now = new Date().toISOString()
 
   const { data: ticket, error } = await supabase
