@@ -299,9 +299,9 @@ export function WalkInSheet({
         </DialogTrigger>
       )}
       <DialogContent className="flex max-h-[min(92vh,720px)] w-full max-w-[calc(100%-1rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
-        <DialogHeader className="shrink-0 gap-1.5 border-b border-border px-5 py-4 pr-12 text-left sm:px-6 sm:py-5">
-          <DialogTitle>Register walk-in</DialogTitle>
-          <DialogDescription>
+        <DialogHeader className="shrink-0 gap-1.5 border-b border-border px-5 py-4 pr-14 text-left sm:px-6 sm:py-5 sm:pr-16">
+          <DialogTitle className="pr-2">Register walk-in</DialogTitle>
+          <DialogDescription className="max-w-[calc(100%-2.5rem)]">
             Search by surname in patient records. Mark Emergency to place them
             at the front of the nurse queue.
           </DialogDescription>
@@ -316,14 +316,10 @@ export function WalkInSheet({
             <Field className="gap-1.5">
               <FieldLabel htmlFor="walkin-surname">Surname</FieldLabel>
               {selectedPatient ? (
-                <div className="flex items-start gap-2 rounded-xl border border-border bg-muted/30 px-3 py-2.5">
-                  <div className="min-w-0 flex-1 space-y-0.5">
+                <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/30 px-3 py-2.5">
+                  <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-foreground">
                       {patientFullName(selectedPatient)}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {patientTypeLabel(selectedPatient.patientType)}
-                      {campusId ? ` · ${campusId}` : ""}
                     </p>
                   </div>
                   <Button
@@ -400,9 +396,6 @@ export function WalkInSheet({
                                     {patient.middleName
                                       ? ` ${patient.middleName}`
                                       : ""}
-                                    {" · "}
-                                    {patientTypeLabel(patient.patientType)}
-                                    {id ? ` · ${id}` : ""}
                                   </span>
                                 </span>
                               </CommandItem>

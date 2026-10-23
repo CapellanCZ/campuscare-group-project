@@ -18,90 +18,57 @@ import {
 import { cn } from "@/lib/utils"
 import type { AppointmentRequestStats } from "@/types/appointmentRequest"
 
-type StatTone = {
-  icon: ComponentType<{ className?: string; stroke?: number }>
-  chip: string
-  value: string
-  ring: string
-  active: string
-}
-
-const TONES: Record<string, StatTone> = {
-  pending: {
-    icon: IconClockHour4,
-    chip: "bg-warning/15 text-warning-foreground dark:text-warning",
-    value: "text-foreground",
-    ring: "ring-warning/35",
-    active: "bg-warning/8",
-  },
-  waitlisted: {
-    icon: IconListDetails,
-    chip: "bg-muted text-muted-foreground",
-    value: "text-foreground",
-    ring: "ring-border",
-    active: "bg-muted/50",
-  },
-  rescheduled: {
-    icon: IconCalendarEvent,
-    chip: "bg-sky-500/12 text-sky-700 dark:text-sky-400",
-    value: "text-foreground",
-    ring: "ring-sky-500/30",
-    active: "bg-sky-500/6",
-  },
-  in_progress: {
-    icon: IconProgress,
-    chip: "bg-primary/12 text-primary",
-    value: "text-foreground",
-    ring: "ring-primary/30",
-    active: "bg-primary/6",
-  },
-  cancelled: {
-    icon: IconXboxX,
-    chip: "bg-destructive/12 text-destructive",
-    value: "text-foreground",
-    ring: "ring-destructive/30",
-    active: "bg-destructive/6",
-  },
-}
-
 const ITEMS = [
   {
     key: "pending" as const,
     label: "Pending",
     description: "Awaiting nurse review",
+    icon: IconClockHour4,
   },
   {
     key: "waitlisted" as const,
     label: "Waitlisted",
     description: "Date capacity full",
+    icon: IconListDetails,
   },
   {
     key: "rescheduled" as const,
     label: "Rescheduled",
     description: "New slots proposed",
+    icon: IconCalendarEvent,
   },
   {
     key: "in_progress" as const,
-    label: "In Progress",
+    label: "In progress",
     description: "Consultation underway",
+    icon: IconProgress,
   },
   {
     key: "cancelled" as const,
     label: "Declined",
     description: "Declined by nurse",
+    icon: IconXboxX,
   },
-]
+] satisfies Array<{
+  key: keyof AppointmentRequestStats
+  label: string
+  description: string
+  icon: ComponentType<{ className?: string; stroke?: number }>
+}>
 
 export function RequestStatsStrip({
   stats,
   activeKey,
   onSelect,
   className,
+  /** When false, render the hairline grid only — nest inside a parent PanelFrame. */
+  framed = true,
 }: {
   stats: AppointmentRequestStats
   activeKey?: string | null
   onSelect?: (key: string) => void
   className?: string
+  framed?: boolean
 }) {
   const values: Record<(typeof ITEMS)[number]["key"], number> = {
     pending: stats.pending,
@@ -111,70 +78,82 @@ export function RequestStatsStrip({
     cancelled: stats.cancelled,
   }
 
-  return (
-    <PanelFrame className={className}>
-      <PanelGrid className="sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        {ITEMS.map((item) => {
-          const tone = TONES[item.key]
-          const Icon = tone.icon
-          const count = values[item.key]
-          const selected = activeKey === item.key
-          const interactive = Boolean(onSelect)
+  const grid = (
+    <PanelGrid
+      className={cn(
+        "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5",
+        !framed && className
+      )}
+    >
+      {ITEMS.map((item) => {
+        const Icon = item.icon
+        const count = values[item.key]
+        const selected = activeKey === item.key
+        const interactive = Boolean(onSelect)
 
-          return (
-            <PanelCell key={item.key}>
-              <button
-                type="button"
-                disabled={!interactive}
-                onClick={() => onSelect?.(item.key)}
-                className={cn(
-                  "flex w-full min-w-0 flex-col gap-2 px-4 py-3.5 text-left transition-colors",
-                  interactive && "hover:bg-muted/40 focus-visible:bg-muted/40",
-                  interactive &&
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-                  selected && tone.active
-                )}
-                aria-pressed={interactive ? selected : undefined}
-                aria-label={`${item.label}: ${count}. ${item.description}`}
-              >
-                <div className="flex items-center gap-2.5">
+        return (
+          <PanelCell key={item.key}>
+            <button
+              type="button"
+              disabled={!interactive}
+              onClick={() => onSelect?.(item.key)}
+              className={cn(
+                "flex h-full w-full min-w-0 flex-col gap-2 bg-background px-4 py-3.5 text-left transition-colors outline-none",
+                interactive &&
+                  "hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                selected && "bg-muted/50"
+              )}
+              aria-pressed={interactive ? selected : undefined}
+              aria-label={`${item.label}: ${count}. ${item.description}`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <Icon
+                    className={cn(
+                      "size-3.5 shrink-0",
+                      selected ? "text-primary" : "text-muted-foreground"
+                    )}
+                    stroke={1.75}
+                    aria-hidden
+                  />
                   <span
                     className={cn(
-                      "flex size-8 shrink-0 items-center justify-center rounded-lg transition-shadow duration-300",
-                      tone.chip,
-                      count > 0 && `ring-1 ${tone.ring}`
+                      "truncate text-xs font-medium tracking-wide",
+                      selected ? "text-foreground" : "text-muted-foreground"
                     )}
-                    aria-hidden
                   >
-                    <Icon className="size-4" stroke={1.75} />
-                  </span>
-                  <span className="text-[10px] font-medium tracking-wide text-muted-foreground uppercase sm:text-xs">
                     {item.label}
                   </span>
-                </div>
-
-                <AnimatedCount
-                  value={count}
-                  className={cn(
-                    "text-2xl font-semibold tracking-tight",
-                    tone.value,
-                    count > 0 && item.key === "pending" && "text-warning-foreground dark:text-warning",
-                    count > 0 && item.key === "cancelled" && "text-destructive",
-                    count > 0 && item.key === "rescheduled" && "text-sky-700 dark:text-sky-400",
-                    count > 0 && item.key === "in_progress" && "text-primary"
-                  )}
-                />
-
-                <span className="line-clamp-2 text-[11px] text-muted-foreground sm:truncate sm:text-xs">
-                  {item.description}
                 </span>
-              </button>
-            </PanelCell>
-          )
-        })}
-      </PanelGrid>
-    </PanelFrame>
+                {selected ? (
+                  <span
+                    className="size-1.5 shrink-0 rounded-full bg-primary"
+                    aria-hidden
+                  />
+                ) : null}
+              </div>
+
+              <AnimatedCount
+                value={count}
+                className={cn(
+                  "text-2xl font-semibold tracking-tight tabular-nums",
+                  selected ? "text-foreground" : "text-muted-foreground",
+                  count > 0 && selected && "text-primary"
+                )}
+              />
+
+              <span className="truncate text-xs text-muted-foreground">
+                {item.description}
+              </span>
+            </button>
+          </PanelCell>
+        )
+      })}
+    </PanelGrid>
   )
+
+  if (!framed) return grid
+  return <PanelFrame className={className}>{grid}</PanelFrame>
 }
 
 /** Optimistic local adjust when a request moves between statuses. */

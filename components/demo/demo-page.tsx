@@ -42,9 +42,11 @@ export function DemoPageHeader({
       <PageIntro
         title={title}
         description={
-          showRoleSuffix
+          showRoleSuffix && description.trim()
             ? `${description} · ${designationLabel(designation)}`
-            : description
+            : description.trim()
+              ? description
+              : undefined
         }
         action={actions}
       />
@@ -55,21 +57,66 @@ export function DemoPageHeader({
 export function DemoStatGrid({
   stats,
   className,
+  /** When false, render the hairline grid only — nest inside a parent PanelFrame. */
+  framed = true,
+  /** `lane` matches nurse queue tiles: icon + label, large number, hint. */
+  variant = "card",
 }: {
   stats: DemoStat[]
   className?: string
+  framed?: boolean
+  variant?: "card" | "lane"
 }) {
   const count = stats.length
-  return (
-    <PanelFrame className={className}>
-      <PanelGrid
-        className={cn(
-          "sm:grid-cols-2",
-          count >= 3 && "lg:grid-cols-3",
-          count >= 4 && "xl:grid-cols-4"
-        )}
-      >
-        {stats.map((stat) => (
+  const grid = (
+    <PanelGrid
+      className={cn(
+        "sm:grid-cols-2",
+        count >= 3 && "lg:grid-cols-3",
+        count >= 4 && "xl:grid-cols-4",
+        !framed && className
+      )}
+    >
+      {stats.map((stat) => {
+        if (variant === "lane") {
+          return (
+            <PanelCell key={stat.key}>
+              <div className="flex h-full min-w-0 flex-col gap-2 bg-background px-4 py-3.5">
+                <span className="inline-flex min-w-0 items-center gap-2">
+                  {stat.icon ? (
+                    <span
+                      className={cn(
+                        "flex size-7 shrink-0 items-center justify-center rounded-lg [&_svg]:size-3.5",
+                        stat.iconClassName ?? "bg-muted text-muted-foreground"
+                      )}
+                      aria-hidden
+                    >
+                      {stat.icon}
+                    </span>
+                  ) : null}
+                  <span className="truncate text-xs font-medium text-foreground">
+                    {stat.label}
+                  </span>
+                </span>
+                <p
+                  className={cn(
+                    "font-semibold text-2xl tracking-tight tabular-nums",
+                    stat.highlight ? "text-primary" : "text-foreground"
+                  )}
+                >
+                  {stat.value}
+                </p>
+                {stat.description ? (
+                  <span className="truncate text-xs text-muted-foreground">
+                    {stat.description}
+                  </span>
+                ) : null}
+              </div>
+            </PanelCell>
+          )
+        }
+
+        return (
           <PanelCell key={stat.key}>
             <StatCard
               flush
@@ -80,8 +127,10 @@ export function DemoStatGrid({
               iconPlacement={stat.icon ? "start" : "end"}
             />
           </PanelCell>
-        ))}
-      </PanelGrid>
-    </PanelFrame>
+        )
+      })}
+    </PanelGrid>
   )
+  if (!framed) return grid
+  return <PanelFrame className={className}>{grid}</PanelFrame>
 }

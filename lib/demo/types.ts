@@ -8,4 +8,8 @@ export type DemoStat = {
   value: string
   description?: string
   icon?: ReactNode
+  /** Tailwind classes for the icon (e.g. text-emerald-600). */
+  iconClassName?: string
+  /** Blue number — use when the metric increased since last visit. */
+  highlight?: boolean
 }

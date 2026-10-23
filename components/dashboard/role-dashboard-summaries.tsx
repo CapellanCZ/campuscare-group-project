@@ -103,7 +103,7 @@ export function RoleDashboardSummaries({
                     value: summary.nurseLanes?.atDentist ?? 0,
                   },
                   {
-                    label: "Exceptions",
+                    label: "Skipped / No Show",
                     value: summary.nurseLanes?.exceptions ?? 0,
                   },
                 ]}

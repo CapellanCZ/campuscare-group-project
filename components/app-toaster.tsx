@@ -30,7 +30,7 @@ export function AppToaster() {
   return (
     <>
       {/* Queue / form action feedback */}
-      <Toaster id={APP_TOASTER_IDS.action} position="top-center" />
+      <Toaster id={APP_TOASTER_IDS.action} position="top-right" />
       {/* Inbox-style notification alerts */}
       <Toaster id={APP_TOASTER_IDS.notification} position="top-right" />
     </>

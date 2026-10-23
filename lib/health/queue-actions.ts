@@ -88,18 +88,26 @@ function estimateWaitMinutes(queuePosition: number) {
 }
 
 async function nextQueueSlot(supabase: Awaited<ReturnType<typeof createClient>>) {
-  // Match the live board: only today's active tickets affect position / ETA.
+  // Position: only live line (waiting / called).
+  // Number / ticket code: any ticket today — never reuse a skipped no-show's M-001.
   const { ymd } = manilaDayBounds()
-  const { data: posRows } = await supabase
-    .from("health_queue_tickets")
-    .select("queue_position, queue_number")
-    .eq("service_date", ymd)
-    .in("status", ["waiting", "called"])
+  const [posResult, numResult] = await Promise.all([
+    supabase
+      .from("health_queue_tickets")
+      .select("queue_position")
+      .eq("service_date", ymd)
+      .in("status", ["waiting", "called"]),
+    supabase
+      .from("health_queue_tickets")
+      .select("queue_number")
+      .eq("service_date", ymd),
+  ])
 
   const nextPos =
-    Math.max(0, ...(posRows ?? []).map((r) => r.queue_position ?? 0)) + 1
+    Math.max(0, ...(posResult.data ?? []).map((r) => r.queue_position ?? 0)) +
+    1
   const nextNum =
-    Math.max(0, ...(posRows ?? []).map((r) => r.queue_number ?? 0)) + 1
+    Math.max(0, ...(numResult.data ?? []).map((r) => r.queue_number ?? 0)) + 1
 
   return { nextPos, nextNum }
 }
@@ -629,7 +637,7 @@ export async function rejoinQueue(params: {
   const supabase = await createClient()
   const { data: ticket } = await supabase
     .from("health_queue_tickets")
-    .select("id, status, rejoin_count, station, service_date")
+    .select("id, status, rejoin_count, station, service_date, provider_type")
     .eq("id", params.ticketId)
     .maybeSingle()
 
@@ -648,7 +656,10 @@ export async function rejoinQueue(params: {
     }
   }
 
-  const { nextPos } = await nextQueueSlot(supabase)
+  const { nextPos, nextNum } = await nextQueueSlot(supabase)
+  const providerType =
+    ticket.provider_type === "dentist" ? "dentist" : "physician"
+  const ticketCode = formatClinicQueueCode(providerType, nextNum)
   const now = new Date().toISOString()
 
   const { error } = await supabase
@@ -656,6 +667,10 @@ export async function rejoinQueue(params: {
     .update({
       status: "waiting",
       queue_position: nextPos,
+      // Fresh number so rejoined tickets never collide with someone still holding
+      // the old code (e.g. two M-001 after a skip + new walk-in).
+      queue_number: nextNum,
+      ticket_code: ticketCode,
       call_count: 0,
       rejoin_count: (ticket.rejoin_count ?? 0) + 1,
       last_rejoined_at: now,
@@ -667,7 +682,7 @@ export async function rejoinQueue(params: {
   if (error) return { ok: false, error: error.message }
   return {
     ok: true,
-    message: `Rejoined at the end of the ${ticket.station} queue.`,
+    message: `Rejoined as ${ticketCode} at the end of the ${ticket.station} queue.`,
   }
 }
 

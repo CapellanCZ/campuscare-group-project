@@ -5,7 +5,7 @@ import {
 import { isTicketReleasedToQueue } from "@/lib/health/queue-ready"
 import type { QueueTicketRow } from "@/lib/health/types"
 
-export type NurseQueueLane = "needs_intake" | "at_specialty" | "exceptions"
+export type NurseQueueLane = "needs_intake" | "at_specialty"
 
 /**
  * Nurse-station patients who still need vitals / specialty assign.
@@ -334,9 +334,10 @@ export function isNurseQueueException(row: QueueTicketRow): boolean {
   )
 }
 
-export function nurseLaneForTicket(row: QueueTicketRow): NurseQueueLane {
+export function nurseLaneForTicket(row: QueueTicketRow): NurseQueueLane | null {
+  // Skipped / no-show live in the status table, not a lane.
+  if (isNurseQueueException(row)) return null
   if (needsNurseIntake(row)) return "needs_intake"
-  if (isNurseQueueException(row)) return "exceptions"
   if (isAtSpecialtyAfterIntake(row)) return "at_specialty"
   return "at_specialty"
 }

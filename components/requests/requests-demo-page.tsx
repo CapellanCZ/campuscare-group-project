@@ -158,6 +158,41 @@ function sortRequests(
   return next
 }
 
+function matchesRequestSearch(request: AppointmentRequest, query: string) {
+  const needle = query.trim().toLowerCase()
+  if (!needle) return true
+  const haystack = [
+    request.patientName,
+    request.studentId,
+    request.email,
+    request.phone,
+    request.service,
+    request.reason,
+    request.doctorName,
+    request.status,
+    request.queueNumber != null ? String(request.queueNumber) : null,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+  return haystack.includes(needle)
+}
+
+function recentFromCache(
+  cached: ReturnType<typeof getCachedRequests>,
+  fallbackList: AppointmentRequestListResult
+): AppointmentRequest[] {
+  if (cached?.recentApproved?.length) {
+    return sortRecentlyApproved(cached.recentApproved).slice(
+      0,
+      RECENTLY_APPROVED_LIMIT
+    )
+  }
+  return sortRecentlyApproved(
+    fallbackList.items.filter((item) => item.status === "confirmed")
+  ).slice(0, RECENTLY_APPROVED_LIMIT)
+}
+
 export function RequestsPage({
   access,
   initialList,
@@ -183,12 +218,7 @@ export function RequestsPage({
   const [list, setList] = useState(cached?.list ?? initialList)
   const [stats, setStats] = useState(cached?.stats ?? initialStats)
   const [recentApproved, setRecentApproved] = useState<AppointmentRequest[]>(
-    () =>
-      sortRecentlyApproved(
-        (cached?.list ?? initialList).items.filter(
-          (item) => item.status === "confirmed"
-        )
-      ).slice(0, RECENTLY_APPROVED_LIMIT)
+    () => recentFromCache(cached, cached?.list ?? initialList)
   )
   const [loading, setLoading] = useState(
     () => hydrateFromCache && !cached
@@ -199,11 +229,50 @@ export function RequestsPage({
   const skipNextFetch = useRef(true)
   const hydratedRef = useRef(false)
   const detailRequestId = useRef<string | null>(null)
+  const recentApprovedRef = useRef(recentApproved)
+  recentApprovedRef.current = recentApproved
 
   const canApprove = can(access.designation, "requests.approve")
   const canDecline = can(access.designation, "requests.decline")
   const canReschedule = can(access.designation, "requests.reschedule")
   const canViewDetails = can(access.designation, "requests.view_patient_details")
+
+  const persistLocal = useCallback(
+    (
+      nextList: AppointmentRequestListResult,
+      nextStats: AppointmentRequestStats,
+      nextRecent: AppointmentRequest[] = recentApprovedRef.current
+    ) => {
+      saveRequestsCache(access.designation, {
+        list: nextList,
+        stats: nextStats,
+        recentApproved: nextRecent,
+      })
+    },
+    [access.designation]
+  )
+
+  const applyBundle = useCallback(
+    (bundle: {
+      list: AppointmentRequestListResult
+      stats: AppointmentRequestStats
+      recentApproved?: AppointmentRequest[]
+    }) => {
+      setList(bundle.list)
+      setStats(bundle.stats)
+      if (bundle.recentApproved) {
+        const nextRecent = sortRecentlyApproved(bundle.recentApproved).slice(
+          0,
+          RECENTLY_APPROVED_LIMIT
+        )
+        setRecentApproved(nextRecent)
+        persistLocal(bundle.list, bundle.stats, nextRecent)
+      } else {
+        persistLocal(bundle.list, bundle.stats)
+      }
+    },
+    [persistLocal]
+  )
 
   useEffect(() => {
     if (initialError) requestToasts.failed(initialError)
@@ -215,6 +284,7 @@ export function RequestsPage({
     saveRequestsCache(access.designation, {
       list: initialList,
       stats: initialStats,
+      recentApproved: recentFromCache(null, initialList),
     })
   }, [access.designation, hydrateFromCache, initialList, initialStats])
 
@@ -223,65 +293,39 @@ export function RequestsPage({
       const nextQuery = query.trim()
       if (nextQuery === debouncedQuery) return
       setDebouncedQuery(nextQuery)
+      setPage(1)
     }, SEARCH_DEBOUNCE_MS)
     return () => window.clearTimeout(timer)
   }, [query, debouncedQuery])
 
-  const loadRecentlyApproved = useCallback(async (silent = true) => {
-    if (!silent) setRecentLoading(true)
-    try {
-      const result = await fetchRecentlyApprovedRequestsAction(
-        RECENTLY_APPROVED_LIMIT
-      )
-      if (!result.ok) return
-      setRecentApproved(result.data)
-    } catch {
-      // Soft-fail — main queue refresh still owns hard errors.
-    } finally {
-      if (!silent) setRecentLoading(false)
-    }
-  }, [])
+  /** Soft pull from Supabase — never blanks the UI (local list stays source of truth). */
+  const reconcileFromServer = useCallback(
+    async (options?: { query?: string; showSkeleton?: boolean }) => {
+      const nextQuery = options?.query ?? debouncedQuery
+      const showSkeleton = Boolean(options?.showSkeleton)
 
-  const loadPage = useCallback(
-    async (
-      nextQuery: string,
-      nextStatus: string,
-      options?: { silent?: boolean }
-    ) => {
-      const silent = Boolean(options?.silent)
-      const isDefault =
-        !nextQuery.trim() && nextStatus === "all" && hydrateFromCache
-
-      if (!silent) setLoading(true)
+      if (showSkeleton) setLoading(true)
       try {
-        if (isDefault) {
-          const [bundle] = await Promise.all([
-            loadRequestsBundle(access.designation, {
-              force: true,
-            }),
-            loadRecentlyApproved(true),
-          ])
-          setList(bundle.list)
-          setStats(bundle.stats)
+        // Default inbox: one cached bundle (list + stats + recently approved).
+        if (!nextQuery.trim()) {
+          const bundle = await loadRequestsBundle(access.designation, {
+            force: true,
+          })
+          applyBundle(bundle)
           return
         }
 
-        const [listResult, statsResult] = await Promise.all([
+        // Search: server-filter the queue; still refresh stats + recently approved.
+        const [listResult, statsResult, recentResult] = await Promise.all([
           fetchConsultationRequestsAction({
             query: nextQuery,
-            status:
-              nextStatus === "all"
-                ? "all"
-                : (nextStatus as AppointmentRequestStatus),
-            statuses:
-              nextStatus === "all" && isNurse
-                ? NURSE_REQUEST_TAB_STATUSES
-                : undefined,
+            status: "all",
+            statuses: isNurse ? NURSE_REQUEST_TAB_STATUSES : undefined,
             page: 1,
             pageSize: 100,
           }),
           fetchConsultationRequestStatsAction(),
-          loadRecentlyApproved(true),
+          fetchRecentlyApprovedRequestsAction(RECENTLY_APPROVED_LIMIT),
         ])
         if (!listResult.ok) {
           requestToasts.failed(listResult.error)
@@ -291,30 +335,42 @@ export function RequestsPage({
           requestToasts.failed(statsResult.error)
           return
         }
+        const nextRecent = recentResult.ok
+          ? sortRecentlyApproved(recentResult.data).slice(
+              0,
+              RECENTLY_APPROVED_LIMIT
+            )
+          : recentApprovedRef.current
+        if (recentResult.ok) setRecentApproved(nextRecent)
         setList(listResult.data)
         setStats(statsResult.data)
-        if (isDefault) {
-          saveRequestsCache(access.designation, {
-            list: listResult.data,
-            stats: statsResult.data,
-          })
-        }
+        persistLocal(listResult.data, statsResult.data, nextRecent)
       } catch {
         requestToasts.failed(
           "Unable to reach the database. Check your connection and try again."
         )
       } finally {
         setLoading(false)
+        setRecentLoading(false)
       }
     },
-    [access.designation, hydrateFromCache, isNurse, loadRecentlyApproved]
+    [
+      access.designation,
+      applyBundle,
+      debouncedQuery,
+      isNurse,
+      persistLocal,
+    ]
   )
 
-  const refresh = useCallback(async () => {
-    await loadPage(debouncedQuery, status, { silent: true })
-  }, [debouncedQuery, status, loadPage])
+  const { schedule: scheduleRefresh } = useInstantListRefresh(
+    () => void reconcileFromServer(),
+    400
+  )
 
-  const { schedule: scheduleRefresh } = useInstantListRefresh(refresh, 400)
+  useEffect(() => {
+    setPage(1)
+  }, [status])
 
   useStaffRealtimeRefresh(
     `staff-requests-${access.designation}`,
@@ -331,47 +387,53 @@ export function RequestsPage({
     if (hit) {
       setList(hit.list)
       setStats(hit.stats)
-      setRecentApproved(
-        sortRecentlyApproved(
-          hit.list.items.filter((item) => item.status === "confirmed")
-        ).slice(0, RECENTLY_APPROVED_LIMIT)
-      )
+      setRecentApproved(recentFromCache(hit, hit.list))
       setLoading(false)
     }
-    void loadRecentlyApproved(true)
-    // Fresh cache: skip network on revisit. Stale/missing: soft-revalidate.
-    if (fresh) return
+    // Fresh cache: paint instantly; still soft-reconcile so realtime peers catch up.
+    if (fresh) {
+      void reconcileFromServer()
+      return
+    }
     void loadRequestsBundle(access.designation, {
       force: Boolean(hit),
     })
       .then((bundle) => {
-        setList(bundle.list)
-        setStats(bundle.stats)
+        applyBundle(bundle)
         setLoading(false)
       })
       .catch(() => {
         setLoading(false)
-        if (!hit) void loadPage("", "all", { silent: true })
+        if (!hit) void reconcileFromServer({ showSkeleton: true })
       })
-  }, [access.designation, hydrateFromCache, loadPage, loadRecentlyApproved])
+    // Mount hydrate only — do not re-run when reconcile identity changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount hydrate only
+  }, [access.designation, hydrateFromCache])
 
+  // Status filters are local-only. Search soft-reconciles without skeleton flash.
   useEffect(() => {
     if (skipNextFetch.current) {
       skipNextFetch.current = false
-      // Seeded from initialList; soft-reconcile without a loading flash.
-      if (!hydrateFromCache) void loadRecentlyApproved(true)
+      if (!hydrateFromCache) void reconcileFromServer()
       return
     }
-    setPage(1)
-    void loadPage(debouncedQuery, status)
-  }, [debouncedQuery, status, loadPage, hydrateFromCache, loadRecentlyApproved])
+    void reconcileFromServer({ query: debouncedQuery })
+  }, [debouncedQuery, hydrateFromCache, reconcileFromServer])
 
   const rows = useMemo(() => {
-    const filtered = isNurse
+    let items = isNurse
       ? list.items.filter((item) => item.status !== "confirmed")
       : list.items
-    return sortRequests(filtered, sort)
-  }, [isNurse, list.items, sort])
+    if (status !== "all") {
+      items = items.filter((item) => item.status === status)
+    }
+    if (debouncedQuery.trim()) {
+      items = items.filter((item) =>
+        matchesRequestSearch(item, debouncedQuery)
+      )
+    }
+    return sortRequests(items, sort)
+  }, [debouncedQuery, isNurse, list.items, sort, status])
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
   const pageRows = rows.slice(
@@ -421,43 +483,45 @@ export function RequestsPage({
 
   async function handleUpdated(request: AppointmentRequest) {
     setSelected(request)
-    // Optimistic: patch the visible queue + KPI strip immediately, then soft-reconcile.
+    // Optimistic: patch local queue + KPIs + recently approved, then soft-reconcile.
     const existing = list.items.find((item) => item.id === request.id)
     const nextStats =
       existing && existing.status !== request.status
         ? shiftRequestStats(stats, existing.status, request.status)
         : stats
-    // Nurse queue hides confirmed rows (they move to Recently Approved).
-    const matchesFilter =
-      (status === "all" || request.status === status) &&
-      !(isNurse && request.status === "confirmed")
+    // Nurse triage list never keeps confirmed rows (they live in Recently approved).
+    const keepInQueue = !(isNurse && request.status === "confirmed")
     const without = list.items.filter((item) => item.id !== request.id)
-    const nextItems = matchesFilter ? [request, ...without] : without
+    const nextItems = keepInQueue ? [request, ...without] : without
     const nextList = {
       ...list,
       items: nextItems,
-      total: Math.max(0, list.total + (matchesFilter ? 0 : -1)),
+      total: Math.max(0, list.total + (keepInQueue ? 0 : -1)),
     }
+    const withoutRecent = recentApprovedRef.current.filter(
+      (item) => item.id !== request.id
+    )
+    const nextRecent =
+      request.status === "confirmed"
+        ? sortRecentlyApproved([request, ...withoutRecent]).slice(
+            0,
+            RECENTLY_APPROVED_LIMIT
+          )
+        : withoutRecent
     setList(nextList)
     setStats(nextStats)
-    // Keep sidebar pending badge in sync even when realtime is flaky.
-    saveRequestsCache(access.designation, {
-      list: nextList,
-      stats: nextStats,
-    })
-    setRecentApproved((prev) => {
-      const withoutRecent = prev.filter((item) => item.id !== request.id)
-      if (request.status !== "confirmed") return withoutRecent
-      return sortRecentlyApproved([request, ...withoutRecent]).slice(
-        0,
-        RECENTLY_APPROVED_LIMIT
-      )
-    })
+    setRecentApproved(nextRecent)
+    persistLocal(nextList, nextStats, nextRecent)
     scheduleRefresh()
   }
 
+  const statusCaption =
+    status === "all"
+      ? null
+      : consultationRequestStatusLabel(status as AppointmentRequestStatus)
+
   return (
-    <div className="flex flex-col gap-8 pt-2">
+    <div className="flex flex-col gap-6 pt-2">
       <DemoPageHeader
         title="Consultation Requests"
         description={
@@ -470,182 +534,206 @@ export function RequestsPage({
         showRoleSuffix={false}
       />
 
-      {can(access.designation, "requests.summary_cards") ? (
-        <RequestStatsStrip
-          stats={stats}
-          activeKey={status === "all" ? null : status}
-          onSelect={(key) => {
-            setPage(1)
-            setStatus((current) => (current === key ? "all" : key))
-          }}
-        />
-      ) : null}
-
       <PanelFrame>
-        <PanelGrid className="lg:grid-cols-3">
-          <PanelCell className="lg:col-span-2">
-            <Card className={cn(panelCardClassName, "h-full gap-0 py-0")}>
-              <CardHeader className="border-b px-6 py-5 [.border-b]:pb-5">
-                <div className="flex flex-col gap-3">
-                  <CardTitle className="text-base">Request Queue</CardTitle>
-                  {can(access.designation, "requests.search_filters") ? (
-                    <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
-                      {isNurse ? (
-                        <StudentIdSearchInput
-                          className="w-full sm:min-w-[12rem] sm:flex-1"
-                          value={query}
-                          onChange={setQuery}
-                          placeholder="Search by ID Number"
-                          aria-label="Search by ID Number"
-                        />
-                      ) : (
-                        <Input
-                          className="h-9 w-full sm:min-w-[12rem] sm:flex-1"
-                          placeholder="Search patient, ID, email, service, doctor, status"
-                          value={query}
-                          onChange={(e) => setQuery(e.target.value)}
-                        />
-                      )}
-                      <Select
-                        value={status}
-                        items={statusFilterItems}
-                        onValueChange={(value) => {
-                          setStatus(value ?? "all")
-                          setPage(1)
-                        }}
-                      >
-                        <SelectTrigger
-                          className="h-9 w-full shrink-0 sm:w-40"
-                          aria-label="Filter by status"
-                        >
-                          <SelectValue placeholder="All Statuses" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Statuses</SelectItem>
-                          {filterStatuses.map((value) => (
-                            <SelectItem key={value} value={value}>
-                              {consultationRequestStatusLabel(value)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Select
-                        value={sort}
-                        items={sortFilterItems}
-                        onValueChange={(value) => {
-                          setSort((value as RequestSort) ?? "priority")
-                          setPage(1)
-                        }}
-                      >
-                        <SelectTrigger
-                          className="h-9 w-full shrink-0 sm:w-44"
-                          aria-label="Sort requests"
-                        >
-                          <SelectValue placeholder="Sort" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {REQUEST_SORTS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+        <PanelGrid>
+          {can(access.designation, "requests.summary_cards") ? (
+            <PanelCell>
+              <RequestStatsStrip
+                framed={false}
+                stats={stats}
+                activeKey={status === "all" ? null : status}
+                onSelect={(key) => {
+                  setPage(1)
+                  setStatus((current) => (current === key ? "all" : key))
+                }}
+              />
+            </PanelCell>
+          ) : null}
+
+          <PanelCell>
+            <PanelGrid className="lg:grid-cols-3">
+              <PanelCell className="lg:col-span-2">
+                <Card className={cn(panelCardClassName, "h-full gap-0 py-0")}>
+                  <CardHeader className="gap-3 border-b px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-4">
+                    <div className="min-w-0">
+                      <CardTitle className="text-base">Request queue</CardTitle>
+                      <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">
+                        {rows.length} request{rows.length === 1 ? "" : "s"}
+                        {statusCaption ? ` · ${statusCaption}` : ""}
+                        {debouncedQuery.trim() ? " matching search" : ""}
+                      </p>
                     </div>
-                  ) : null}
-                </div>
-              </CardHeader>
-              <CardContent className="min-w-0 p-0">
-                {listBusy.showInitialSkeleton ? (
-                  <div
-                    className="space-y-2 p-4"
-                    role="status"
-                    aria-label="Loading requests"
-                  >
-                    {Array.from({ length: 3 }).map((_, index) => (
-                      <Skeleton key={index} className="h-12 w-full" />
-                    ))}
-                  </div>
-                ) : rows.length === 0 ? (
-                  <Empty className="border-0 py-12">
-                    <EmptyHeader>
-                      <EmptyMedia variant="icon">
-                        <IconClipboardList aria-hidden />
-                      </EmptyMedia>
-                      <EmptyTitle>No consultation requests</EmptyTitle>
-                      <EmptyDescription>
-                        Mobile appointment submissions appear here for nurse
-                        triage.
-                      </EmptyDescription>
-                    </EmptyHeader>
-                  </Empty>
-                ) : (
-                  <>
-                    <div
-                      className={cn(
-                        "divide-y divide-border",
-                        staleListBusyClassName(listBusy.isRefreshing)
-                      )}
-                      aria-busy={listBusy.isRefreshing || undefined}
-                    >
-                      {pageRows.map((row, rowIndex) => (
-                        <ConsultationRequestCard
-                          key={row.id}
-                          request={row}
-                          index={(safePage - 1) * PAGE_SIZE + rowIndex + 1}
-                          canViewDetails={canViewDetails}
-                          canApprove={canApprove}
-                          canDecline={canDecline}
-                          canReschedule={canReschedule}
-                          onAction={(mode) => openRequest(row, mode)}
-                        />
-                      ))}
-                    </div>
-                    {rows.length > PAGE_SIZE ? (
-                      <div className="flex items-center justify-between gap-3 border-t px-4 py-3 sm:px-6">
-                        <p
-                          className="text-sm text-muted-foreground"
-                          role="status"
+                    {can(access.designation, "requests.search_filters") ? (
+                      <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+                        {isNurse ? (
+                          <StudentIdSearchInput
+                            className="w-full sm:w-52 lg:w-56"
+                            value={query}
+                            onChange={setQuery}
+                            placeholder="Search by ID Number"
+                            aria-label="Search by ID Number"
+                          />
+                        ) : (
+                          <Input
+                            className="h-9 w-full sm:w-56 lg:w-64"
+                            placeholder="Search patient, ID, email…"
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                          />
+                        )}
+                        <Select
+                          value={status}
+                          items={statusFilterItems}
+                          onValueChange={(value) => {
+                            setStatus(value ?? "all")
+                            setPage(1)
+                          }}
                         >
-                          Page {safePage} of {totalPages} · {rows.length}{" "}
-                          requests
-                        </p>
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={safePage <= 1 || loading}
-                            onClick={() => setPage((p) => Math.max(1, p - 1))}
+                          <SelectTrigger
+                            className="h-9 w-full shrink-0 sm:w-36"
+                            aria-label="Filter by status"
                           >
-                            Previous
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={safePage >= totalPages || loading}
-                            onClick={() =>
-                              setPage((p) => Math.min(totalPages, p + 1))
-                            }
+                            <SelectValue placeholder="All statuses" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All statuses</SelectItem>
+                            {filterStatuses.map((value) => (
+                              <SelectItem key={value} value={value}>
+                                {consultationRequestStatusLabel(value)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={sort}
+                          items={sortFilterItems}
+                          onValueChange={(value) => {
+                            setSort((value as RequestSort) ?? "priority")
+                            setPage(1)
+                          }}
+                        >
+                          <SelectTrigger
+                            className="h-9 w-full shrink-0 sm:w-40"
+                            aria-label="Sort requests"
                           >
-                            Next
-                          </Button>
-                        </div>
+                            <SelectValue placeholder="Sort" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {REQUEST_SORTS.map((option) => (
+                              <SelectItem
+                                key={option.value}
+                                value={option.value}
+                              >
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     ) : null}
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          </PanelCell>
-          <PanelCell className="lg:col-span-1">
-            <RecentlyApprovedPanel
-              items={recentApproved}
-              loading={recentLoading}
-              canViewDetails={canViewDetails}
-              onView={(request) => openRequest(request, "view")}
-            />
+                  </CardHeader>
+                  <CardContent className="min-w-0 p-0">
+                    {listBusy.showInitialSkeleton ? (
+                      <div
+                        className="space-y-2 p-4"
+                        role="status"
+                        aria-label="Loading requests"
+                      >
+                        {Array.from({ length: 3 }).map((_, index) => (
+                          <Skeleton key={index} className="h-12 w-full" />
+                        ))}
+                      </div>
+                    ) : rows.length === 0 ? (
+                      <Empty className="border-0 py-14">
+                        <EmptyHeader>
+                          <EmptyMedia variant="icon">
+                            <IconClipboardList aria-hidden />
+                          </EmptyMedia>
+                          <EmptyTitle>No consultation requests</EmptyTitle>
+                          <EmptyDescription className="max-w-sm">
+                            {debouncedQuery.trim() || status !== "all"
+                              ? "Nothing matches your search or status filter."
+                              : "Mobile appointment submissions appear here for nurse triage."}
+                          </EmptyDescription>
+                        </EmptyHeader>
+                      </Empty>
+                    ) : (
+                      <>
+                        <div
+                          className={cn(
+                            "divide-y divide-border",
+                            staleListBusyClassName(listBusy.isRefreshing)
+                          )}
+                          aria-busy={listBusy.isRefreshing || undefined}
+                        >
+                          {pageRows.map((row, rowIndex) => (
+                            <ConsultationRequestCard
+                              key={row.id}
+                              request={row}
+                              index={
+                                (safePage - 1) * PAGE_SIZE + rowIndex + 1
+                              }
+                              canViewDetails={canViewDetails}
+                              canApprove={canApprove}
+                              canDecline={canDecline}
+                              canReschedule={canReschedule}
+                              onAction={(mode) => openRequest(row, mode)}
+                            />
+                          ))}
+                        </div>
+                        {rows.length > PAGE_SIZE ? (
+                          <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-2.5 sm:px-5">
+                            <p
+                              className="text-xs text-muted-foreground tabular-nums sm:text-sm"
+                              role="status"
+                            >
+                              Page {safePage} of {totalPages}
+                              <span className="text-muted-foreground/80">
+                                {" "}
+                                · {rows.length} request
+                                {rows.length === 1 ? "" : "s"}
+                              </span>
+                            </p>
+                            <div className="flex gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={safePage <= 1 || loading}
+                                onClick={() =>
+                                  setPage((p) => Math.max(1, p - 1))
+                                }
+                              >
+                                Previous
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={safePage >= totalPages || loading}
+                                onClick={() =>
+                                  setPage((p) => Math.min(totalPages, p + 1))
+                                }
+                              >
+                                Next
+                              </Button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              </PanelCell>
+              <PanelCell className="lg:col-span-1">
+                <RecentlyApprovedPanel
+                  items={recentApproved}
+                  loading={recentLoading}
+                  canViewDetails={canViewDetails}
+                  onView={(request) => openRequest(request, "view")}
+                />
+              </PanelCell>
+            </PanelGrid>
           </PanelCell>
         </PanelGrid>
       </PanelFrame>
@@ -682,7 +770,7 @@ export function RequestsPage({
           if (!open) closeDialog()
         }}
         onDeclined={() => {
-          void refresh()
+          scheduleRefresh()
         }}
       />
     </div>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { IconBell } from "@tabler/icons-react"
 import { motion } from "motion/react"
+import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js"
 
 import { Badge } from "@/components/reui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -23,12 +24,11 @@ import {
   markAllNotificationsReadAction,
   markNotificationReadAction,
 } from "@/features/settings/actions"
-import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
-import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 import { appToast } from "@/lib/feedback/app-toast"
 import {
   buildFallbackNotifications,
   filterNotificationsByPrefs,
+  mapNotificationRow,
   type HeaderStaffNotification,
 } from "@/lib/notifications/header-notifications"
 import {
@@ -41,7 +41,11 @@ import {
   getSessionNotifyPrefsOrDefault,
   saveSessionNotifyPrefs,
 } from "@/lib/notifications/session-prefs-cache"
+import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
+
+/** Backup reconcile if Realtime drops — keep short so lag stays bounded. */
+const BACKUP_POLL_MS = 60_000
 
 const CLEAR_DOT_MS = 280
 const CLEAR_STAGGER_MS = 55
@@ -93,6 +97,8 @@ function HeaderNotificationsInbox() {
   const clearingRef = useRef(false)
   const clearTimerRef = useRef<number | null>(null)
   const knownIdsRef = useRef<Set<string> | null>(null)
+  const itemsRef = useRef(items)
+  itemsRef.current = items
 
   const applyInbox = useCallback((next: HeaderStaffNotification[]) => {
     // Keep the cleanup animation stable if realtime refreshes mid-clear.
@@ -122,8 +128,8 @@ function HeaderNotificationsInbox() {
   }, [])
 
   const load = useCallback(
-    (options?: { refreshPrefs?: boolean }) => {
-      startTransition(async () => {
+    (options?: { refreshPrefs?: boolean; urgent?: boolean }) => {
+      const run = async () => {
         const needPrefs =
           Boolean(options?.refreshPrefs) || getSessionNotifyPrefs() == null
 
@@ -169,25 +175,98 @@ function HeaderNotificationsInbox() {
             )
           )
         }
+      }
+
+      // Urgent path (Realtime reconcile) must not wait behind transitions.
+      if (options?.urgent) {
+        void run()
+        return
+      }
+      startTransition(() => {
+        void run()
       })
     },
     [applyInbox, designation]
   )
 
-  useStaffRealtimeRefresh(
-    userId ? `staff-notifications-${userId}` : "staff-notifications",
-    STAFF_REALTIME_TABLES.notifications,
-    () => load(),
-    300,
-    userId ? { notifications: `user_id=eq.${userId}` } : undefined
-  )
+  // Apply Realtime INSERT/UPDATE immediately — don't wait on a server refetch.
+  useEffect(() => {
+    if (!userId) return
+
+    const client = createClient()
+    const channel = client
+      .channel(`staff-notifications-live-${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+          const preferences = getSessionNotifyPrefsOrDefault()
+          const current = itemsRef.current
+
+          if (payload.eventType === "INSERT") {
+            const mapped = mapNotificationRow(
+              payload.new as Record<string, unknown>,
+              designation
+            )
+            if (!mapped) return
+            const allowed = filterNotificationsByPrefs([mapped], preferences)
+            if (allowed.length === 0) return
+            if (current.some((item) => item.id === mapped.id)) return
+
+            setUsingFallback(false)
+            applyInbox(
+              [mapped, ...current.filter((item) => !isFallbackId(item.id))].slice(
+                0,
+                30
+              )
+            )
+            return
+          }
+
+          if (payload.eventType === "UPDATE") {
+            const mapped = mapNotificationRow(
+              payload.new as Record<string, unknown>,
+              designation
+            )
+            if (!mapped) return
+            applyInbox(
+              current.map((item) => (item.id === mapped.id ? mapped : item))
+            )
+            return
+          }
+
+          if (payload.eventType === "DELETE") {
+            const oldRow = payload.old as Record<string, unknown>
+            const id = typeof oldRow.id === "string" ? oldRow.id : null
+            if (!id) return
+            applyInbox(current.filter((item) => item.id !== id))
+          }
+        }
+      )
+      .subscribe((status, err) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.warn("[realtime] staff-notifications", status, err ?? "")
+          // Channel unhealthy — pull fresh inbox urgently.
+          load({ urgent: true })
+        }
+      })
+
+    return () => {
+      void client.removeChannel(channel)
+    }
+  }, [userId, designation, applyInbox, load])
 
   useEffect(() => {
-    load()
-    const id = window.setInterval(() => load(), 300_000)
+    load({ urgent: true })
+    const id = window.setInterval(() => load({ urgent: true }), BACKUP_POLL_MS)
     const onPrefs = () => {
       clearSessionNotifyPrefs()
-      load({ refreshPrefs: true })
+      load({ refreshPrefs: true, urgent: true })
     }
     window.addEventListener("campuscare:notification-prefs", onPrefs)
     return () => {

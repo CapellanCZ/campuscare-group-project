@@ -105,8 +105,7 @@ export function ConsultationRequestCard({
       className={cn(
         // No per-row border — parent uses divide-y so a single item has no
         // bottom line doubling the card/panel frame.
-        "flex flex-col gap-3 px-6 py-5",
-        "sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+        "flex flex-col gap-2.5 px-4 py-3.5 hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5"
       )}
     >
       <div className="flex min-w-0 flex-1 items-start gap-3">

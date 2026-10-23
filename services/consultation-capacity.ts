@@ -112,9 +112,36 @@ export async function nextReservedQueueNumber(
   client?: SupabaseClient
 ): Promise<{ nextNumber: number; used: number; max: number }> {
   const supabase = client ?? (await createClient())
-  const [used, max] = await Promise.all([
+  const startIso = new Date(`${serviceDate}T00:00:00+08:00`).toISOString()
+  const endIso = new Date(`${serviceDate}T23:59:59.999+08:00`).toISOString()
+
+  const [used, max, apptResult, ticketResult] = await Promise.all([
     countActiveReservations(providerType, serviceDate, supabase),
     getMaxDailySlots(providerType, CAMPUS_CLINIC_ID, supabase),
+    // Include cancelled/no-show so freed capacity does not reuse their numbers.
+    supabase
+      .from("appointments")
+      .select("queue_number")
+      .eq("provider_type", providerType)
+      .gte("starts_at", startIso)
+      .lte("starts_at", endIso)
+      .not("queue_number", "is", null),
+    // Walk-ins share M-/D- ticket codes — never collide with those either.
+    supabase
+      .from("health_queue_tickets")
+      .select("queue_number")
+      .eq("service_date", serviceDate)
+      .not("queue_number", "is", null),
   ])
-  return { nextNumber: used + 1, used, max }
+
+  if (apptResult.error) throw apptResult.error
+  if (ticketResult.error) throw ticketResult.error
+
+  const maxAssigned = Math.max(
+    0,
+    ...(apptResult.data ?? []).map((row) => Number(row.queue_number) || 0),
+    ...(ticketResult.data ?? []).map((row) => Number(row.queue_number) || 0)
+  )
+
+  return { nextNumber: maxAssigned + 1, used, max }
 }

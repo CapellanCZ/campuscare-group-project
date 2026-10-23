@@ -241,6 +241,25 @@ Deno.serve(async (req) => {
   const appts = (await apptRes.json()) as { id: string }[]
   const used = Array.isArray(appts) ? appts.length : 0
 
+  // Next ticket/appointment number = max assigned today + 1 (never reuse gaps).
+  const [apptNumRes, ticketNumRes] = await Promise.all([
+    fetch(
+      `${supabaseUrl}/rest/v1/appointments?provider_type=eq.${providerType}&starts_at=gte.${dayStart}&starts_at=lte.${dayEnd}&queue_number=not.is.null&select=queue_number&order=queue_number.desc&limit=1`,
+      { headers: authHeaders }
+    ),
+    fetch(
+      `${supabaseUrl}/rest/v1/health_queue_tickets?service_date=eq.${preferredDate}&queue_number=not.is.null&select=queue_number&order=queue_number.desc&limit=1`,
+      { headers: authHeaders }
+    ),
+  ])
+  const apptNumRows = (await apptNumRes.json()) as { queue_number: number }[]
+  const ticketNumRows = (await ticketNumRes.json()) as { queue_number: number }[]
+  const maxAssigned = Math.max(
+    0,
+    Number(apptNumRows?.[0]?.queue_number) || 0,
+    Number(ticketNumRows?.[0]?.queue_number) || 0
+  )
+
   const startsAt = manilaDateTimeToIso(preferredDate, preferredTime)
   const endsAt = new Date(
     new Date(startsAt).getTime() + 30 * 60 * 1000
@@ -354,7 +373,7 @@ Deno.serve(async (req) => {
     })
   }
 
-  const nextNumber = used + 1
+  const nextNumber = maxAssigned + 1
   const insertAppt = await fetch(`${supabaseUrl}/rest/v1/appointments`, {
     method: "POST",
     headers,

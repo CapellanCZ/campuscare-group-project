@@ -90,3 +90,47 @@ export function filterNotificationsByPrefs(
     return prefs.notifyAnnouncements
   })
 }
+
+const NOTIFICATION_TYPES = new Set([
+  "consultation_request",
+  "queue",
+  "announcement",
+])
+
+/** Map a `notifications` row (Realtime payload or select) into header inbox shape. */
+export function mapNotificationRow(
+  row: Record<string, unknown>,
+  designation: ClinicDesignation
+): HeaderStaffNotification | null {
+  const id = typeof row.id === "string" ? row.id : null
+  const typeRaw = typeof row.type === "string" ? row.type : null
+  if (!id || !typeRaw || !NOTIFICATION_TYPES.has(typeRaw)) return null
+
+  const type = typeRaw as HeaderStaffNotification["type"]
+  const title = typeof row.title === "string" ? row.title : "Notification"
+  const body = typeof row.body === "string" ? row.body : ""
+  const hrefRaw = typeof row.href === "string" ? row.href : null
+  const createdAt =
+    typeof row.created_at === "string"
+      ? row.created_at
+      : new Date().toISOString()
+  const unread = row.read_at == null
+
+  let href = hrefRaw
+  if (href === "/announcements") {
+    href = `${staffBasePath(designation)}/announcements`
+  } else if (href === "/nurse/queue" || href === "/nurse/requests") {
+    const suffix = href.replace(/^\/nurse/, "")
+    href = `${staffBasePath(designation)}${suffix}`
+  }
+
+  return {
+    id,
+    type,
+    title,
+    body,
+    href,
+    unread,
+    createdAt,
+  }
+}

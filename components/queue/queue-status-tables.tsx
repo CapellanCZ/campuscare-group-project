@@ -40,6 +40,7 @@ import {
   IconGripVertical,
   IconLayoutList,
   IconPlus,
+  IconUserOff,
 } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
@@ -68,7 +69,11 @@ import { cn } from "@/lib/utils"
 export const SCHEDULED_TO_WAITING_MIME =
   "application/x-campuscare-scheduled-ticket"
 
-export type QueueStatusTableId = "waiting" | "emergency" | "completed"
+export type QueueStatusTableId =
+  | "waiting"
+  | "emergency"
+  | "skipped"
+  | "completed"
 
 export type QueueStatusTableSection = {
   id: QueueStatusTableId
@@ -86,6 +91,7 @@ const CATALOG: Array<{
 }> = [
   { id: "waiting", title: "Waiting", icon: IconClockHour4 },
   { id: "emergency", title: "Emergencies", icon: IconAlertTriangle },
+  { id: "skipped", title: "Skipped / No Show", icon: IconUserOff },
   { id: "completed", title: "Completed", icon: IconCheck },
 ]
 
@@ -97,16 +103,18 @@ const STATUS_ICON: Record<QueueStatusTableId, StatusIcon> = Object.fromEntries(
 const STATUS_HEADER_ICON: Record<QueueStatusTableId, string> = {
   emergency: "text-destructive",
   waiting: "text-muted-foreground",
+  skipped: "text-muted-foreground",
   completed: "text-muted-foreground",
 }
 
 const DEFAULT_VISIBLE: QueueStatusTableId[] = [
   "waiting",
   "emergency",
+  "skipped",
   "completed",
 ]
 
-const VISIBLE_STORAGE_KEY = "campuscare:queue-status-tables-visible"
+const VISIBLE_STORAGE_KEY = "campuscare:queue-status-tables-visible:v2"
 const PAGE_SIZES_STORAGE_KEY = "campuscare:queue-status-table-page-sizes"
 
 function readStoredVisible(): QueueStatusTableId[] {
@@ -119,7 +127,7 @@ function readStoredVisible(): QueueStatusTableId[] {
     const ids = parsed.filter((id): id is QueueStatusTableId =>
       CATALOG.some((item) => item.id === id)
     )
-    // Drop legacy tables removed from the catalog (called / verify / ongoing / no-show).
+    // Drop legacy tables removed from the catalog (called / verify / ongoing).
     return ids.length > 0 ? ids : DEFAULT_VISIBLE
   } catch {
     return DEFAULT_VISIBLE

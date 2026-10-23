@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   IconCalendarEvent,
   IconCheck,
@@ -45,10 +45,14 @@ import {
   appointmentRequestStatusDot,
   appointmentRequestStatusTone,
 } from "@/lib/ui/status-badge-tone"
+import {
+  RECENTLY_APPROVED_LIMIT,
+  RECENTLY_APPROVED_PAGE_SIZE,
+} from "@/features/requests/lib/recently-approved"
 import type { AppointmentRequest } from "@/types/appointmentRequest"
 import { cn } from "@/lib/utils"
 
-export const RECENTLY_APPROVED_LIMIT = 8
+export { RECENTLY_APPROVED_LIMIT, RECENTLY_APPROVED_PAGE_SIZE }
 
 const RECENT_SORTS = [
   { value: "newest", label: "Newest first" },
@@ -93,6 +97,7 @@ export function RecentlyApprovedPanel({
   className?: string
 }) {
   const [sort, setSort] = useState<RecentSort>("newest")
+  const [page, setPage] = useState(1)
   const sortItems = selectItemsRecord(
     RECENT_SORTS.map((option) => ({
       value: option.value,
@@ -104,21 +109,37 @@ export function RecentlyApprovedPanel({
     [items, sort]
   )
   const todayCount = useMemo(() => countApprovedToday(items), [items])
+  const totalPages = Math.max(
+    1,
+    Math.ceil(sortedItems.length / RECENTLY_APPROVED_PAGE_SIZE)
+  )
+  const safePage = Math.min(page, totalPages)
+  const pageItems = sortedItems.slice(
+    (safePage - 1) * RECENTLY_APPROVED_PAGE_SIZE,
+    safePage * RECENTLY_APPROVED_PAGE_SIZE
+  )
+
+  useEffect(() => {
+    setPage(1)
+  }, [sort, items])
 
   return (
     <Card className={cn(panelCardClassName, "h-full gap-0 py-0", className)}>
-      <CardHeader className="border-b px-6 py-5 [.border-b]:pb-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-          <div className="min-w-0 space-y-1">
-            <CardTitle className="text-base">Recently Approved</CardTitle>
-            <p className="text-sm text-pretty text-muted-foreground">
-              Confirmed bookings
-              {sort === "newest" ? ", newest first." : ", oldest first."}
+      <CardHeader className="gap-3 border-b px-4 py-3.5 sm:px-5 sm:py-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="min-w-0">
+            <CardTitle className="text-base">Recently approved</CardTitle>
+            <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">
+              {todayCount} today
+              {sort === "newest" ? " · newest first" : " · oldest first"}
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <Badge variant="secondary" className="tabular-nums">
-              {todayCount} today
+            <Badge
+              variant="secondary"
+              className="h-5 px-1.5 text-[11px] font-normal tabular-nums text-muted-foreground"
+            >
+              {Math.min(sortedItems.length, RECENTLY_APPROVED_PAGE_SIZE)} / page
             </Badge>
             <Select
               value={sort}
@@ -169,7 +190,7 @@ export function RecentlyApprovedPanel({
           </Empty>
         ) : (
           <ul className="divide-y divide-border" aria-label="Recently approved">
-            {sortedItems.map((request) => {
+            {pageItems.map((request) => {
               const preferred = formatRequestPreferred(
                 request.preferredDate,
                 request.preferredTime
@@ -184,7 +205,7 @@ export function RecentlyApprovedPanel({
               return (
                 <li
                   key={request.id}
-                  className="flex items-start gap-2 px-6 py-4"
+                  className="flex items-start gap-2 px-4 py-3 hover:bg-muted/30 sm:px-5"
                 >
                   <div className="min-w-0 flex-1 space-y-1.5">
                     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -252,9 +273,44 @@ export function RecentlyApprovedPanel({
           </ul>
         )}
         {sortedItems.length > 0 ? (
-          <p className="border-t px-6 py-2.5 text-xs text-muted-foreground">
-            Showing {sortedItems.length} most recent
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-2.5 sm:px-5">
+            <p
+              className="text-xs text-muted-foreground tabular-nums"
+              role="status"
+            >
+              Showing {pageItems.length} most recent
+              {sortedItems.length > RECENTLY_APPROVED_PAGE_SIZE ? (
+                <span className="text-muted-foreground/80">
+                  {" "}
+                  · Page {safePage} of {totalPages}
+                </span>
+              ) : null}
+            </p>
+            {sortedItems.length > RECENTLY_APPROVED_PAGE_SIZE ? (
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={safePage <= 1}
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={safePage >= totalPages}
+                  onClick={() =>
+                    setPage((current) => Math.min(totalPages, current + 1))
+                  }
+                >
+                  Next
+                </Button>
+              </div>
+            ) : null}
+          </div>
         ) : null}
       </CardContent>
     </Card>

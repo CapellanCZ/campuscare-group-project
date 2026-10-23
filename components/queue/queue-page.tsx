@@ -43,7 +43,7 @@ import { QueueTicketDetailDialog } from "@/components/queue/queue-ticket-detail-
 import { PatientProfileSheet } from "@/components/patients/patient-profile-sheet"
 import { NurseIntakeSheet } from "@/components/queue/nurse-intake-sheet"
 import { QueueRescheduleDialog } from "@/components/queue/queue-reschedule-dialog"
-import { NurseLaneSwitcher } from "@/components/queue/nurse-lane-switcher"
+import { NurseLaneTab } from "@/components/queue/nurse-lane-switcher"
 import { NursePatientsPanel } from "@/components/queue/nurse-patients-panel"
 import { NurseWorkbench } from "@/components/queue/nurse-workbench"
 import { QueueTicketListItem } from "@/components/queue/queue-ticket-list-item"
@@ -102,6 +102,7 @@ import {
   dedupeNursePatientsByPerson,
   dedupeTicketsById,
   isNurseIntakeCompleted,
+  isNurseQueueException,
   isVerifiedNursePatient,
   hasNurseCalledPatient,
   needsCheckInVerify,
@@ -147,15 +148,18 @@ import {
   IconAlertTriangle,
   IconBell,
   IconBuildingHospital,
+  IconCalendarEvent,
   IconCheck,
   IconClipboardList,
   IconDots,
   IconEye,
   IconHeartbeat,
+  IconPlayerSkipForward,
   IconRefresh,
   IconSearch,
   IconUser,
   IconUserOff,
+  IconArrowBackUp,
 } from "@tabler/icons-react"
 
 type QueueSortColumn =
@@ -495,7 +499,6 @@ export function QueuePage({
     () => ({
       needs_intake: ticketsInNurseLane(localTickets, "needs_intake").length,
       at_specialty: ticketsInNurseLane(localTickets, "at_specialty").length,
-      exceptions: ticketsInNurseLane(localTickets, "exceptions").length,
     }),
     [localTickets]
   )
@@ -512,6 +515,9 @@ export function QueuePage({
       : searchScopedTickets.filter((row) =>
           matchesQueueStatusSegment(row, "completed")
         )
+    const skippedRows = dedupeNursePatientsByPerson(
+      searchScopedTickets.filter((row) => isNurseQueueException(row))
+    )
     return [
       {
         id: "waiting",
@@ -547,6 +553,12 @@ export function QueuePage({
               !isNurseIntakeCompleted(row)
           )
         ),
+      },
+      {
+        id: "skipped",
+        title: "Skipped / No Show",
+        emptyTitle: "No skipped or no-show patients",
+        rows: skippedRows,
       },
       {
         id: "completed",
@@ -1112,11 +1124,58 @@ export function QueuePage({
                                   actions.has("rejoin") ||
                                   actions.has("reschedule") ? (
                                     <>
-                                      <span
-                                        className="mx-0.5 hidden h-4 w-px bg-border sm:block"
+                                      {showVerify ||
+                                      showVerified ||
+                                      actions.has("call") ||
+                                      showIntake ? (
+                                        <span
+                                          className="mx-0.5 hidden h-4 w-px bg-border sm:block"
+                                          aria-hidden
+                                        />
+                                      ) : null}
+                                      <div className="inline-flex items-center gap-1">
+                                  {actions.has("skip") ? (
+                                    <Button
+                                      type="button"
+                                      size="icon-sm"
+                                      variant="outline"
+                                      className="size-7"
+                                      disabled={isTicketPending(row.ticketId)}
+                                      aria-label="Skip patient"
+                                      title="Skip patient"
+                                      onClick={() => {
+                                        void confirmPreset("skipPatient", {
+                                          onConfirm: async () => {
+                                            run(
+                                              () =>
+                                                actionSkipTicket(row.ticketId),
+                                              {
+                                                successToast: () =>
+                                                  queueToasts.skipped(
+                                                    row.patientName
+                                                  ),
+                                                optimistic: {
+                                                  ticketId: row.ticketId,
+                                                  patch: {
+                                                    status: "no_show",
+                                                    estimatedWaitMinutes: 0,
+                                                    canRejoin:
+                                                      row.rejoinCount < 1,
+                                                  },
+                                                },
+                                              }
+                                            )
+                                          },
+                                        })
+                                      }}
+                                    >
+                                      <IconPlayerSkipForward
+                                        className="size-3.5"
+                                        stroke={1.75}
                                         aria-hidden
                                       />
-                                      <div className="inline-flex items-center gap-1">
+                                    </Button>
+                                  ) : null}
                                   {actions.has("no_show") ? (
                                     <Button
                                       type="button"
@@ -1171,6 +1230,70 @@ export function QueuePage({
                                         aria-hidden
                                       />
                                     </Button>
+                                  ) : null}
+                                  {actions.has("rejoin") ? (
+                                    <Button
+                                      type="button"
+                                      size="icon-sm"
+                                      variant="outline"
+                                      className="size-7"
+                                      disabled={isTicketPending(row.ticketId)}
+                                      aria-label="Rejoin end of queue"
+                                      title="Rejoin end of queue"
+                                      onClick={() =>
+                                        run(
+                                          () =>
+                                            actionRejoinQueue(row.ticketId),
+                                          {
+                                            successToast: () =>
+                                              queueToasts.rejoined(
+                                                row.patientName
+                                              ),
+                                            optimistic: {
+                                              ticketId: row.ticketId,
+                                              patch: {
+                                                status: "waiting",
+                                                rejoinCount:
+                                                  row.rejoinCount + 1,
+                                              },
+                                            },
+                                          }
+                                        )
+                                      }
+                                    >
+                                      <IconArrowBackUp
+                                        className="size-3.5"
+                                        stroke={1.75}
+                                        aria-hidden
+                                      />
+                                    </Button>
+                                  ) : null}
+                                  {actions.has("reschedule") ? (
+                                    <Button
+                                      type="button"
+                                      size="icon-sm"
+                                      variant="outline"
+                                      className="size-7"
+                                      disabled={isTicketPending(row.ticketId)}
+                                      aria-label="Reschedule"
+                                      title="Reschedule"
+                                      onClick={() => setRescheduleTicket(row)}
+                                    >
+                                      <IconCalendarEvent
+                                        className="size-3.5"
+                                        stroke={1.75}
+                                        aria-hidden
+                                      />
+                                    </Button>
+                                  ) : null}
+                                  {actions.has("skip") ||
+                                  actions.has("no_show") ||
+                                  actions.has("rejoin") ||
+                                  actions.has("reschedule") ? (
+                                    <span
+                                      className="mx-0.5 h-4 w-px bg-border"
+                                      aria-hidden
+                                    />
                                   ) : null}
                                   <DropdownMenu>
                                     <DropdownMenuTrigger
@@ -1302,113 +1425,6 @@ export function QueuePage({
                                         Start consultation
                                       </DropdownMenuItem>
                                       ) : null}
-                                      {actions.has("skip") ||
-                                      actions.has("no_show") ||
-                                      actions.has("rejoin") ||
-                                      actions.has("reschedule") ? (
-                                      <DropdownMenuSeparator />
-                                      ) : null}
-                                      {actions.has("skip") ? (
-                                      <DropdownMenuItem
-                                        onClick={() => {
-                                          void confirmPreset("skipPatient", {
-                                            onConfirm: async () => {
-                                              run(
-                                                () =>
-                                                  actionSkipTicket(row.ticketId),
-                                                {
-                                                  successToast: () =>
-                                                    queueToasts.skipped(
-                                                      row.patientName
-                                                    ),
-                                                  optimistic: {
-                                                    ticketId: row.ticketId,
-                                                    patch: {
-                                                      status: "no_show",
-                                                      estimatedWaitMinutes: 0,
-                                                      canRejoin:
-                                                        row.rejoinCount < 1,
-                                                    },
-                                                  },
-                                                }
-                                              )
-                                            },
-                                          })
-                                        }}
-                                      >
-                                        Skip
-                                      </DropdownMenuItem>
-                                      ) : null}
-                                      {actions.has("no_show") ? (
-                                      <DropdownMenuItem
-                                        disabled={row.callCount < 2}
-                                        onClick={() => {
-                                          void confirmPreset("removeFromQueue", {
-                                            onConfirm: async () => {
-                                              run(
-                                                () =>
-                                                  actionNoShowTicket(
-                                                    row.ticketId
-                                                  ),
-                                                {
-                                                  successToast: () =>
-                                                    queueToasts.removed(
-                                                      row.patientName
-                                                    ),
-                                                  optimistic: {
-                                                    ticketId: row.ticketId,
-                                                    patch: {
-                                                      status: "no_show",
-                                                      estimatedWaitMinutes: 0,
-                                                    },
-                                                  },
-                                                }
-                                              )
-                                            },
-                                          })
-                                        }}
-                                      >
-                                        Mark no-show
-                                        {row.callCount < 2
-                                          ? " (need 2 calls)"
-                                          : ""}
-                                      </DropdownMenuItem>
-                                      ) : null}
-                                      {actions.has("rejoin") ? (
-                                        <DropdownMenuItem
-                                          onClick={() =>
-                                            run(
-                                              () =>
-                                                actionRejoinQueue(row.ticketId),
-                                              {
-                                                successToast: () =>
-                                                  queueToasts.rejoined(
-                                                    row.patientName
-                                                  ),
-                                                optimistic: {
-                                                  ticketId: row.ticketId,
-                                                  patch: {
-                                                    status: "waiting",
-                                                    rejoinCount:
-                                                      row.rejoinCount + 1,
-                                                  },
-                                                },
-                                              }
-                                            )
-                                          }
-                                        >
-                                          Rejoin end of queue
-                                        </DropdownMenuItem>
-                                      ) : null}
-                                      {actions.has("reschedule") ? (
-                                        <DropdownMenuItem
-                                          onClick={() =>
-                                            setRescheduleTicket(row)
-                                          }
-                                        >
-                                          Reschedule
-                                        </DropdownMenuItem>
-                                      ) : null}
                                       {transferTargetsForDesignation(
                                         access.designation
                                       ).length > 0 &&
@@ -1416,7 +1432,11 @@ export function QueuePage({
                                       row.status !== "no_show" &&
                                       row.status !== "expired" ? (
                                         <>
-                                          <DropdownMenuSeparator />
+                                          {(actions.has("view_details") ||
+                                            actions.has("intake") ||
+                                            actions.has("start")) && (
+                                            <DropdownMenuSeparator />
+                                          )}
                                           {transferTargetsForDesignation(
                                             access.designation
                                           ).map((target) => (
@@ -1507,17 +1527,30 @@ export function QueuePage({
       />
 
       <PanelFrame>
-        <PanelGrid className="lg:grid-cols-3">
+        <PanelGrid
+          className="lg:grid-cols-3"
+          role={isNurse ? "tablist" : undefined}
+          aria-label={isNurse ? "Queue lanes" : undefined}
+        >
           {isNurse ? (
-            <PanelCell className="lg:col-span-3">
-              <NurseLaneSwitcher
-                value={nurseLane}
-                counts={laneCounts}
-                onChange={(lane) => {
-                  setNurseLane(lane)
-                }}
-              />
-            </PanelCell>
+            <>
+              <PanelCell className="lg:col-span-2">
+                <NurseLaneTab
+                  lane="needs_intake"
+                  selected={nurseLane === "needs_intake"}
+                  count={laneCounts.needs_intake}
+                  onSelect={setNurseLane}
+                />
+              </PanelCell>
+              <PanelCell>
+                <NurseLaneTab
+                  lane="at_specialty"
+                  selected={nurseLane === "at_specialty"}
+                  count={laneCounts.at_specialty}
+                  onSelect={setNurseLane}
+                />
+              </PanelCell>
+            </>
           ) : isPhysician || isDentist ? null : (
             cards.map((card) => (
               <PanelCell key={card.label}>
@@ -1545,9 +1578,7 @@ export function QueuePage({
                     {isNurse
                       ? nurseLane === "needs_intake"
                         ? "Needs intake"
-                        : nurseLane === "at_specialty"
-                          ? "Specialty queue"
-                          : "Exceptions"
+                        : "Specialty queue"
                       : "Live queue"}
                   </CardTitle>
                   <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">

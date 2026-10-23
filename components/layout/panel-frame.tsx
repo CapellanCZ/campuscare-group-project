@@ -62,12 +62,13 @@ export function PanelFrame({
 export function PanelGrid({
   children,
   className,
-}: {
-  children: React.ReactNode
-  className?: string
-}) {
+  ...props
+}: React.ComponentProps<"div">) {
   return (
-    <div className={cn("grid grid-cols-1 gap-px bg-border", className)}>
+    <div
+      className={cn("grid grid-cols-1 gap-px bg-border", className)}
+      {...props}
+    >
       {children}
     </div>
   )

@@ -35,7 +35,9 @@ import {
 import { PATIENT_SEARCH_PLACEHOLDER } from "@/lib/students/patient-search-copy"
 import { DemoPageHeader, DemoStatGrid } from "@/components/demo/demo-page"
 import {
+  PanelCell,
   PanelFrame,
+  PanelGrid,
   panelCardClassName,
 } from "@/components/layout/panel-frame"
 import {
@@ -106,6 +108,7 @@ import {
   staleListBusyClassName,
 } from "@/lib/ui/stale-list-busy"
 import {
+  CAMPUS_ID_LABEL,
   patientCampusId,
   patientFullName,
   patientTypeIsStudent,
@@ -117,11 +120,13 @@ import {
   type PatientType,
 } from "@/types/patientRecord"
 import {
+  IconAlertTriangle,
   IconFileText,
   IconHistory,
   IconSearch,
   IconUser,
   IconUsers,
+  IconUserHeart,
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 
@@ -140,31 +145,94 @@ const PATIENT_TYPE_FILTER_OPTIONS: {
   { value: "employee", label: "Employee" },
 ]
 
-function toStatCards(stats: PatientRecordStats): DemoStat[] {
+const PATIENT_STATS_BASELINE_KEY = "campuscare:patient-stats-baseline"
+
+type PatientStatsBaseline = {
+  patientsOnFile: number
+  visitedThisMonth: number
+  flaggedAllergies: number
+  documents: number
+}
+
+function readPatientStatsBaseline(): PatientStatsBaseline | null {
+  if (typeof window === "undefined") return null
+  try {
+    const raw = window.sessionStorage.getItem(PATIENT_STATS_BASELINE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as PatientStatsBaseline
+    if (
+      typeof parsed.patientsOnFile !== "number" ||
+      typeof parsed.visitedThisMonth !== "number" ||
+      typeof parsed.flaggedAllergies !== "number" ||
+      typeof parsed.documents !== "number"
+    ) {
+      return null
+    }
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function writePatientStatsBaseline(stats: PatientRecordStats) {
+  try {
+    window.sessionStorage.setItem(
+      PATIENT_STATS_BASELINE_KEY,
+      JSON.stringify({
+        patientsOnFile: stats.patientsOnFile,
+        visitedThisMonth: stats.visitedThisMonth,
+        flaggedAllergies: stats.flaggedAllergies,
+        documents: stats.documents,
+      } satisfies PatientStatsBaseline)
+    )
+  } catch {
+    /* ignore */
+  }
+}
+
+function toStatCards(
+  stats: PatientRecordStats,
+  baseline: PatientStatsBaseline | null
+): DemoStat[] {
+  const grew = (key: keyof PatientStatsBaseline) =>
+    baseline != null && stats[key] > baseline[key]
+
   return [
     {
       key: "total",
-      label: "Patients on file",
+      label: "On file",
       value: String(stats.patientsOnFile),
-      description: "Imported patient records",
+      description: "Active patient records",
+      icon: <IconUsers stroke={1.75} aria-hidden />,
+      iconClassName: "bg-primary/12 text-primary",
+      highlight: grew("patientsOnFile"),
     },
     {
       key: "visited",
-      label: "Visited this month",
+      label: "Seen this month",
       value: String(stats.visitedThisMonth),
-      description: "Based on last visit",
+      description: "Clinic visits recorded",
+      icon: <IconUserHeart stroke={1.75} aria-hidden />,
+      iconClassName: "bg-success/12 text-success",
+      highlight: grew("visitedThisMonth"),
     },
     {
       key: "allergies",
-      label: "Flagged allergies",
+      label: "Allergy flags",
       value: String(stats.flaggedAllergies),
-      description: "Require caution",
+      description: "Needs clinical caution",
+      icon: <IconAlertTriangle stroke={1.75} aria-hidden />,
+      iconClassName: "bg-warning/15 text-warning",
+      highlight: grew("flaggedAllergies"),
     },
     {
       key: "docs",
-      label: "Documents",
+      label: "Certificates",
       value: String(stats.documents),
-      description: "Medical certificates",
+      description: "Medical documents on file",
+      icon: <IconFileText stroke={1.75} aria-hidden />,
+      iconClassName: "bg-muted text-muted-foreground",
+      highlight: grew("documents"),
     },
   ]
 }
@@ -545,7 +613,48 @@ export function PatientsPage({
       })
   }
 
-  const statCards = useMemo(() => toStatCards(stats), [stats])
+  const [statsBaseline, setStatsBaseline] =
+    useState<PatientStatsBaseline | null>(null)
+  const statsBaselineReady = useRef(false)
+
+  useEffect(() => {
+    if (statsBaselineReady.current) return
+    statsBaselineReady.current = true
+    const existing = readPatientStatsBaseline()
+    if (existing) {
+      setStatsBaseline(existing)
+      return
+    }
+    // First open this session — seed quietly so nothing looks “new” yet.
+    const seed = {
+      patientsOnFile: stats.patientsOnFile,
+      visitedThisMonth: stats.visitedThisMonth,
+      flaggedAllergies: stats.flaggedAllergies,
+      documents: stats.documents,
+    }
+    writePatientStatsBaseline(stats)
+    setStatsBaseline(seed)
+  }, [stats])
+
+  useEffect(() => {
+    if (!statsBaseline) return
+    // After the nurse can notice a blue “new” count, lock the baseline.
+    const id = window.setTimeout(() => {
+      writePatientStatsBaseline(stats)
+      setStatsBaseline({
+        patientsOnFile: stats.patientsOnFile,
+        visitedThisMonth: stats.visitedThisMonth,
+        flaggedAllergies: stats.flaggedAllergies,
+        documents: stats.documents,
+      })
+    }, 12_000)
+    return () => window.clearTimeout(id)
+  }, [stats, statsBaseline])
+
+  const statCards = useMemo(
+    () => toStatCards(stats, statsBaseline),
+    [stats, statsBaseline]
+  )
   const rows = list.items
   const visibleIds = useMemo(() => rows.map((row) => row.id), [rows])
   const selectedVisibleCount = visibleIds.filter((id) =>
@@ -671,64 +780,80 @@ export function PatientsPage({
           access.designation === "nurse" ||
           access.designation === "physician" ||
           access.designation === "dentist"
-            ? ""
+            ? "Search, import, and open patient files for clinic care."
             : "Import a roster into Patient Records, then search and manage patient files here."
         }
         designation={access.designation}
         showDemoBanner={false}
+        showRoleSuffix={false}
       />
 
-      {can(access.designation, "patients.summary_cards") ? (
-        <DemoStatGrid stats={statCards} />
-      ) : null}
-
       <PanelFrame>
+        <PanelGrid>
+          {can(access.designation, "patients.summary_cards") ? (
+            <PanelCell>
+              <DemoStatGrid
+                stats={statCards}
+                framed={false}
+                variant="lane"
+              />
+            </PanelCell>
+          ) : null}
+          <PanelCell>
         <Card className={cn(panelCardClassName, "gap-0 py-0")}>
-        <CardHeader
-          className={cn(
-            "flex flex-col gap-3 border-b pt-(--card-spacing) sm:flex-row sm:items-center sm:justify-between",
-            access.designation === "dentist" &&
-              "gap-4 border-b px-6 py-5 pt-5"
-          )}
-        >
-          <CardTitle className="text-base">Patient directory</CardTitle>
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
-            <Select
-              value={patientTypeFilter}
-              items={selectItemsRecord(PATIENT_TYPE_FILTER_OPTIONS)}
-              onValueChange={(value) => {
-                setPatientTypeFilter(value as PatientRecordTypeFilter)
-                setPage(1)
-              }}
-            >
-              <SelectTrigger className="w-full sm:w-40" aria-label="Patient type">
-                <SelectValue placeholder="Patient type" />
-              </SelectTrigger>
-              <SelectContent>
-                {PATIENT_TYPE_FILTER_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {can(access.designation, "patients.search") ? (
-              <div className="relative w-full sm:w-72">
-                <IconSearch
-                  className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <Input
-                  className="pl-8"
-                  placeholder={PATIENT_SEARCH_PLACEHOLDER}
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  aria-label={PATIENT_SEARCH_PLACEHOLDER}
-                />
-              </div>
-            ) : null}
+        <CardHeader className="gap-3 border-b px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-4">
+          <div className="min-w-0">
+            <CardTitle className="text-base">Patient directory</CardTitle>
+            <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">
+              {list.total} patient{list.total === 1 ? "" : "s"}
+              {patientTypeFilter !== "all"
+                ? ` · ${patientTypeLabel(patientTypeFilter)}s`
+                : ""}
+              {debouncedQuery.trim() ? " matching search" : ""}
+            </p>
+          </div>
+          <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+            <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+              <Select
+                value={patientTypeFilter}
+                items={selectItemsRecord(PATIENT_TYPE_FILTER_OPTIONS)}
+                onValueChange={(value) => {
+                  setPatientTypeFilter(value as PatientRecordTypeFilter)
+                  setPage(1)
+                }}
+              >
+                <SelectTrigger
+                  className="h-9 w-full sm:w-36"
+                  aria-label="Patient type"
+                >
+                  <SelectValue placeholder="Patient type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PATIENT_TYPE_FILTER_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {can(access.designation, "patients.search") ? (
+                <div className="relative w-full sm:w-64">
+                  <IconSearch
+                    className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <Input
+                    className="h-9 pl-8"
+                    placeholder={PATIENT_SEARCH_PLACEHOLDER}
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    aria-label={PATIENT_SEARCH_PLACEHOLDER}
+                  />
+                </div>
+              ) : null}
+            </div>
             {can(access.designation, "patients.table") ? (
-              <>
+              <div className="flex flex-wrap items-center gap-2">
                 <PatientImportSheet toolbar onImported={refreshAfterImport} />
                 {can(access.designation, "patients.edit_information") ? (
                   <SyncPatientAccountsButton
@@ -741,13 +866,13 @@ export function PatientsPage({
                   query={debouncedQuery}
                   patientType={patientTypeFilter}
                 />
-              </>
+              </div>
             ) : null}
           </div>
         </CardHeader>
         {selectedIds.size > 0 ? (
           <div
-            className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-(--card-spacing) py-3"
+            className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/40 px-4 py-2.5 sm:px-5"
             role="status"
           >
             <p className="text-sm">
@@ -799,13 +924,15 @@ export function PatientsPage({
           {showInitialSkeleton ? (
             <PatientsTableSkeleton />
           ) : rows.length === 0 ? (
-            <Empty className="border-0 py-12">
+            <Empty className="border-0 py-14">
               <EmptyHeader>
                 <EmptyMedia variant="icon">
                   <IconUsers aria-hidden />
                 </EmptyMedia>
                 <EmptyTitle>No patients found</EmptyTitle>
-                <EmptyDescription>{emptyMessage}</EmptyDescription>
+                <EmptyDescription className="max-w-sm">
+                  {emptyMessage}
+                </EmptyDescription>
               </EmptyHeader>
             </Empty>
           ) : (
@@ -818,8 +945,8 @@ export function PatientsPage({
             >
             <Table>
               <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="h-12 w-14 px-3">
+                <TableRow className="border-b hover:bg-transparent">
+                  <TableHead className="h-10 w-12 px-3 sm:px-4">
                     <PatientSelectScopeControl
                       pageCount={visibleIds.length}
                       totalMatching={list.total}
@@ -835,7 +962,7 @@ export function PatientsPage({
                       onClear={clearSelection}
                     />
                   </TableHead>
-                  <TableHead className="h-12 px-4">
+                  <TableHead className="h-10 px-3 sm:px-4">
                     <DirectoryColumnHeader
                       title="Patient"
                       sortDirection={sortDirectionFor("patient")}
@@ -844,7 +971,7 @@ export function PatientsPage({
                       onClearSort={() => setColumnSort("patient", "asc")}
                     />
                   </TableHead>
-                  <TableHead className="hidden h-12 px-4 md:table-cell">
+                  <TableHead className="hidden h-10 px-3 sm:px-4 md:table-cell">
                     <DirectoryColumnHeader
                       title="Program"
                       sortDirection={sortDirectionFor("program")}
@@ -853,10 +980,10 @@ export function PatientsPage({
                       onClearSort={() => setColumnSort("patient", "asc")}
                     />
                   </TableHead>
-                  <TableHead className="hidden h-12 px-4 lg:table-cell">
+                  <TableHead className="hidden h-10 px-3 sm:px-4 lg:table-cell">
                     <DirectoryColumnLabel title="Allergies / flags" />
                   </TableHead>
-                  <TableHead className="hidden h-12 px-4 sm:table-cell">
+                  <TableHead className="hidden h-10 px-3 sm:px-4 sm:table-cell">
                     <DirectoryColumnHeader
                       title="Last edited"
                       sortDirection={sortDirectionFor("lastVisit")}
@@ -865,7 +992,7 @@ export function PatientsPage({
                       onClearSort={() => setColumnSort("patient", "asc")}
                     />
                   </TableHead>
-                  <TableHead className="h-12 px-4 text-right">
+                  <TableHead className="h-10 px-3 text-right sm:px-4">
                     <DirectoryColumnLabel
                       title="Actions"
                       className="justify-end"
@@ -876,12 +1003,20 @@ export function PatientsPage({
               <TableBody>
                 {rows.map((row) => {
                     const selected = selectedIds.has(row.id)
+                    const allergyLabel =
+                      row.allergies?.trim() ||
+                      (row.medicalHistory?.allergy ? "Allergy noted" : null)
+                    const programLabel = patientTypeIsStudent(row.patientType)
+                      ? row.course?.trim() || null
+                      : null
+                    const campusId = patientCampusId(row)
                     return (
                     <TableRow
                       key={row.id}
                       data-state={selected ? "selected" : undefined}
+                      className="hover:bg-muted/30"
                     >
-                      <TableCell className="px-4">
+                      <TableCell className="px-3 py-2.5 sm:px-4">
                         <Checkbox
                           checked={selected}
                           onCheckedChange={(value) =>
@@ -890,74 +1025,104 @@ export function PatientsPage({
                           aria-label={`Select ${patientFullName(row)}`}
                         />
                       </TableCell>
-                      <TableCell className="px-4">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium">{patientFullName(row)}</p>
-                          <Badge variant="outline">
+                      <TableCell className="max-w-[22rem] px-3 py-2.5 sm:px-4">
+                        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                          <p className="truncate text-sm font-medium text-foreground">
+                            {patientFullName(row)}
+                          </p>
+                          <Badge
+                            variant="secondary"
+                            className="h-5 shrink-0 px-1.5 text-[11px] font-normal text-muted-foreground"
+                          >
                             {patientTypeLabel(row.patientType)}
                           </Badge>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          ID Number {patientCampusId(row) ?? "—"}
-                          {patientTypeIsStudent(row.patientType) && row.yearLevel
-                            ? ` · ${row.yearLevel}`
-                            : ""}
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground tabular-nums">
+                          {CAMPUS_ID_LABEL}{" "}
+                          <span className="text-foreground/70">
+                            {campusId ?? "—"}
+                          </span>
+                          {patientTypeIsStudent(row.patientType) &&
+                          row.yearLevel ? (
+                            <span className="text-muted-foreground/80">
+                              {" "}
+                              · {row.yearLevel}
+                            </span>
+                          ) : null}
                         </p>
                       </TableCell>
-                      <TableCell className="hidden px-4 md:table-cell">
-                        {patientTypeIsStudent(row.patientType)
-                          ? row.course || "—"
-                          : "—"}
+                      <TableCell className="hidden px-3 py-2.5 text-sm tabular-nums sm:px-4 md:table-cell">
+                        {programLabel ? (
+                          <span className="text-foreground">{programLabel}</span>
+                        ) : (
+                          <span className="text-muted-foreground/60">—</span>
+                        )}
                       </TableCell>
-                      <TableCell className="hidden px-4 lg:table-cell">
-                        <p className="text-sm">
-                          {row.allergies ||
-                            (row.medicalHistory?.allergy
-                              ? "Allergy noted"
-                              : "None")}
-                        </p>
+                      <TableCell className="hidden max-w-[14rem] px-3 py-2.5 sm:px-4 lg:table-cell">
+                        {allergyLabel ? (
+                          <span className="inline-flex max-w-full items-start gap-1.5 text-sm text-warning">
+                            <IconAlertTriangle
+                              className="mt-0.5 size-3.5 shrink-0"
+                              stroke={1.75}
+                              aria-hidden
+                            />
+                            <span className="line-clamp-2">{allergyLabel}</span>
+                          </span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground/60">
+                            None
+                          </span>
+                        )}
                       </TableCell>
-                      <TableCell className="hidden px-4 sm:table-cell">
-                        <p>
-                          {row.lastEditedAt
-                            ? new Date(row.lastEditedAt).toLocaleString(
+                      <TableCell className="hidden px-3 py-2.5 sm:table-cell sm:px-4">
+                        {row.lastEditedAt ? (
+                          <>
+                            <p className="text-sm tabular-nums text-foreground">
+                              {new Date(row.lastEditedAt).toLocaleString(
                                 "en-PH",
                                 {
                                   timeZone: "Asia/Manila",
                                   dateStyle: "medium",
                                 }
-                              )
-                            : "—"}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {row.lastEditedByName
-                            ? `by ${row.lastEditedByName}`
-                            : row.lastEditedAt
-                              ? "Editor unknown"
-                              : "Never edited"}
-                        </p>
+                              )}
+                            </p>
+                            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                              {row.lastEditedByName
+                                ? `by ${row.lastEditedByName}`
+                                : "Editor unknown"}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-sm text-muted-foreground/60">
+                            Never edited
+                          </p>
+                        )}
                       </TableCell>
-                      <TableCell className="px-4">
-                        <div className="flex flex-wrap justify-end gap-1">
+                      <TableCell className="px-3 py-2.5 sm:px-4">
+                        <div className="flex flex-nowrap justify-end gap-1">
                           {can(access.designation, "patients.view_profile") ? (
                             <Button
                               size="icon-sm"
-                              variant="ghost"
-                              className="size-7 text-muted-foreground"
+                              variant="outline"
+                              className="size-7"
                               aria-label={`Profile ${patientFullName(row)}`}
                               title="Profile"
                               onClick={() =>
                                 openEnsuredPatient(row, setProfilePatient)
                               }
                             >
-                              <IconUser className="size-4" aria-hidden />
+                              <IconUser
+                                className="size-3.5"
+                                stroke={1.75}
+                                aria-hidden
+                              />
                             </Button>
                           ) : null}
                           {canViewHistory ? (
                             <Button
                               size="icon-sm"
-                              variant="ghost"
-                              className="size-7 text-muted-foreground"
+                              variant="outline"
+                              className="size-7"
                               aria-label={`History ${patientFullName(row)}`}
                               title="History"
                               onMouseEnter={() =>
@@ -986,21 +1151,29 @@ export function PatientsPage({
                                 openEnsuredPatient(row, setHistoryPatient)
                               }
                             >
-                              <IconHistory className="size-4" aria-hidden />
+                              <IconHistory
+                                className="size-3.5"
+                                stroke={1.75}
+                                aria-hidden
+                              />
                             </Button>
                           ) : null}
                           {canViewDocs ? (
                             <Button
                               size="icon-sm"
-                              variant="ghost"
-                              className="size-7 text-muted-foreground"
+                              variant="outline"
+                              className="size-7"
                               aria-label={`Documents ${patientFullName(row)}`}
                               title="Documents"
                               onClick={() =>
                                 openEnsuredPatient(row, setDocumentsPatient)
                               }
                             >
-                              <IconFileText className="size-4" aria-hidden />
+                              <IconFileText
+                                className="size-3.5"
+                                stroke={1.75}
+                                aria-hidden
+                              />
                             </Button>
                           ) : null}
                         </div>
@@ -1011,8 +1184,8 @@ export function PatientsPage({
               </TableBody>
             </Table>
             {list.totalPages > 1 ? (
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
-                <p className="text-sm text-muted-foreground">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-2.5 sm:px-5">
+                <p className="text-xs text-muted-foreground tabular-nums sm:text-sm">
                   Page {list.page} of {list.totalPages}
                   <span className="text-muted-foreground/80">
                     {" "}
@@ -1049,6 +1222,8 @@ export function PatientsPage({
           )}
         </CardContent>
       </Card>
+          </PanelCell>
+        </PanelGrid>
       </PanelFrame>
 
       <PatientProfileSheet
