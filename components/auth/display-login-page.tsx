@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
 import {
   IconEye,
   IconEyeOff,
@@ -11,7 +10,6 @@ import {
 
 import { signInDisplayAccount } from "@/app/auth/actions"
 import { DisplayLoginPreview } from "@/components/auth/display-login-preview"
-import { CampusCareLogoStatic } from "@/components/campuscare-logo-static"
 import { Button } from "@/components/ui/button"
 import { Field, FieldLabel } from "@/components/ui/field"
 import {
@@ -85,14 +83,6 @@ export function DisplayLoginPage() {
     <main className="min-h-screen bg-white lg:grid lg:grid-cols-2">
       <section className="relative flex min-h-screen flex-col px-6 py-8 sm:px-10 lg:px-16 xl:px-20">
         <div className="mx-auto flex w-full max-w-[26rem] flex-1 flex-col justify-center">
-          <CampusCareLogoStatic
-            variant="blue"
-            alt="CampusCare"
-            className="mb-10 h-8 w-auto"
-            width={132}
-            priority
-          />
-
           <div className="space-y-2">
             <h1 className="text-[2rem] leading-tight font-bold tracking-tight text-slate-900 sm:text-[2.25rem]">
               Welcome Back!
@@ -197,11 +187,7 @@ export function DisplayLoginPage() {
                 <p role="alert" className="mt-2 text-sm text-destructive">
                   {error}
                 </p>
-              ) : (
-                <p className="mt-2 text-right text-sm font-medium text-blue-600">
-                  Display account only
-                </p>
-              )}
+              ) : null}
             </Field>
 
             <Button
@@ -212,16 +198,6 @@ export function DisplayLoginPage() {
               {pending ? "Signing in…" : "Sign In"}
             </Button>
           </form>
-
-          <p className="mt-10 text-center text-sm text-slate-500">
-            Need the clinical workspace?{" "}
-            <Link
-              href="/login"
-              className="font-semibold text-blue-600 underline-offset-2 hover:underline"
-            >
-              Staff login
-            </Link>
-          </p>
         </div>
       </section>
 

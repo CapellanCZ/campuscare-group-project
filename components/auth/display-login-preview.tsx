@@ -12,6 +12,8 @@ import {
 } from "@tabler/icons-react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 
+import Image from "next/image"
+
 import { footerContact } from "@/lib/landing/content"
 import { cn } from "@/lib/utils"
 
@@ -92,12 +94,17 @@ export function DisplayLoginPreview() {
     <aside className="relative hidden min-h-screen flex-col overflow-hidden bg-[#EEF2F6] lg:flex">
       <div className="relative z-10 flex flex-1 flex-col px-12 py-11 xl:px-16">
         <div className="flex items-center gap-2.5">
-          <span className="flex size-8 items-center justify-center rounded-full bg-blue-600 text-[0.7rem] font-bold tracking-tight text-white">
-            CC
-          </span>
-          <p className="text-[0.95rem] font-semibold tracking-tight text-slate-800">
+          <Image
+            src="/images/logo.png"
+            alt=""
+            width={40}
+            height={21}
+            unoptimized
+            className="h-7 w-auto object-contain"
+          />
+          <span className="text-lg font-bold tracking-tight text-slate-900">
             CampusCare
-          </p>
+          </span>
         </div>
 
         <div
