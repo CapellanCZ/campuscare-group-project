@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client"
  * - Confirm before closing the tab/window.
  * - After Back, clear Forward so the left page cannot be restored.
  * - Reload bfcache restores; bounce to login if session is gone.
+ * - Re-check session when the tab becomes visible again.
  */
 export function StaffSessionGuard() {
   useEffect(() => {
@@ -24,7 +25,7 @@ export function StaffSessionGuard() {
         } = await supabase.auth.getUser()
         if (!error && !user) {
           allowNextUnload()
-          window.location.replace("/login")
+          window.location.replace("/login?from=logout&reason=history")
         }
       } catch {
         // Ignore transient auth client failures; proxy still enforces access.
@@ -38,7 +39,6 @@ export function StaffSessionGuard() {
     }
 
     const onPopState = () => {
-      // Stay on the page Back landed on, but disable Forward.
       clearBrowserForwardStack()
       void ensureSession()
     }
@@ -51,14 +51,22 @@ export function StaffSessionGuard() {
       void ensureSession()
     }
 
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void ensureSession()
+      }
+    }
+
     window.addEventListener("beforeunload", onBeforeUnload)
     window.addEventListener("popstate", onPopState)
     window.addEventListener("pageshow", onPageShow)
+    document.addEventListener("visibilitychange", onVisibility)
 
     return () => {
       window.removeEventListener("beforeunload", onBeforeUnload)
       window.removeEventListener("popstate", onPopState)
       window.removeEventListener("pageshow", onPageShow)
+      document.removeEventListener("visibilitychange", onVisibility)
     }
   }, [])
 

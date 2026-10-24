@@ -56,6 +56,13 @@ const nextConfig: NextConfig = {
     ]
   },
   async headers() {
+    const noStoreStaff = [
+      {
+        key: "Cache-Control",
+        value: "private, no-store, no-cache, must-revalidate",
+      },
+      { key: "Pragma", value: "no-cache" },
+    ]
     return [
       {
         source: "/:path*",
@@ -70,6 +77,16 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      // Staff workspaces must not be restored from the browser disk cache
+      // after logout / Back (shared clinic PCs).
+      { source: "/admin/:path*", headers: noStoreStaff },
+      { source: "/nurse/:path*", headers: noStoreStaff },
+      { source: "/physician/:path*", headers: noStoreStaff },
+      { source: "/dentist/:path*", headers: noStoreStaff },
+      { source: "/dashboard/:path*", headers: noStoreStaff },
+      { source: "/queue-management/:path*", headers: noStoreStaff },
+      { source: "/auth/:path*", headers: noStoreStaff },
+      { source: "/login", headers: noStoreStaff },
     ]
   },
 }

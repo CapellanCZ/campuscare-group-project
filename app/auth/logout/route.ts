@@ -16,5 +16,12 @@ export async function GET(request: Request) {
     loginUrl.searchParams.set("reason", reason)
   }
 
-  return NextResponse.redirect(loginUrl)
+  const response = NextResponse.redirect(loginUrl)
+  // Prevent Back from restoring a logged-in staff page from browser cache.
+  response.headers.set(
+    "Cache-Control",
+    "private, no-store, no-cache, must-revalidate"
+  )
+  response.headers.set("Clear-Site-Data", '"cache"')
+  return response
 }

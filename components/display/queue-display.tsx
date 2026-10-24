@@ -26,7 +26,7 @@ import {
 import { createClient } from "@/lib/supabase/client"
 import { subscribeDisplayChanges } from "@/lib/health/realtime"
 import type { BreakStatus } from "@/lib/availability/types"
-import type { StationBoard } from "@/lib/health/types"
+import type { RecentlyServedItem, StationBoard } from "@/lib/health/types"
 
 /**
  * Public TV board — transit-style call board with light/dark appearance.

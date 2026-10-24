@@ -32,14 +32,6 @@ export type ConsultationVitals = {
   respiratoryRate: number | null
 }
 
-export function formatClinicQueueCode(
-  providerType: ConsultationProviderType,
-  n: number
-): string {
-  const prefix = providerType === "dentist" ? "D" : "M"
-  return `${prefix}-${String(n).padStart(3, "0")}`
-}
-
 export function vitalsFromIntake(intake: NurseIntakeInput): ConsultationVitals {
   return {
     bpSystolic: intake.bpSystolic ?? null,
