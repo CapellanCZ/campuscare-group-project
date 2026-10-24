@@ -12,6 +12,7 @@ import {
   IconUserHeart,
 } from "@tabler/icons-react"
 
+import { StaffWelcomeLoader } from "@/components/dashboard/staff-welcome-loader"
 import { StatCard } from "@/components/shared/stat-card"
 import { VitalsStrip } from "@/components/queue/vitals-strip"
 import {
@@ -166,6 +167,11 @@ export function PhysicianDashboardView({
 
   return (
     <div className="flex flex-1 flex-col gap-6 sm:gap-8">
+      <StaffWelcomeLoader
+        open={dataLoading}
+        staffName={access.fullName}
+        role="physician"
+      />
       <div className="flex flex-col gap-3">
         <SectionLabel>At a glance</SectionLabel>
         <PanelFrame>

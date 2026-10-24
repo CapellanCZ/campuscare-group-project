@@ -49,6 +49,7 @@ export function AuthOtpStep({
   onBackToEmail,
 }: AuthOtpStepProps) {
   const isBusy = isVerifying || isResending
+  const canResend = resendSeconds <= 0 && !isBusy
 
   return (
     <>
@@ -63,33 +64,11 @@ export function AuthOtpStep({
         </p>
       </div>
 
-      <form className="space-y-4" onSubmit={onVerify} noValidate>
+      <form className="space-y-5" onSubmit={onVerify} noValidate>
         <Field data-invalid={otpError ? true : undefined}>
-          <div className="flex min-w-0 items-center justify-between gap-3">
-            <FieldLabel htmlFor="otp-verification" className="text-slate-700">
-              Verification code
-            </FieldLabel>
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              className="shrink-0 rounded-lg border-slate-200"
-              onClick={onResend}
-              disabled={resendSeconds > 0 || isBusy}
-              aria-label={
-                resendSeconds > 0
-                  ? `Resend code in ${resendSeconds} seconds`
-                  : "Resend verification code"
-              }
-            >
-              <IconRefreshDot data-icon="inline-start" aria-hidden />
-              {isResending
-                ? "Sending..."
-                : resendSeconds > 0
-                  ? `Resend in ${resendSeconds}s`
-                  : "Resend code"}
-            </Button>
-          </div>
+          <FieldLabel htmlFor="otp-verification" className="text-slate-700">
+            Verification code
+          </FieldLabel>
 
           <InputOTP
             maxLength={OTP_LENGTH}
@@ -115,10 +94,33 @@ export function AuthOtpStep({
             </InputOTPGroup>
           </InputOTP>
 
-          <FieldDescription className="text-slate-500">
-            {otpNotice ??
-              "Check your inbox and spam folder if the code hasn't arrived yet."}
-          </FieldDescription>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <FieldDescription className="text-slate-500 sm:max-w-[16rem]">
+              {otpNotice ??
+                "Check your inbox and spam folder if the code hasn't arrived yet."}
+            </FieldDescription>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 shrink-0 rounded-lg border-slate-200 text-slate-700"
+              onClick={onResend}
+              disabled={!canResend}
+              aria-label={
+                resendSeconds > 0
+                  ? `Resend code in ${resendSeconds} seconds`
+                  : "Resend verification code"
+              }
+            >
+              <IconRefreshDot data-icon="inline-start" aria-hidden />
+              {isResending
+                ? "Sending..."
+                : resendSeconds > 0
+                  ? `Resend in ${resendSeconds}s`
+                  : "Resend code"}
+            </Button>
+          </div>
+
           {typeof otpError === "string" && otpError ? (
             <FieldError role="alert">{otpError}</FieldError>
           ) : null}

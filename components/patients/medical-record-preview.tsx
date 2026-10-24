@@ -1,29 +1,81 @@
 "use client"
 
+import type { ReactNode } from "react"
+
 import {
   patientAgeYears,
   patientCampusId,
   patientFullName,
   patientTypeIsStudent,
+  patientTypeLabel,
   type MedicalHistory,
   type PatientRecord,
   type PhysicalExam,
 } from "@/types/patientRecord"
+import { cn } from "@/lib/utils"
 
-function Row({
+function formatBirthDate(value: string | null | undefined) {
+  if (!value?.trim()) return null
+  const parsed = Date.parse(value)
+  if (Number.isNaN(parsed)) return value
+  return new Intl.DateTimeFormat("en-PH", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(new Date(parsed))
+}
+
+function Section({
+  title,
+  children,
+  className,
+}: {
+  title: string
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <section
+      className={cn(
+        "overflow-hidden rounded-xl border border-border/70 bg-background",
+        className
+      )}
+    >
+      <div className="border-b border-border/60 bg-muted/30 px-4 py-2.5">
+        <h3 className="text-[11px] font-semibold tracking-[0.1em] text-muted-foreground uppercase">
+          {title}
+        </h3>
+      </div>
+      <div className="divide-y divide-border/55 px-4">{children}</div>
+    </section>
+  )
+}
+
+function Field({
   label,
   value,
+  className,
 }: {
   label: string
   value: string | null | undefined
+  className?: string
 }) {
   return (
-    <div className="grid grid-cols-[9.5rem_1fr] items-start gap-x-4 gap-y-1 py-2.5 text-sm">
-      <dt className="pt-0.5 text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 break-words leading-relaxed font-medium">
+    <div className={cn("min-w-0 py-2.5", className)}>
+      <dt className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+        {label}
+      </dt>
+      <dd className="mt-0.5 min-w-0 text-sm leading-snug font-medium break-words text-foreground">
         {value?.trim() || "—"}
       </dd>
     </div>
+  )
+}
+
+function FieldRow({ children }: { children: ReactNode }) {
+  return (
+    <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">{children}</div>
   )
 }
 
@@ -43,22 +95,26 @@ function FlagRow({ history }: { history: MedicalHistory }) {
   const active = flags
     .filter((flag) => history[flag.key] === true)
     .map((flag) => flag.label)
+
   return (
-    <Row
+    <Field
       label="Conditions"
       value={active.length ? active.join(", ") : "None marked"}
+      className="sm:col-span-2"
     />
   )
 }
 
 function ExamBlock({ exam }: { exam: PhysicalExam }) {
-  const rows: [string, string][] = [
-    ["Blood Pressure", exam.bloodPressure],
-    ["Pulse Rate", exam.pulseRate],
+  const vitals: [string, string][] = [
+    ["Blood pressure", exam.bloodPressure],
+    ["Pulse rate", exam.pulseRate],
     ["Temperature", exam.temperature],
     ["Weight", exam.weight],
     ["Height", exam.height],
     ["O2", exam.o2],
+  ]
+  const findings: [string, string][] = [
     ["Skin", exam.skin],
     ["Eyes (O.D)", exam.eyesOd],
     ["Eyes (O.S)", exam.eyesOs],
@@ -75,12 +131,27 @@ function ExamBlock({ exam }: { exam: PhysicalExam }) {
     ["Deformities", exam.deformities],
     ["Other findings", exam.otherPertinentFindings],
   ]
+
   return (
-    <div className="divide-y divide-border/50">
-      {rows.map(([label, value]) => (
-        <Row key={label} label={label} value={value} />
-      ))}
-    </div>
+    <>
+      <FieldRow>
+        {vitals.map(([label, value]) => (
+          <Field key={label} label={label} value={value} />
+        ))}
+      </FieldRow>
+      <FieldRow>
+        {findings.map(([label, value]) => (
+          <Field
+            key={label}
+            label={label}
+            value={value}
+            className={
+              label === "Other findings" ? "sm:col-span-2" : undefined
+            }
+          />
+        ))}
+      </FieldRow>
+    </>
   )
 }
 
@@ -100,83 +171,93 @@ function formatLastEdited(
 export function MedicalRecordPreview({ patient }: { patient: PatientRecord }) {
   const family = patient.familyBackground
   const age = patientAgeYears(patient.birthDate)
+  const isStudent = patientTypeIsStudent(patient.patientType)
 
   return (
-    <dl className="space-y-6">
-      <div className="space-y-1">
-        <p className="mb-2 text-sm font-semibold tracking-tight">
-          General Personal Information
-        </p>
-        <div className="divide-y divide-border/50">
-          <Row label="Campus ID" value={patientCampusId(patient)} />
-          {patientTypeIsStudent(patient.patientType) ? (
+    <dl className="space-y-4">
+      <Section title="General personal information">
+        <FieldRow>
+          <Field label="Campus ID" value={patientCampusId(patient)} />
+          <Field
+            label="Patient type"
+            value={patientTypeLabel(patient.patientType)}
+          />
+          {isStudent ? (
             <>
-              <Row label="Course" value={patient.course} />
-              <Row label="Year level" value={patient.yearLevel} />
+              <Field label="Course" value={patient.course} />
+              <Field label="Year level" value={patient.yearLevel} />
             </>
           ) : null}
-          <Row label="Sex" value={patient.gender} />
-          <Row label="Birth date" value={patient.birthDate} />
-          <Row label="Age" value={age != null ? String(age) : null} />
-          <Row label="Status" value={patient.civilStatus} />
-          <Row label="Religion" value={patient.religion} />
-          <Row label="Nationality" value={patient.nationality} />
-          <Row label="Phone" value={patient.phone} />
-          <Row label="Email" value={patient.email} />
-          <Row label="Address" value={patient.address} />
-        </div>
-      </div>
+          <Field label="Sex" value={patient.gender} />
+          <Field label="Age" value={age != null ? String(age) : null} />
+          <Field
+            label="Birth date"
+            value={formatBirthDate(patient.birthDate)}
+          />
+          <Field label="Status" value={patient.civilStatus} />
+          <Field label="Religion" value={patient.religion} />
+          <Field label="Nationality" value={patient.nationality} />
+          <Field label="Phone" value={patient.phone} />
+          <Field label="Email" value={patient.email} />
+          <Field
+            label="Address"
+            value={patient.address}
+            className="sm:col-span-2"
+          />
+        </FieldRow>
+      </Section>
 
-      <div className="space-y-1">
-        <p className="mb-2 text-sm font-semibold tracking-tight">
-          Emergency Contact Details
-        </p>
-        <div className="divide-y divide-border/50">
-          <Row
+      <Section title="Emergency contact">
+        <FieldRow>
+          <Field
             label="Guardian"
             value={family?.guardianName ?? patient.emergencyContactName}
           />
-          <Row label="Relationship" value={family?.relationship} />
-          <Row label="Occupation" value={family?.occupation} />
-          <Row label="Address" value={family?.address} />
-          <Row
+          <Field label="Relationship" value={family?.relationship} />
+          <Field label="Occupation" value={family?.occupation} />
+          <Field
             label="Mobile"
             value={family?.mobile ?? patient.emergencyContactPhone}
           />
-          <Row label="Email" value={family?.email} />
-        </div>
-      </div>
+          <Field label="Email" value={family?.email} />
+          <Field
+            label="Address"
+            value={family?.address}
+            className="sm:col-span-2"
+          />
+        </FieldRow>
+      </Section>
 
-      <div className="space-y-1">
-        <p className="mb-2 text-sm font-semibold tracking-tight">
-          Medical History
-        </p>
-        <div className="divide-y divide-border/50">
-          <Row
+      <Section title="Medical history">
+        <FieldRow>
+          <Field
             label="Previous illness / surgery"
             value={patient.medicalHistory.previousIllnessOrSurgery}
+            className="sm:col-span-2"
           />
           <FlagRow history={patient.medicalHistory} />
-        </div>
-      </div>
+        </FieldRow>
+      </Section>
 
-      <div className="space-y-1">
-        <p className="mb-2 text-sm font-semibold tracking-tight">
-          Physical Examination
-        </p>
+      <Section title="Physical examination">
         <ExamBlock exam={patient.physicalExam} />
-      </div>
+      </Section>
 
-      <div className="divide-y divide-border/50 border-t pt-2">
-        <Row
-          label="Last edited"
-          value={formatLastEdited(
-            patient.lastEditedAt,
-            patient.lastEditedByName
-          )}
-        />
-        <Row label="Consults" value={String(patient.consultationsCount)} />
-      </div>
+      <Section title="Record activity">
+        <FieldRow>
+          <Field
+            label="Last edited"
+            value={formatLastEdited(
+              patient.lastEditedAt,
+              patient.lastEditedByName
+            )}
+          />
+          <Field
+            label="Consults"
+            value={String(patient.consultationsCount)}
+          />
+        </FieldRow>
+      </Section>
     </dl>
   )
 }

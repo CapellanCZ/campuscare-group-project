@@ -38,7 +38,7 @@ import {
   actionVerifyCheckIn,
 } from "@/lib/health/queue-server-actions"
 import { ConsultationSummaryDialog } from "@/components/consultations/consultation-summary-dialog"
-import { NurseWelcomeLoader } from "@/components/dashboard/nurse-welcome-loader"
+import { StaffWelcomeLoader } from "@/components/dashboard/staff-welcome-loader"
 import { QueueTicketDetailDialog } from "@/components/queue/queue-ticket-detail-dialog"
 import { PatientProfileSheet } from "@/components/patients/patient-profile-sheet"
 import { NurseIntakeSheet } from "@/components/queue/nurse-intake-sheet"
@@ -1545,12 +1545,13 @@ export function QueuePage({
           : "flex flex-1 flex-col gap-8 pt-2"
       }
     >
-      {isNurse ? (
-        <NurseWelcomeLoader
+      {isNurse || isPhysician || isDentist ? (
+        <StaffWelcomeLoader
           open={dataLoading}
-          nurseName={access.fullName}
+          staffName={access.fullName}
+          role={isNurse ? "nurse" : isPhysician ? "physician" : "dentist"}
         />
-          ) : null}
+      ) : null}
       <PageIntro
         title={
           isNurse

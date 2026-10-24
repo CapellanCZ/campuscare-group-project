@@ -94,19 +94,18 @@ export function buildActivationEmail(input: {
 export function buildOtpEmail(token: string): AuthEmailPayload {
   const contentHtml = [
     emailBodyParagraph(
-      "Use the code below to sign in to CampusCare. It expires in 10 minutes."
+      "Use the code below to sign in to CampusCare. Enter it on the verification screen."
     ),
     emailOtpBox(token),
-    emailBodyParagraph(
-      "If you didn't request this code, you can safely ignore it — someone may have entered your email by mistake."
-    ),
   ].join("")
 
   const html = wrapCampusCareEmail({
     documentTitle: "Your CampusCare one-time login code",
-    preheader: "Use this code to sign in. It expires soon.",
+    preheader: "Your CampusCare sign-in code. Expires in 10 minutes.",
     heading: "Your one-time login code",
     contentHtml,
+    securityNote:
+      "If you didn't request this code, you can safely ignore it — someone may have entered your email by mistake.",
   })
 
   const text = [

@@ -62,28 +62,30 @@ export function DocumentPreviewDialog({
         className="flex max-h-[min(92vh,920px)] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
         showCloseButton
       >
-        <DialogHeader className="shrink-0 space-y-3 border-b bg-muted/20 px-6 py-5">
+        <DialogHeader className="shrink-0 space-y-3 border-b bg-muted/20 px-6 py-5 pr-14">
           <div className="flex items-start gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border bg-background">
               <IconFileText className="size-5 text-muted-foreground" />
             </div>
             <div className="min-w-0 flex-1 space-y-1">
-              <DialogTitle className="text-lg">{typeLabel}</DialogTitle>
+              <div className="flex flex-wrap items-center gap-2">
+                <DialogTitle className="text-lg">{typeLabel}</DialogTitle>
+                {document ? (
+                  <StatusBadge
+                    label={documentStatusLabel(document.status)}
+                    toneClassName={
+                      STATUS_BADGE_TONE[documentStatusToneKey(document.status)]
+                    }
+                    dotClassName={
+                      STATUS_BADGE_DOT[documentStatusToneKey(document.status)]
+                    }
+                  />
+                ) : null}
+              </div>
               <DialogDescription>
                 Official HSO document preview. Review the layout before printing.
               </DialogDescription>
             </div>
-            {document ? (
-              <StatusBadge
-                label={documentStatusLabel(document.status)}
-                toneClassName={
-                  STATUS_BADGE_TONE[documentStatusToneKey(document.status)]
-                }
-                dotClassName={
-                  STATUS_BADGE_DOT[documentStatusToneKey(document.status)]
-                }
-              />
-            ) : null}
           </div>
 
           {document ? (

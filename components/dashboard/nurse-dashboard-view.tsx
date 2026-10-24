@@ -10,7 +10,7 @@ import {
 
 import { NurseRequestsPanel } from "@/components/dashboard/nurse-requests-panel"
 import { NurseTodayQueue } from "@/components/dashboard/nurse-today-queue"
-import { NurseWelcomeLoader } from "@/components/dashboard/nurse-welcome-loader"
+import { StaffWelcomeLoader } from "@/components/dashboard/staff-welcome-loader"
 import { NurseIntakeSheet } from "@/components/queue/nurse-intake-sheet"
 import { ActivityFeed } from "@/components/shared/activity-feed"
 import { StatCard } from "@/components/shared/stat-card"
@@ -98,9 +98,10 @@ export function NurseDashboardView({
   return (
     <div className="flex flex-1 flex-col gap-6 sm:gap-8 lg:gap-10">
       {!decorative ? (
-        <NurseWelcomeLoader
+        <StaffWelcomeLoader
           open={dataLoading}
-          nurseName={access.fullName}
+          staffName={access.fullName}
+          role="nurse"
         />
       ) : null}
       <div className="flex flex-col gap-3">
