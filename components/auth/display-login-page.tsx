@@ -3,15 +3,14 @@
 import { useState } from "react"
 import Link from "next/link"
 import {
-  IconAt,
-  IconChevronLeft,
   IconEye,
   IconEyeOff,
   IconLock,
-  IconScreenShare,
+  IconMail,
 } from "@tabler/icons-react"
 
 import { signInDisplayAccount } from "@/app/auth/actions"
+import { DisplayLoginPreview } from "@/components/auth/display-login-preview"
 import { CampusCareLogoStatic } from "@/components/campuscare-logo-static"
 import { Button } from "@/components/ui/button"
 import { Field, FieldLabel } from "@/components/ui/field"
@@ -26,7 +25,10 @@ import { isValidEmail } from "@/lib/auth/email"
 import { cn } from "@/lib/utils"
 
 const fieldGroupClassName = cn(
-  "h-11 rounded-xl border-slate-200 bg-white",
+  "h-11 rounded-lg border border-slate-200 bg-white shadow-none",
+  "has-[[data-slot=input-group-control]:focus-visible]:border-blue-600",
+  "has-[[data-slot=input-group-control]:focus-visible]:ring-[3px]",
+  "has-[[data-slot=input-group-control]:focus-visible]:ring-blue-600/25",
   // Autofill paints only the <input>; keep the whole group one surface.
   "[&_input:-webkit-autofill]:[-webkit-text-fill-color:#0f172a]",
   "[&_input:-webkit-autofill]:shadow-[inset_0_0_0_1000px_#fff]",
@@ -81,167 +83,149 @@ export function DisplayLoginPage() {
 
   return (
     <main className="min-h-screen bg-white lg:grid lg:grid-cols-2">
-      <div className="relative flex min-h-screen flex-col px-6 py-8 sm:px-10 lg:px-14">
-        <Button
-          className="absolute top-6 left-4 text-slate-600 sm:left-8"
-          variant="ghost"
-          render={<Link href="/login" />}
-          nativeButton={false}
-        >
-          <IconChevronLeft data-icon="inline-start" />
-          Staff login
-        </Button>
-
-        <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center space-y-8 pt-14 lg:pt-0">
+      <section className="relative flex min-h-screen flex-col px-6 py-8 sm:px-10 lg:px-16 xl:px-20">
+        <div className="mx-auto flex w-full max-w-[26rem] flex-1 flex-col justify-center">
           <CampusCareLogoStatic
             variant="blue"
             alt="CampusCare"
-            className="h-9 w-auto"
-            width={140}
+            className="mb-10 h-8 w-auto"
+            width={132}
             priority
           />
 
-          <div className="space-y-6">
-            <div className="flex flex-col space-y-2">
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-                Queue display
-              </h1>
-              <p className="text-base text-slate-500">
-                Sign in with the display account email and password to open the
-                public waiting-room screen.
-              </p>
-            </div>
+          <div className="space-y-2">
+            <h1 className="text-[2rem] leading-tight font-bold tracking-tight text-slate-900 sm:text-[2.25rem]">
+              Welcome Back!
+            </h1>
+            <p className="text-[0.95rem] leading-relaxed text-slate-500">
+              Sign in to open the waiting-room queue display and keep tickets
+              clear for patients.
+            </p>
+          </div>
 
-            <form className="space-y-5" onSubmit={handleSubmit} noValidate>
-              <Field data-invalid={error ? true : undefined}>
-                <FieldLabel htmlFor="display-email" className="text-slate-700">
-                  Display email
-                </FieldLabel>
-                <InputGroup className={fieldGroupClassName}>
-                  <InputGroupInput
-                    id="display-email"
-                    name="email"
-                    type="email"
-                    autoComplete="username"
-                    inputMode="email"
-                    placeholder="display@clinic.edu"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value)
-                      if (error) setError(null)
-                    }}
-                    disabled={pending}
-                    required
-                    aria-invalid={error ? true : undefined}
-                    className="text-slate-900 placeholder:text-slate-400"
-                  />
-                  <InputGroupAddon align="inline-start">
-                    <IconAt aria-hidden className="text-slate-400" />
-                  </InputGroupAddon>
-                </InputGroup>
-              </Field>
-
-              <Field data-invalid={error ? true : undefined}>
-                <FieldLabel
-                  htmlFor="display-password"
-                  className="text-slate-700"
-                >
-                  Password
-                </FieldLabel>
-                <InputGroup className={fieldGroupClassName}>
-                  <InputGroupInput
-                    id="display-password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
-                    placeholder="Enter password"
-                    value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value)
-                      if (error) setError(null)
-                    }}
-                    disabled={pending}
-                    required
-                    aria-invalid={error ? true : undefined}
-                    className="text-slate-900 placeholder:text-slate-400"
-                  />
-                  <InputGroupAddon align="inline-start">
-                    <IconLock aria-hidden className="text-slate-400" />
-                  </InputGroupAddon>
-                  <InputGroupAddon align="inline-end">
-                    <InputGroupButton
-                      type="button"
-                      size="icon-sm"
-                      variant="ghost"
-                      className="text-slate-500 hover:text-slate-800"
-                      disabled={pending}
-                      aria-label={
-                        showPassword ? "Hide password" : "Show password"
-                      }
-                      aria-pressed={showPassword}
-                      onClick={() => setShowPassword((open) => !open)}
-                    >
-                      {showPassword ? (
-                        <IconEyeOff aria-hidden />
-                      ) : (
-                        <IconEye aria-hidden />
-                      )}
-                    </InputGroupButton>
-                  </InputGroupAddon>
-                </InputGroup>
-                {error ? (
-                  <p role="alert" className="text-sm text-destructive">
-                    {error}
-                  </p>
-                ) : null}
-              </Field>
-
-              <Button
-                className="h-11 w-full rounded-xl bg-blue-600 text-base hover:bg-blue-700"
-                type="submit"
-                disabled={pending}
+          <form
+            className="mt-8 space-y-5"
+            onSubmit={handleSubmit}
+            noValidate
+          >
+            <Field data-invalid={error ? true : undefined}>
+              <FieldLabel
+                htmlFor="display-email"
+                className="mb-1.5 text-sm font-semibold text-slate-800"
               >
-                {pending ? "Signing in…" : "Open display"}
-              </Button>
+                Email
+              </FieldLabel>
+              <InputGroup className={fieldGroupClassName}>
+                <InputGroupAddon align="inline-start">
+                  <IconMail
+                    aria-hidden
+                    className="size-[1.05rem] text-slate-400"
+                  />
+                </InputGroupAddon>
+                <InputGroupInput
+                  id="display-email"
+                  name="email"
+                  type="email"
+                  autoComplete="username"
+                  inputMode="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value)
+                    if (error) setError(null)
+                  }}
+                  disabled={pending}
+                  required
+                  aria-invalid={error ? true : undefined}
+                  className="text-slate-900 placeholder:text-slate-400"
+                />
+              </InputGroup>
+            </Field>
 
-              <p className="text-center text-xs text-slate-500">
-                For TV / waiting-room kiosks only. Use staff login for clinic
-                work.
-              </p>
-            </form>
-          </div>
-        </div>
-      </div>
+            <Field data-invalid={error ? true : undefined}>
+              <FieldLabel
+                htmlFor="display-password"
+                className="mb-1.5 text-sm font-semibold text-slate-800"
+              >
+                Password
+              </FieldLabel>
+              <InputGroup className={fieldGroupClassName}>
+                <InputGroupAddon align="inline-start">
+                  <IconLock
+                    aria-hidden
+                    className="size-[1.05rem] text-slate-400"
+                  />
+                </InputGroupAddon>
+                <InputGroupInput
+                  id="display-password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value)
+                    if (error) setError(null)
+                  }}
+                  disabled={pending}
+                  required
+                  aria-invalid={error ? true : undefined}
+                  className="text-slate-900 placeholder:text-slate-400"
+                />
+                <InputGroupAddon align="inline-end">
+                  <InputGroupButton
+                    type="button"
+                    size="icon-sm"
+                    variant="ghost"
+                    className="text-slate-400 hover:text-slate-700"
+                    disabled={pending}
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
+                    aria-pressed={showPassword}
+                    onClick={() => setShowPassword((open) => !open)}
+                  >
+                    {showPassword ? (
+                      <IconEyeOff aria-hidden />
+                    ) : (
+                      <IconEye aria-hidden />
+                    )}
+                  </InputGroupButton>
+                </InputGroupAddon>
+              </InputGroup>
+              {error ? (
+                <p role="alert" className="mt-2 text-sm text-destructive">
+                  {error}
+                </p>
+              ) : (
+                <p className="mt-2 text-right text-sm font-medium text-blue-600">
+                  Display account only
+                </p>
+              )}
+            </Field>
 
-      <aside className="relative hidden overflow-hidden bg-gradient-to-br from-blue-600 via-blue-700 to-sky-700 lg:block">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-30"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 20% 20%, rgba(255,255,255,0.35), transparent 42%), radial-gradient(circle at 80% 70%, rgba(125,211,252,0.35), transparent 40%)",
-          }}
-        />
-        <div className="relative z-10 flex h-full min-h-screen flex-col justify-between p-12 text-white">
-          <div className="inline-flex size-12 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25 backdrop-blur-sm">
-            <IconScreenShare className="size-6" stroke={1.75} aria-hidden />
-          </div>
-          <div className="max-w-sm space-y-3">
-            <p className="text-sm font-semibold tracking-[0.14em] text-sky-100 uppercase">
-              Waiting room
-            </p>
-            <h2 className="text-3xl font-bold tracking-tight text-balance">
-              Keep the public queue clear and calm.
-            </h2>
-            <p className="text-base leading-relaxed text-blue-100">
-              This account opens the full-screen ticket display — not the staff
-              clinical workspace.
-            </p>
-          </div>
-          <p className="text-sm text-blue-100/80">
-            CampusCare · NU Dasmariñas HSO
+            <Button
+              type="submit"
+              disabled={pending}
+              className="h-11 w-full rounded-lg bg-blue-600 text-base font-semibold text-white shadow-none hover:bg-blue-700"
+            >
+              {pending ? "Signing in…" : "Sign In"}
+            </Button>
+          </form>
+
+          <p className="mt-10 text-center text-sm text-slate-500">
+            Need the clinical workspace?{" "}
+            <Link
+              href="/login"
+              className="font-semibold text-blue-600 underline-offset-2 hover:underline"
+            >
+              Staff login
+            </Link>
           </p>
         </div>
-      </aside>
+      </section>
+
+      <DisplayLoginPreview />
     </main>
   )
 }
