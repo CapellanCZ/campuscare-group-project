@@ -1,9 +1,16 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import {
+  IconCoffee,
+  IconMoon,
+  IconSun,
+  IconVolume,
+  IconVolumeOff,
+} from "@tabler/icons-react"
 
 import { signOut } from "@/app/auth/actions"
-import { CampusCareLogo } from "@/components/campuscare-logo"
+import { CampusCareLogoStatic } from "@/components/campuscare-logo-static"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,21 +22,24 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import type { QueueDisplayAppearance } from "@/lib/display/appearance"
 import { createClient } from "@/lib/supabase/client"
 import { formatClock, formatLongDate, formatResumeClock } from "@/lib/health/time"
-import { IconCoffee, IconUsers, IconVolume, IconVolumeOff } from "@tabler/icons-react"
 
 export function DisplayHeader({
   totalWaiting,
   speakerOn,
   onToggleSpeaker,
+  appearance,
+  onToggleAppearance,
   clinicOnBreak = false,
   clinicResumesAt = null,
 }: {
   totalWaiting: number
   speakerOn: boolean
   onToggleSpeaker: () => void
+  appearance: QueueDisplayAppearance
+  onToggleAppearance: () => void
   clinicOnBreak?: boolean
   clinicResumesAt?: string | null
 }) {
@@ -37,6 +47,7 @@ export function DisplayHeader({
   const [canLogout, setCanLogout] = useState(false)
   const [logoutOpen, setLogoutOpen] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
+  const isDark = appearance === "dark"
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), 1000)
@@ -61,72 +72,97 @@ export function DisplayHeader({
     }
   }
 
+  const logo = (
+    <CampusCareLogoStatic
+      variant={isDark ? "white" : "blue"}
+      alt="CampusCare"
+      className="h-9 w-auto opacity-95 sm:h-10"
+      width={152}
+      priority
+    />
+  )
+
   return (
-    <header className="border-b bg-card/80 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-4 md:flex-row md:items-center md:justify-between md:px-6 md:py-5">
-        <div className="flex min-w-0 items-center gap-3">
+    <header className="shrink-0 border-b border-[var(--qd-line)] bg-[var(--qd-ink)]">
+      <div className="flex w-full items-center justify-between gap-4 px-5 py-4 sm:px-8 sm:py-5">
+        <div className="flex min-w-0 items-center gap-5">
           {canLogout ? (
             <button
               type="button"
               onClick={() => setLogoutOpen(true)}
-              className="shrink-0 cursor-default border-0 bg-transparent p-0 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="shrink-0 cursor-default border-0 bg-transparent p-0 outline-none focus-visible:ring-2 focus-visible:ring-[var(--qd-signal)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--qd-ink)]"
               aria-label="Sign out of queue display"
             >
-              <CampusCareLogo
-                alt=""
-                className="h-10 w-auto"
-                width={64}
-                height={40}
-              />
+              {logo}
             </button>
           ) : (
-            <CampusCareLogo
-              alt=""
-              className="h-10 w-auto shrink-0"
-              width={64}
-              height={40}
-            />
+            <div className="shrink-0">{logo}</div>
           )}
-          <div className="min-w-0">
-            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          <div className="hidden min-w-0 sm:block">
+            <p className="text-[11px] font-medium tracking-[0.2em] text-[var(--qd-mute)] uppercase">
               Health Services Office
             </p>
-            <h1 className="truncate text-2xl font-bold tracking-tight md:text-3xl">
-              Patients Queue Display
-            </h1>
+            <p className="mt-0.5 text-sm font-medium text-[var(--qd-fg-soft)]">
+              Public queue board
+            </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-4">
           <Button
             type="button"
             size="icon"
-            variant="outline"
+            variant="ghost"
+            className="size-10 rounded-lg text-[var(--qd-fg-soft)] hover:bg-[var(--qd-control)] hover:text-[var(--qd-fg)]"
+            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            onClick={onToggleAppearance}
+          >
+            {isDark ? (
+              <IconSun className="size-5" />
+            ) : (
+              <IconMoon className="size-5" />
+            )}
+          </Button>
+
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="size-10 rounded-lg text-[var(--qd-fg-soft)] hover:bg-[var(--qd-control)] hover:text-[var(--qd-fg)]"
             aria-label={speakerOn ? "Mute announcements" : "Enable announcements"}
             onClick={onToggleSpeaker}
           >
-            {speakerOn ? <IconVolume /> : <IconVolumeOff />}
+            {speakerOn ? (
+              <IconVolume className="size-5" />
+            ) : (
+              <IconVolumeOff className="size-5" />
+            )}
           </Button>
 
-          <Card className="shadow-none dark:ring-0">
-            <CardContent className="flex items-center gap-3 px-4 py-3">
-              <IconUsers className="size-5 text-primary" aria-hidden />
-              <div>
-                <p className="text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
-                  Total waiting
-                </p>
-                <p className="text-2xl font-bold tabular-nums leading-none">
-                  {totalWaiting}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          <div
+            className="hidden h-10 w-px bg-[var(--qd-line)] sm:block"
+            aria-hidden
+          />
 
-          <div className="min-w-[9rem] text-right">
-            <p className="font-mono text-3xl font-semibold tabular-nums leading-none">
+          <div className="text-right">
+            <p className="text-[10px] font-medium tracking-[0.16em] text-[var(--qd-mute)] uppercase">
+              Waiting
+            </p>
+            <p className="font-mono text-2xl font-semibold text-[var(--qd-ticket)] tabular-nums sm:text-3xl">
+              {totalWaiting}
+            </p>
+          </div>
+
+          <div
+            className="hidden h-10 w-px bg-[var(--qd-line)] sm:block"
+            aria-hidden
+          />
+
+          <div className="min-w-[7.5rem] text-right sm:min-w-[9rem]">
+            <p className="font-mono text-2xl font-semibold tracking-tight text-[var(--qd-fg)] tabular-nums sm:text-3xl">
               {formatClock(now)}
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-0.5 text-[11px] text-[var(--qd-mute)]">
               {formatLongDate(now)}
             </p>
           </div>
@@ -136,14 +172,17 @@ export function DisplayHeader({
       {clinicOnBreak ? (
         <div
           role="status"
-          className="border-t border-amber-500/30 bg-amber-500/15 px-4 py-3 text-center md:px-6"
+          className="flex items-center justify-center gap-2 border-t border-[var(--qd-break)]/40 bg-[var(--qd-break)] px-4 py-3 text-center"
         >
-          <p className="flex flex-wrap items-center justify-center gap-2 text-base font-semibold text-amber-950 dark:text-amber-100 md:text-lg">
-            <IconCoffee className="size-5 shrink-0" aria-hidden />
-            Clinic is on break
+          <IconCoffee
+            className="size-5 shrink-0 text-[#0C1222]"
+            aria-hidden
+          />
+          <p className="text-base font-semibold text-[#0C1222] sm:text-lg">
+            Clinic on break
             {formatResumeClock(clinicResumesAt)
-              ? ` · Resumes around ${formatResumeClock(clinicResumesAt)}`
-              : " · Please wait"}
+              ? ` · resumes around ${formatResumeClock(clinicResumesAt)}`
+              : " · please wait"}
           </p>
         </div>
       ) : null}

@@ -43,6 +43,7 @@ export async function sendResendEmail(input: {
     attachments: logo
       ? [
           {
+            // Resend requires base64 string for local file content (not Buffer).
             filename: logo.filename,
             content: logo.content,
             contentId: logo.contentId,

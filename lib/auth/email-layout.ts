@@ -6,42 +6,45 @@ import path from "node:path"
 /** Shared CampusCare transactional email shell (table layout for clients). */
 
 export const EMAIL_SUPPORT = "clinic@nu-dasma.edu.ph"
-export const EMAIL_LOGO_CID = "campuscare-logo"
+/** Must match Resend attachment `contentId` and HTML `cid:` exactly. */
+export const EMAIL_LOGO_CID = "logo-image"
 
 const FONT =
   "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif"
 
 /**
- * Match staff login: slate neutrals + blue-600.
- * Light header + blue PNG wordmark (same as auth page).
+ * Clinic night-desk: deep navy trust + electric blue pulse.
+ * Distinct from generic purple SaaS / cream-serif AI defaults.
  */
 export const emailColors = {
-  pageBg: "#E8EEF7",
+  pageBg: "#0B1220",
   cardBg: "#FFFFFF",
-  cardBorder: "#D7E0EC",
-  headerBg: "#FFFFFF",
-  headerMuted: "#64748B",
+  cardBorder: "#1E293B",
+  navy: "#0F1C3F",
+  navyDeep: "#0A1430",
   heading: "#0F172A",
   body: "#475569",
   primary: "#2563EB",
-  primarySoft: "#EFF6FF",
+  primaryBright: "#3B82F6",
   primaryText: "#FFFFFF",
   link: "#2563EB",
-  mutedBox: "#F8FAFC",
-  otpSlotBg: "#FFFFFF",
-  otpSlotBorder: "#CBD5E1",
-  otpText: "#0F172A",
+  codePanel: "#0F172A",
+  codeDigit: "#F8FAFC",
+  codeMuted: "#94A3B8",
   footer: "#64748B",
   divider: "#E2E8F0",
-  accentBar: "#2563EB",
-  chipBg: "#EFF6FF",
-  chipText: "#1D4ED8",
+  chipBg: "rgba(59,130,246,0.18)",
+  chipText: "#BFDBFE",
+  softBand: "#F1F5F9",
 } as const
 
-/** Blue wordmark — intrinsic 256×135 (same asset as login). */
-const LOGO_FILE = "CampusCareBlue.png"
-const LOGO_DISPLAY_WIDTH = 132
-const LOGO_DISPLAY_HEIGHT = 70
+/** RGBA white wordmark for dark header (trimmed for email). */
+const LOGO_FILE = "CampusCareWhite.png"
+const LOGO_RELATIVE = path.join("public", "images", "email", LOGO_FILE)
+const LOGO_DISPLAY_WIDTH = 148
+const LOGO_DISPLAY_HEIGHT = 73
+
+export type EmailShellVariant = "default" | "otp"
 
 export function escapeHtml(value: string): string {
   return String(value)
@@ -52,27 +55,30 @@ export function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;")
 }
 
-/** Public HTTPS fallback when CID is unsupported; never use localhost. */
+/** Hosted PNG fallback when a client refuses CID. */
 export function emailLogoUrl(): string {
   const raw = process.env.NEXT_PUBLIC_SITE_URL?.trim() || ""
   const base = raw.replace(/\/$/, "")
   if (base && !/localhost|127\.0\.0\.1/i.test(base)) {
-    return `${base}/images/${LOGO_FILE}`
+    return `${base}/images/email/${LOGO_FILE}`
   }
-  return `https://campuscare-group-project.vercel.app/images/${LOGO_FILE}`
+  return `https://campuscare-group-project.vercel.app/images/email/${LOGO_FILE}`
 }
 
-/** Inline logo for Resend (CID). Wide PNG — never force a square crop. */
+/**
+ * Inline logo for Resend — content MUST be base64 (see Resend docs).
+ * Passing a raw Buffer is why the mark was blank in clients.
+ */
 export function getCampusCareLogoAttachment(): {
   filename: string
-  content: Buffer
+  content: string
   contentId: string
   contentType: string
 } {
-  const filePath = path.join(process.cwd(), "public", "images", LOGO_FILE)
+  const filePath = path.join(process.cwd(), LOGO_RELATIVE)
   return {
     filename: LOGO_FILE,
-    content: readFileSync(filePath),
+    content: readFileSync(filePath).toString("base64"),
     contentId: EMAIL_LOGO_CID,
     contentType: "image/png",
   }
@@ -81,12 +87,10 @@ export function getCampusCareLogoAttachment(): {
 function emailLogoMarkup(): string {
   const logoHttp = escapeHtml(emailLogoUrl())
   const logoCid = `cid:${EMAIL_LOGO_CID}`
-  // Prefer CID (inline attachment); HTTPS is a fallback for clients that strip CID.
-  return `<img src="${logoCid}" alt="CampusCare" width="${LOGO_DISPLAY_WIDTH}" height="${LOGO_DISPLAY_HEIGHT}" style="display:block;width:${LOGO_DISPLAY_WIDTH}px;height:auto;max-width:100%;border:0;outline:none;text-decoration:none;" />
+  // CID first (inline attachment). Nested HTTPS helps some webmail proxies.
+  return `<img src="${logoCid}" alt="CampusCare" width="${LOGO_DISPLAY_WIDTH}" height="${LOGO_DISPLAY_HEIGHT}" style="display:block;width:${LOGO_DISPLAY_WIDTH}px;height:auto;max-width:180px;border:0;outline:none;" />
 <!--[if !mso]><!-->
-<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">
-  <img src="${logoHttp}" alt="" width="1" height="1" />
-</div>
+<img src="${logoHttp}" alt="" width="${LOGO_DISPLAY_WIDTH}" height="${LOGO_DISPLAY_HEIGHT}" style="display:none;width:0;height:0;max-height:0;overflow:hidden;border:0;" />
 <!--<![endif]-->`
 }
 
@@ -95,9 +99,10 @@ export function wrapCampusCareEmail(input: {
   preheader?: string
   heading: string
   contentHtml: string
-  /** Shown after the divider, above the support line */
   securityNote?: string
+  variant?: EmailShellVariant
 }): string {
+  const variant = input.variant ?? "default"
   const preheader = input.preheader
     ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:${emailColors.pageBg};">
         ${escapeHtml(input.preheader)}
@@ -109,6 +114,56 @@ export function wrapCampusCareEmail(input: {
                 ${escapeHtml(input.securityNote)}
               </p>`
     : ""
+
+  const headerRow =
+    variant === "otp"
+      ? `<tr>
+            <td bgcolor="${emailColors.navy}" style="background-color:${emailColors.navy};background-image:linear-gradient(145deg,${emailColors.navyDeep} 0%,${emailColors.navy} 48%,#1E3A8A 100%);padding:36px 32px 32px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td valign="middle">
+                    ${emailLogoMarkup()}
+                  </td>
+                  <td valign="middle" align="right" style="width:1%;white-space:nowrap;padding-left:12px;">
+                    <span style="display:inline-block;padding:7px 12px;border-radius:999px;background-color:${emailColors.chipBg};font-family:${FONT};font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:${emailColors.chipText};">
+                      Secure OTP
+                    </span>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:18px 0 0;font-family:${FONT};font-size:13px;line-height:1.45;color:#93C5FD;">
+                NU Dasmariñas · Health Services Office
+              </p>
+              <h1 style="margin:22px 0 0;font-family:${FONT};font-size:30px;line-height:1.15;font-weight:700;letter-spacing:-0.035em;color:#FFFFFF;">
+                ${escapeHtml(input.heading)}
+              </h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="height:3px;line-height:3px;font-size:0;background-color:${emailColors.primaryBright};">&nbsp;</td>
+          </tr>`
+      : `<tr>
+            <td style="height:4px;line-height:4px;font-size:0;background-color:${emailColors.primary};">&nbsp;</td>
+          </tr>
+          <tr>
+            <td bgcolor="${emailColors.navy}" style="background-color:${emailColors.navy};padding:28px 32px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td valign="middle">${emailLogoMarkup()}</td>
+                </tr>
+              </table>
+              <p style="margin:14px 0 0;font-family:${FONT};font-size:12px;line-height:1.45;color:#93C5FD;">
+                NU Dasmariñas · Health Services Office
+              </p>
+            </td>
+          </tr>`
+
+  const bodyHeading =
+    variant === "otp"
+      ? ""
+      : `<h1 style="margin:0 0 12px;font-size:24px;line-height:1.2;font-weight:700;letter-spacing:-0.03em;color:${emailColors.heading};">
+                ${escapeHtml(input.heading)}
+              </h1>`
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -122,39 +177,16 @@ export function wrapCampusCareEmail(input: {
   ${preheader}
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:${emailColors.pageBg};">
     <tr>
-      <td align="center" style="padding:48px 16px;">
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:540px;background-color:${emailColors.cardBg};border:1px solid ${emailColors.cardBorder};border-radius:20px;overflow:hidden;">
+      <td align="center" style="padding:40px 16px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:560px;background-color:${emailColors.cardBg};border-radius:24px;overflow:hidden;border:1px solid ${emailColors.cardBorder};">
+          ${headerRow}
           <tr>
-            <td style="height:4px;line-height:4px;font-size:0;background:linear-gradient(90deg,${emailColors.primary} 0%,#38BDF8 100%);background-color:${emailColors.accentBar};">&nbsp;</td>
-          </tr>
-          <tr>
-            <td bgcolor="${emailColors.headerBg}" style="background-color:${emailColors.headerBg};padding:28px 32px 20px;border-bottom:1px solid ${emailColors.divider};">
-              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
-                <tr>
-                  <td valign="middle" style="padding-right:16px;">
-                    ${emailLogoMarkup()}
-                  </td>
-                  <td valign="middle" align="right" style="width:1%;white-space:nowrap;">
-                    <span style="display:inline-block;padding:6px 10px;border-radius:999px;background-color:${emailColors.chipBg};font-family:${FONT};font-size:11px;font-weight:600;letter-spacing:0.04em;color:${emailColors.chipText};">
-                      Secure sign-in
-                    </span>
-                  </td>
-                </tr>
-              </table>
-              <p style="margin:14px 0 0;font-family:${FONT};font-size:12px;line-height:1.45;color:${emailColors.headerMuted};">
-                NU Dasmariñas · Health Services Office
-              </p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:32px 32px 30px;font-family:${FONT};color:${emailColors.heading};">
-              <h1 style="margin:0 0 10px;font-size:26px;line-height:1.2;font-weight:700;letter-spacing:-0.03em;color:${emailColors.heading};">
-                ${escapeHtml(input.heading)}
-              </h1>
+            <td style="padding:${variant === "otp" ? "28px 32px 32px" : "32px"};font-family:${FONT};color:${emailColors.heading};background-color:${emailColors.cardBg};">
+              ${bodyHeading}
               ${input.contentHtml}
-              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:30px 0 0;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:28px 0 0;">
                 <tr>
-                  <td style="border-top:1px solid ${emailColors.divider};padding-top:22px;">
+                  <td style="border-top:1px solid ${emailColors.divider};padding-top:20px;">
                     ${securityBlock}
                     <p style="margin:0;font-size:13px;line-height:1.55;color:${emailColors.footer};">
                       Need help? Contact us at
@@ -166,7 +198,7 @@ export function wrapCampusCareEmail(input: {
             </td>
           </tr>
         </table>
-        <p style="margin:20px 0 0;font-family:${FONT};font-size:12px;line-height:1.45;color:${emailColors.footer};">
+        <p style="margin:20px 0 0;font-family:${FONT};font-size:12px;line-height:1.45;color:#94A3B8;">
           © CampusCare · NU Dasmariñas HSO
         </p>
       </td>
@@ -194,38 +226,29 @@ export function emailBodyParagraph(html: string): string {
   return `<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:${emailColors.body};">${html}</p>`
 }
 
-function otpDigitCell(digit: string, isLast: boolean): string {
-  const pad = isLast ? "0" : "8"
-  return `<td align="center" style="padding:0 ${pad}px 0 0;">
-      <div style="width:46px;height:56px;border:1px solid ${emailColors.otpSlotBorder};border-radius:12px;background-color:${emailColors.otpSlotBg};box-shadow:0 1px 2px rgba(15,23,42,0.04);line-height:56px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:26px;font-weight:700;letter-spacing:0;color:${emailColors.otpText};">
-        ${escapeHtml(digit)}
-      </div>
-    </td>`
-}
-
 /**
- * OTP digit slots — mirrors login InputOTP; wide, readable, modern.
+ * Hero OTP — one dark stage, spaced digits. The “wow” of the email.
  */
 export function emailOtpBox(token: string): string {
   const digits = String(token).replace(/\s+/g, "").split("")
-  const cells = digits
-    .map((digit, index) => otpDigitCell(digit, index === digits.length - 1))
-    .join("")
+  const spaced = escapeHtml(digits.join("  "))
 
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:8px 0 8px;">
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:8px 0 4px;">
   <tr>
-    <td align="center" style="background-color:${emailColors.primarySoft};border:1px solid #BFDBFE;border-radius:16px;padding:24px 18px;">
-      <p style="margin:0 0 14px;font-family:${FONT};font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${emailColors.chipText};">
+    <td align="center" bgcolor="${emailColors.codePanel}" style="background-color:${emailColors.codePanel};background-image:linear-gradient(160deg,#0F172A 0%,#1E293B 55%,#0F172A 100%);border-radius:18px;padding:28px 20px 24px;">
+      <p style="margin:0 0 16px;font-family:${FONT};font-size:11px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:${emailColors.codeMuted};">
         One-time code
       </p>
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">
+      <p style="margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:36px;font-weight:700;letter-spacing:0.12em;line-height:1.2;color:${emailColors.codeDigit};">
+        ${spaced}
+      </p>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:20px auto 0;">
         <tr>
-          ${cells}
+          <td style="padding:8px 14px;border-radius:999px;background-color:rgba(37,99,235,0.22);font-family:${FONT};font-size:12px;font-weight:600;color:#BFDBFE;">
+            Expires in 10 minutes
+          </td>
         </tr>
       </table>
-      <p style="margin:14px 0 0;font-family:${FONT};font-size:12px;line-height:1.4;color:${emailColors.footer};">
-        Expires in 10 minutes · Do not share this code
-      </p>
     </td>
   </tr>
 </table>`
