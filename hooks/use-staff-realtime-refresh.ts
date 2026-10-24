@@ -36,12 +36,14 @@ export function useStaffRealtimeRefresh(
     if (!tablesKey) return
 
     const client = createClient()
+    let alive = true
     let timer: ReturnType<typeof setTimeout> | null = null
 
     const schedule = () => {
       if (timer) clearTimeout(timer)
       timer = setTimeout(() => {
         timer = null
+        if (!alive) return
         onChangeEvent()
       }, debounceMs)
     }
@@ -55,6 +57,7 @@ export function useStaffRealtimeRefresh(
     )
 
     return () => {
+      alive = false
       if (timer) clearTimeout(timer)
       subscription.unsubscribe(client)
     }

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server"
+
+import { clearDutyOnLogout } from "@/lib/availability/duty-queries"
 import { createClient } from "@/lib/supabase/server"
 
 const LOGOUT_REASONS = new Set(["idle", "absolute", "history"])
@@ -6,6 +8,19 @@ const LOGOUT_REASONS = new Set(["idle", "absolute", "history"])
 export async function GET(request: Request) {
   const { origin, searchParams } = new URL(request.url)
   const supabase = await createClient()
+
+  // Clear duty while the session is still valid so realtime peers update.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (user?.id) {
+    try {
+      await clearDutyOnLogout(user.id, supabase)
+    } catch {
+      // Still sign out even if duty clear fails.
+    }
+  }
+
   await supabase.auth.signOut()
 
   const loginUrl = new URL("/login", origin)

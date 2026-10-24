@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useTransition } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { IconCheck, IconLoader2 } from "@tabler/icons-react"
@@ -40,6 +40,7 @@ export function DentalConsultationMode({
   readOnly?: boolean
 }) {
   const router = useRouter()
+  const pageAliveRef = useRef(true)
   const [mounted, setMounted] = useState(false)
   const [chart, setChart] = useState(initialChart)
   const [activeCode, setActiveCode] = useState<DentalConditionCode | null>(
@@ -57,7 +58,11 @@ export function DentalConsultationMode({
   const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
+    pageAliveRef.current = true
     setMounted(true)
+    return () => {
+      pageAliveRef.current = false
+    }
   }, [])
 
   function persist(complete = false): Promise<void> {
@@ -71,7 +76,7 @@ export function DentalConsultationMode({
           complete,
         })
         if (!result.ok) {
-          setError(result.error)
+          if (pageAliveRef.current) setError(result.error)
           reject(new Error(result.error))
           return
         }
@@ -79,7 +84,11 @@ export function DentalConsultationMode({
           resolve()
           return
         }
-        setMessage("Dental chart draft saved. You can continue or complete later.")
+        if (pageAliveRef.current) {
+          setMessage(
+            "Dental chart draft saved. You can continue or complete later."
+          )
+        }
         resolve()
       })
     })
@@ -103,6 +112,7 @@ export function DentalConsultationMode({
     setCompleting(true)
     try {
       await persist(true)
+      if (!pageAliveRef.current) return
       setSummaryOpen(false)
       setSummaryPreview(null)
       router.push("/dentist/queue")
@@ -110,7 +120,7 @@ export function DentalConsultationMode({
     } catch {
       // Error shown inline
     } finally {
-      setCompleting(false)
+      if (pageAliveRef.current) setCompleting(false)
     }
   }
 

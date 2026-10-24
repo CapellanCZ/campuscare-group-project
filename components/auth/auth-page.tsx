@@ -18,7 +18,7 @@ import {
   verifyOtp,
 } from "@/lib/auth/auth-api"
 import { asErrorMessage } from "@/lib/auth/errors"
-import { isValidEmail } from "@/lib/auth/email"
+import { isValidEmail, sanitizeOtpInput } from "@/lib/auth/email"
 import { markSessionStarted } from "@/lib/auth/session-timeout"
 import { siteRoutes } from "@/lib/site/routes"
 
@@ -228,7 +228,7 @@ export function AuthPage() {
                 isResending={isSendingOtp}
                 resendSeconds={resendSeconds}
                 onOtpChange={(value) => {
-                  setOtp(value)
+                  setOtp(sanitizeOtpInput(value))
                   if (otpError) setOtpError(null)
                 }}
                 onVerify={handleVerifyOtp}

@@ -95,25 +95,35 @@ export async function signOut(options?: {
 }): Promise<AuthResult> {
   try {
     const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-    if (!options?.force) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (user) {
-        const { data: duty } = await supabase
-          .from("staff_duty_status")
-          .select("status")
-          .eq("user_id", user.id)
-          .maybeSingle()
-        const status = duty?.status as string | undefined
-        if (status === "available" || status === "on_break") {
-          return {
-            ok: false,
-            error:
-              "Your duty is still active. End Duty before logging out.",
-          }
+    if (!options?.force && user) {
+      const { data: duty } = await supabase
+        .from("staff_duty_status")
+        .select("status")
+        .eq("user_id", user.id)
+        .maybeSingle()
+      const status = duty?.status as string | undefined
+      if (status === "available" || status === "on_break") {
+        return {
+          ok: false,
+          error:
+            "Your duty is still active. End Duty before logging out.",
         }
+      }
+    }
+
+    // Forced logout (idle / absolute) must clear duty so peers stop seeing Available.
+    if (options?.force && user?.id) {
+      try {
+        const { clearDutyOnLogout } = await import(
+          "@/lib/availability/duty-queries"
+        )
+        await clearDutyOnLogout(user.id, supabase)
+      } catch {
+        // Continue sign-out even if duty clear fails.
       }
     }
 

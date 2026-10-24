@@ -252,6 +252,15 @@ export function QueuePage({
       .catch(() => undefined)
   }
 
+  // Ignore late Start→consultation navigations after the user already left.
+  const pageAliveRef = useRef(true)
+  useEffect(() => {
+    pageAliveRef.current = true
+    return () => {
+      pageAliveRef.current = false
+    }
+  }, [])
+
   // Warm session cache from RSC seed so revisits / prefetch share the payload.
   useEffect(() => {
     if (hydrateFromCache) return
@@ -1414,7 +1423,9 @@ export function QueuePage({
                                                     )
                                                   if (!result.ok) {
                                                     queueToasts.failed(result.error)
-                                                    router.refresh()
+                                                    if (pageAliveRef.current) {
+                                                      router.refresh()
+                                                    }
                                                     return
                                                   }
                                                   consultationToasts.started(
@@ -1435,9 +1446,12 @@ export function QueuePage({
                                                     queueToasts.failed(
                                                       "Consultation started, but no visit record was linked."
                                                     )
-                                                    router.refresh()
+                                                    if (pageAliveRef.current) {
+                                                      router.refresh()
+                                                    }
                                                     return
                                                   }
+                                                  if (!pageAliveRef.current) return
                                                   const rolePath = isDentist
                                                     ? "dentist"
                                                     : "physician"
@@ -1867,7 +1881,7 @@ export function QueuePage({
                     const result = await actionStartConsultation(row.ticketId)
                     if (!result.ok) {
                       queueToasts.failed(result.error)
-                      softReloadQueue(true)
+                      if (pageAliveRef.current) softReloadQueue(true)
                       return
                     }
                     consultationToasts.started(row.patientName)
@@ -1884,9 +1898,10 @@ export function QueuePage({
                       queueToasts.failed(
                         "Consultation started, but no visit record was linked."
                       )
-                      softReloadQueue(true)
+                      if (pageAliveRef.current) softReloadQueue(true)
                       return
                     }
+                    if (!pageAliveRef.current) return
                     router.push(
                       `/${isDentist ? "dentist" : "physician"}/consultation/${visitId}`
                     )

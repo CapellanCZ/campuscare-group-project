@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useCallback, useState, useTransition } from "react"
+import { useCallback, useEffect, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { useStaffRealtimeRefresh } from "@/hooks/use-staff-realtime-refresh"
 import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
@@ -74,12 +74,21 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
   const router = useRouter()
   const isDentist = workspace.role === "dentist"
   const queuePath = isDentist ? "/dentist/queue" : "/physician/queue"
+  const pageAliveRef = useRef(true)
+
+  useEffect(() => {
+    pageAliveRef.current = true
+    return () => {
+      pageAliveRef.current = false
+    }
+  }, [])
 
   // Peer edits (another clinician / documents) sync without a manual refresh.
   useStaffRealtimeRefresh(
     `clinical-visit-${workspace.consultationId}`,
     STAFF_REALTIME_TABLES.clinicalVisit,
     () => {
+      if (!pageAliveRef.current) return
       router.refresh()
     },
     500,
@@ -207,6 +216,7 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
     setCompleting(true)
     try {
       await persist(true)
+      if (!pageAliveRef.current) return
       setSummaryOpen(false)
       setSummaryPreview(null)
       router.push(queuePath)
@@ -214,7 +224,7 @@ export function ClinicalVisitMode({ workspace }: ClinicalVisitModeProps) {
     } catch {
       // Error surfaced inline via setError in persist
     } finally {
-      setCompleting(false)
+      if (pageAliveRef.current) setCompleting(false)
     }
   }
 

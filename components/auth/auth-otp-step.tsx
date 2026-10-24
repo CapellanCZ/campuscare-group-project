@@ -9,6 +9,8 @@ import {
   FieldError,
   FieldLabel,
 } from "@/components/ui/field"
+import { REGEXP_ONLY_DIGITS } from "input-otp"
+
 import {
   InputOTP,
   InputOTPGroup,
@@ -16,7 +18,7 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp"
 import { OTP_LENGTH } from "@/lib/auth/auth-api"
-import { maskEmail } from "@/lib/auth/email"
+import { maskEmail, sanitizeOtpInput } from "@/lib/auth/email"
 
 const otpSlotClassName =
   "min-w-0 flex-1 *:data-[slot=input-otp-slot]:h-10 *:data-[slot=input-otp-slot]:w-0 *:data-[slot=input-otp-slot]:min-w-0 *:data-[slot=input-otp-slot]:flex-1 *:data-[slot=input-otp-slot]:text-lg sm:*:data-[slot=input-otp-slot]:h-11 sm:*:data-[slot=input-otp-slot]:text-xl"
@@ -74,7 +76,11 @@ export function AuthOtpStep({
             maxLength={OTP_LENGTH}
             id="otp-verification"
             value={otp}
-            onChange={onOtpChange}
+            onChange={(value) => onOtpChange(sanitizeOtpInput(value))}
+            pattern={REGEXP_ONLY_DIGITS}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            pasteTransformer={(pasted) => sanitizeOtpInput(pasted)}
             required
             autoFocus
             containerClassName="w-full justify-between gap-2"

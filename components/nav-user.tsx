@@ -19,9 +19,9 @@ import {
 import { useOptionalDutyStatus } from "@/components/availability/duty-status-control"
 import { useConfirm } from "@/components/feedback/confirm-provider"
 import { useOptionalStaffAccess } from "@/components/staff-access-provider"
-import { signOut } from "@/app/auth/actions"
 import { staffBasePath } from "@/lib/auth/home-path"
 import { allowNextUnload } from "@/lib/auth/session-unload"
+import { patchSessionDutyStatus } from "@/lib/availability/session-duty-cache"
 import { dutyToasts } from "@/lib/feedback/toast-messages"
 import { useStaffThemeToggle } from "@/hooks/use-staff-theme-toggle"
 import { resetActiveThemeStorage } from "@/lib/theme/staff-theme-storage"
@@ -128,14 +128,16 @@ export function NavUser() {
               }
               void confirmPreset("logout", {
                 onConfirm: async () => {
-                  const result = await signOut()
-                  if (!result.ok) {
-                    dutyToasts.logoutBlocked(result.error)
-                    throw new Error(result.error)
-                  }
                   allowNextUnload()
                   resetActiveThemeStorage("light")
-                  // Use the logout route so cookies clear and /login history traps apply.
+                  // Avoid a stale Available flash if this tab remounts before redirect.
+                  patchSessionDutyStatus({
+                    status: "not_available",
+                    dutyStartedAt: null,
+                    dutyEndedAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                  })
+                  // Clear duty while the session is still valid, then sign out.
                   window.location.replace("/auth/logout")
                 },
               })

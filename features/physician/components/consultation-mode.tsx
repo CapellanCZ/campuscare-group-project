@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { IconCheck, IconLoader2 } from "@tabler/icons-react"
 
@@ -58,7 +58,15 @@ export function ConsultationMode({
   nurseVitals,
 }: ConsultationModeProps) {
   const router = useRouter()
+  const pageAliveRef = useRef(true)
   const [step, setStep] = useState(1)
+
+  useEffect(() => {
+    pageAliveRef.current = true
+    return () => {
+      pageAliveRef.current = false
+    }
+  }, [])
   const [symptoms, setSymptoms] = useState(consultation?.symptoms ?? "")
   const [diagnosis, setDiagnosis] = useState(consultation?.diagnosis ?? "")
   const [clinicalNotes, setClinicalNotes] = useState(
@@ -90,7 +98,7 @@ export function ConsultationMode({
               ? "Demo consultation completed locally (sign in as physician to persist)."
               : "Demo draft saved locally (sign in as physician to persist)."
           )
-          if (complete) {
+          if (complete && pageAliveRef.current) {
             router.push("/physician/dashboard")
           }
           return
@@ -98,6 +106,7 @@ export function ConsultationMode({
         setError(result.error)
         return
       }
+      if (!pageAliveRef.current) return
       setMessage(complete ? "Consultation completed." : "Draft saved.")
       if (complete) {
         router.push("/physician/dashboard")

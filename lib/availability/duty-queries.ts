@@ -140,6 +140,42 @@ export function isRoleOnDuty(
   return dutyByRole[role]?.status === "available"
 }
 
+/**
+ * Force staff off duty on logout / session timeout so peers stop seeing Available.
+ * Prefer service role so RLS cannot leave a stale available row behind.
+ */
+export async function clearDutyOnLogout(
+  userId: string,
+  client?: SupabaseClient
+): Promise<void> {
+  if (!userId) return
+
+  let supabase: SupabaseClient
+  try {
+    supabase = createAdminClient()
+  } catch {
+    supabase = client ?? (await createClient())
+  }
+
+  const now = new Date().toISOString()
+
+  await supabase.from("staff_duty_status").upsert(
+    {
+      user_id: userId,
+      status: "not_available",
+      duty_ended_at: now,
+      updated_at: now,
+    },
+    { onConflict: "user_id" }
+  )
+
+  await supabase
+    .from("staff_duty_sessions")
+    .update({ ended_at: now })
+    .eq("user_id", userId)
+    .is("ended_at", null)
+}
+
 export async function hasActiveConsultationForUser(
   userId: string,
   client?: SupabaseClient
