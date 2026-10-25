@@ -1,6 +1,7 @@
 "use server"
 
 import { clearInvitePendingAfterSignIn } from "@/lib/auth/clear-invite-pending"
+import { resolveDisplayLoginEmail } from "@/lib/auth/email"
 import { asErrorMessage, mapAuthError } from "@/lib/auth/errors"
 import { sendLoginOtpEmail } from "@/lib/auth/send-login-otp"
 import type { AuthResult } from "@/lib/auth/types"
@@ -147,15 +148,18 @@ export async function signOut(options?: {
  * Only users with primary_role = queue_display may succeed.
  */
 export async function signInDisplayAccount(
-  email: string,
+  emailOrUsername: string,
   password: string
 ): Promise<AuthResult> {
   try {
-    const trimmedEmail = email.trim().toLowerCase()
+    const resolvedEmail = resolveDisplayLoginEmail(emailOrUsername)
     const trimmedPassword = password
 
-    if (!trimmedEmail) {
-      return { ok: false, error: "Enter the display account email." }
+    if (!resolvedEmail) {
+      return {
+        ok: false,
+        error: "Enter a display username or full email address.",
+      }
     }
     if (!trimmedPassword) {
       return { ok: false, error: "Enter the display account password." }
@@ -163,7 +167,7 @@ export async function signInDisplayAccount(
 
     const supabase = await createClient()
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: trimmedEmail,
+      email: resolvedEmail,
       password: trimmedPassword,
     })
 

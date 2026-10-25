@@ -19,8 +19,13 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group"
 import { asErrorMessage } from "@/lib/auth/errors"
-import { isValidEmail } from "@/lib/auth/email"
+import {
+  getDisplayLoginEmailDomain,
+  resolveDisplayLoginEmail,
+} from "@/lib/auth/email"
 import { cn } from "@/lib/utils"
+
+const displayLoginDomain = getDisplayLoginEmailDomain()
 
 const fieldGroupClassName = cn(
   "h-11 rounded-lg border border-slate-200 bg-white shadow-none",
@@ -47,13 +52,15 @@ export function DisplayLoginPage() {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const trimmedEmail = email.trim().toLowerCase()
-    if (!trimmedEmail) {
-      setError("Enter the display account email.")
+    const resolvedEmail = resolveDisplayLoginEmail(email)
+    if (!email.trim()) {
+      setError("Enter the display username or email.")
       return
     }
-    if (!isValidEmail(trimmedEmail)) {
-      setError("Enter a valid email address.")
+    if (!resolvedEmail) {
+      setError(
+        `Enter a username (e.g. NUHSODisplay) or full email (@${displayLoginDomain}).`
+      )
       return
     }
     if (!password) {
@@ -64,7 +71,7 @@ export function DisplayLoginPage() {
     setPending(true)
     setError(null)
     try {
-      const result = await signInDisplayAccount(trimmedEmail, password)
+      const result = await signInDisplayAccount(resolvedEmail, password)
       if (!result.ok) {
         setError(
           asErrorMessage(result.error, "Could not sign in to the display.")
@@ -103,7 +110,7 @@ export function DisplayLoginPage() {
                 htmlFor="display-email"
                 className="mb-1.5 text-sm font-semibold text-slate-800"
               >
-                Email
+                Username or email
               </FieldLabel>
               <InputGroup className={fieldGroupClassName}>
                 <InputGroupAddon align="inline-start">
@@ -115,10 +122,10 @@ export function DisplayLoginPage() {
                 <InputGroupInput
                   id="display-email"
                   name="email"
-                  type="email"
+                  type="text"
                   autoComplete="username"
-                  inputMode="email"
-                  placeholder="Enter your email"
+                  inputMode="text"
+                  placeholder={`NUHSODisplay or name@${displayLoginDomain}`}
                   value={email}
                   onChange={(e) => {
                     setEmail(e.target.value)
