@@ -1,8 +1,8 @@
 "use server"
 
 import { clearInvitePendingAfterSignIn } from "@/lib/auth/clear-invite-pending"
-import { resolveDisplayLoginEmail } from "@/lib/auth/email"
 import { asErrorMessage, mapAuthError } from "@/lib/auth/errors"
+import { resolveDisplayAuthEmail } from "@/lib/auth/resolve-display-auth-email"
 import { sendLoginOtpEmail } from "@/lib/auth/send-login-otp"
 import type { AuthResult } from "@/lib/auth/types"
 import { isStaleRefreshTokenError } from "@/lib/supabase/auth-errors"
@@ -152,7 +152,7 @@ export async function signInDisplayAccount(
   password: string
 ): Promise<AuthResult> {
   try {
-    const resolvedEmail = resolveDisplayLoginEmail(emailOrUsername)
+    const resolvedEmail = await resolveDisplayAuthEmail(emailOrUsername)
     const trimmedPassword = password
 
     if (!resolvedEmail) {

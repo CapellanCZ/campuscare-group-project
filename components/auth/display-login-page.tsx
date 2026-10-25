@@ -71,7 +71,9 @@ export function DisplayLoginPage() {
     setPending(true)
     setError(null)
     try {
-      const result = await signInDisplayAccount(resolvedEmail, password)
+      // Pass the raw username/email so the server can map profile usernames
+      // (e.g. NUDHSODisplay) to the real Auth email.
+      const result = await signInDisplayAccount(email, password)
       if (!result.ok) {
         setError(
           asErrorMessage(result.error, "Could not sign in to the display.")
@@ -125,7 +127,7 @@ export function DisplayLoginPage() {
                   type="text"
                   autoComplete="username"
                   inputMode="text"
-                  placeholder={`NUHSODisplay or name@${displayLoginDomain}`}
+                  placeholder={`NUDHSODisplay or name@${displayLoginDomain}`}
                   value={email}
                   onChange={(e) => {
                     setEmail(e.target.value)

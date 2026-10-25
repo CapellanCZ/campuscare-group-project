@@ -25,7 +25,8 @@ export function getDisplayLoginEmailDomain(): string {
 
 /**
  * Display kiosk identity: full email, or username → `username@domain`.
- * Example: `NUHSODisplay` → `nuhsodisplay@gmail.com` (domain configurable).
+ * Example: `hsoqueuedisplay` → `hsoqueuedisplay@gmail.com` (domain configurable).
+ * Server sign-in also resolves usernames stored in `users.email` (see resolveDisplayAuthEmail).
  */
 export function resolveDisplayLoginEmail(value: string): string | null {
   const trimmed = value.trim().toLowerCase()
