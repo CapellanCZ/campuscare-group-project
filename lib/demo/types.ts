@@ -10,6 +10,6 @@ export type DemoStat = {
   icon?: ReactNode
   /** Tailwind classes for the icon (e.g. text-emerald-600). */
   iconClassName?: string
-  /** Blue number — use when the metric increased since last visit. */
+  /** Blue + bump — only while the metric is newly increased vs the seen baseline. */
   highlight?: boolean
 }

@@ -10,6 +10,8 @@ import {
 } from "react"
 import { documentToasts } from "@/lib/feedback/toast-messages"
 import {
+  IconCalendarMonth,
+  IconClockHour4,
   IconEye,
   IconFileText,
   IconFileTypePdf,
@@ -29,8 +31,15 @@ import { StudentIdSearchInput } from "@/components/shared/student-id-search-inpu
 import { DENTIST_PATIENT_SEARCH_PLACEHOLDER } from "@/lib/students/patient-search-copy"
 import { DemoPageHeader, DemoStatGrid } from "@/components/demo/demo-page"
 import {
+  PanelCell,
+  PanelFrame,
+  PanelGrid,
+  panelCardClassName,
+} from "@/components/layout/panel-frame"
+import {
   formatCertificateDateTime,
 } from "@/features/certificates/lib/format"
+import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -120,32 +129,103 @@ import { STAFF_REALTIME_TABLES } from "@/lib/health/realtime"
 
 const PAGE_SIZE = 10
 const SEARCH_DEBOUNCE_MS = 300
+const DOC_STATS_BASELINE_KEY = "campuscare:document-stats-baseline"
 
-function toStatCards(stats: MedicalCertificateStats): DemoStat[] {
+type DocumentStatsBaseline = {
+  issuedThisMonth: number
+  issuedToday: number
+  drafts: number
+  pending: number
+}
+
+function readDocumentStatsBaseline(): DocumentStatsBaseline | null {
+  if (typeof window === "undefined") return null
+  try {
+    const raw = window.sessionStorage.getItem(DOC_STATS_BASELINE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as DocumentStatsBaseline
+    if (
+      typeof parsed.issuedThisMonth !== "number" ||
+      typeof parsed.issuedToday !== "number" ||
+      typeof parsed.drafts !== "number" ||
+      typeof parsed.pending !== "number"
+    ) {
+      return null
+    }
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function writeDocumentStatsBaseline(stats: MedicalCertificateStats) {
+  try {
+    window.sessionStorage.setItem(
+      DOC_STATS_BASELINE_KEY,
+      JSON.stringify({
+        issuedThisMonth: stats.issuedThisMonth,
+        issuedToday: stats.issuedToday,
+        drafts: stats.drafts,
+        pending: stats.pending,
+      } satisfies DocumentStatsBaseline)
+    )
+  } catch {
+    /* ignore */
+  }
+}
+
+function toBaseline(stats: MedicalCertificateStats): DocumentStatsBaseline {
+  return {
+    issuedThisMonth: stats.issuedThisMonth,
+    issuedToday: stats.issuedToday,
+    drafts: stats.drafts,
+    pending: stats.pending,
+  }
+}
+
+function toStatCards(
+  stats: MedicalCertificateStats,
+  baseline: DocumentStatsBaseline | null
+): DemoStat[] {
+  const grew = (key: keyof DocumentStatsBaseline) =>
+    baseline != null && stats[key] > baseline[key]
+
   return [
     {
       key: "issued",
       label: "Issued this month",
       value: String(stats.issuedThisMonth),
       description: "All types",
+      icon: <IconCalendarMonth stroke={1.75} aria-hidden />,
+      iconClassName: "bg-primary/12 text-primary",
+      highlight: grew("issuedThisMonth"),
     },
     {
       key: "today",
       label: "Issued today",
       value: String(stats.issuedToday),
       description: "Ready to print",
+      icon: <IconPrinter stroke={1.75} aria-hidden />,
+      iconClassName: "bg-success/12 text-success",
+      highlight: grew("issuedToday"),
     },
     {
       key: "draft",
       label: "Drafts",
       value: String(stats.drafts),
       description: "Incomplete",
+      icon: <IconPencil stroke={1.75} aria-hidden />,
+      iconClassName: "bg-warning/15 text-warning",
+      highlight: grew("drafts"),
     },
     {
       key: "pending",
       label: "Pending request",
       value: String(stats.pending),
       description: "From consultations",
+      icon: <IconClockHour4 stroke={1.75} aria-hidden />,
+      iconClassName: "bg-muted text-muted-foreground",
+      highlight: grew("pending"),
     },
   ]
 }
@@ -344,7 +424,38 @@ export function CertificatesPage({
     void loadPage(debouncedQuery, page)
   }, [debouncedQuery, page, loadPage, documentTypeFilter, statusFilter])
 
-  const statCards = useMemo(() => toStatCards(stats), [stats])
+  const [statsBaseline, setStatsBaseline] =
+    useState<DocumentStatsBaseline | null>(null)
+  const statsBaselineReady = useRef(false)
+
+  useEffect(() => {
+    if (statsBaselineReady.current) return
+    statsBaselineReady.current = true
+    const existing = readDocumentStatsBaseline()
+    if (existing) {
+      setStatsBaseline(existing)
+      return
+    }
+    // First open this session — seed quietly so nothing looks “new” yet.
+    const seed = toBaseline(stats)
+    writeDocumentStatsBaseline(stats)
+    setStatsBaseline(seed)
+  }, [stats])
+
+  useEffect(() => {
+    if (!statsBaseline) return
+    // After staff can notice a blue “new” count, lock the baseline as seen.
+    const id = window.setTimeout(() => {
+      writeDocumentStatsBaseline(stats)
+      setStatsBaseline(toBaseline(stats))
+    }, 12_000)
+    return () => window.clearTimeout(id)
+  }, [stats, statsBaseline])
+
+  const statCards = useMemo(
+    () => toStatCards(stats, statsBaseline),
+    [stats, statsBaseline]
+  )
   const rows = list.items
   const hasRows = rows.length > 0
   const { showInitialSkeleton, isRefreshing } = staleListBusy(
@@ -479,28 +590,68 @@ export function CertificatesPage({
         />
       </div>
 
-      {cardsLevel !== "none" ? (
-        <div className="print:hidden">
-          <DemoStatGrid stats={statCards} />
-        </div>
-      ) : null}
-
-      <Card className="min-w-0 shadow-none print:hidden dark:ring-0">
-        <CardHeader
-          className={cn(
-            "gap-4 border-b px-6 py-5 sm:flex-row sm:items-center sm:justify-between",
-            d === "dentist" && "gap-4 px-6 py-5"
-          )}
-        >
-          <CardTitle className="text-base">
-            Document repository
-            {cardsLevel === "view" ? (
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
-                (view only)
-              </span>
+      <PanelFrame className="print:hidden">
+        <PanelGrid>
+          {cardsLevel !== "none" ? (
+            <PanelCell>
+              <DemoStatGrid
+                stats={statCards}
+                framed={false}
+                variant="lane"
+              />
+            </PanelCell>
+          ) : null}
+          <PanelCell>
+      <Card className={cn(panelCardClassName, "min-w-0 gap-0 py-0 shadow-none dark:ring-0")}>
+        <CardHeader className="gap-3 border-b px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-4">
+          <div className="min-w-0">
+            <CardTitle className="text-base">
+              Document repository
+              {cardsLevel === "view" ? (
+                <span className="ml-2 text-sm font-normal text-muted-foreground">
+                  (view only)
+                </span>
+              ) : null}
+            </CardTitle>
+            <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">
+              {list.total} document{list.total === 1 ? "" : "s"}
+              {documentTypeFilter !== "all"
+                ? ` · ${DOCUMENT_TYPE_LABELS[documentTypeFilter]}`
+                : ""}
+              {statusFilter !== "all"
+                ? ` · ${documentStatusLabel(statusFilter)}`
+                : ""}
+              {debouncedQuery.trim() ? " matching search" : ""}
+            </p>
+          </div>
+          <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+            {can(d, "certificates.search_patient") ? (
+              d === "nurse" || d === "physician" ? (
+                <StudentIdSearchInput
+                  className="w-full sm:w-56 lg:w-64"
+                  value={query}
+                  onChange={setQuery}
+                  placeholder="Search by student ID number"
+                  aria-label="Search by student ID number"
+                />
+              ) : (
+                <Input
+                  className="h-9 w-full sm:w-56 lg:w-64"
+                  placeholder={
+                    d === "dentist"
+                      ? DENTIST_PATIENT_SEARCH_PLACEHOLDER
+                      : "Search by Student ID"
+                  }
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  aria-label={
+                    d === "dentist"
+                      ? DENTIST_PATIENT_SEARCH_PLACEHOLDER
+                      : "Search by Student ID"
+                  }
+                />
+              )
             ) : null}
-          </CardTitle>
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
             <Select
               value={documentTypeFilter}
               items={selectItemsRecord([
@@ -515,7 +666,10 @@ export function CertificatesPage({
                 setPage(1)
               }}
             >
-              <SelectTrigger className="sm:w-44">
+              <SelectTrigger
+                className="h-9 w-full shrink-0 sm:w-40"
+                aria-label="Filter by document type"
+              >
                 <SelectValue placeholder="Document type" />
               </SelectTrigger>
               <SelectContent>
@@ -538,7 +692,10 @@ export function CertificatesPage({
                 setPage(1)
               }}
             >
-              <SelectTrigger className="sm:w-36">
+              <SelectTrigger
+                className="h-9 w-full shrink-0 sm:w-36"
+                aria-label="Filter by status"
+              >
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -550,35 +707,8 @@ export function CertificatesPage({
                 ))}
               </SelectContent>
             </Select>
-            {can(d, "certificates.search_patient") ? (
-              d === "nurse" || d === "physician" ? (
-                <StudentIdSearchInput
-                  className="sm:w-72"
-                  value={query}
-                  onChange={setQuery}
-                  placeholder="Search by student ID number"
-                  aria-label="Search by student ID number"
-                />
-              ) : (
-                <Input
-                  className="sm:w-72"
-                  placeholder={
-                    d === "dentist"
-                      ? DENTIST_PATIENT_SEARCH_PLACEHOLDER
-                      : "Search by Student ID"
-                  }
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  aria-label={
-                    d === "dentist"
-                      ? DENTIST_PATIENT_SEARCH_PLACEHOLDER
-                      : "Search by Student ID"
-                  }
-                />
-              )
-            ) : null}
             {canCreateFromRepo ? (
-              <Button className="shrink-0" onClick={openCreate}>
+              <Button className="h-9 shrink-0" onClick={openCreate}>
                 New Medical Certificate
               </Button>
             ) : null}
@@ -614,26 +744,41 @@ export function CertificatesPage({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Patient</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Issued</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="w-[28%] min-w-[10rem] pl-4 sm:pl-5">
+                      Patient
+                    </TableHead>
+                    <TableHead className="w-[14%]">Type</TableHead>
+                    <TableHead className="w-[28%]">Issued</TableHead>
+                    <TableHead className="w-[12%]">Status</TableHead>
+                    <TableHead className="w-[18%] pr-4 text-right sm:pr-5">
+                      Actions
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {rows.map((row) => (
                     <TableRow key={row.id}>
-                      <TableCell>
-                        <p className="font-medium">{row.patient.fullName}</p>
-                        <p className="text-xs text-muted-foreground">
+                      <TableCell className="max-w-0 pl-4 sm:pl-5">
+                        <p className="truncate font-medium text-foreground">
+                          {row.patient.fullName}
+                        </p>
+                        <p className="text-xs tabular-nums text-muted-foreground">
                           {row.patient.studentId ?? "—"}
                         </p>
                       </TableCell>
-                      <TableCell>{documentTypeLabel(row)}</TableCell>
                       <TableCell>
-                        <p>{formatCertificateDateTime(row.issuedAt)}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <Badge
+                          variant="secondary"
+                          className="max-w-full truncate font-normal"
+                        >
+                          {documentTypeLabel(row)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <p className="text-sm tabular-nums">
+                          {formatCertificateDateTime(row.issuedAt)}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
                           {row.documentNumber} · {row.doctorName ?? "—"}
                         </p>
                       </TableCell>
@@ -652,14 +797,14 @@ export function CertificatesPage({
                           }
                         />
                       </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap justify-end gap-1">
+                      <TableCell className="pr-4 sm:pr-5">
+                        <div className="flex flex-wrap justify-end gap-0.5">
                           {can(d, "certificates.view_history") ||
                           can(d, "certificates.preview") ? (
                             <Button
                               size="icon-sm"
                               variant="ghost"
-                              className="size-7 text-muted-foreground"
+                              className="size-8 text-foreground/70 hover:text-foreground"
                               aria-label="View document"
                               title="View"
                               onClick={() => openFilePreview(row)}
@@ -671,7 +816,7 @@ export function CertificatesPage({
                             <Button
                               size="icon-sm"
                               variant="ghost"
-                              className="size-7 text-muted-foreground"
+                              className="size-8 text-foreground/70 hover:text-foreground"
                               aria-label="Document details"
                               title="Details"
                               onClick={() => openDocumentDetails(row)}
@@ -792,6 +937,9 @@ export function CertificatesPage({
           )}
         </CardContent>
       </Card>
+          </PanelCell>
+        </PanelGrid>
+      </PanelFrame>
 
       <DocumentDetailSheet
         document={selected}

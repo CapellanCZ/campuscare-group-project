@@ -58,7 +58,7 @@ export function ReportAnalyticsCard({
           </CardDescription>
         ) : null}
       </CardHeader>
-      <CardContent className="flex flex-1 flex-col pt-0">
+      <CardContent className="flex min-h-0 flex-1 flex-col justify-center pt-0">
         <ReportChartCard series={series} embedded />
       </CardContent>
     </Card>

@@ -233,6 +233,13 @@ async function attachPatientAvatars(
   }))
 }
 
+/** Appointment statuses that must not appear on the live nurse queue yet. */
+const UNAPPROVED_APPOINTMENT_STATUSES = new Set([
+  "pending",
+  "waitlisted",
+  "rescheduled",
+])
+
 async function attachAppointmentStartsAt(
   supabase: Awaited<ReturnType<typeof createClient>>,
   tickets: RawQueueTicket[]
@@ -248,16 +255,20 @@ async function attachAppointmentStartsAt(
   }
 
   const startsByAppointment = new Map<string, string>()
+  const statusByAppointment = new Map<string, string>()
   const startsByRequest = new Map<string, string>()
 
   if (appointmentIds.size > 0) {
     const { data } = await supabase
       .from("appointments")
-      .select("id, starts_at")
+      .select("id, starts_at, status")
       .in("id", [...appointmentIds])
     for (const row of data ?? []) {
       if (row.starts_at) {
         startsByAppointment.set(String(row.id), String(row.starts_at))
+      }
+      if (row.status) {
+        statusByAppointment.set(String(row.id), String(row.status))
       }
     }
   }
@@ -276,7 +287,17 @@ async function attachAppointmentStartsAt(
     }
   }
 
-  return tickets.map((ticket) => {
+  // Legacy mobile bookings created waiting tickets before nurse approve —
+  // keep those off the live queue until the appointment is confirmed.
+  const approvedTickets = tickets.filter((ticket) => {
+    const apptId = ticket.health_appointment_id ?? ticket.appointment_id
+    if (!apptId) return true
+    const status = statusByAppointment.get(apptId)
+    if (!status) return true
+    return !UNAPPROVED_APPOINTMENT_STATUSES.has(status)
+  })
+
+  return approvedTickets.map((ticket) => {
     const apptId = ticket.health_appointment_id ?? ticket.appointment_id
     const fromAppt = apptId ? startsByAppointment.get(apptId) : undefined
     const fromReq = ticket.consultation_request_id

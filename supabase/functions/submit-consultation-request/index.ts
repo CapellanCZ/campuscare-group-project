@@ -1,5 +1,6 @@
 /**
- * Mobile/web submit: capacity check + reserve queue number on appointments.
+ * Mobile/web submit: capacity check + pending appointment for nurse review.
+ * Queue tickets are created only on nurse approve/admit.
  */
 
 const corsHeaders: Record<string, string> = {
@@ -8,7 +9,6 @@ const corsHeaders: Record<string, string> = {
     "authorization, x-client-info, apikey, content-type",
 }
 
-const EARLY_QUEUE_THRESHOLD = 5
 const CAMPUS_CLINIC_ID = "34ad8ef3-74c6-4ac5-b64b-0fe28e6f848b"
 
 function json(obj: unknown, status = 200) {
@@ -234,39 +234,19 @@ Deno.serve(async (req) => {
   const dayEnd = encodeURIComponent(
     new Date(`${preferredDate}T23:59:59.999+08:00`).toISOString()
   )
+  // Pending/confirmed hold capacity; waitlisted is overflow and does not count.
   const apptRes = await fetch(
-    `${supabaseUrl}/rest/v1/appointments?provider_type=eq.${providerType}&starts_at=gte.${dayStart}&starts_at=lte.${dayEnd}&queue_number=not.is.null&status=not.in.(cancelled,no_show,completed)&select=id`,
+    `${supabaseUrl}/rest/v1/appointments?provider_type=eq.${providerType}&starts_at=gte.${dayStart}&starts_at=lte.${dayEnd}&status=in.(pending,rescheduled,confirmed,in_progress)&select=id`,
     { headers: authHeaders }
   )
   const appts = (await apptRes.json()) as { id: string }[]
   const used = Array.isArray(appts) ? appts.length : 0
-
-  // Next ticket/appointment number = max assigned today + 1 (never reuse gaps).
-  const [apptNumRes, ticketNumRes] = await Promise.all([
-    fetch(
-      `${supabaseUrl}/rest/v1/appointments?provider_type=eq.${providerType}&starts_at=gte.${dayStart}&starts_at=lte.${dayEnd}&queue_number=not.is.null&select=queue_number&order=queue_number.desc&limit=1`,
-      { headers: authHeaders }
-    ),
-    fetch(
-      `${supabaseUrl}/rest/v1/health_queue_tickets?service_date=eq.${preferredDate}&provider_type=eq.${providerType}&queue_number=not.is.null&select=queue_number&order=queue_number.desc&limit=1`,
-      { headers: authHeaders }
-    ),
-  ])
-  const apptNumRows = (await apptNumRes.json()) as { queue_number: number }[]
-  const ticketNumRows = (await ticketNumRes.json()) as { queue_number: number }[]
-  const maxAssigned = Math.max(
-    0,
-    Number(apptNumRows?.[0]?.queue_number) || 0,
-    Number(ticketNumRows?.[0]?.queue_number) || 0
-  )
 
   const startsAt = manilaDateTimeToIso(preferredDate, preferredTime)
   const endsAt = new Date(
     new Date(startsAt).getTime() + 30 * 60 * 1000
   ).toISOString()
   const now = new Date().toISOString()
-  const service =
-    providerType === "dentist" ? "Dental consultation" : "General consultation"
 
   // Optional patient lookup
   let patientId: string | null = body.patientId
@@ -373,7 +353,7 @@ Deno.serve(async (req) => {
     })
   }
 
-  const nextNumber = maxAssigned + 1
+  // Pending only — nurse approve creates the queue ticket + number.
   const insertAppt = await fetch(`${supabaseUrl}/rest/v1/appointments`, {
     method: "POST",
     headers,
@@ -386,59 +366,11 @@ Deno.serve(async (req) => {
       status: "pending",
       reason,
       provider_type: providerType,
-      queue_number: nextNumber,
     }),
   })
   if (!insertAppt.ok) return json({ error: await insertAppt.text() }, 400)
   const apptRows = (await insertAppt.json()) as { id: string }[]
   const appointmentId = apptRows[0]?.id
-  // Same M-/D- format as nurse walk-ins so display + nurse never disagree.
-  const ticketPrefix = providerType === "dentist" ? "D" : "M"
-  const ticketCode = `${ticketPrefix}-${String(nextNumber).padStart(3, "0")}`
-
-  const insertTicket = await fetch(
-    `${supabaseUrl}/rest/v1/health_queue_tickets`,
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        ticket_code: ticketCode,
-        queue_position: nextNumber,
-        queue_number: nextNumber,
-        estimated_wait_minutes: nextNumber * 10,
-        status: "waiting",
-        station: "nurse",
-        service_date: preferredDate,
-        patient_id: patientId,
-        patient_name: patientName,
-        campus_id: studentId,
-        consultation_type: service,
-        chief_complaint: reason,
-        appointment_id: appointmentId,
-        provider_type: providerType,
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      }),
-    }
-  )
-  if (!insertTicket.ok) {
-    await fetch(`${supabaseUrl}/rest/v1/appointments?id=eq.${appointmentId}`, {
-      method: "DELETE",
-      headers: authHeaders,
-    })
-    return json({ error: await insertTicket.text() }, 400)
-  }
-  const ticketRows = (await insertTicket.json()) as { id: string }[]
-  const queueTicketId = ticketRows[0]?.id
-
-  await fetch(`${supabaseUrl}/rest/v1/appointments?id=eq.${appointmentId}`, {
-    method: "PATCH",
-    headers,
-    body: JSON.stringify({
-      queue_ticket_id: queueTicketId,
-      queue_number: nextNumber,
-      updated_at: now,
-    }),
-  })
 
   await notifyNursesOfScheduledAppointment({
     supabaseUrl,
@@ -452,7 +384,6 @@ Deno.serve(async (req) => {
     status: "pending",
   })
 
-  const early = nextNumber <= EARLY_QUEUE_THRESHOLD
   return json({
     appointmentId,
     requestId: appointmentId,
@@ -461,12 +392,10 @@ Deno.serve(async (req) => {
     preferredDate,
     preferredTime,
     startsAt,
-    queueNumber: nextNumber,
-    queueTicketId,
-    recommendComeEarly: early,
-    messageKeys: early
-      ? ["queue.assigned", "recommendation.early_slot"]
-      : ["queue.assigned"],
+    queueNumber: null,
+    queueTicketId: null,
+    recommendComeEarly: false,
+    messageKeys: ["queue.pending_review"],
     capacityUsed: used + 1,
     capacityMax: max,
   })

@@ -159,8 +159,15 @@ export function ReportChartCard({
       ...data.map((point) => Math.ceil(point.label.length * 7.2) + 12)
     )
   )
-  const chartHeight =
-    kind === "hbar" ? Math.max(220, 36 + data.length * 28) : 220
+  const maxValue = Math.max(
+    0,
+    ...data.map((point) =>
+      Math.max(point.value, point.secondary, point.tertiary)
+    )
+  )
+  /** Keep sparse clinic counts readable — avoid flat lines hugging the axis. */
+  const yDomainMax = Math.max(3, Math.ceil(maxValue * 1.25))
+  const plotHeight = kind === "hbar" ? Math.max(200, 40 + data.length * 28) : 200
   const config =
     kind === "stackedBar"
       ? stackedConfig
@@ -169,18 +176,15 @@ export function ReportChartCard({
         : trendConfig
 
   const chart = empty ? (
-    <p className="flex h-[220px] items-center justify-center text-center text-sm text-muted-foreground">
+    <p className="flex h-[200px] items-center justify-center text-center text-sm text-muted-foreground">
       No data available for the selected period.
     </p>
   ) : (
     <>
       <ChartContainer
         config={config}
-        className={cn(
-          "!aspect-auto w-full justify-center",
-          kind === "hbar" ? undefined : "h-[220px]"
-        )}
-        style={kind === "hbar" ? { height: chartHeight } : undefined}
+        className="!aspect-auto h-[200px] w-full justify-center"
+        style={kind === "hbar" ? { height: plotHeight } : undefined}
       >
         {kind === "pie" ? (
           <PieChart>
@@ -203,10 +207,24 @@ export function ReportChartCard({
             <Legend />
           </PieChart>
         ) : kind === "stackedBar" ? (
-          <BarChart data={data} margin={{ left: 8, right: 8, top: 8 }}>
-            <CartesianGrid vertical={false} />
-            <XAxis dataKey="label" tickLine={false} axisLine={false} />
-            <YAxis tickLine={false} axisLine={false} width={32} />
+          <BarChart
+            data={data}
+            margin={{ left: 4, right: 12, top: 12, bottom: 4 }}
+          >
+            <CartesianGrid vertical={false} strokeDasharray="3 3" />
+            <XAxis
+              dataKey="label"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+            />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              width={36}
+              allowDecimals={false}
+              domain={[0, yDomainMax]}
+            />
             <ChartTooltip content={<ChartTooltipContent />} />
             <Legend />
             <Bar
@@ -234,10 +252,16 @@ export function ReportChartCard({
           <BarChart
             data={data}
             layout="vertical"
-            margin={{ left: 8, right: 16, top: 8, bottom: 8 }}
+            margin={{ left: 4, right: 20, top: 8, bottom: 8 }}
           >
-            <CartesianGrid horizontal={false} />
-            <XAxis type="number" tickLine={false} axisLine={false} />
+            <CartesianGrid horizontal={false} strokeDasharray="3 3" />
+            <XAxis
+              type="number"
+              tickLine={false}
+              axisLine={false}
+              allowDecimals={false}
+              domain={[0, yDomainMax]}
+            />
             <YAxis
               type="category"
               dataKey="label"
@@ -248,7 +272,7 @@ export function ReportChartCard({
               tick={{ fontSize: 11 }}
             />
             <ChartTooltip content={<ChartTooltipContent />} />
-            <Bar dataKey="value" radius={4}>
+            <Bar dataKey="value" radius={4} barSize={18}>
               {data.map((entry) => (
                 <Cell
                   key={entry.label}
@@ -267,17 +291,32 @@ export function ReportChartCard({
             </Bar>
           </BarChart>
         ) : kind === "bar" ? (
-          <BarChart data={data} margin={{ left: 8, right: 8 }}>
-            <CartesianGrid vertical={false} />
-            <XAxis dataKey="label" tickLine={false} axisLine={false} />
-            <YAxis tickLine={false} axisLine={false} width={32} />
+          <BarChart
+            data={data}
+            margin={{ left: 4, right: 12, top: 12, bottom: 4 }}
+          >
+            <CartesianGrid vertical={false} strokeDasharray="3 3" />
+            <XAxis
+              dataKey="label"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+            />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              width={36}
+              allowDecimals={false}
+              domain={[0, yDomainMax]}
+            />
             <ChartTooltip content={<ChartTooltipContent />} />
             {showSecondary && !patientTypeBreakdown ? <Legend /> : null}
             <Bar
               dataKey="value"
               name={valueLabel}
               fill={patientTypeBreakdown ? undefined : "var(--color-value)"}
-              radius={4}
+              radius={[4, 4, 0, 0]}
+              maxBarSize={48}
             >
               {patientTypeBreakdown
                 ? data.map((entry) => (
@@ -295,7 +334,8 @@ export function ReportChartCard({
                 fill={
                   patientTypeBreakdown ? undefined : "var(--color-secondary)"
                 }
-                radius={4}
+                radius={[4, 4, 0, 0]}
+                maxBarSize={48}
               >
                 {patientTypeBreakdown
                   ? data.map((entry) => (
@@ -310,10 +350,24 @@ export function ReportChartCard({
             ) : null}
           </BarChart>
         ) : (
-          <LineChart data={data} margin={{ left: 8, right: 8 }}>
-            <CartesianGrid vertical={false} />
-            <XAxis dataKey="label" tickLine={false} axisLine={false} />
-            <YAxis tickLine={false} axisLine={false} width={32} />
+          <LineChart
+            data={data}
+            margin={{ left: 4, right: 12, top: 12, bottom: 4 }}
+          >
+            <CartesianGrid vertical={false} strokeDasharray="3 3" />
+            <XAxis
+              dataKey="label"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+            />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              width={36}
+              allowDecimals={false}
+              domain={[0, yDomainMax]}
+            />
             <ChartTooltip content={<ChartTooltipContent />} />
             {showSecondary || showTertiary ? <Legend /> : null}
             <Line
@@ -321,8 +375,9 @@ export function ReportChartCard({
               dataKey="value"
               name={valueLabel}
               stroke="var(--color-value)"
-              strokeWidth={2}
-              dot={false}
+              strokeWidth={2.25}
+              dot={{ r: 3, strokeWidth: 0 }}
+              activeDot={{ r: 4 }}
             />
             {showSecondary ? (
               <Line
@@ -330,8 +385,9 @@ export function ReportChartCard({
                 dataKey="secondary"
                 name={secondaryLabel}
                 stroke="var(--color-secondary)"
-                strokeWidth={2}
-                dot={false}
+                strokeWidth={2.25}
+                dot={{ r: 3, strokeWidth: 0 }}
+                activeDot={{ r: 4 }}
               />
             ) : null}
             {showTertiary ? (

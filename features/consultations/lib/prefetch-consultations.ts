@@ -24,7 +24,7 @@ export type ConsultationsPageBundle = {
   stations: string[]
 }
 
-const PAGE_SIZE = 100
+const PAGE_SIZE = 20
 
 function defaultStation(role: ClinicDesignation): string {
   if (role === "dentist") return "dentist"

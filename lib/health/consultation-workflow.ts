@@ -165,10 +165,12 @@ export function recommendationMessageKeys(input: {
   patientsAhead?: number | null
   assigned?: boolean
   waitlisted?: boolean
+  pendingReview?: boolean
   threeAhead?: boolean
   called?: boolean
 }): string[] {
   const keys: string[] = []
+  if (input.pendingReview) keys.push("queue.pending_review")
   if (input.assigned) keys.push("queue.assigned")
   if (input.waitlisted) keys.push("queue.waitlisted")
   if (recommendComeEarly(input.queueNumber ?? null)) {

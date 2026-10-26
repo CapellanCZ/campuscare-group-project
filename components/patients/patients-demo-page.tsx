@@ -813,45 +813,43 @@ export function PatientsPage({
             </p>
           </div>
           <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-            <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
-              <Select
-                value={patientTypeFilter}
-                items={selectItemsRecord(PATIENT_TYPE_FILTER_OPTIONS)}
-                onValueChange={(value) => {
-                  setPatientTypeFilter(value as PatientRecordTypeFilter)
-                  setPage(1)
-                }}
+            {can(access.designation, "patients.search") ? (
+              <div className="relative w-full sm:w-56 lg:w-64">
+                <IconSearch
+                  className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <Input
+                  className="h-9 pl-8"
+                  placeholder={PATIENT_SEARCH_PLACEHOLDER}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  aria-label={PATIENT_SEARCH_PLACEHOLDER}
+                />
+              </div>
+            ) : null}
+            <Select
+              value={patientTypeFilter}
+              items={selectItemsRecord(PATIENT_TYPE_FILTER_OPTIONS)}
+              onValueChange={(value) => {
+                setPatientTypeFilter(value as PatientRecordTypeFilter)
+                setPage(1)
+              }}
+            >
+              <SelectTrigger
+                className="h-9 w-full shrink-0 sm:w-36"
+                aria-label="Patient type"
               >
-                <SelectTrigger
-                  className="h-9 w-full sm:w-36"
-                  aria-label="Patient type"
-                >
-                  <SelectValue placeholder="Patient type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {PATIENT_TYPE_FILTER_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {can(access.designation, "patients.search") ? (
-                <div className="relative w-full sm:w-64">
-                  <IconSearch
-                    className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                  <Input
-                    className="h-9 pl-8"
-                    placeholder={PATIENT_SEARCH_PLACEHOLDER}
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    aria-label={PATIENT_SEARCH_PLACEHOLDER}
-                  />
-                </div>
-              ) : null}
-            </div>
+                <SelectValue placeholder="Patient type" />
+              </SelectTrigger>
+              <SelectContent>
+                {PATIENT_TYPE_FILTER_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {can(access.designation, "patients.table") ? (
               <div className="flex flex-wrap items-center gap-2">
                 <PatientImportSheet toolbar onImported={refreshAfterImport} />

@@ -9,12 +9,6 @@ import {
 } from "@/lib/health/consultation-workflow"
 import { createClient } from "@/lib/supabase/server"
 
-const INACTIVE_APPOINTMENT_STATUSES = [
-  "cancelled",
-  "no_show",
-  "completed",
-] as const
-
 export type ClinicCapacityRow = {
   clinicId: string
   providerType: ConsultationProviderType
@@ -75,9 +69,18 @@ export async function upsertClinicCapacity(input: {
   if (error) throw error
 }
 
+/** Statuses that hold a daily capacity slot before/after nurse approve. */
+const CAPACITY_HOLDING_STATUSES = new Set([
+  "pending",
+  "rescheduled",
+  "confirmed",
+  "in_progress",
+])
+
 /**
  * Active appointment reservations for a Manila calendar day + provider.
- * Counts rows with a reserved queue_number, excluding terminal statuses.
+ * Pending requests count toward capacity even before a queue ticket exists.
+ * Waitlisted rows do not (they are overflow after capacity is full).
  */
 export async function countActiveReservations(
   providerType: ConsultationProviderType,
@@ -90,20 +93,15 @@ export async function countActiveReservations(
 
   const { data, error } = await supabase
     .from("appointments")
-    .select("id, status, queue_number")
+    .select("id, status")
     .eq("provider_type", providerType)
     .gte("starts_at", startIso)
     .lte("starts_at", endIso)
-    .not("queue_number", "is", null)
+    .in("status", [...CAPACITY_HOLDING_STATUSES])
 
   if (error) throw error
 
-  return (data ?? []).filter(
-    (row) =>
-      !INACTIVE_APPOINTMENT_STATUSES.includes(
-        row.status as (typeof INACTIVE_APPOINTMENT_STATUSES)[number]
-      )
-  ).length
+  return (data ?? []).length
 }
 
 export async function nextReservedQueueNumber(

@@ -56,7 +56,8 @@ export function ConsultationRecordsPanel({
   onDelete: (row: Consultation) => void
 }) {
   const d = access.designation
-  const dateLabel = emphasizeDate ? "Consultation date" : "Date"
+  // Keep one header label so Today / Upcoming / Earlier columns stay aligned.
+  const dateLabel = "Date"
 
   return (
     <>

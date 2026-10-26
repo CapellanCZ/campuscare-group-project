@@ -1,6 +1,7 @@
 "use client"
 
 import { Badge } from "@/components/ui/badge"
+import { AnimatedCount } from "@/components/shared/animated-count"
 import { StatCard } from "@/components/shared/stat-card"
 import {
   PageIntro,
@@ -98,14 +99,15 @@ export function DemoStatGrid({
                     {stat.label}
                   </span>
                 </span>
-                <p
+                <AnimatedCount
+                  value={Number.parseInt(stat.value, 10) || 0}
                   className={cn(
-                    "font-semibold text-2xl tracking-tight tabular-nums",
-                    stat.highlight ? "text-primary" : "text-foreground"
+                    "font-semibold text-2xl tracking-tight",
+                    stat.highlight
+                      ? "text-primary transition-colors duration-300"
+                      : "text-foreground transition-colors duration-500"
                   )}
-                >
-                  {stat.value}
-                </p>
+                />
                 {stat.description ? (
                   <span className="truncate text-xs text-muted-foreground">
                     {stat.description}

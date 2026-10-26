@@ -4,8 +4,6 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { CAMPUS_CLINIC_ID } from "@/lib/auth/campus-clinic"
 import {
-  consultationServiceLabel,
-  recommendComeEarly,
   recommendationMessageKeys,
   resolveConsultationProviderType,
   resolveProviderTypeFromBookingBody,
@@ -15,7 +13,10 @@ import {
   assertNoDoubleBooking,
 } from "@/lib/health/appointment-double-booking"
 import { normalizeConsultationReason } from "@/lib/health/consultation-display"
-import { nextReservedQueueNumber } from "@/services/consultation-capacity"
+import {
+  countActiveReservations,
+  getMaxDailySlots,
+} from "@/services/consultation-capacity"
 import { manilaDateTimeToIso } from "@/services/appointment-requests"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { notifyNursesOfScheduledAppointment } from "@/services/staff-appointment-notifications"
@@ -59,8 +60,8 @@ export type SubmitAppointmentRequestResult = {
 }
 
 /**
- * Create an appointment reservation (+ queue ticket if capacity allows).
- * Prefer admin/service-role client from Edge Function.
+ * Create a pending/waitlisted appointment for nurse review.
+ * Queue tickets are created only when a nurse approves (or admits waitlist).
  */
 export async function submitAppointmentRequestWithCapacity(
   input: SubmitAppointmentRequestInput,
@@ -103,15 +104,13 @@ export async function submitAppointmentRequestWithCapacity(
   const endsAt = new Date(
     new Date(startsAt).getTime() + 30 * 60 * 1000
   ).toISOString()
-  const serviceLabel = consultationServiceLabel(providerType)
 
-  const { nextNumber, used, max } = await nextReservedQueueNumber(
-    providerType,
-    preferredDate,
-    client
-  )
-  const now = new Date().toISOString()
   const clinicId = input.clinicId ?? CAMPUS_CLINIC_ID
+  const [used, max] = await Promise.all([
+    countActiveReservations(providerType, preferredDate, client),
+    getMaxDailySlots(providerType, clinicId, client),
+  ])
+  const now = new Date().toISOString()
 
   // Resolve / create minimal patient if needed
   let patientId = input.patientId ?? null
@@ -218,7 +217,6 @@ export async function submitAppointmentRequestWithCapacity(
       status: "pending",
       reason,
       provider_type: providerType,
-      queue_number: nextNumber,
     })
     .select("id")
     .single()
@@ -226,43 +224,6 @@ export async function submitAppointmentRequestWithCapacity(
   if (apptError) throw apptError
 
   const appointmentId = appt.id as string
-  const ticketCode = `CR-${String(nextNumber).padStart(4, "0")}`
-
-  const { data: ticket, error: ticketError } = await client
-    .from("health_queue_tickets")
-    .insert({
-      ticket_code: ticketCode,
-      queue_position: nextNumber,
-      queue_number: nextNumber,
-      estimated_wait_minutes: nextNumber * 10,
-      status: "waiting",
-      station: "nurse",
-      service_date: preferredDate,
-      patient_id: patientId,
-      patient_name: patientName,
-      campus_id: input.studentId?.trim() || null,
-      consultation_type: serviceLabel,
-      chief_complaint: reason,
-      appointment_id: appointmentId,
-      provider_type: providerType,
-      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    })
-    .select("id")
-    .single()
-
-  if (ticketError) {
-    await client.from("appointments").delete().eq("id", appointmentId)
-    throw ticketError
-  }
-
-  await client
-    .from("appointments")
-    .update({
-      queue_ticket_id: ticket.id,
-      queue_number: nextNumber,
-      updated_at: now,
-    })
-    .eq("id", appointmentId)
 
   try {
     void notifyNursesOfScheduledAppointment(createAdminClient(), {
@@ -285,13 +246,10 @@ export async function submitAppointmentRequestWithCapacity(
     preferredDate,
     preferredTime,
     startsAt,
-    queueNumber: nextNumber,
-    queueTicketId: ticket.id as string,
-    recommendComeEarly: recommendComeEarly(nextNumber),
-    messageKeys: recommendationMessageKeys({
-      assigned: true,
-      queueNumber: nextNumber,
-    }),
+    queueNumber: null,
+    queueTicketId: null,
+    recommendComeEarly: false,
+    messageKeys: recommendationMessageKeys({ pendingReview: true }),
     capacityUsed: used + 1,
     capacityMax: max,
   }
