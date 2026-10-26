@@ -74,7 +74,10 @@ async function notifyNursesOfScheduledAppointment(params: {
     const rows = nurseIds.map((userId) => ({
       user_id: userId,
       type: "consultation_request",
-      title: "Appointment scheduled",
+      title:
+        params.status === "waitlisted"
+          ? "Appointment waitlisted"
+          : "New appointment request",
       body: `${params.patientName} · ${specialty} · ${params.preferredDate} ${params.preferredTime}${waitlisted}`,
       href: "/nurse/requests",
       read_at: null,

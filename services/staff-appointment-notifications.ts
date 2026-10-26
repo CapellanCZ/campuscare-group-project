@@ -48,7 +48,10 @@ export async function notifyNursesOfScheduledAppointment(
     const specialty = providerLabel(input.providerType)
     const waitlisted =
       input.status === "waitlisted" ? " · waitlisted" : ""
-    const title = "Appointment scheduled"
+    const title =
+      input.status === "waitlisted"
+        ? "Appointment waitlisted"
+        : "New appointment request"
     const body = `${input.patientName} · ${specialty} · ${input.preferredDate} ${input.preferredTime}${waitlisted}`
     const now = new Date().toISOString()
 
