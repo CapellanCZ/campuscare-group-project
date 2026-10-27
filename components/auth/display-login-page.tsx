@@ -1,7 +1,9 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import {
+  IconChevronLeft,
   IconEye,
   IconEyeOff,
   IconLock,
@@ -23,6 +25,7 @@ import {
   getDisplayLoginEmailDomain,
   resolveDisplayLoginEmail,
 } from "@/lib/auth/email"
+import { siteRoutes } from "@/lib/site/routes"
 import { cn } from "@/lib/utils"
 
 const displayLoginDomain = getDisplayLoginEmailDomain()
@@ -91,7 +94,17 @@ export function DisplayLoginPage() {
   return (
     <main className="min-h-screen bg-white lg:grid lg:grid-cols-2">
       <section className="relative flex min-h-screen flex-col px-6 py-8 sm:px-10 lg:px-16 xl:px-20">
-        <div className="mx-auto flex w-full max-w-[26rem] flex-1 flex-col justify-center">
+        <Button
+          className="absolute top-6 left-4 text-slate-600 sm:left-8 lg:left-12 xl:left-16"
+          variant="ghost"
+          render={<Link href={siteRoutes.login} />}
+          nativeButton={false}
+        >
+          <IconChevronLeft data-icon="inline-start" />
+          Back to login
+        </Button>
+
+        <div className="mx-auto flex w-full max-w-[26rem] flex-1 flex-col justify-center pt-12 lg:pt-0">
           <div className="space-y-2">
             <h1 className="text-[2rem] leading-tight font-bold tracking-tight text-slate-900 sm:text-[2.25rem]">
               Welcome Back!
